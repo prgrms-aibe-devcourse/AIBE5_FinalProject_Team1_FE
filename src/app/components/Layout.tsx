@@ -11,13 +11,9 @@ import { useTheme } from "../contexts/ThemeContext";
 
 const navItems = [
   { path: "/workspace", label: "Dashboard" },
-  { path: "/project", label: "Project" },
   { path: "/prs", label: "PRs" },
   { path: "/issues", label: "Issues" },
   { path: "/chat", label: "Workspace" },
-  { path: "/api-spec", label: "API" },
-  { path: "/erd", label: "ERD" },
-  { path: "/docs", label: "Docs" },
 ];
 
 const currentUser = {
@@ -84,7 +80,7 @@ export function Layout() {
         <div className="relative mx-auto flex w-[min(1400px,100%)] items-center justify-between gap-4">
           <Link
             to="/"
-            className="flex items-center gap-3 no-underline transition-all duration-300"
+            className="codedock-brand-link flex items-center gap-3 no-underline transition-all duration-300"
             style={{
               color: "var(--white)",
               fontSize: "26px",
@@ -97,7 +93,7 @@ export function Layout() {
             aria-label="CodeDock 랜딩으로 이동"
           >
             <CoffeeLogo
-              className="h-16 w-16 flex-shrink-0"
+              className="codedock-header-logo h-16 w-16 flex-shrink-0"
               style={{ filter: `drop-shadow(0 0 14px ${colors.primary}, 0.3))` }}
             />
             <CodeDockWordmark accentColor={colors.primaryHex} />

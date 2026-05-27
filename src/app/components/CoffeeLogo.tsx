@@ -109,6 +109,7 @@ export function CoffeeLogo({ className = "", style, alive = false, eyeX, eyeY, m
           style={{ transformBox: "fill-box", transformOrigin: "50% 46%" }}
         >
           <motion.g
+            className="codedock-logo__ear codedock-logo__ear--left"
             animate={alive ? leftEarAnimation : undefined}
             transition={earTransition}
             style={{ transformBox: "fill-box", transformOrigin: "42% 100%" }}
@@ -124,6 +125,7 @@ export function CoffeeLogo({ className = "", style, alive = false, eyeX, eyeY, m
           </motion.g>
 
           <motion.g
+            className="codedock-logo__ear codedock-logo__ear--right"
             animate={alive ? rightEarAnimation : undefined}
             transition={{ ...earTransition, delay: isRiskMood ? 0.08 : 0.14 }}
             style={{ transformBox: "fill-box", transformOrigin: "58% 100%" }}
@@ -145,8 +147,9 @@ export function CoffeeLogo({ className = "", style, alive = false, eyeX, eyeY, m
             strokeWidth="7"
           />
 
-          <motion.g style={alive ? { x: eyeX, y: eyeY } : undefined}>
+          <motion.g className="codedock-logo__eyes" style={alive ? { x: eyeX, y: eyeY } : undefined}>
             <motion.g
+              className="codedock-logo__eye-pair"
               animate={alive ? { scaleY: [1, 1, 0.18, 1, 1] } : undefined}
               transition={{
                 duration: isRiskMood ? 2.7 : 4.8,
@@ -162,6 +165,7 @@ export function CoffeeLogo({ className = "", style, alive = false, eyeX, eyeY, m
           </motion.g>
 
           <motion.path
+            className="codedock-logo__mouth"
             d="M174 194c5 6 11 6 16 0"
             fill="none"
             stroke="#0B1628"
@@ -274,6 +278,7 @@ export function CoffeeLogo({ className = "", style, alive = false, eyeX, eyeY, m
         </motion.g>
 
         <motion.g
+          className="codedock-logo__mug"
           animate={
             alive
               ? isCtaMood
