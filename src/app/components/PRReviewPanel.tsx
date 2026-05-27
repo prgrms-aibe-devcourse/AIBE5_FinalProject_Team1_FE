@@ -1454,7 +1454,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR }: PRReviewPanelProps
                 key={file.id}
                 type="button"
                 onClick={() => setActiveFileId(file.id)}
-                className="rounded-xl p-3 text-left transition-all"
+                className="w-full min-w-0 overflow-hidden rounded-xl p-3 text-left transition-all"
                 style={{
                   background: isActive ? "rgba(32, 227, 255, 0.10)" : "transparent",
                   border: isActive ? "1px solid rgba(57, 255, 136, 0.28)" : "1px solid transparent",
