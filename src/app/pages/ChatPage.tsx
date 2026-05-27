@@ -1,6 +1,7 @@
 import { Hash, Users, GitPullRequest, Home, CheckSquare, Settings, ChevronDown, ChevronRight, GitBranch, Code2, Database, BookOpen, Maximize2, Minimize2, UserPlus, Plus, Pencil, Trash2, Check, X, type LucideIcon } from "lucide-react";
 import { ChatPanel } from "../components/ChatPanel";
 import { PRReviewPanel } from "../components/PRReviewPanel";
+import { IssuePanel } from "../components/IssuePanel";
 import { ThreadPanel } from "../components/ThreadPanel";
 import { ChannelPanel } from "../components/ChannelPanel";
 import { CoffeeLogo } from "../components/CoffeeLogo";
@@ -362,6 +363,7 @@ export function ChatPage() {
   const [selectedChannel, setSelectedChannel] = useState<string>('general');
   const [messages, setMessages] = useState<Record<string, any[]>>(initialMessages);
   const [selectedPR, setSelectedPR] = useState<any>(null);
+  const [selectedIssue, setSelectedIssue] = useState<any>(null);
   const [selectedThread, setSelectedThread] = useState<any>(null);
   const [threadReplies, setThreadReplies] = useState<Record<number, any[]>>(initialThreadReplies);
   const [isMainExpanded, setIsMainExpanded] = useState(false);
@@ -376,7 +378,7 @@ export function ChatPage() {
 
   const currentMessages = messages[selectedChannel] || [];
   const isRepository = ['pull-requests', 'ai-review'].includes(selectedChannel);
-  const gridTemplateColumns = selectedPR
+  const gridTemplateColumns = selectedPR || selectedIssue
     ? 'minmax(0, 1fr)'
     : isMainExpanded
       ? selectedThread
@@ -671,6 +673,7 @@ export function ChatPage() {
   const handleReviewPR = (prData: any) => {
     setIsMainExpanded(true);
     setSelectedPR(prData);
+    setSelectedIssue(null);
     setSelectedThread(null);
   };
 
@@ -680,9 +683,23 @@ export function ChatPage() {
     setIsMainExpanded(false);
   };
 
+  const handleViewIssue = (issueData: any) => {
+    setIsMainExpanded(true);
+    setSelectedIssue(issueData);
+    setSelectedPR(null);
+    setSelectedThread(null);
+  };
+
+  const handleCloseIssue = () => {
+    setSelectedIssue(null);
+    setSelectedThread(null);
+    setIsMainExpanded(false);
+  };
+
   const handleOpenThread = (message: any) => {
     setSelectedThread(message);
-    setSelectedPR(null); // 스레드 열 때 PR 리뷰 닫기
+    setSelectedPR(null);    // 스레드 열 때 PR 리뷰 닫기
+    setSelectedIssue(null); // 스레드 열 때 이슈 패널 닫기
   };
 
   const handleCloseThread = () => {
@@ -728,7 +745,7 @@ export function ChatPage() {
       <div className={chatGridClassName} style={{
         gridTemplateColumns
       }}>
-        {!selectedPR && (
+        {!selectedPR && !selectedIssue && (
           <section className="min-h-0 overflow-y-auto px-6 py-6 rounded-[30px] flex flex-col" style={{
             background: 'rgba(11, 22, 40, 0.82)',
             border: '1px solid rgba(32, 227, 255, 0.16)',
@@ -1121,7 +1138,7 @@ export function ChatPage() {
         </section>
         )}
 
-        {!selectedPR && (
+        {!selectedPR && !selectedIssue && (
           <section className="relative h-full min-h-0 rounded-[30px] overflow-hidden" style={{
             background: 'rgba(11, 22, 40, 0.82)',
             border: '1px solid rgba(32, 227, 255, 0.16)',
@@ -1183,6 +1200,7 @@ export function ChatPage() {
                 showAISummary={false}
                 onMergePR={handleMergePR}
                 onReviewPR={handleReviewPR}
+                onViewIssue={handleViewIssue}
                 onOpenThread={handleOpenThread}
                 isRepository={isRepository}
               />
@@ -1200,7 +1218,16 @@ export function ChatPage() {
           </section>
         )}
 
-        {selectedThread && !selectedPR && (
+        {selectedIssue && (
+          <section className="h-full min-h-0 rounded-[30px] overflow-hidden">
+            <IssuePanel
+              issueData={selectedIssue}
+              onClose={handleCloseIssue}
+            />
+          </section>
+        )}
+
+        {selectedThread && !selectedPR && !selectedIssue && (
           <section className="min-h-0 rounded-[30px] overflow-hidden">
             <ThreadPanel
               originalMessage={selectedThread}
