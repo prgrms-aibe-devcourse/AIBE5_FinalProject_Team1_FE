@@ -1,6 +1,7 @@
 import { Hash, Users, GitPullRequest, Home, CheckSquare, Settings, ChevronDown, ChevronRight, GitBranch, Code2, Database, BookOpen, Maximize2, Minimize2, UserPlus, Plus, Pencil, Trash2, Check, X, type LucideIcon } from "lucide-react";
 import { ChatPanel } from "../components/ChatPanel";
 import { PRReviewPanel } from "../components/PRReviewPanel";
+import { IssuePanel } from "../components/IssuePanel";
 import { ThreadPanel } from "../components/ThreadPanel";
 import { ChannelPanel } from "../components/ChannelPanel";
 import { CoffeeLogo } from "../components/CoffeeLogo";
@@ -220,9 +221,83 @@ const initialMessages: Record<string, any[]> = {
     { id: 2, user: 'AI Assistant', text: 'PR #456의 타입스크립트 마이그레이션 리뷰 중...', time: '오늘 09:35', type: 'system' as const }
   ],
   'issues': [
-    { id: 1, user: '김진필', text: 'Issue #45: 로그인 페이지 반응형 깨짐 현상', time: '오늘 10:00' },
-    { id: 2, user: '김준우', text: 'Issue #46: API 응답 시간 개선 필요', time: '오늘 10:30' },
-    { id: 3, user: '김진현', text: 'Issue #47: 다크모드 색상 일관성 문제', time: '오늘 11:00' }
+    {
+      id: 1,
+      user: 'GitHub Bot',
+      text: 'Issue #45 opened by 김진필: 로그인 페이지 반응형 깨짐 현상',
+      time: '오늘 10:00',
+      type: 'issue' as const,
+      issueNumber: 45,
+      issueTitle: '로그인 페이지 반응형 깨짐 현상',
+      issueStatus: 'in_progress' as const,
+      issueAuthor: '김진필',
+      issueLabels: [
+        { name: 'bug', color: '#EF4444' },
+        { name: 'frontend', color: '#06B6D4' },
+        { name: 'priority: high', color: '#F59E0B' },
+      ],
+      issuePriority: 'high' as const,
+      issueType: 'Bug',
+      issueAssignees: ['김진현', '안현'],
+      issueBody: `## 문제 설명\n모바일(375px) 환경에서 로그인 페이지의 입력 폼이 화면 밖으로 넘칩니다.\n\n## 재현 방법\n1. 브라우저 DevTools에서 모바일 뷰로 전환\n2. /login 접속\n3. 이메일 입력 필드가 화면 우측으로 벗어남\n\n## 기대 동작\n모든 해상도에서 폼이 정상적으로 표시되어야 함\n\n## 환경\n- Chrome 120\n- iPhone SE (375px)`,
+      issueHistory: [
+        { id: 'h1', actor: '김진필', action: '이슈를 생성했습니다', time: '오늘 10:00', eventType: 'created' as const },
+        { id: 'h2', actor: '김진필', action: '김진현님을 담당자로 지정했습니다', time: '오늘 10:01', eventType: 'assigned' as const },
+        { id: 'h3', actor: '김진필', action: 'bug 라벨을 추가했습니다', time: '오늘 10:01', eventType: 'labeled' as const },
+        { id: 'h4', actor: '김진현', action: '재현 확인했습니다. flex-wrap 설정 누락인 것 같습니다.', time: '오늘 10:30', eventType: 'commented' as const },
+        { id: 'h5', actor: '김진현', action: '안현님을 담당자로 지정했습니다', time: '오늘 10:31', eventType: 'assigned' as const },
+        { id: 'h6', actor: '안현', action: '상태를 Open에서 In Progress로 변경했습니다', time: '오늘 11:00', eventType: 'status_changed' as const },
+      ],
+    },
+    {
+      id: 2,
+      user: 'GitHub Bot',
+      text: 'Issue #46 opened by 김준우: API 응답 시간 개선 필요',
+      time: '오늘 10:30',
+      type: 'issue' as const,
+      issueNumber: 46,
+      issueTitle: 'API 응답 시간 개선 필요',
+      issueStatus: 'open' as const,
+      issueAuthor: '김준우',
+      issueLabels: [
+        { name: 'enhancement', color: '#8B5CF6' },
+        { name: 'backend', color: '#06B6D4' },
+        { name: 'priority: medium', color: '#F59E0B' },
+      ],
+      issuePriority: 'medium' as const,
+      issueType: 'Enhancement',
+      issueAssignees: ['김재준'],
+      issueBody: `## 문제 설명\n일부 API 엔드포인트의 응답 시간이 2초 이상 소요됩니다.\n\n## 재현 방법\n1. /api/workspace/list 호출\n2. Network 탭에서 응답 시간 확인\n\n## 기대 동작\n모든 API 응답이 500ms 이내로 처리되어야 함\n\n## 환경\n- Spring Boot 3\n- Oracle DB`,
+      issueHistory: [
+        { id: 'h1', actor: '김준우', action: '이슈를 생성했습니다', time: '오늘 10:30', eventType: 'created' as const },
+        { id: 'h2', actor: '김준우', action: 'enhancement 라벨을 추가했습니다', time: '오늘 10:30', eventType: 'labeled' as const },
+        { id: 'h3', actor: '김준우', action: '김재준님을 담당자로 지정했습니다', time: '오늘 10:31', eventType: 'assigned' as const },
+      ],
+    },
+    {
+      id: 3,
+      user: 'GitHub Bot',
+      text: 'Issue #47 opened by 김진현: 다크모드 색상 일관성 문제',
+      time: '오늘 11:00',
+      type: 'issue' as const,
+      issueNumber: 47,
+      issueTitle: '다크모드 색상 일관성 문제',
+      issueStatus: 'open' as const,
+      issueAuthor: '김진현',
+      issueLabels: [
+        { name: 'design', color: '#EC4899' },
+        { name: 'frontend', color: '#06B6D4' },
+      ],
+      issuePriority: 'low' as const,
+      issueType: 'Design',
+      issueAssignees: ['김진현'],
+      issueBody: `## 문제 설명\n다크모드 전환 시 일부 컴포넌트에서 배경색과 텍스트 색상이 일치하지 않습니다.\n\n## 재현 방법\n1. 라이트 모드에서 다크 모드로 전환\n2. 설정 페이지 카드 컴포넌트 확인\n\n## 기대 동작\n다크모드에서 모든 컴포넌트가 일관된 색상 체계를 유지해야 함`,
+      issueHistory: [
+        { id: 'h1', actor: '김진현', action: '이슈를 생성했습니다', time: '오늘 11:00', eventType: 'created' as const },
+        { id: 'h2', actor: '김진현', action: 'design 라벨을 추가했습니다', time: '오늘 11:00', eventType: 'labeled' as const },
+        { id: 'h3', actor: '김진현', action: '상태를 Open에서 In Progress로 변경했습니다', time: '오늘 11:30', eventType: 'status_changed' as const },
+      ],
+    },
   ],
   'documentation': [
     { id: 1, user: '김진현', text: '디자인 시스템 문서 업데이트 완료', time: '오늘 09:00' },
@@ -288,6 +363,7 @@ export function ChatPage() {
   const [selectedChannel, setSelectedChannel] = useState<string>('overview');
   const [messages, setMessages] = useState<Record<string, any[]>>(initialMessages);
   const [selectedPR, setSelectedPR] = useState<any>(null);
+  const [selectedIssue, setSelectedIssue] = useState<any>(null);
   const [selectedThread, setSelectedThread] = useState<any>(null);
   const [threadReplies, setThreadReplies] = useState<Record<number, any[]>>(initialThreadReplies);
   const [isMainExpanded, setIsMainExpanded] = useState(false);
@@ -302,7 +378,7 @@ export function ChatPage() {
 
   const currentMessages = messages[selectedChannel] || [];
   const isRepository = ['pull-requests', 'ai-review'].includes(selectedChannel);
-  const gridTemplateColumns = selectedPR
+  const gridTemplateColumns = selectedPR || selectedIssue
     ? 'minmax(0, 1fr)'
     : isMainExpanded
       ? selectedThread
@@ -597,6 +673,7 @@ export function ChatPage() {
   const handleReviewPR = (prData: any) => {
     setIsMainExpanded(true);
     setSelectedPR(prData);
+    setSelectedIssue(null);
     setSelectedThread(null);
   };
 
@@ -606,9 +683,23 @@ export function ChatPage() {
     setIsMainExpanded(false);
   };
 
+  const handleViewIssue = (issueData: any) => {
+    setIsMainExpanded(true);
+    setSelectedIssue(issueData);
+    setSelectedPR(null);
+    setSelectedThread(null);
+  };
+
+  const handleCloseIssue = () => {
+    setSelectedIssue(null);
+    setSelectedThread(null);
+    setIsMainExpanded(false);
+  };
+
   const handleOpenThread = (message: any) => {
     setSelectedThread(message);
-    setSelectedPR(null); // 스레드 열 때 PR 리뷰 닫기
+    setSelectedPR(null);    // 스레드 열 때 PR 리뷰 닫기
+    setSelectedIssue(null); // 스레드 열 때 이슈 패널 닫기
   };
 
   const handleCloseThread = () => {
@@ -654,7 +745,7 @@ export function ChatPage() {
       <div className={chatGridClassName} style={{
         gridTemplateColumns
       }}>
-        {!selectedPR && (
+        {!selectedPR && !selectedIssue && (
           <section className="min-h-0 overflow-y-auto px-6 py-6 rounded-[30px] flex flex-col" style={{
             background: 'rgba(11, 22, 40, 0.82)',
             border: '1px solid rgba(32, 227, 255, 0.16)',
@@ -1047,7 +1138,7 @@ export function ChatPage() {
         </section>
         )}
 
-        {!selectedPR && (
+        {!selectedPR && !selectedIssue && (
           <section className="relative h-full min-h-0 rounded-[30px] overflow-hidden" style={{
             background: 'rgba(11, 22, 40, 0.82)',
             border: '1px solid rgba(32, 227, 255, 0.16)',
@@ -1109,6 +1200,7 @@ export function ChatPage() {
                 showAISummary={false}
                 onMergePR={handleMergePR}
                 onReviewPR={handleReviewPR}
+                onViewIssue={handleViewIssue}
                 onOpenThread={handleOpenThread}
                 isRepository={isRepository}
               />
@@ -1126,7 +1218,16 @@ export function ChatPage() {
           </section>
         )}
 
-        {selectedThread && !selectedPR && (
+        {selectedIssue && (
+          <section className="h-full min-h-0 rounded-[30px] overflow-hidden">
+            <IssuePanel
+              issueData={selectedIssue}
+              onClose={handleCloseIssue}
+            />
+          </section>
+        )}
+
+        {selectedThread && !selectedPR && !selectedIssue && (
           <section className="min-h-0 rounded-[30px] overflow-hidden">
             <ThreadPanel
               originalMessage={selectedThread}

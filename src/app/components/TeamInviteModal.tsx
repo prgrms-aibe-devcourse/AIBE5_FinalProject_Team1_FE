@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { AlertCircle, ChevronRight, Copy, Folder, Globe2, Link2, Lock, Play, Trash2, X } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 
 interface TeamInviteModalProps {
   isOpen: boolean;
@@ -33,6 +34,7 @@ export function TeamInviteModal({ isOpen, onClose }: TeamInviteModalProps) {
   const [inviteValue, setInviteValue] = useState("");
   const [members, setMembers] = useState(initialMembers);
   const [copyState, setCopyState] = useState<"idle" | "copied">("idle");
+  const [confirmTarget, setConfirmTarget] = useState<TeamMember | null>(null);
 
   if (!isOpen) return null;
 
@@ -74,8 +76,15 @@ export function TeamInviteModal({ isOpen, onClose }: TeamInviteModalProps) {
     );
   };
 
-  const handleRemoveMember = (memberId: string) => {
-    setMembers((prev) => prev.filter((member) => member.id !== memberId || member.role === "owner"));
+  const handleRemoveClick = (member: TeamMember) => {
+    if (member.role === "owner") return;
+    setConfirmTarget(member);
+  };
+
+  const handleConfirmRemove = () => {
+    if (!confirmTarget) return;
+    setMembers((prev) => prev.filter((member) => member.id !== confirmTarget.id));
+    setConfirmTarget(null);
   };
 
   return (
@@ -232,7 +241,7 @@ export function TeamInviteModal({ isOpen, onClose }: TeamInviteModalProps) {
                     </select>
                     <button
                       type="button"
-                      onClick={() => handleRemoveMember(member.id)}
+                      onClick={() => handleRemoveClick(member)}
                       className="flex h-8 w-8 items-center justify-center rounded-lg border-0"
                       style={{
                         background: "rgba(239, 68, 68, 0.08)",
@@ -271,6 +280,79 @@ export function TeamInviteModal({ isOpen, onClose }: TeamInviteModalProps) {
         />
       </div>
       </div>
+
+      <AnimatePresence>
+        {confirmTarget && (
+          <motion.div
+            className="fixed inset-0 z-[60] flex items-center justify-center px-4"
+            style={{ background: "rgba(0, 0, 0, 0.55)", backdropFilter: "blur(6px)" }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setConfirmTarget(null)}
+          >
+            <motion.div
+              className="w-full max-w-[400px] rounded-[22px] px-7 py-7"
+              style={{
+                background: "#ffffff",
+                boxShadow: "0 28px 80px rgba(0, 0, 0, 0.40)",
+              }}
+              initial={{ opacity: 0, scale: 0.94, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.94, y: 12 }}
+              transition={{ type: "spring", stiffness: 380, damping: 30 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl" style={{
+                background: "rgba(239, 68, 68, 0.10)",
+                border: "1px solid rgba(239, 68, 68, 0.25)"
+              }}>
+                <Trash2 size={22} style={{ color: "#ef4444" }} />
+              </div>
+
+              <h3 className="m-0 mb-2 tracking-tight" style={{ color: "#111827", fontSize: 18, fontWeight: 900 }}>
+                정말 추방하시겠어요?
+              </h3>
+              <p className="m-0 mb-6 tracking-tight" style={{ color: "#6b7280", fontSize: 14, fontWeight: 700, lineHeight: 1.6 }}>
+                <span style={{ color: "#111827", fontWeight: 900 }}>{confirmTarget.name}</span>을(를) 팀에서
+                제거합니다. 이 작업은 되돌릴 수 없습니다.
+              </p>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setConfirmTarget(null)}
+                  className="flex-1 rounded-xl border-0 py-3 tracking-tight transition-all hover:scale-[1.02]"
+                  style={{
+                    background: "#f3f4f6",
+                    color: "#374151",
+                    cursor: "pointer",
+                    fontSize: 14,
+                    fontWeight: 900
+                  }}
+                >
+                  취소
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmRemove}
+                  className="flex-1 rounded-xl border-0 py-3 tracking-tight transition-all hover:scale-[1.02]"
+                  style={{
+                    background: "linear-gradient(135deg, #ef4444, #b91c1c)",
+                    color: "#ffffff",
+                    cursor: "pointer",
+                    fontSize: 14,
+                    fontWeight: 900,
+                    boxShadow: "0 4px 16px rgba(239, 68, 68, 0.30)"
+                  }}
+                >
+                  추방하기
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

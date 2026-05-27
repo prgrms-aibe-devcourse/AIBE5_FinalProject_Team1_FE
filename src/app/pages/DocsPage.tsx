@@ -1,5 +1,5 @@
-import { FileText, Sparkles, BookOpen, FileCode, MessageSquare, Package, Plus } from "lucide-react";
-import { useState } from "react";
+import { FileText, Sparkles, BookOpen, FileCode, MessageSquare, Package, Plus, Pencil, Trash2, Check, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useLanguage } from "../contexts/LanguageContext";
 
 interface DocsPageProps {
@@ -39,13 +39,59 @@ interface DocumentTemplate {
   contentEn: string;
 }
 
+const CREATED_DOCS_STORAGE_KEY = "codedock-created-docs";
+
+function getSavedCreatedDocs() {
+  if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
+    return [];
+  }
+
+  try {
+    const storedValue = window.localStorage.getItem(CREATED_DOCS_STORAGE_KEY);
+    if (!storedValue) return [];
+
+    const parsed = JSON.parse(storedValue);
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed.filter((doc): doc is DocumentItem =>
+      doc
+      && typeof doc.id === "number"
+      && typeof doc.category === "string"
+      && typeof doc.title === "string"
+      && (doc.generatedBy === "AI" || doc.generatedBy === "Template")
+      && typeof doc.createdAt === "string"
+      && typeof doc.updatedAt === "string"
+      && typeof doc.author === "string"
+      && typeof doc.content === "string"
+    );
+  } catch {
+    return [];
+  }
+}
+
 export function DocsPage({ embedded = false }: DocsPageProps) {
   const { language } = useLanguage();
   const [selectedDoc, setSelectedDoc] = useState<number | null>(1);
-  const [createdDocs, setCreatedDocs] = useState<DocumentItem[]>([]);
+  const [createdDocs, setCreatedDocs] = useState<DocumentItem[]>(() => getSavedCreatedDocs());
   const [draftTemplate, setDraftTemplate] = useState<DocumentTemplate | null>(null);
   const [draftTitle, setDraftTitle] = useState("");
   const [draftContent, setDraftContent] = useState("");
+  const [docListTab, setDocListTab] = useState<"templates" | "documents">("templates");
+  const [editingDocId, setEditingDocId] = useState<number | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editContent, setEditContent] = useState("");
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(CREATED_DOCS_STORAGE_KEY, JSON.stringify(createdDocs));
+    } catch {
+      // Local edits still work in memory if storage is unavailable.
+    }
+  }, [createdDocs]);
 
   const categories = [
     { id: 'pr-summary', name: 'PR 요약', nameEn: 'PR Summary', icon: FileCode, color: 'var(--neon-cyan)', count: 8 },
@@ -964,6 +1010,9 @@ None
   };
 
   const handleSelectTemplate = (template: DocumentTemplate) => {
+    setEditingDocId(null);
+    setEditTitle("");
+    setEditContent("");
     setDraftTemplate(template);
     setDraftTitle(language === "en" ? template.titleEn : template.title);
     setDraftContent(language === "en" ? template.contentEn : template.content);
@@ -998,9 +1047,110 @@ None
 
     setCreatedDocs((prevDocs) => [newDoc, ...prevDocs]);
     setSelectedDoc(nextId);
+    setDocListTab("documents");
+    setEditingDocId(null);
     setDraftTemplate(null);
     setDraftTitle("");
     setDraftContent("");
+  };
+
+  const handleGenerateAiDocument = (template: DocumentTemplate) => {
+    const nextId = Date.now();
+    const generatedTitle = `${template.title} AI 자동 생성`;
+    const generatedTitleEn = `AI Generated ${template.titleEn}`;
+    const generatedContent = `# ${generatedTitle}
+
+## AI 자동 생성 초안
+- 선택한 템플릿: ${template.title}
+- 문서 유형: ${categories.find((category) => category.id === template.category)?.name ?? "문서"}
+- 생성 상태: 검토 필요
+
+${template.content}`;
+    const generatedContentEn = `# ${generatedTitleEn}
+
+## AI Generated Draft
+- Template: ${template.titleEn}
+- Document type: ${categories.find((category) => category.id === template.category)?.nameEn ?? "Document"}
+- Status: Needs review
+
+${template.contentEn}`;
+
+    const newDoc: DocumentItem = {
+      id: nextId,
+      category: template.category,
+      title: generatedTitle,
+      titleEn: generatedTitleEn,
+      generatedBy: 'AI',
+      createdAt: language === "en" ? "Just now" : "방금",
+      updatedAt: language === "en" ? "Just now" : "방금",
+      author: "AI 자동 생성",
+      authorEn: "AI generated",
+      relatedPR: template.category === "pr-summary" ? 234 : null,
+      content: generatedContent,
+      contentEn: generatedContentEn
+    };
+
+    setCreatedDocs((prevDocs) => [newDoc, ...prevDocs]);
+    setSelectedDoc(nextId);
+    setDocListTab("documents");
+    setEditingDocId(null);
+    setDraftTemplate(null);
+    setDraftTitle("");
+    setDraftContent("");
+  };
+
+  const isCreatedDoc = (docId: number) => createdDocs.some((doc) => doc.id === docId);
+
+  const handleStartEditDocument = (doc: DocumentItem) => {
+    if (!isCreatedDoc(doc.id)) return;
+
+    setDraftTemplate(null);
+    setEditingDocId(doc.id);
+    setEditTitle(language === "en" ? doc.titleEn ?? doc.title : doc.title);
+    setEditContent(language === "en" ? doc.contentEn ?? doc.content : doc.content);
+  };
+
+  const handleCancelEditDocument = () => {
+    setEditingDocId(null);
+    setEditTitle("");
+    setEditContent("");
+  };
+
+  const handleSaveEditDocument = () => {
+    if (!editingDocId || !editTitle.trim() || !editContent.trim()) return;
+
+    setCreatedDocs((prevDocs) =>
+      prevDocs.map((doc) =>
+        doc.id === editingDocId
+          ? {
+              ...doc,
+              title: language === "en" ? doc.title : editTitle.trim(),
+              titleEn: language === "en" ? editTitle.trim() : doc.titleEn,
+              content: language === "en" ? doc.content : editContent.trim(),
+              contentEn: language === "en" ? editContent.trim() : doc.contentEn,
+              updatedAt: language === "en" ? "Just now" : "방금",
+            }
+          : doc,
+      ),
+    );
+    handleCancelEditDocument();
+  };
+
+  const handleDeleteDocument = (docId: number) => {
+    if (!isCreatedDoc(docId)) return;
+
+    setCreatedDocs((prevDocs) => {
+      const nextCreatedDocs = prevDocs.filter((doc) => doc.id !== docId);
+      const nextDocs = [...nextCreatedDocs, ...baseDocs];
+
+      if (selectedDoc === docId) {
+        setSelectedDoc(nextDocs[0]?.id ?? null);
+      }
+
+      return nextCreatedDocs;
+    });
+    handleCancelEditDocument();
+    setDocListTab("documents");
   };
 
   const getCategoryIcon = (categoryId: string) => {
@@ -1012,6 +1162,88 @@ None
     const category = categories.find(c => c.id === categoryId);
     return category ? category.color : 'var(--muted)';
   };
+
+  const renderDocumentPreview = (content: string) => (
+    <div className="mx-auto grid w-full max-w-[900px] gap-4">
+      {content.split("\n").map((line, index) => {
+        const trimmedLine = line.trim();
+
+        if (!trimmedLine) {
+          return <div key={`spacer-${index}`} className="h-2" />;
+        }
+
+        if (trimmedLine.startsWith("# ")) {
+          return (
+            <h1 key={index} className="m-0 leading-[1.1] tracking-[-0.055em]" style={{
+              color: 'var(--white)',
+              fontSize: embedded ? '28px' : '36px',
+              fontWeight: 950
+            }}>
+              {trimmedLine.replace(/^#\s+/, "")}
+            </h1>
+          );
+        }
+
+        if (trimmedLine.startsWith("## ")) {
+          return (
+            <h2 key={index} className="m-0 mt-4 leading-[1.2] tracking-[-0.035em]" style={{
+              color: 'var(--soft-mint)',
+              fontSize: embedded ? '18px' : '22px',
+              fontWeight: 950
+            }}>
+              {trimmedLine.replace(/^##\s+/, "")}
+            </h2>
+          );
+        }
+
+        if (trimmedLine.startsWith("- [")) {
+          return (
+            <div key={index} className="rounded-xl px-4 py-3 tracking-tight" style={{
+              background: 'rgba(234, 247, 255, 0.045)',
+              border: '1px solid rgba(234, 247, 255, 0.08)',
+              color: 'rgba(234, 247, 255, 0.88)',
+              fontSize: '14px',
+              fontWeight: 800,
+              lineHeight: 1.65
+            }}>
+              {trimmedLine}
+            </div>
+          );
+        }
+
+        if (trimmedLine.startsWith("- ")) {
+          return (
+            <div key={index} className="flex gap-3 rounded-xl px-4 py-3 tracking-tight" style={{
+              background: 'rgba(234, 247, 255, 0.035)',
+              border: '1px solid rgba(234, 247, 255, 0.07)',
+              color: 'rgba(234, 247, 255, 0.86)',
+              fontSize: '14px',
+              fontWeight: 780,
+              lineHeight: 1.65
+            }}>
+              <span style={{ color: 'var(--neon-cyan)', fontWeight: 950 }}>•</span>
+              <span>{trimmedLine.replace(/^-\s+/, "")}</span>
+            </div>
+          );
+        }
+
+        if (trimmedLine.startsWith("```")) {
+          return null;
+        }
+
+        return (
+          <p key={index} className="m-0 tracking-tight" style={{
+            color: 'rgba(234, 247, 255, 0.86)',
+            fontSize: '15px',
+            fontWeight: 760,
+            lineHeight: 1.85
+          }}>
+            {trimmedLine}
+          </p>
+        );
+      })}
+    </div>
+  );
 
   return (
     <div className={embedded ? "codedock-scrollbar-hidden flex h-full min-h-0 flex-col overflow-hidden px-5 py-5" : "w-[min(1400px,calc(100vw-36px))] mx-auto py-12 pb-20"}>
@@ -1064,8 +1296,8 @@ None
         })}
       </div>
 
-      <div className={embedded ? "grid min-h-0 flex-1 gap-5 xl:grid-cols-[330px_1fr]" : "grid lg:grid-cols-[400px_1fr] gap-6"}>
-        <section className={embedded ? "flex min-h-0 flex-col px-5 py-5 rounded-2xl" : "px-6 py-6 rounded-[30px]"} style={{
+      <div className={embedded ? "grid min-h-0 flex-1 gap-5 xl:grid-cols-[330px_1fr]" : "grid lg:grid-cols-[360px_1fr] gap-6"}>
+        <section className={embedded ? "flex min-h-0 flex-col overflow-hidden px-5 py-5 rounded-2xl" : "flex max-h-[calc(100vh-170px)] min-h-[620px] flex-col overflow-hidden px-6 py-6 rounded-[30px]"} style={{
           background: 'rgba(11, 22, 40, 0.82)',
           border: '1px solid rgba(32, 227, 255, 0.16)',
           boxShadow: embedded ? '0 14px 36px rgba(0, 0, 0, 0.28)' : '0 20px 60px rgba(0, 0, 0, 0.32)',
@@ -1078,7 +1310,38 @@ None
             문서 목록
           </h2>
 
-          <div className="mb-5 flex-shrink-0 rounded-2xl px-4 py-4" style={{
+          <div className="mb-4 grid flex-shrink-0 grid-cols-2 gap-2 rounded-2xl p-1" style={{
+            background: 'rgba(5, 11, 20, 0.54)',
+            border: '1px solid rgba(32, 227, 255, 0.14)'
+          }}>
+            {[
+              { id: "templates" as const, label: language === "en" ? "Templates" : "템플릿", count: documentTemplates.length },
+              { id: "documents" as const, label: language === "en" ? "Documents" : "문서", count: docs.length },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setDocListTab(tab.id)}
+                className="rounded-xl border-0 px-3 py-2.5 tracking-tight transition-all"
+                style={{
+                  background: docListTab === tab.id ? 'rgba(32, 227, 255, 0.16)' : 'transparent',
+                  border: docListTab === tab.id ? '1px solid rgba(32, 227, 255, 0.26)' : '1px solid transparent',
+                  color: docListTab === tab.id ? 'var(--white)' : 'var(--muted)',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  fontWeight: 950
+                }}
+              >
+                {tab.label}
+                <span style={{ marginLeft: 6, color: docListTab === tab.id ? 'var(--neon-cyan)' : 'inherit' }}>
+                  {tab.count}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {docListTab === "templates" && (
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl px-3 py-3" style={{
             background: 'linear-gradient(135deg, rgba(32, 227, 255, 0.10), rgba(57, 255, 136, 0.055)), rgba(5, 11, 20, 0.52)',
             border: '1px solid rgba(32, 227, 255, 0.18)',
             boxShadow: 'inset 0 1px 0 rgba(234, 247, 255, 0.08)'
@@ -1111,7 +1374,7 @@ None
               </span>
             </div>
 
-            <div className={`codedock-scrollbar-hidden grid gap-2 overflow-y-auto pr-1 ${embedded ? "max-h-[210px]" : "max-h-[250px]"}`}>
+            <div className="codedock-scrollbar-hidden grid min-h-0 flex-1 gap-2 overflow-y-auto pr-1">
               {documentTemplates.map((template) => {
                 const Icon = template.icon;
                 const templateTitle = language === "en" ? template.titleEn : template.title;
@@ -1119,19 +1382,23 @@ None
                 const templateTags = language === "en" ? template.tagsEn : template.tags;
 
                 return (
-                  <button
+                  <div
                     key={template.id}
-                    type="button"
-                    onClick={() => handleSelectTemplate(template)}
-                    className="w-full rounded-xl border-0 px-3 py-3 text-left transition-all hover:translate-y-[-1px]"
+                    className="w-full rounded-xl px-2.5 py-2.5 transition-all hover:translate-y-[-1px]"
                     style={{
                       background: draftTemplate?.id === template.id ? 'rgba(32, 227, 255, 0.13)' : 'rgba(5, 11, 20, 0.58)',
                       border: draftTemplate?.id === template.id ? '1px solid rgba(32, 227, 255, 0.34)' : '1px solid rgba(32, 227, 255, 0.12)',
-                      cursor: 'pointer'
+                      boxShadow: draftTemplate?.id === template.id ? '0 0 24px rgba(32, 227, 255, 0.10)' : 'none'
                     }}
                   >
-                    <div className="flex items-start gap-3">
-                      <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-xl" style={{
+                    <button
+                      type="button"
+                      onClick={() => handleSelectTemplate(template)}
+                      className="w-full border-0 bg-transparent p-0 text-left"
+                      style={{ cursor: 'pointer' }}
+                    >
+                      <div className="flex items-start gap-2.5">
+                      <span className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-xl" style={{
                         background: `${template.color === 'var(--neon-cyan)' ? 'rgba(32, 227, 255, 0.14)' : 'rgba(234, 247, 255, 0.07)'}`,
                         border: '1px solid rgba(32, 227, 255, 0.16)'
                       }}>
@@ -1145,7 +1412,7 @@ None
                         }}>
                           {templateTitle}
                         </span>
-                        <span className="mt-1 line-clamp-2 block tracking-tight" style={{
+                        <span className="mt-1 line-clamp-1 block tracking-tight" style={{
                           color: 'var(--muted)',
                           fontSize: '11px',
                           fontWeight: 780,
@@ -1154,15 +1421,16 @@ None
                           {templateDescription}
                         </span>
                       </span>
-                      <span className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full" style={{
+                      <span className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-full" style={{
                         background: 'linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))',
                         color: '#021014'
                       }}>
                         <Plus size={15} strokeWidth={3} />
                       </span>
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-1.5">
-                      {templateTags.map((tag) => (
+                      </div>
+                    </button>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {templateTags.slice(0, 2).map((tag) => (
                         <span key={tag} className="rounded-full px-2 py-0.5 tracking-tight" style={{
                           background: 'rgba(234, 247, 255, 0.06)',
                           border: '1px solid rgba(234, 247, 255, 0.08)',
@@ -1174,13 +1442,15 @@ None
                         </span>
                       ))}
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>
           </div>
+          )}
 
-          <div className={`grid gap-2 overflow-y-auto ${embedded ? "codedock-scrollbar-hidden min-h-0 flex-1 pr-1" : "max-h-[700px]"}`}>
+          {docListTab === "documents" && (
+          <div className="codedock-scrollbar-hidden grid min-h-0 flex-1 gap-2 overflow-y-auto pr-1">
             {docs.map((doc) => {
               const Icon = getCategoryIcon(doc.category);
               const color = getCategoryColor(doc.category);
@@ -1189,16 +1459,20 @@ None
                   key={doc.id}
                   onClick={() => {
                     setDraftTemplate(null);
+                    setEditingDocId(null);
+                    setEditTitle("");
+                    setEditContent("");
                     setSelectedDoc(doc.id);
                   }}
-                  className="w-full px-4 py-4 rounded-xl border-0 text-left transition-all"
+                  className="w-full px-3 py-3 rounded-xl border-0 text-left transition-all hover:translate-y-[-1px]"
                   style={{
                     background: selectedDoc === doc.id ? 'rgba(32, 227, 255, 0.15)' : 'rgba(5, 11, 20, 0.42)',
                     border: selectedDoc === doc.id ? '1px solid rgba(32, 227, 255, 0.3)' : '1px solid rgba(32, 227, 255, 0.10)',
                     cursor: 'pointer'
                   }}
                 >
-                  <div className="flex items-center gap-2 mb-2">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-2">
                     <Icon size={16} style={{ color }} />
                     {doc.generatedBy === 'AI' && (
                       <Sparkles size={14} style={{ color: 'var(--neon-cyan)' }} />
@@ -1206,6 +1480,15 @@ None
                     {doc.generatedBy === 'Template' && (
                       <Plus size={14} style={{ color: 'var(--soft-mint)' }} />
                     )}
+                    </span>
+                    <span className="rounded-full px-2 py-0.5 tracking-tight" style={{
+                      background: doc.generatedBy === 'AI' ? 'rgba(32, 227, 255, 0.11)' : 'rgba(57, 255, 136, 0.10)',
+                      color: doc.generatedBy === 'AI' ? 'var(--neon-cyan)' : 'var(--soft-mint)',
+                      fontSize: '10px',
+                      fontWeight: 950
+                    }}>
+                      {doc.generatedBy}
+                    </span>
                   </div>
                   <p className="m-0 mb-2 leading-[1.3] tracking-tight" style={{
                     fontSize: '14px',
@@ -1245,6 +1528,7 @@ None
               );
             })}
           </div>
+          )}
         </section>
 
         {draftTemplate && (
@@ -1305,6 +1589,7 @@ None
             </div>
 
             <div className={embedded ? "codedock-scrollbar-hidden min-h-0 flex-1 overflow-y-auto pr-1" : ""}>
+              <div className="mx-auto w-full max-w-[980px]">
               <div className="grid gap-4">
                 <label className="grid gap-2">
                   <span className="tracking-tight" style={{
@@ -1339,7 +1624,7 @@ None
                   <textarea
                     value={draftContent}
                     onChange={(event) => setDraftContent(event.target.value)}
-                    className={`codedock-scrollbar-hidden min-h-[360px] resize-none rounded-2xl border-0 px-4 py-4 font-mono outline-none ${embedded ? "h-[min(48vh,520px)]" : "h-[520px]"}`}
+                    className={`codedock-scrollbar-hidden min-h-[360px] resize-none rounded-2xl border-0 px-5 py-5 font-mono outline-none ${embedded ? "h-[min(48vh,520px)]" : "h-[500px]"}`}
                     style={{
                       background: 'rgba(5, 11, 20, 0.62)',
                       border: '1px solid rgba(32, 227, 255, 0.18)',
@@ -1350,6 +1635,7 @@ None
                     }}
                   />
                 </label>
+              </div>
               </div>
             </div>
 
@@ -1368,6 +1654,23 @@ None
                 }}
               >
                 {language === "en" ? "Cancel" : "취소"}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleGenerateAiDocument(draftTemplate)}
+                className="inline-flex items-center gap-2 rounded-xl border-0 px-5 py-3 tracking-tight transition-all hover:scale-[1.01]"
+                style={{
+                  background: 'linear-gradient(135deg, rgba(32, 227, 255, 0.20), rgba(57, 255, 136, 0.12)), rgba(234, 247, 255, 0.055)',
+                  border: '1px solid rgba(32, 227, 255, 0.28)',
+                  boxShadow: 'inset 0 1px 0 rgba(234, 247, 255, 0.12), 0 0 22px rgba(32, 227, 255, 0.08)',
+                  color: 'var(--neon-cyan)',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  fontWeight: 950
+                }}
+              >
+                <Sparkles size={16} strokeWidth={2.6} />
+                {language === "en" ? "AI Generate" : "AI 자동 생성"}
               </button>
               <button
                 type="button"
@@ -1468,6 +1771,82 @@ None
                   )}
                 </div>
               </div>
+              {isCreatedDoc(selectedDocData.id) && (
+                <div className="ml-4 flex flex-shrink-0 flex-wrap justify-end gap-2">
+                  {editingDocId === selectedDocData.id ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={handleCancelEditDocument}
+                        className="inline-flex items-center gap-2 rounded-xl border-0 px-3 py-2 tracking-tight"
+                        style={{
+                          background: 'rgba(234, 247, 255, 0.06)',
+                          border: '1px solid rgba(234, 247, 255, 0.12)',
+                          color: 'var(--muted)',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                          fontWeight: 950
+                        }}
+                      >
+                        <X size={15} strokeWidth={2.7} />
+                        {language === "en" ? "Cancel" : "취소"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSaveEditDocument}
+                        disabled={!editTitle.trim() || !editContent.trim()}
+                        className="inline-flex items-center gap-2 rounded-xl border-0 px-3 py-2 tracking-tight"
+                        style={{
+                          background: 'linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))',
+                          color: '#021014',
+                          cursor: editTitle.trim() && editContent.trim() ? 'pointer' : 'not-allowed',
+                          opacity: editTitle.trim() && editContent.trim() ? 1 : 0.48,
+                          fontSize: '12px',
+                          fontWeight: 950
+                        }}
+                      >
+                        <Check size={15} strokeWidth={3} />
+                        {language === "en" ? "Save" : "저장"}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleStartEditDocument(selectedDocData)}
+                        className="inline-flex items-center gap-2 rounded-xl border-0 px-3 py-2 tracking-tight"
+                        style={{
+                          background: 'rgba(32, 227, 255, 0.10)',
+                          border: '1px solid rgba(32, 227, 255, 0.22)',
+                          color: 'var(--neon-cyan)',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                          fontWeight: 950
+                        }}
+                      >
+                        <Pencil size={15} strokeWidth={2.5} />
+                        {language === "en" ? "Edit" : "수정"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteDocument(selectedDocData.id)}
+                        className="inline-flex items-center gap-2 rounded-xl border-0 px-3 py-2 tracking-tight"
+                        style={{
+                          background: 'rgba(255, 107, 107, 0.10)',
+                          border: '1px solid rgba(255, 107, 107, 0.22)',
+                          color: '#FF9C9C',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                          fontWeight: 950
+                        }}
+                      >
+                        <Trash2 size={15} strokeWidth={2.5} />
+                        {language === "en" ? "Delete" : "삭제"}
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
 
             {selectedDocData.relatedPR && (
@@ -1485,16 +1864,65 @@ None
               </div>
             )}
 
-            <div className={embedded ? "codedock-scrollbar-hidden min-h-0 flex-1 overflow-y-auto pr-1" : "prose prose-invert max-w-none"}>
-              <div className="leading-[1.75] tracking-tight" style={{
-                fontSize: '15px',
-                fontWeight: 700,
-                color: 'var(--white)',
-                whiteSpace: 'pre-wrap'
-              }}>
-                {selectedDocContent}
+            {editingDocId === selectedDocData.id ? (
+              <div className={embedded ? "codedock-scrollbar-hidden min-h-0 flex-1 overflow-y-auto pr-1" : ""}>
+                <div className="mx-auto grid w-full max-w-[980px] gap-4">
+                  <label className="grid gap-2">
+                    <span className="tracking-tight" style={{
+                      color: 'var(--muted)',
+                      fontSize: '12px',
+                      fontWeight: 950
+                    }}>
+                      {language === "en" ? "Title" : "제목"}
+                    </span>
+                    <input
+                      value={editTitle}
+                      onChange={(event) => setEditTitle(event.target.value)}
+                      className="rounded-2xl border-0 px-4 py-3 outline-none tracking-tight"
+                      style={{
+                        background: 'rgba(5, 11, 20, 0.62)',
+                        border: '1px solid rgba(32, 227, 255, 0.18)',
+                        color: 'var(--white)',
+                        fontSize: '15px',
+                        fontWeight: 850
+                      }}
+                    />
+                  </label>
+                  <label className="grid gap-2">
+                    <span className="tracking-tight" style={{
+                      color: 'var(--muted)',
+                      fontSize: '12px',
+                      fontWeight: 950
+                    }}>
+                      {language === "en" ? "Body" : "본문"}
+                    </span>
+                    <textarea
+                      value={editContent}
+                      onChange={(event) => setEditContent(event.target.value)}
+                      className={`codedock-scrollbar-hidden min-h-[360px] resize-none rounded-2xl border-0 px-5 py-5 font-mono outline-none ${embedded ? "h-[min(48vh,520px)]" : "h-[500px]"}`}
+                      style={{
+                        background: 'rgba(5, 11, 20, 0.62)',
+                        border: '1px solid rgba(32, 227, 255, 0.18)',
+                        color: 'var(--white)',
+                        fontSize: '13px',
+                        fontWeight: 750,
+                        lineHeight: 1.7
+                      }}
+                    />
+                  </label>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className={embedded ? "codedock-scrollbar-hidden min-h-0 flex-1 overflow-y-auto pr-1" : "codedock-scrollbar-hidden max-h-[760px] overflow-y-auto pr-2"}>
+                <div className="rounded-3xl px-6 py-6" style={{
+                  background: 'rgba(5, 11, 20, 0.46)',
+                  border: '1px solid rgba(32, 227, 255, 0.12)',
+                  boxShadow: 'inset 0 1px 0 rgba(234, 247, 255, 0.06)'
+                }}>
+                  {renderDocumentPreview(selectedDocContent)}
+                </div>
+              </div>
+            )}
           </section>
         )}
       </div>
