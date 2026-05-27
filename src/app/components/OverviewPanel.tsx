@@ -202,31 +202,33 @@ export function OverviewPanel({ repositories, selectedRepositoryId, onSelectRepo
       <div ref={scrollRootRef} className="codedock-scrollbar-hidden flex h-full min-h-0 flex-col overflow-y-auto px-6 py-6">
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
-            <button
-              type="button"
-              onClick={() => setActiveRepositoryId(null)}
-              className="mb-4 inline-flex items-center gap-2 rounded-full border-0 px-3 py-2 tracking-tight transition-all hover:scale-[1.02]"
-              style={{
-                background: "rgba(32, 227, 255, 0.08)",
-                border: "1px solid rgba(32, 227, 255, 0.18)",
-                color: "var(--neon-cyan)",
-                fontSize: 12,
-                fontWeight: 950,
-                cursor: "pointer"
-              }}
-            >
-              <ArrowLeft size={14} />
-              통합 개요
-            </button>
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full px-3 py-1.5" style={{
-              background: "rgba(57, 255, 136, 0.10)",
-              border: "1px solid rgba(57, 255, 136, 0.22)",
-              color: "var(--matrix-green)"
-            }}>
-              <span className="h-2 w-2 rounded-full" style={{ background: "var(--matrix-green)" }} />
-              <span className="tracking-tight" style={{ fontSize: 12, fontWeight: 950 }}>
-                리포지토리 개요
-              </span>
+            <div className="flex items-center gap-3 mb-4">
+              <button
+                type="button"
+                onClick={() => setActiveRepositoryId(null)}
+                className="inline-flex items-center gap-2 rounded-full border-0 px-3 py-2 tracking-tight transition-all hover:scale-[1.02]"
+                style={{
+                  background: "rgba(32, 227, 255, 0.08)",
+                  border: "1px solid rgba(32, 227, 255, 0.18)",
+                  color: "var(--neon-cyan)",
+                  fontSize: 12,
+                  fontWeight: 950,
+                  cursor: "pointer"
+                }}
+              >
+                <ArrowLeft size={14} />
+                통합 개요
+              </button>
+              <div className="inline-flex items-center gap-2 rounded-full px-3 py-1.5" style={{
+                background: "rgba(57, 255, 136, 0.10)",
+                border: "1px solid rgba(57, 255, 136, 0.22)",
+                color: "var(--matrix-green)"
+              }}>
+                <span className="h-2 w-2 rounded-full" style={{ background: "var(--matrix-green)" }} />
+                <span className="tracking-tight" style={{ fontSize: 12, fontWeight: 950 }}>
+                  리포지토리 개요
+                </span>
+              </div>
             </div>
             <h2 className="m-0 mb-2 tracking-[-0.065em]" style={{ color: "var(--white)", fontSize: 38, fontWeight: 950 }}>
               {activeRepository.name}
@@ -235,7 +237,7 @@ export function OverviewPanel({ repositories, selectedRepositoryId, onSelectRepo
               {activeDetails.summary}
             </p>
           </div>
-          <div className="rounded-2xl px-4 py-3 text-right" style={{
+          <div className="mt-10 -mr-2 rounded-2xl px-4 py-3 text-center" style={{
             background: "rgba(234, 247, 255, 0.045)",
             border: "1px solid rgba(32, 227, 255, 0.14)"
           }}>
