@@ -24,12 +24,33 @@ interface Channel {
   threads: Thread[];
 }
 
+interface RepositoryRef {
+  id: string;
+  name: string;
+}
+
 interface ChannelPanelProps {
+  repositories?: RepositoryRef[];
   onOpenThread?: (message: any) => void;
   onOpenInvite?: () => void;
 }
 
-export function ChannelPanel({ onOpenThread, onOpenInvite }: ChannelPanelProps) {
+const REPO_SEED_THREADS: Record<string, Thread[]> = {
+  'secureflow': [
+    { id: 101, user: '김진현', avatar: '🎨', message: '로그인 페이지 채팅형 전환 애니메이션 확인 부탁드려요.', time: '오늘 10:42', replies: 2, lastReply: '안현' },
+    { id: 102, user: '안현', avatar: '👩‍💻', message: '크게 보기 모드에서 헤더 덮는 부분까지 맞췄습니다.', time: '오늘 10:48', replies: 0 }
+  ],
+  'aichat': [
+    { id: 201, user: '김진필', avatar: '👨‍💻', message: '회원 탈퇴와 워크스페이스 삭제 API 명세 추가 예정입니다.', time: '오늘 09:55', replies: 1, lastReply: 'CodeDock' },
+    { id: 202, user: 'CodeDock', avatar: 'CD', message: '리포지토리 연동 해제 정책도 문서 목록에 연결해둘게요.', time: '오늘 09:58', replies: 0 }
+  ],
+  'dashboard': [
+    { id: 301, user: '김재준', avatar: '👨‍💼', message: '새로운 디자인 토큰 추가했습니다. 색상 조합이 정말 좋네요!', time: '오늘 14:20', replies: 2, lastReply: '김진현' },
+    { id: 302, user: '김진현', avatar: '🎨', message: 'UI 컴포넌트 라이브러리 마이그레이션 완료했습니다.', time: '오늘 14:35', replies: 0 }
+  ]
+};
+
+export function ChannelPanel({ repositories = [], onOpenThread, onOpenInvite }: ChannelPanelProps) {
   const [selectedChannel, setSelectedChannel] = useState<string>('general');
   const [teamChannelsOpen, setTeamChannelsOpen] = useState(true);
   const [editingChannelId, setEditingChannelId] = useState<string | null>(null);
@@ -50,114 +71,35 @@ export function ChannelPanel({ onOpenThread, onOpenInvite }: ChannelPanelProps) 
   const responderTypingTimerRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
-  const [channelList, setChannelList] = useState<Channel[]>([
-    {
-      id: 'general',
-      name: '일반',
-      unread: 3,
-      threads: [
-        {
-          id: 1,
-          user: '김재준',
-          avatar: '👨‍💼',
-          message: '이번 주 스프린트 계획 공유드립니다',
-          time: '10:23 AM',
-          replies: 3,
-          lastReply: '안현'
-        },
-        {
-          id: 2,
-          user: '김진필',
-          avatar: '👨‍💻',
-          message: '새로운 API 엔드포인트 추가했습니다. /api/v2/users 확인해주세요',
-          time: '11:45 AM',
-          replies: 5,
-          lastReply: '김재준'
-        }
-      ]
-    },
-    {
-      id: 'review-room',
-      name: '리뷰 룸',
-      unread: 2,
-      threads: [
-        {
-          id: 7,
-          user: 'CodeDock',
-          avatar: 'CD',
-          message: 'PR #234 인증 변경 파일을 먼저 묶었어요. 위험 신호 3건을 확인해 주세요.',
-          time: '11:12 AM',
-          replies: 4,
-          lastReply: '김준우'
-        },
-        {
-          id: 8,
-          user: '김준우',
-          avatar: 'PR',
-          message: 'rate limit 빠진 부분만 체크리스트로 빼줘.',
-          time: '11:15 AM',
-          replies: 2,
-          lastReply: 'CodeDock'
-        }
-      ]
-    },
-    {
-      id: 'frontend',
-      name: '프론트엔드',
-      unread: 0,
-      threads: [
-        {
-          id: 3,
-          user: '김진현',
-          avatar: '🎨',
-          message: '새로운 컴포넌트 라이브러리 도입을 고려해보면 어떨까요?',
-          time: '2:15 PM',
-          replies: 8,
-          lastReply: '김진필'
-        },
-        {
-          id: 4,
-          user: '안현',
-          avatar: '👩‍💻',
-          message: '다크모드 구현 완료했습니다',
-          time: '3:30 PM',
-          replies: 2,
-          lastReply: '김진현'
-        }
-      ]
-    },
-    {
-      id: 'backend',
-      name: '백엔드',
-      unread: 1,
-      threads: [
-        {
-          id: 5,
-          user: '김진필',
-          avatar: '👨‍💻',
-          message: 'DB 최적화 작업 진행 중입니다',
-          time: '4:00 PM',
-          replies: 1,
-          lastReply: '김재준'
-        }
-      ]
-    },
-    {
-      id: 'design',
-      name: '디자인',
-      unread: 0,
-      threads: [
-        {
-          id: 6,
-          user: '김진현',
-          avatar: '🎨',
-          message: '새로운 디자인 토큰 추가했습니다',
-          time: '5:00 PM',
-          replies: 0
-        }
-      ]
-    }
-  ]);
+  const [channelList, setChannelList] = useState<Channel[]>(() => {
+    const fixedChannels: Channel[] = [
+      {
+        id: 'general',
+        name: '일반',
+        unread: 3,
+        threads: [
+          { id: 1, user: '김재준', avatar: '👨‍💼', message: '이번 주 스프린트 계획 공유드립니다', time: '10:23 AM', replies: 3, lastReply: '안현' },
+          { id: 2, user: '김진필', avatar: '👨‍💻', message: '새로운 API 엔드포인트 추가했습니다. /api/v2/users 확인해주세요', time: '11:45 AM', replies: 5, lastReply: '김재준' }
+        ]
+      },
+      {
+        id: 'review-room',
+        name: '리뷰 룸',
+        unread: 2,
+        threads: [
+          { id: 7, user: 'CodeDock', avatar: 'CD', message: 'PR #234 인증 변경 파일을 먼저 묶었어요. 위험 신호 3건을 확인해 주세요.', time: '11:12 AM', replies: 4, lastReply: '김준우' },
+          { id: 8, user: '김준우', avatar: 'PR', message: 'rate limit 빠진 부분만 체크리스트로 빼줘.', time: '11:15 AM', replies: 2, lastReply: 'CodeDock' }
+        ]
+      }
+    ];
+    const repoChannels: Channel[] = repositories.map(repo => ({
+      id: repo.id,
+      name: repo.name,
+      unread: REPO_SEED_THREADS[repo.id] ? 1 : 0,
+      threads: REPO_SEED_THREADS[repo.id] ?? []
+    }));
+    return [...fixedChannels, ...repoChannels];
+  });
 
   const handleDeleteChannelClick = (channelId: string) => {
     if (channelId === 'general') return;
@@ -256,6 +198,24 @@ export function ChannelPanel({ onOpenThread, onOpenInvite }: ChannelPanelProps) 
       }
     };
   }, []);
+
+  useEffect(() => {
+    const repoIds = new Set(repositories.map(r => r.id));
+    setChannelList(prev => {
+      const fixed = prev.filter(ch => ch.id === 'general' || ch.id === 'review-room');
+      const repoChannels = repositories.map(repo => {
+        const existing = prev.find(ch => ch.id === repo.id);
+        if (existing) return { ...existing, name: repo.name };
+        return { id: repo.id, name: repo.name, unread: 0, threads: [] };
+      });
+      return [...fixed, ...repoChannels];
+    });
+    setSelectedChannel(prev => {
+      if (prev === 'general' || prev === 'review-room') return prev;
+      if (!repoIds.has(prev)) return 'general';
+      return prev;
+    });
+  }, [repositories]);
 
   const triggerResponderTyping = () => {
     if (responderTypingTimerRef.current) {
@@ -379,8 +339,6 @@ export function ChannelPanel({ onOpenThread, onOpenInvite }: ChannelPanelProps) 
 
   const getChannelIcon = (channelId: string) => {
     if (channelId === 'review-room') return GitPullRequest;
-    if (channelId === 'frontend') return Code2;
-    if (channelId === 'backend') return Database;
     return Hash;
   };
 

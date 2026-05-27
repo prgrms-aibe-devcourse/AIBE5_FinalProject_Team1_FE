@@ -285,7 +285,7 @@ export function ChatPage() {
   const [repositoryFormMode, setRepositoryFormMode] = useState<"create" | "edit" | null>(null);
   const [editingRepositoryId, setEditingRepositoryId] = useState<string | null>(null);
   const [repositoryNameInput, setRepositoryNameInput] = useState("");
-  const [selectedChannel, setSelectedChannel] = useState<string>('general');
+  const [selectedChannel, setSelectedChannel] = useState<string>('overview');
   const [messages, setMessages] = useState<Record<string, any[]>>(initialMessages);
   const [selectedPR, setSelectedPR] = useState<any>(null);
   const [selectedThread, setSelectedThread] = useState<any>(null);
@@ -1091,7 +1091,7 @@ export function ChatPage() {
             ) : selectedChannel === 'docs' ? (
               <DocsPage embedded />
             ) : selectedChannel === 'general' ? (
-              <ChannelPanel onOpenThread={handleOpenThread} onOpenInvite={() => setTeamInviteOpen(true)} />
+              <ChannelPanel repositories={repositories} onOpenThread={handleOpenThread} onOpenInvite={() => setTeamInviteOpen(true)} />
             ) : selectedChannel === 'team' ? (
               <TeamPanel
                 onInvite={() => setTeamInviteOpen(true)}
