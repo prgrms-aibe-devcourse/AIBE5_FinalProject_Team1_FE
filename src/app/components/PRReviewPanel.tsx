@@ -1427,7 +1427,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR }: PRReviewPanelProps
 
   const renderDiffTab = () => (
     <div
-      className="grid h-full min-h-0 overflow-hidden rounded-2xl"
+      className="grid grid-rows-1 h-full min-h-0 overflow-hidden rounded-2xl"
       style={{
         gridTemplateColumns: "230px minmax(0, 1fr) 380px",
         background: "rgba(5, 11, 20, 0.42)",
@@ -1454,7 +1454,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR }: PRReviewPanelProps
                 key={file.id}
                 type="button"
                 onClick={() => setActiveFileId(file.id)}
-                className="rounded-xl p-3 text-left transition-all"
+                className="w-full min-w-0 overflow-hidden rounded-xl p-3 text-left transition-all"
                 style={{
                   background: isActive ? "rgba(32, 227, 255, 0.10)" : "transparent",
                   border: isActive ? "1px solid rgba(57, 255, 136, 0.28)" : "1px solid transparent",
@@ -1713,7 +1713,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR }: PRReviewPanelProps
         </div>
       </main>
 
-      <aside className="flex min-h-0 flex-col" style={{ borderLeft: "1px solid rgba(32, 227, 255, 0.12)" }}>
+      <aside className="flex min-h-0 flex-col overflow-hidden" style={{ borderLeft: "1px solid rgba(32, 227, 255, 0.12)" }}>
         {renderPrThreadChat()}
         {false && (() => {
           const activeThreadFile = activeDiffThread
