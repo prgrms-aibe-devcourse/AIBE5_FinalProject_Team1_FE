@@ -6,15 +6,29 @@ import { EmojiPicker } from "./EmojiPicker";
 import { MessageReactions, toggleMessageReaction, type MessageReaction } from "./MessageReactions";
 import { MessageAttachmentCard } from "./MessageAttachmentCard";
 
+export interface IssueLabel {
+  name: string;
+  color: string;
+}
+
+export interface IssueHistoryEvent {
+  id: string;
+  actor: string;
+  action: string;
+  time: string;
+  eventType: 'created' | 'assigned' | 'labeled' | 'commented' | 'status_changed';
+}
+
 interface Message {
   id: number;
   user: string;
   text: string;
   time: string;
-  type?: 'text' | 'code' | 'system' | 'pr';
+  type?: 'text' | 'code' | 'system' | 'pr' | 'issue';
   code?: string;
   language?: string;
   mentions?: string[];
+  // PR fields
   prNumber?: number;
   prStatus?: 'open' | 'merged' | 'closed' | 'completed';
   prTitle?: string;
@@ -29,6 +43,17 @@ interface Message {
   aiRisk?: 'Low' | 'Medium' | 'High';
   passed?: number;
   labels?: string[];
+  // Issue fields
+  issueNumber?: number;
+  issueTitle?: string;
+  issueStatus?: 'open' | 'closed' | 'in_progress';
+  issueAuthor?: string;
+  issueLabels?: IssueLabel[];
+  issuePriority?: 'high' | 'medium' | 'low';
+  issueType?: string;
+  issueAssignees?: string[];
+  issueBody?: string;
+  issueHistory?: IssueHistoryEvent[];
   attachments?: MessageAttachment[];
 }
 
