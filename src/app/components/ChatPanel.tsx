@@ -1,4 +1,4 @@
-import { Send, Sparkles, Code, AtSign, Smile, GitPullRequest, FileText, Plus, Minus, MessageSquare, Bookmark, Share2, MoreVertical, X, CheckCircle, Clock, AlertCircle, ExternalLink, GitMerge, Hash, Paperclip, FileUp, Image as ImageIcon, Link2 } from "lucide-react";
+import { Send, Sparkles, Code, AtSign, Smile, GitPullRequest, FileText, Plus, Minus, MessageSquare, Bookmark, Share2, MoreVertical, X, CheckCircle, Clock, AlertCircle, ExternalLink, GitMerge, Hash, Paperclip, FileUp, Image as ImageIcon, Link2, CircleDot, CircleCheck, CircleMinus } from "lucide-react";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { createFileMessageAttachment, createLinkMessageAttachment, createLinkMessageAttachmentFromText, messageAttachmentGroups, messageAttachmentTypeLabels, type MessageAttachment, type MessageAttachmentType } from "./messageAttachments";
 import { TypingIndicator } from "./TypingIndicator";
@@ -6,15 +6,29 @@ import { EmojiPicker } from "./EmojiPicker";
 import { MessageReactions, toggleMessageReaction, type MessageReaction } from "./MessageReactions";
 import { MessageAttachmentCard } from "./MessageAttachmentCard";
 
+export interface IssueLabel {
+  name: string;
+  color: string;
+}
+
+export interface IssueHistoryEvent {
+  id: string;
+  actor: string;
+  action: string;
+  time: string;
+  eventType: 'created' | 'assigned' | 'labeled' | 'commented' | 'status_changed';
+}
+
 interface Message {
   id: number;
   user: string;
   text: string;
   time: string;
-  type?: 'text' | 'code' | 'system' | 'pr';
+  type?: 'text' | 'code' | 'system' | 'pr' | 'issue';
   code?: string;
   language?: string;
   mentions?: string[];
+  // PR fields
   prNumber?: number;
   prStatus?: 'open' | 'merged' | 'closed' | 'completed';
   prTitle?: string;
@@ -29,6 +43,17 @@ interface Message {
   aiRisk?: 'Low' | 'Medium' | 'High';
   passed?: number;
   labels?: string[];
+  // Issue fields
+  issueNumber?: number;
+  issueTitle?: string;
+  issueStatus?: 'open' | 'closed' | 'in_progress';
+  issueAuthor?: string;
+  issueLabels?: IssueLabel[];
+  issuePriority?: 'high' | 'medium' | 'low';
+  issueType?: string;
+  issueAssignees?: string[];
+  issueBody?: string;
+  issueHistory?: IssueHistoryEvent[];
   attachments?: MessageAttachment[];
 }
 
@@ -39,6 +64,7 @@ interface ChatPanelProps {
   showAISummary?: boolean;
   onMergePR?: (messageId: number) => void;
   onReviewPR?: (prData: any) => void;
+  onViewIssue?: (issueData: any) => void;
   onOpenThread?: (message: any) => void;
   isRepository?: boolean;
 }
@@ -56,7 +82,19 @@ const shareChannels = [
   { id: "design", label: "디자인" }
 ];
 
-export function ChatPanel({ title, messages, onSendMessage, showAISummary = true, onMergePR, onReviewPR, onOpenThread, isRepository = false }: ChatPanelProps) {
+const issueStatusConfig = {
+  open: { label: '열림', color: '#22C55E', icon: CircleDot },
+  in_progress: { label: '진행 중', color: 'var(--neon-cyan)', icon: Clock },
+  closed: { label: '닫힘', color: 'var(--muted)', icon: CircleCheck },
+};
+
+const issuePriorityConfig = {
+  high: { label: 'High', color: '#FF6B6B' },
+  medium: { label: 'Medium', color: '#F59E0B' },
+  low: { label: 'Low', color: '#22C55E' },
+};
+
+export function ChatPanel({ title, messages, onSendMessage, showAISummary = true, onMergePR, onReviewPR, onViewIssue, onOpenThread, isRepository = false }: ChatPanelProps) {
   const [message, setMessage] = useState('');
   const [showCodeBlock, setShowCodeBlock] = useState(false);
   const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'completed'>('all');
@@ -578,6 +616,181 @@ export function ChatPanel({ title, messages, onSendMessage, showAISummary = true
                         background: 'transparent',
                         color: 'var(--muted)',
                         cursor: 'pointer'
+                      }} title="더보기">
+                        <MoreVertical size={14} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : msg.type === 'issue' ? (
+                <div className="relative">
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => onViewIssue?.(msg)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onViewIssue?.(msg);
+                      }
+                    }}
+                    className="rounded-xl overflow-hidden transition-all hover:translate-y-[-1px]"
+                    style={{
+                      background: 'rgba(11, 22, 40, 0.85)',
+                      border: '1px solid rgba(34, 197, 94, 0.22)',
+                      boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3)',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {/* Header */}
+                    <div className="px-4 py-2.5 flex items-center justify-between" style={{
+                      background: 'rgba(5, 11, 20, 0.5)',
+                      borderBottom: '1px solid rgba(34, 197, 94, 0.14)'
+                    }}>
+                      <div className="flex items-center gap-2">
+                        <CircleDot size={14} style={{ color: '#22C55E' }} />
+                        <span className="font-mono tracking-tight" style={{
+                          fontSize: '11px',
+                          fontWeight: 800,
+                          color: 'var(--muted)'
+                        }}>
+                          GitHub Issues
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                        {msg.issueLabels?.map((label, idx) => (
+                          <span key={idx} className="px-2 py-0.5 rounded-md tracking-tight" style={{
+                            background: `${label.color}22`,
+                            border: `1px solid ${label.color}66`,
+                            fontSize: '10px',
+                            fontWeight: 800,
+                            color: label.color
+                          }}>
+                            {label.name}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Title */}
+                    <div className="px-4 py-3" style={{
+                      borderBottom: '1px solid rgba(34, 197, 94, 0.10)'
+                    }}>
+                      <h4 className="m-0 mb-2 tracking-tight" style={{
+                        fontSize: '15px',
+                        fontWeight: 950,
+                        color: 'var(--white)',
+                        lineHeight: '1.4'
+                      }}>
+                        #{msg.issueNumber} {msg.issueTitle}
+                      </h4>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {msg.issueStatus && (() => {
+                          const cfg = issueStatusConfig[msg.issueStatus];
+                          const Icon = cfg.icon;
+                          return (
+                            <span className="px-2 py-0.5 rounded-md flex items-center gap-1" style={{
+                              background: `${cfg.color}22`,
+                              border: `1px solid ${cfg.color}44`,
+                              fontSize: '10px',
+                              fontWeight: 900,
+                              color: cfg.color
+                            }}>
+                              <Icon size={10} />
+                              {cfg.label}
+                            </span>
+                          );
+                        })()}
+                        <span className="tracking-tight" style={{
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          color: 'var(--muted)'
+                        }}>
+                          {msg.time}
+                        </span>
+                        <span className="tracking-tight" style={{
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          color: 'var(--muted)'
+                        }}>
+                          작성자 {msg.issueAuthor || msg.user}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="px-4 py-3 flex items-center gap-2 flex-wrap">
+                      {msg.issuePriority && (
+                        <span className="px-2.5 py-1 rounded-md tracking-tight" style={{
+                          background: `${issuePriorityConfig[msg.issuePriority].color}22`,
+                          border: `1px solid ${issuePriorityConfig[msg.issuePriority].color}44`,
+                          fontSize: '10px',
+                          fontWeight: 900,
+                          color: issuePriorityConfig[msg.issuePriority].color
+                        }}>
+                          우선순위: {issuePriorityConfig[msg.issuePriority].label}
+                        </span>
+                      )}
+                      {msg.issueType && (
+                        <span className="px-2.5 py-1 rounded-md tracking-tight" style={{
+                          background: 'rgba(234, 247, 255, 0.07)',
+                          border: '1px solid rgba(234, 247, 255, 0.14)',
+                          fontSize: '10px',
+                          fontWeight: 900,
+                          color: 'var(--muted)'
+                        }}>
+                          {msg.issueType}
+                        </span>
+                      )}
+                      {msg.issueAssignees && msg.issueAssignees.length > 0 && (
+                        <span className="tracking-tight" style={{
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          color: 'var(--muted)'
+                        }}>
+                          담당자: {msg.issueAssignees.join(', ')}
+                        </span>
+                      )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onViewIssue?.(msg);
+                        }}
+                        className="ml-auto px-3 py-1.5 rounded-md border-0 tracking-tight transition-all flex items-center gap-1.5"
+                        style={{
+                          background: 'rgba(34, 197, 94, 0.12)',
+                          border: '1px solid rgba(34, 197, 94, 0.28)',
+                          color: '#22C55E',
+                          fontSize: '11px',
+                          fontWeight: 900,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        이슈 열기
+                      </button>
+                    </div>
+                  </div>
+                  {hoveredMessageId === msg.id && (
+                    <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-lg" style={{
+                      background: 'rgba(11, 22, 40, 0.95)',
+                      border: '1px solid rgba(32, 227, 255, 0.3)',
+                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)'
+                    }}>
+                      <button
+                        onClick={() => onOpenThread?.(msg)}
+                        className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all hover:bg-[rgba(32,227,255,0.15)]"
+                        style={{ background: 'transparent', color: 'var(--muted)', cursor: 'pointer' }}
+                        title="답글"
+                      >
+                        <MessageSquare size={14} />
+                      </button>
+                      <button className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all hover:bg-[rgba(32,227,255,0.15)]" style={{
+                        background: 'transparent', color: 'var(--muted)', cursor: 'pointer'
+                      }} title="북마크">
+                        <Bookmark size={14} />
+                      </button>
+                      <button className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all hover:bg-[rgba(32,227,255,0.15)]" style={{
+                        background: 'transparent', color: 'var(--muted)', cursor: 'pointer'
                       }} title="더보기">
                         <MoreVertical size={14} />
                       </button>
