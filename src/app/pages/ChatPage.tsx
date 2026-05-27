@@ -1,0 +1,1216 @@
+import { Hash, Users, GitPullRequest, Home, CheckSquare, Settings, ChevronDown, ChevronRight, GitBranch, Code2, Database, BookOpen, Maximize2, Minimize2, UserPlus, Plus, Pencil, Trash2, Check, X, type LucideIcon } from "lucide-react";
+import { ChatPanel } from "../components/ChatPanel";
+import { PRReviewPanel } from "../components/PRReviewPanel";
+import { ThreadPanel } from "../components/ThreadPanel";
+import { ChannelPanel } from "../components/ChannelPanel";
+import { CoffeeLogo } from "../components/CoffeeLogo";
+import { OverviewPanel } from "../components/OverviewPanel";
+import { APISpecPage } from "./APISpecPage";
+import { ERDPage } from "./ERDPage";
+import { DocsPage } from "./DocsPage";
+import { useEffect, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import type { MessageAttachment } from "../components/messageAttachments";
+import { TeamInviteModal } from "../components/TeamInviteModal";
+import { TeamPanel } from "../components/TeamPanel";
+
+const REPOSITORY_IMPORTED_KEY = "codedock-repository-imported";
+const REPOSITORY_LIST_KEY = "codedock-repositories";
+
+type SidebarGroupId = 'work' | 'documentation';
+
+interface RepositoryItem {
+  id: string;
+  name: string;
+  openPRs: number;
+  highRisk: number;
+  activeIssues: number;
+  connected: boolean;
+  membersOnline: number;
+}
+
+interface SidebarChannel {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  badge?: string;
+}
+
+const DEFAULT_REPOSITORIES: RepositoryItem[] = [
+  { id: 'secureflow', name: 'SecureFlow Workspace', openPRs: 7, highRisk: 2, activeIssues: 12, connected: true, membersOnline: 8 },
+  { id: 'aichat', name: 'AI Chat Platform', openPRs: 3, highRisk: 0, activeIssues: 8, connected: true, membersOnline: 5 },
+  { id: 'dashboard', name: 'Dashboard UI Kit', openPRs: 5, highRisk: 1, activeIssues: 6, connected: true, membersOnline: 3 }
+];
+
+const WORK_CHANNELS: SidebarChannel[] = [
+  { id: 'pull-requests', label: 'PR 목록', icon: GitPullRequest, badge: '7' },
+  { id: 'issues', label: '이슈', icon: CheckSquare, badge: '12' }
+];
+
+const DOCUMENTATION_CHANNELS: SidebarChannel[] = [
+  { id: 'api-spec', label: 'API', icon: Code2 },
+  { id: 'erd', label: 'ERD', icon: Database },
+  { id: 'docs', label: '문서', icon: BookOpen }
+];
+
+const ALL_SIDEBAR_CHANNELS = [
+  { id: 'overview', label: '통합 개요', icon: Home },
+  { id: 'general', label: '채널', icon: Hash },
+  ...WORK_CHANNELS,
+  ...DOCUMENTATION_CHANNELS
+];
+
+function getRepositoryImportPreference() {
+  if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
+    return false;
+  }
+
+  try {
+    return window.localStorage.getItem(REPOSITORY_IMPORTED_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function saveRepositoryImportPreference() {
+  saveRepositoryImportPreferenceValue(true);
+}
+
+function saveRepositoryImportPreferenceValue(value: boolean) {
+  if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(REPOSITORY_IMPORTED_KEY, value ? "true" : "false");
+  } catch {
+    // Storage can be unavailable in embedded previews; the in-memory state still updates.
+  }
+}
+
+function getSavedRepositories() {
+  if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
+    return null;
+  }
+
+  try {
+    const storedValue = window.localStorage.getItem(REPOSITORY_LIST_KEY);
+    if (!storedValue) return null;
+    const parsed = JSON.parse(storedValue);
+    if (!Array.isArray(parsed)) return null;
+
+    return parsed.filter((repo): repo is RepositoryItem =>
+      repo
+      && typeof repo.id === "string"
+      && typeof repo.name === "string"
+      && typeof repo.openPRs === "number"
+      && typeof repo.highRisk === "number"
+      && typeof repo.activeIssues === "number"
+      && typeof repo.connected === "boolean"
+      && typeof repo.membersOnline === "number"
+    );
+  } catch {
+    return null;
+  }
+}
+
+function saveRepositories(repositories: RepositoryItem[]) {
+  if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(REPOSITORY_LIST_KEY, JSON.stringify(repositories));
+  } catch {
+    // Storage can be unavailable in embedded previews; the in-memory state still updates.
+  }
+}
+
+const initialMessages: Record<string, any[]> = {
+  'overview': [
+    { id: 1, user: '시스템', text: '프로젝트 대시보드에 오신 것을 환영합니다!', time: '오늘 09:00', type: 'system' as const },
+    { id: 2, user: '시스템', text: '활성 PR: 5개 | 미해결 이슈: 12개 | 팀원: 15명', time: '오늘 09:00', type: 'system' as const }
+  ],
+  'general': [
+    { id: 1, user: '시스템', text: 'SecureFlow Workspace에 오신 것을 환영합니다!', time: '오늘 09:00', type: 'system' as const },
+    { id: 2, user: '김재준', text: '이번 주 스프린트 목표 공유드립니다.', time: '오늘 10:00' },
+    { id: 3, user: '김진필', text: '네, 확인했습니다!', time: '오늘 10:05' }
+  ],
+  'review-room': [
+    { id: 1, user: 'CodeDock', text: 'PR #234 인증 변경 파일을 먼저 묶었어요.', time: '오늘 11:12', type: 'system' as const },
+    { id: 2, user: '김준우', text: 'rate limit 빠진 부분만 체크리스트로 빼줘.', time: '오늘 11:15' },
+    { id: 3, user: 'CodeDock', text: '보안 코멘트 3개와 문서 반영 항목을 준비했습니다.', time: '오늘 11:16', type: 'system' as const }
+  ],
+  'frontend-chat': [
+    { id: 1, user: '김진현', text: '로그인 페이지 채팅형 전환 애니메이션 확인 부탁드려요.', time: '오늘 10:42' },
+    { id: 2, user: '안현', text: '크게 보기 모드에서 헤더 덮는 부분까지 맞췄습니다.', time: '오늘 10:48' }
+  ],
+  'backend-chat': [
+    { id: 1, user: '김진필', text: '회원 탈퇴와 워크스페이스 삭제 API 명세 추가 예정입니다.', time: '오늘 09:55' },
+    { id: 2, user: 'CodeDock', text: '리포지토리 연동 해제 정책도 문서 목록에 연결해둘게요.', time: '오늘 09:58', type: 'system' as const }
+  ],
+  'pull-requests': [
+    {
+      id: 1,
+      user: 'GitHub Bot',
+      text: 'PR #104 opened by 김재준: [Refactor] AI 인터뷰 결과 반영 시 부분 수정 유지 정책 정교화',
+      time: '오늘 11:24',
+      type: 'pr' as const,
+      prNumber: 104,
+      prTitle: '[Refactor] AI 인터뷰 결과 반영 시 부분 수정 유지 정책 정교화',
+      prStatus: 'open',
+      filesChanged: 6,
+      additions: 318,
+      deletions: 74,
+      repository: 'codedock-team/recruiting-backend',
+      reviewRoomActive: true,
+      approved: 1,
+      pending: 1,
+      aiRisk: 'Medium',
+      passed: 7,
+      labels: ['리팩터링', 'AI 인터뷰', '테스트'],
+      prAuthor: '김재준',
+      githubUser: 'kimjaejun',
+      authorInitials: 'JJ',
+      branch: 'refactor/ai-interview-preserve'
+    },
+    {
+      id: 2,
+      user: 'GitHub Bot',
+      text: 'PR #141 opened by 김진필: WebSocket 연결 처리 메모리 누수 수정',
+      time: '오늘 09:30',
+      type: 'pr' as const,
+      prNumber: 141,
+      prStatus: 'open',
+      filesChanged: 3,
+      additions: 45,
+      deletions: 28,
+      repository: 'codeblock-team/codeblock-frontend',
+      reviewRoomActive: false,
+      approved: 3,
+      pending: 0,
+      aiRisk: 'Low',
+      passed: 8,
+      labels: ['버그 수정', '성능'],
+      prAuthor: '김진필'
+    },
+    {
+      id: 3,
+      user: 'GitHub Bot',
+      text: 'PR #140 merged by 김진현: 새 API 엔드포인트 문서 업데이트',
+      time: '오늘 10:30',
+      type: 'pr' as const,
+      prNumber: 140,
+      prStatus: 'merged',
+      filesChanged: 12,
+      additions: 456,
+      deletions: 85,
+      repository: 'codeblock-team/codeblock-frontend',
+      reviewRoomActive: false,
+      approved: 3,
+      pending: 0,
+      aiRisk: 'Low',
+      passed: 7,
+      labels: ['문서'],
+      prAuthor: '김진현'
+    }
+  ],
+  'ai-review': [
+    { id: 1, user: 'AI Assistant', text: 'PR #234 분석 완료: 보안 취약점 없음, 코드 품질 우수', time: '오늘 11:05', type: 'system' as const },
+    { id: 2, user: 'AI Assistant', text: 'PR #456의 타입스크립트 마이그레이션 리뷰 중...', time: '오늘 09:35', type: 'system' as const }
+  ],
+  'issues': [
+    { id: 1, user: '김진필', text: 'Issue #45: 로그인 페이지 반응형 깨짐 현상', time: '오늘 10:00' },
+    { id: 2, user: '김준우', text: 'Issue #46: API 응답 시간 개선 필요', time: '오늘 10:30' },
+    { id: 3, user: '김진현', text: 'Issue #47: 다크모드 색상 일관성 문제', time: '오늘 11:00' }
+  ],
+  'documentation': [
+    { id: 1, user: '김진현', text: '디자인 시스템 문서 업데이트 완료', time: '오늘 09:00' },
+    { id: 2, user: '김재준', text: 'API 명세서 v2.0 배포했습니다', time: '오늘 10:00' }
+  ],
+  'operations': [
+    { id: 1, user: '시스템', text: '서버 상태: 정상 | CPU: 45% | 메모리: 62%', time: '오늘 12:00', type: 'system' as const },
+    { id: 2, user: 'DevOps Bot', text: '배포 완료: production 환경 v1.2.3', time: '오늘 11:30', type: 'system' as const }
+  ],
+  'team': [
+    { id: 1, user: '김재준', text: '팀 미팅 금요일 오후 3시로 변경되었습니다.', time: '오늘 09:00' },
+    { id: 2, user: '김진필', text: '다음 주 휴가 예정입니다.', time: '오늘 10:00' }
+  ],
+  'settings': [
+    { id: 1, user: '시스템', text: '설정 페이지입니다.', time: '오늘 09:00', type: 'system' as const }
+  ]
+};
+
+const initialThreadReplies: Record<number, any[]> = {
+  1: [
+    { id: 101, user: '김진필', text: '이번 주는 인증 기능 개선에 집중할 예정입니다.', time: '10:25 AM' },
+    { id: 102, user: '김진현', text: 'UI 개선 작업도 같이 진행하면 좋을 것 같아요.', time: '10:30 AM' },
+    { id: 103, user: '안현', text: '네, 확인했습니다! 금요일까지 완료 가능할 것 같습니다.', time: '10:35 AM' }
+  ],
+  2: [
+    { id: 201, user: '김재준', text: '좋습니다! 문서도 업데이트 부탁드려요.', time: '11:50 AM' },
+    { id: 202, user: '안현', text: 'Swagger 문서 자동 생성되도록 설정했습니다.', time: '12:00 PM' },
+    { id: 203, user: '김진필', text: '테스트 케이스도 추가했어요.', time: '12:15 PM' },
+    { id: 204, user: '김진현', text: '프론트엔드 연동 테스트 완료했습니다.', time: '12:30 PM' },
+    { id: 205, user: '김재준', text: '수고하셨습니다!', time: '12:45 PM' }
+  ],
+  3: [
+    { id: 301, user: '김진필', text: 'shadcn/ui 추천드립니다.', time: '2:20 PM' },
+    { id: 302, user: '안현', text: 'MUI도 고려해볼만 한 것 같아요.', time: '2:25 PM' },
+    { id: 303, user: '김재준', text: '프로젝트 요구사항에 맞춰 선택하면 좋겠네요.', time: '2:30 PM' },
+    { id: 304, user: '김진현', text: '디자인 토큰 호환성도 확인해보겠습니다.', time: '2:35 PM' },
+    { id: 305, user: '김진필', text: 'Tailwind CSS와의 통합도 고려하면 좋을 것 같습니다.', time: '2:40 PM' },
+    { id: 306, user: '안현', text: '다음 주 회의에서 결정하죠.', time: '2:45 PM' },
+    { id: 307, user: '김재준', text: 'POC 자료 준비 부탁드립니다.', time: '2:50 PM' },
+    { id: 308, user: '김진현', text: '네, 준비하겠습니다!', time: '2:55 PM' }
+  ],
+  4: [
+    { id: 401, user: '김진현', text: '색상 조합이 정말 좋네요!', time: '3:35 PM' },
+    { id: 402, user: '김재준', text: '고생하셨습니다!', time: '3:40 PM' }
+  ],
+  5: [
+    { id: 501, user: '김재준', text: '인덱스 추가는 검토하셨나요?', time: '4:10 PM' }
+  ]
+};
+
+export function ChatPage() {
+  const [repositoriesImported, setRepositoriesImported] = useState(() => getRepositoryImportPreference());
+  const [repositories, setRepositories] = useState<RepositoryItem[]>(() =>
+    getRepositoryImportPreference() ? getSavedRepositories() ?? DEFAULT_REPOSITORIES : []
+  );
+  const [selectedRepository, setSelectedRepository] = useState<string>(() =>
+    getRepositoryImportPreference() ? getSavedRepositories()?.[0]?.id ?? DEFAULT_REPOSITORIES[0].id : ""
+  );
+  const [showRepoDropdown, setShowRepoDropdown] = useState(false);
+  const [repositoryFormMode, setRepositoryFormMode] = useState<"create" | "edit" | null>(null);
+  const [editingRepositoryId, setEditingRepositoryId] = useState<string | null>(null);
+  const [repositoryNameInput, setRepositoryNameInput] = useState("");
+  const [selectedChannel, setSelectedChannel] = useState<string>('general');
+  const [messages, setMessages] = useState<Record<string, any[]>>(initialMessages);
+  const [selectedPR, setSelectedPR] = useState<any>(null);
+  const [selectedThread, setSelectedThread] = useState<any>(null);
+  const [threadReplies, setThreadReplies] = useState<Record<number, any[]>>(initialThreadReplies);
+  const [isMainExpanded, setIsMainExpanded] = useState(false);
+  const [teamInviteOpen, setTeamInviteOpen] = useState(false);
+  const [expandedSidebarGroups, setExpandedSidebarGroups] = useState<Record<SidebarGroupId, boolean>>({
+    work: true,
+    documentation: true
+  });
+
+  const hasRepositories = repositoriesImported && repositories.length > 0;
+  const currentRepo = repositories.find(repo => repo.id === selectedRepository);
+
+  const currentMessages = messages[selectedChannel] || [];
+  const isRepository = ['pull-requests', 'ai-review'].includes(selectedChannel);
+  const gridTemplateColumns = selectedPR
+    ? 'minmax(0, 1fr)'
+    : isMainExpanded
+      ? selectedThread
+        ? '320px minmax(0, 1fr) 380px'
+        : '320px minmax(0, 1fr)'
+      : selectedThread
+        ? '320px 1fr 380px'
+        : '320px 1fr';
+  const pageShellClassName = isMainExpanded
+    ? "fixed inset-0 z-[80] mx-auto max-w-none p-4"
+    : "w-full max-w-[2000px] mx-auto px-4 py-8 pb-20";
+  const pageShellStyle = isMainExpanded
+    ? {
+        background:
+          'radial-gradient(circle at 18% 10%, rgba(32, 227, 255, 0.16), transparent 28%), radial-gradient(circle at 82% 0%, rgba(57, 255, 136, 0.08), transparent 30%), #050b14'
+      }
+    : undefined;
+  const chatGridClassName = isMainExpanded
+    ? "grid h-full min-h-0 gap-4 overflow-hidden"
+    : "grid h-[calc(100vh-160px)] min-h-0 gap-6 overflow-hidden";
+  const selectedChannelMeta = ALL_SIDEBAR_CHANNELS.find((channel) => channel.id === selectedChannel);
+  const selectedChannelTitle = selectedChannelMeta?.label
+    ?? selectedChannel.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+
+  useEffect(() => {
+    if (!isMainExpanded) return;
+
+    const handleEscapeExpandedView = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      setIsMainExpanded(false);
+    };
+
+    window.addEventListener('keydown', handleEscapeExpandedView);
+    return () => window.removeEventListener('keydown', handleEscapeExpandedView);
+  }, [isMainExpanded]);
+
+  useEffect(() => {
+    if (!repositoriesImported) return;
+    saveRepositoryImportPreference();
+    saveRepositories(repositories);
+  }, [repositories, repositoriesImported]);
+
+  const closeRepositoryForm = () => {
+    setRepositoryFormMode(null);
+    setEditingRepositoryId(null);
+    setRepositoryNameInput("");
+  };
+
+  const openCreateRepositoryForm = () => {
+    setShowRepoDropdown(false);
+    setRepositoryFormMode("create");
+    setEditingRepositoryId(null);
+    setRepositoryNameInput("");
+  };
+
+  const openEditRepositoryForm = (repository: RepositoryItem) => {
+    setShowRepoDropdown(false);
+    setRepositoryFormMode("edit");
+    setEditingRepositoryId(repository.id);
+    setRepositoryNameInput(repository.name);
+  };
+
+  const handleSubmitRepositoryForm = () => {
+    const nextName = repositoryNameInput.trim();
+    if (!nextName) return;
+
+    if (repositoryFormMode === "edit" && editingRepositoryId) {
+      setRepositories((prevRepositories) =>
+        prevRepositories.map((repo) =>
+          repo.id === editingRepositoryId ? { ...repo, name: nextName } : repo
+        )
+      );
+      closeRepositoryForm();
+      return;
+    }
+
+    const nextRepository: RepositoryItem = {
+      id: `repo-${Date.now()}`,
+      name: nextName,
+      openPRs: 0,
+      highRisk: 0,
+      activeIssues: 0,
+      connected: true,
+      membersOnline: 1
+    };
+
+    setRepositories((prevRepositories) => [nextRepository, ...prevRepositories]);
+    setRepositoriesImported(true);
+    setSelectedRepository(nextRepository.id);
+    setSelectedChannel("overview");
+    closeRepositoryForm();
+  };
+
+  const handleDeleteRepository = (repositoryId: string) => {
+    const nextRepositories = repositories.filter((repo) => repo.id !== repositoryId);
+
+    setRepositories(nextRepositories);
+
+    if (selectedRepository === repositoryId) {
+      setSelectedRepository(nextRepositories[0]?.id ?? "");
+    }
+
+    if (nextRepositories.length === 0) {
+      setRepositoriesImported(false);
+      setSelectedChannel("general");
+      setShowRepoDropdown(false);
+      closeRepositoryForm();
+      saveRepositoryImportPreferenceValue(false);
+      saveRepositories([]);
+      return;
+    }
+
+    saveRepositories(nextRepositories);
+  };
+
+  const toggleSidebarGroup = (group: SidebarGroupId) => {
+    setExpandedSidebarGroups((prev) => ({
+      ...prev,
+      [group]: !prev[group]
+    }));
+  };
+
+  const renderSidebarChannel = (channel: SidebarChannel, nested = false) => {
+    const Icon = channel.icon;
+    const isActive = selectedChannel === channel.id;
+
+    return (
+      <motion.button
+        key={channel.id}
+        onClick={() => setSelectedChannel(channel.id)}
+        className={`relative isolate flex w-full items-center gap-3 rounded-full border-0 text-left tracking-tight transition-colors ${nested ? 'pl-8 pr-3 py-2.5' : 'px-4 py-3'}`}
+        style={{
+          background: 'transparent',
+          border: 'none',
+          cursor: 'pointer'
+        }}
+        whileTap={{ scale: 0.99 }}
+      >
+        {isActive && (
+          <motion.div
+            layoutId="workspaceSidebarActiveTab"
+            className="absolute inset-0 rounded-full"
+            style={{
+              background: `
+                linear-gradient(135deg, rgba(32, 227, 255, 0.18), rgba(234, 247, 255, 0.045)),
+                rgba(11, 22, 40, 0.52)
+              `,
+              border: '1px solid rgba(32, 227, 255, 0.30)',
+              boxShadow: `
+                0 0 24px rgba(32, 227, 255, 0.12),
+                inset 0 1px 0 rgba(255, 255, 255, 0.12),
+                inset 0 0 18px rgba(255, 255, 255, 0.035)
+              `,
+              backdropFilter: 'blur(14px) saturate(180%)',
+              WebkitBackdropFilter: 'blur(14px) saturate(180%)'
+            }}
+            transition={{
+              type: "spring",
+              stiffness: 380,
+              damping: 30
+            }}
+          />
+        )}
+        <Icon size={nested ? 15 : 18} style={{ color: isActive ? 'var(--neon-cyan)' : 'var(--muted)', flexShrink: 0, position: 'relative', zIndex: 1 }} />
+        <span className="relative z-10 min-w-0 flex-1 truncate tracking-tight" style={{
+          fontSize: nested ? '13px' : '14px',
+          fontWeight: isActive ? 900 : 800,
+          color: isActive ? 'var(--white)' : 'var(--muted)'
+        }}>
+          {channel.label}
+        </span>
+        {channel.badge && (
+          <span className="relative z-10 flex-shrink-0 rounded-full px-2 py-0.5 tracking-tight" style={{
+            background: isActive ? 'rgba(32, 227, 255, 0.22)' : 'rgba(234, 247, 255, 0.08)',
+            border: '1px solid rgba(32, 227, 255, 0.18)',
+            color: isActive ? 'var(--neon-cyan)' : 'var(--muted)',
+            fontSize: '10px',
+            fontWeight: 950
+          }}>
+            {channel.badge}
+          </span>
+        )}
+      </motion.button>
+    );
+  };
+
+  const renderSidebarGroup = (group: SidebarGroupId, label: string, channels: SidebarChannel[]) => {
+    const isOpen = expandedSidebarGroups[group];
+    const hasActiveChild = channels.some((channel) => channel.id === selectedChannel);
+
+    return (
+      <div className="grid gap-1">
+        <motion.button
+          type="button"
+          onClick={() => toggleSidebarGroup(group)}
+          className="w-full rounded-lg border-0 px-3 py-2.5 text-left transition-colors flex items-center gap-2"
+          style={{
+            background: hasActiveChild ? 'rgba(32, 227, 255, 0.10)' : 'rgba(234, 247, 255, 0.035)',
+            border: hasActiveChild ? '1px solid rgba(32, 227, 255, 0.22)' : '1px solid rgba(32, 227, 255, 0.08)',
+            cursor: 'pointer'
+          }}
+          whileHover={{ x: 2 }}
+          whileTap={{ scale: 0.99 }}
+          transition={{ type: "spring", stiffness: 420, damping: 34 }}
+          aria-expanded={isOpen}
+        >
+          {isOpen ? (
+            <ChevronDown size={15} style={{ color: hasActiveChild ? 'var(--neon-cyan)' : 'var(--muted)', flexShrink: 0 }} />
+          ) : (
+            <ChevronRight size={15} style={{ color: hasActiveChild ? 'var(--neon-cyan)' : 'var(--muted)', flexShrink: 0 }} />
+          )}
+          <span className="min-w-0 flex-1 truncate tracking-tight" style={{
+            fontSize: '12px',
+            fontWeight: 950,
+            color: hasActiveChild ? 'var(--white)' : 'var(--muted)'
+          }}>
+            {label}
+          </span>
+          <span className="tracking-tight" style={{
+            color: hasActiveChild ? 'var(--neon-cyan)' : 'var(--muted)',
+            fontSize: '11px',
+            fontWeight: 900
+          }}>
+            {channels.length}
+          </span>
+        </motion.button>
+        <AnimatePresence initial={false}>
+          {isOpen && (
+            <motion.div
+              className="grid gap-1 overflow-hidden"
+              initial={{ height: 0, opacity: 0, y: -4 }}
+              animate={{ height: "auto", opacity: 1, y: 0 }}
+              exit={{ height: 0, opacity: 0, y: -4 }}
+              transition={{ type: "spring", stiffness: 360, damping: 32 }}
+            >
+              {channels.map((channel) => renderSidebarChannel(channel, true))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  };
+
+  const handleImportRepositories = () => {
+    const savedRepositories = getSavedRepositories();
+    const importedRepositories = savedRepositories?.length ? savedRepositories : DEFAULT_REPOSITORIES;
+    saveRepositoryImportPreference();
+    setRepositoriesImported(true);
+    setRepositories(importedRepositories);
+    setSelectedRepository(importedRepositories[0]?.id ?? "");
+    setSelectedChannel("general");
+    setShowRepoDropdown(false);
+    closeRepositoryForm();
+  };
+
+  const handleMergePR = (messageId: number) => {
+    setMessages(prevMessages => {
+      const newMessages = { ...prevMessages };
+      const channelMessages = newMessages[selectedChannel];
+      if (channelMessages) {
+        const originalPR = channelMessages.find(msg => msg.id === messageId);
+
+        if (originalPR && originalPR.type === 'pr') {
+          const newMergeMessage = {
+            id: Date.now(),
+            user: 'GitHub Bot',
+            text: `PR #${originalPR.prNumber} merged: ${originalPR.text.replace(/^.*?: /, '')}`,
+            time: '방금',
+            type: 'pr' as const,
+            prNumber: originalPR.prNumber,
+            prStatus: 'merged' as const,
+            filesChanged: originalPR.filesChanged,
+            additions: originalPR.additions,
+            deletions: originalPR.deletions
+          };
+
+          newMessages[selectedChannel] = [
+            ...channelMessages.map(msg =>
+              msg.id === messageId && msg.type === 'pr'
+                ? { ...msg, prStatus: 'completed' as const }
+                : msg
+            ),
+            newMergeMessage
+          ];
+        }
+      }
+      return newMessages;
+    });
+  };
+
+  const handleReviewPR = (prData: any) => {
+    setIsMainExpanded(true);
+    setSelectedPR(prData);
+    setSelectedThread(null);
+  };
+
+  const handleClosePRReview = () => {
+    setSelectedPR(null);
+    setSelectedThread(null);
+    setIsMainExpanded(false);
+  };
+
+  const handleOpenThread = (message: any) => {
+    setSelectedThread(message);
+    setSelectedPR(null); // 스레드 열 때 PR 리뷰 닫기
+  };
+
+  const handleCloseThread = () => {
+    setSelectedThread(null);
+  };
+
+  const handleSendMessage = (text: string, attachments: MessageAttachment[] = []) => {
+    const trimmedText = text.trim();
+    if (!trimmedText && attachments.length === 0) return;
+
+    const nextMessage = {
+      id: Date.now(),
+      user: '나',
+      text: trimmedText || `${attachments.length}개 항목을 공유합니다.`,
+      time: '방금',
+      attachments
+    };
+
+    setMessages((prev) => ({
+      ...prev,
+      [selectedChannel]: [...(prev[selectedChannel] || []), nextMessage]
+    }));
+  };
+
+  const handleSendReply = (text: string) => {
+    if (selectedThread) {
+      const newReply = {
+        id: Date.now(),
+        user: '나',
+        text: text,
+        time: '방금'
+      };
+
+      setThreadReplies(prev => ({
+        ...prev,
+        [selectedThread.id]: [...(prev[selectedThread.id] || []), newReply]
+      }));
+    }
+  };
+
+  return (
+    <div className={pageShellClassName} style={pageShellStyle}>
+      <div className={chatGridClassName} style={{
+        gridTemplateColumns
+      }}>
+        {!selectedPR && (
+          <section className="min-h-0 overflow-y-auto px-6 py-6 rounded-[30px] flex flex-col" style={{
+            background: 'rgba(11, 22, 40, 0.82)',
+            border: '1px solid rgba(32, 227, 255, 0.16)',
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.32)',
+            backdropFilter: 'blur(16px)'
+          }}>
+          <div className="mb-6">
+            {hasRepositories ? (
+              <div className="relative">
+                <button
+                  onClick={() => setShowRepoDropdown(!showRepoDropdown)}
+                  className="w-full px-4 py-3 rounded-lg border-0 flex items-center justify-between gap-2 transition-all"
+                  style={{
+                    background: 'rgba(32, 227, 255, 0.12)',
+                    border: '1px solid rgba(32, 227, 255, 0.3)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{
+                      background: 'linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))'
+                    }}>
+                      <GitBranch size={14} style={{ color: '#021014' }} />
+                    </div>
+                    <div className="flex flex-col items-start min-w-0">
+                      <span className="tracking-tight truncate" style={{
+                        fontSize: '14px',
+                        fontWeight: 900,
+                        color: 'var(--white)'
+                      }}>
+                        {currentRepo?.name}
+                      </span>
+                    </div>
+                  </div>
+                  <ChevronDown size={16} style={{ color: 'var(--neon-cyan)', flexShrink: 0 }} />
+                </button>
+
+                {showRepoDropdown && (
+                  <div className="absolute top-full left-0 right-0 mt-2 rounded-lg overflow-hidden z-10" style={{
+                    background: 'rgba(5, 11, 20, 0.95)',
+                    border: '1px solid rgba(32, 227, 255, 0.3)',
+                    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5)'
+                  }}>
+                    {repositories.map((repo) => (
+                      <div
+                        key={repo.id}
+                        className="flex items-stretch gap-2 px-3 py-3"
+                        style={{
+                          background: selectedRepository === repo.id ? 'rgba(32, 227, 255, 0.15)' : 'transparent',
+                          borderBottom: '1px solid rgba(32, 227, 255, 0.1)'
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedRepository(repo.id);
+                            setShowRepoDropdown(false);
+                          }}
+                          className="min-w-0 flex-1 border-0 bg-transparent p-0 text-left"
+                          style={{ cursor: 'pointer' }}
+                        >
+                          <div className="flex flex-col gap-2">
+                            <span className="truncate tracking-tight" style={{
+                              fontSize: '14px',
+                              fontWeight: selectedRepository === repo.id ? 900 : 800,
+                              color: selectedRepository === repo.id ? 'var(--neon-cyan)' : 'var(--white)'
+                            }}>
+                              {repo.name}
+                            </span>
+                            <div className="flex flex-wrap gap-3">
+                              <span className="tracking-tight" style={{
+                                fontSize: '11px',
+                                fontWeight: 800,
+                                color: 'var(--muted)'
+                              }}>
+                                진행 중인 PR: <span style={{ color: 'var(--neon-cyan)' }}>{repo.openPRs}</span>
+                              </span>
+                              <span className="tracking-tight" style={{
+                                fontSize: '11px',
+                                fontWeight: 800,
+                                color: 'var(--muted)'
+                              }}>
+                                높은 위험: <span style={{ color: repo.highRisk > 0 ? '#FF6B6B' : 'var(--matrix-green)' }}>{repo.highRisk}</span>
+                              </span>
+                              <span className="tracking-tight" style={{
+                                fontSize: '11px',
+                                fontWeight: 800,
+                                color: 'var(--muted)'
+                              }}>
+                                이슈: <span style={{ color: 'var(--soft-mint)' }}>{repo.activeIssues}</span>
+                              </span>
+                            </div>
+                          </div>
+                        </button>
+                        <div className="flex shrink-0 items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => openEditRepositoryForm(repo)}
+                            className="grid h-8 w-8 place-items-center rounded-full border-0 transition-all hover:scale-105"
+                            style={{
+                              background: 'rgba(234, 247, 255, 0.07)',
+                              border: '1px solid rgba(32, 227, 255, 0.16)',
+                              color: 'var(--neon-cyan)',
+                              cursor: 'pointer'
+                            }}
+                            aria-label={`${repo.name} 이름 수정`}
+                            title="이름 수정"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteRepository(repo.id)}
+                            className="grid h-8 w-8 place-items-center rounded-full border-0 transition-all hover:scale-105"
+                            style={{
+                              background: 'rgba(255, 107, 107, 0.10)',
+                              border: '1px solid rgba(255, 107, 107, 0.22)',
+                              color: '#FF6B6B',
+                              cursor: 'pointer'
+                            }}
+                            aria-label={`${repo.name} 삭제`}
+                            title="삭제"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    <div className="px-3 py-3">
+                      <button
+                        type="button"
+                        onClick={openCreateRepositoryForm}
+                        className="flex w-full items-center justify-center gap-2 rounded-full border-0 px-4 py-3 tracking-tight transition-all hover:scale-[1.01]"
+                        style={{
+                          background: 'rgba(57, 255, 136, 0.12)',
+                          border: '1px solid rgba(57, 255, 136, 0.22)',
+                          color: 'var(--matrix-green)',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                          fontWeight: 950
+                        }}
+                      >
+                        <Plus size={15} />
+                        리포지토리 추가
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div
+                className="rounded-2xl px-4 py-4"
+                style={{
+                  background: 'rgba(234, 247, 255, 0.045)',
+                  border: '1px solid rgba(32, 227, 255, 0.16)'
+                }}
+              >
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{
+                    background: 'linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))'
+                  }}>
+                    <GitBranch size={14} style={{ color: '#021014' }} />
+                  </div>
+                  <div className="flex flex-col items-start min-w-0">
+                    <span className="tracking-tight" style={{
+                      fontSize: '11px',
+                      fontWeight: 900,
+                      color: 'var(--muted)'
+                    }}>
+                      선택한 팀
+                    </span>
+                    <span className="tracking-tight truncate" style={{
+                      fontSize: '14px',
+                      fontWeight: 900,
+                      color: 'var(--white)'
+                    }}>
+                      리포지토리 없음
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {hasRepositories ? (
+              <div className="mt-3 flex items-center gap-2 px-2">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full" style={{
+                  background: currentRepo?.connected ? 'var(--matrix-green)' : 'var(--muted)'
+                }}></div>
+                <span className="tracking-tight" style={{
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  color: currentRepo?.connected ? 'var(--matrix-green)' : 'var(--muted)'
+                }}>
+                  {currentRepo?.connected ? 'GitHub 연결됨' : '연결되지 않음'}
+                </span>
+              </div>
+              <span className="tracking-tight" style={{
+                fontSize: '11px',
+                fontWeight: 800,
+                color: 'var(--muted)'
+              }}>•</span>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full" style={{
+                  background: 'var(--matrix-green)'
+                }}></div>
+                <span className="tracking-tight" style={{
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  color: 'var(--muted)'
+                }}>
+                  {currentRepo?.membersOnline}명 접속 중
+                </span>
+              </div>
+              </div>
+            ) : (
+              <div className="mt-3 flex items-center gap-2 px-2">
+                <div className="w-2 h-2 rounded-full" style={{ background: 'var(--muted)' }}></div>
+                <span className="tracking-tight" style={{
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  color: 'var(--muted)'
+                }}>
+                  연결된 리포지토리가 없습니다
+                </span>
+              </div>
+            )}
+
+            <AnimatePresence initial={false}>
+              {repositoryFormMode && (
+                <motion.div
+                  className="mt-4 rounded-2xl px-4 py-4"
+                  style={{
+                    background: 'rgba(5, 11, 20, 0.58)',
+                    border: '1px solid rgba(32, 227, 255, 0.18)',
+                    boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.06)'
+                  }}
+                  initial={{ opacity: 0, y: -8, height: 0 }}
+                  animate={{ opacity: 1, y: 0, height: 'auto' }}
+                  exit={{ opacity: 0, y: -8, height: 0 }}
+                  transition={{ type: 'spring', stiffness: 360, damping: 32 }}
+                >
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="m-0 tracking-tight" style={{
+                        color: 'var(--white)',
+                        fontSize: '13px',
+                        fontWeight: 950
+                      }}>
+                        {repositoryFormMode === 'edit' ? '리포지토리 이름 수정' : '리포지토리 추가'}
+                      </p>
+                      <p className="m-0 mt-1 tracking-tight" style={{
+                        color: 'var(--muted)',
+                        fontSize: '11px',
+                        fontWeight: 800
+                      }}>
+                        GitHub 저장소 이름을 등록합니다
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={closeRepositoryForm}
+                      className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-0"
+                      style={{
+                        background: 'rgba(234, 247, 255, 0.07)',
+                        color: 'var(--muted)',
+                        cursor: 'pointer'
+                      }}
+                      aria-label="리포지토리 입력 닫기"
+                    >
+                      <X size={15} />
+                    </button>
+                  </div>
+
+                  <input
+                    value={repositoryNameInput}
+                    onChange={(event) => setRepositoryNameInput(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        handleSubmitRepositoryForm();
+                      }
+                      if (event.key === 'Escape') {
+                        event.preventDefault();
+                        closeRepositoryForm();
+                      }
+                    }}
+                    placeholder="owner/repository"
+                    className="w-full rounded-xl px-4 py-3 outline-none tracking-tight"
+                    style={{
+                      background: 'rgba(234, 247, 255, 0.08)',
+                      border: '1px solid rgba(32, 227, 255, 0.22)',
+                      color: 'var(--white)',
+                      fontSize: '13px',
+                      fontWeight: 850
+                    }}
+                  />
+
+                  <div className="mt-3 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={closeRepositoryForm}
+                      className="flex-1 rounded-full border-0 px-4 py-2.5 tracking-tight"
+                      style={{
+                        background: 'rgba(234, 247, 255, 0.07)',
+                        border: '1px solid rgba(32, 227, 255, 0.12)',
+                        color: 'var(--muted)',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        fontWeight: 900
+                      }}
+                    >
+                      취소
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSubmitRepositoryForm}
+                      disabled={!repositoryNameInput.trim()}
+                      className="flex flex-1 items-center justify-center gap-2 rounded-full border-0 px-4 py-2.5 tracking-tight transition-all disabled:cursor-not-allowed disabled:opacity-40"
+                      style={{
+                        background: 'linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))',
+                        color: '#021014',
+                        cursor: repositoryNameInput.trim() ? 'pointer' : 'not-allowed',
+                        fontSize: '12px',
+                        fontWeight: 950
+                      }}
+                    >
+                      <Check size={14} />
+                      {repositoryFormMode === 'edit' ? '저장' : '등록'}
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {hasRepositories && selectedChannel !== 'team' && (
+              <button
+                type="button"
+                onClick={() => setTeamInviteOpen(true)}
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border-0 px-4 py-3 tracking-tight transition-all"
+                style={{
+                  background: 'rgba(32, 227, 255, 0.12)',
+                  border: '1px solid rgba(32, 227, 255, 0.24)',
+                  color: 'var(--neon-cyan)',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  fontWeight: 950
+                }}
+              >
+                <UserPlus size={16} />
+                팀원 추가
+              </button>
+            )}
+          </div>
+
+          {hasRepositories ? (
+            <div className="flex flex-1 flex-col overflow-y-auto">
+            <div className="grid gap-2">
+              {renderSidebarChannel({ id: 'overview', label: '통합 개요', icon: Home })}
+              {renderSidebarChannel({ id: 'general', label: '채널', icon: Hash, badge: '4' })}
+
+              <div className="my-1" style={{ borderTop: '1px solid rgba(32, 227, 255, 0.14)' }}></div>
+
+              {renderSidebarGroup('work', '작업', WORK_CHANNELS)}
+              {renderSidebarGroup('documentation', '문서', DOCUMENTATION_CHANNELS)}
+            </div>
+
+            <div className="mt-auto grid gap-2 pt-4">
+              <div className="mb-2" style={{ borderTop: '1px solid rgba(32, 227, 255, 0.14)' }}></div>
+
+              {renderSidebarChannel({ id: 'team', label: '팀', icon: Users })}
+              {renderSidebarChannel({ id: 'settings', label: '설정', icon: Settings })}
+            </div>
+          </div>
+          ) : (
+            <div className="flex-1 rounded-2xl px-4 py-5" style={{
+              background: 'rgba(5, 11, 20, 0.28)',
+              border: '1px dashed rgba(32, 227, 255, 0.18)'
+            }}>
+              <p className="m-0 tracking-tight" style={{
+                color: 'var(--muted)',
+                fontSize: '13px',
+                fontWeight: 800,
+                lineHeight: 1.6
+              }}>
+                이 팀에는 아직 연결된 리포지토리가 없습니다
+              </p>
+            </div>
+          )}
+        </section>
+        )}
+
+        {!selectedPR && (
+          <section className="relative h-full min-h-0 rounded-[30px] overflow-hidden" style={{
+            background: 'rgba(11, 22, 40, 0.82)',
+            border: '1px solid rgba(32, 227, 255, 0.16)',
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.32)',
+            backdropFilter: 'blur(16px)'
+          }}>
+            {hasRepositories && selectedChannel !== 'team' && (
+              <button
+                type="button"
+                onClick={() => setIsMainExpanded((expanded) => !expanded)}
+                className="absolute right-4 top-4 z-20 inline-flex items-center gap-2 rounded-full border-0 px-4 py-2 tracking-tight transition-all hover:scale-[1.03]"
+                style={{
+                  background: 'rgba(5, 11, 20, 0.78)',
+                  border: '1px solid rgba(32, 227, 255, 0.24)',
+                  color: 'var(--neon-cyan)',
+                  fontSize: '12px',
+                  fontWeight: 950,
+                  cursor: 'pointer',
+                  boxShadow: '0 12px 30px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.08)',
+                  backdropFilter: 'blur(16px)'
+                }}
+                aria-label={isMainExpanded ? '채팅 박스 작게 보기' : '채팅 박스 크게 보기'}
+                title={isMainExpanded ? '작게 보기' : '크게 보기'}
+              >
+                {isMainExpanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+                {isMainExpanded ? '작게 보기' : '크게 보기'}
+              </button>
+            )}
+            {!hasRepositories ? (
+              <RepositoryEmptyState onImport={handleImportRepositories} />
+            ) : selectedChannel === 'overview' ? (
+              <OverviewPanel
+                repositories={repositories}
+                selectedRepositoryId={selectedRepository}
+                onSelectRepository={setSelectedRepository}
+              />
+            ) : selectedChannel === 'api-spec' ? (
+              <APISpecPage embedded />
+            ) : selectedChannel === 'erd' ? (
+              <ERDPage embedded />
+            ) : selectedChannel === 'docs' ? (
+              <DocsPage embedded />
+            ) : selectedChannel === 'general' ? (
+              <ChannelPanel onOpenThread={handleOpenThread} onOpenInvite={() => setTeamInviteOpen(true)} />
+            ) : selectedChannel === 'team' ? (
+              <TeamPanel
+                onInvite={() => setTeamInviteOpen(true)}
+                onOpenChannel={(channelId) => {
+                  setSelectedPR(null);
+                  setSelectedThread(null);
+                  setSelectedChannel(channelId);
+                }}
+              />
+            ) : (
+              <ChatPanel
+                title={selectedChannelTitle}
+                messages={currentMessages}
+                onSendMessage={handleSendMessage}
+                showAISummary={false}
+                onMergePR={handleMergePR}
+                onReviewPR={handleReviewPR}
+                onOpenThread={handleOpenThread}
+                isRepository={isRepository}
+              />
+            )}
+          </section>
+        )}
+
+        {selectedPR && (
+          <section className="h-full min-h-0 rounded-[30px] overflow-hidden">
+            <PRReviewPanel
+              prData={selectedPR}
+              onClose={handleClosePRReview}
+              onMergePR={handleMergePR}
+            />
+          </section>
+        )}
+
+        {selectedThread && !selectedPR && (
+          <section className="min-h-0 rounded-[30px] overflow-hidden">
+            <ThreadPanel
+              originalMessage={selectedThread}
+              replies={threadReplies[selectedThread.id] || []}
+              onClose={handleCloseThread}
+              onSendReply={handleSendReply}
+            />
+          </section>
+        )}
+      </div>
+
+      <TeamInviteModal
+        isOpen={teamInviteOpen}
+        onClose={() => setTeamInviteOpen(false)}
+      />
+    </div>
+  );
+}
+
+function RepositoryEmptyState({ onImport }: { onImport: () => void }) {
+  return (
+    <div className="flex h-full min-h-[520px] items-center justify-center px-6 py-10">
+      <div className="flex w-full max-w-[760px] items-center justify-center gap-6 max-md:flex-col">
+        <div className="relative flex-shrink-0">
+          <CoffeeLogo
+            className="h-32 w-32"
+            style={{ filter: 'drop-shadow(0 0 24px rgba(32, 227, 255, 0.28))' }}
+          />
+          <div className="absolute -bottom-2 left-1/2 h-3 w-24 -translate-x-1/2 rounded-full blur-md" style={{
+            background: 'rgba(32, 227, 255, 0.28)'
+          }} />
+        </div>
+
+        <div className="relative w-full rounded-[28px] px-7 py-7" style={{
+          background: 'linear-gradient(135deg, rgba(32, 227, 255, 0.13), rgba(234, 247, 255, 0.055))',
+          border: '1px solid rgba(32, 227, 255, 0.22)',
+          boxShadow: '0 26px 70px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.08)'
+        }}>
+          <span className="absolute left-[-13px] top-12 hidden h-7 w-7 rotate-45 border-b border-l md:block" style={{
+            background: 'rgba(25, 45, 66, 0.96)',
+            borderColor: 'rgba(32, 227, 255, 0.20)'
+          }} />
+          <p className="m-0 mb-3 tracking-tight" style={{
+            color: 'var(--neon-cyan)',
+            fontSize: '13px',
+            fontWeight: 950
+          }}>
+            CodeDock
+          </p>
+          <h2 className="m-0 mb-3 tracking-[-0.06em]" style={{
+            color: 'var(--white)',
+            fontSize: 'clamp(28px, 4vw, 44px)',
+            fontWeight: 950,
+            lineHeight: 1
+          }}>
+            리포지토리가 없습니다. 추가해주세요.
+          </h2>
+          <p className="m-0 mb-6 tracking-tight" style={{
+            color: 'var(--muted)',
+            fontSize: '15px',
+            fontWeight: 800,
+            lineHeight: 1.65
+          }}>
+            CodeDock이 팀에 연결할 저장소를 기다리고 있어요. GitHub 리포지토리를 가져오면 PR 리뷰, 이슈, 문서화 채널이 바로 열립니다.
+          </p>
+          <button
+            type="button"
+            onClick={onImport}
+            className="inline-flex items-center gap-2 rounded-full border-0 px-6 py-4 tracking-tight transition-all hover:scale-[1.02]"
+            style={{
+              background: 'linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))',
+              color: '#021014',
+              fontSize: '15px',
+              fontWeight: 950,
+              cursor: 'pointer',
+              boxShadow: '0 14px 34px rgba(32, 227, 255, 0.28)'
+            }}
+            aria-label="리포지토리 가져오기"
+          >
+            <GitBranch size={18} />
+            리포지토리 가져오기
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
