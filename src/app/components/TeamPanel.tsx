@@ -190,7 +190,8 @@ const initialTeamMembers: TeamMember[] = [
 export function TeamPanel({ onInvite, onOpenChannel }: TeamPanelProps) {
   const [members, setMembers] = useState<TeamMember[]>(initialTeamMembers);
   const [activeRoomId, setActiveRoomId] = useState(teamRooms[1].id);
-  const [notice, setNotice] = useState("팀원 역할 수정, 삭제, 채팅방 이동이 가능합니다.");
+  const [notice, setNotice] = useState("팀원 역할 수정 및 삭제가 가능합니다.");
+  const [confirmTarget, setConfirmTarget] = useState<TeamMember | null>(null);
   const activeRoom = teamRooms.find((room) => room.id === activeRoomId) ?? teamRooms[0];
   const onlineCount = members.filter((member) => member.online).length;
   const activityItems = useMemo(() => {
@@ -219,15 +220,19 @@ export function TeamPanel({ onInvite, onOpenChannel }: TeamPanelProps) {
     setNotice(`${target?.name ?? "팀원"} 역할을 ${nextRole}(으)로 변경했습니다.`);
   };
 
-  const handleDeleteMember = (memberId: string) => {
-    const target = members.find((member) => member.id === memberId);
-    if (!target || target.protected) {
+  const handleDeleteClick = (member: TeamMember) => {
+    if (member.protected) {
       setNotice("팀 리드는 현재 화면에서 삭제할 수 없습니다.");
       return;
     }
+    setConfirmTarget(member);
+  };
 
-    setMembers((prev) => prev.filter((member) => member.id !== memberId));
-    setNotice(`${target.name} 팀원을 삭제했습니다.`);
+  const handleConfirmDelete = () => {
+    if (!confirmTarget) return;
+    setMembers((prev) => prev.filter((member) => member.id !== confirmTarget.id));
+    setNotice(`${confirmTarget.name} 팀원을 추방했습니다.`);
+    setConfirmTarget(null);
   };
 
   return (
@@ -247,7 +252,7 @@ export function TeamPanel({ onInvite, onOpenChannel }: TeamPanelProps) {
             팀
           </h2>
           <p className="m-0 mt-2 tracking-tight" style={{ color: "var(--muted)", fontSize: 14, fontWeight: 800 }}>
-            {members.length}명 · {onlineCount}명 접속 중 · 채팅방 {teamRooms.length}개
+            {members.length}명 · {onlineCount}명 접속 중
           </p>
         </div>
 
@@ -281,142 +286,6 @@ export function TeamPanel({ onInvite, onOpenChannel }: TeamPanelProps) {
       >
         {notice}
       </div>
-
-      <section
-        className="mb-5 overflow-hidden rounded-[26px]"
-        style={{
-          background: "rgba(8, 17, 31, 0.74)",
-          border: "1px solid rgba(32, 227, 255, 0.18)",
-          boxShadow: "0 20px 56px rgba(0, 0, 0, 0.30), inset 0 1px 0 rgba(255,255,255,0.06)",
-          backdropFilter: "blur(18px) saturate(160%)"
-        }}
-      >
-        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4" style={{ borderBottom: "1px solid rgba(32, 227, 255, 0.12)" }}>
-          <div>
-            <h3 className="m-0 tracking-tight" style={{ color: "var(--white)", fontSize: 18, fontWeight: 950 }}>
-              팀 채팅방
-            </h3>
-            <p className="m-0 mt-1 tracking-tight" style={{ color: "var(--muted)", fontSize: 13, fontWeight: 800 }}>
-              팀 탭에서도 바로 채팅방을 확인하고 이동할 수 있습니다.
-            </p>
-          </div>
-          <span className="inline-flex items-center gap-2 rounded-full px-3 py-1.5" style={{
-            background: "rgba(57, 255, 136, 0.10)",
-            border: "1px solid rgba(57, 255, 136, 0.20)",
-            color: "var(--matrix-green)",
-            fontSize: 12,
-            fontWeight: 950
-          }}>
-            <Users size={14} />
-            {onlineCount}명 온라인
-          </span>
-        </div>
-
-        <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="grid gap-3 p-5 md:grid-cols-2">
-            {teamRooms.map((room) => {
-              const Icon = room.icon;
-              const isActive = room.id === activeRoomId;
-
-              return (
-                <button
-                  key={room.id}
-                  type="button"
-                  onClick={() => handleOpenRoom(room)}
-                  className="group rounded-2xl p-4 text-left transition-all hover:translate-y-[-2px]"
-                  style={{
-                    background: isActive ? `${room.accent}18` : "rgba(234, 247, 255, 0.045)",
-                    border: isActive ? `1px solid ${room.accent}66` : "1px solid rgba(234, 247, 255, 0.10)",
-                    boxShadow: isActive ? `0 0 26px ${room.accent}1f` : "none",
-                    color: "var(--white)",
-                    cursor: "pointer"
-                  }}
-                >
-                  <div className="mb-4 flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <span className="flex h-11 w-11 items-center justify-center rounded-2xl" style={{
-                        background: `${room.accent}18`,
-                        border: `1px solid ${room.accent}44`,
-                        color: room.accent
-                      }}>
-                        <Icon size={20} />
-                      </span>
-                      <div className="min-w-0">
-                        <p className="m-0 truncate tracking-tight" style={{ color: "var(--white)", fontSize: 15, fontWeight: 950 }}>
-                          {room.name}
-                        </p>
-                        <p className="m-0 mt-1 truncate tracking-tight" style={{ color: "var(--muted)", fontSize: 12, fontWeight: 800 }}>
-                          {room.description}
-                        </p>
-                      </div>
-                    </div>
-                    {room.unread > 0 && (
-                      <span className="rounded-full px-2 py-0.5" style={{
-                        background: "var(--neon-cyan)",
-                        color: "#021014",
-                        fontSize: 11,
-                        fontWeight: 950
-                      }}>
-                        {room.unread}
-                      </span>
-                    )}
-                  </div>
-
-                  <p className="m-0 line-clamp-2 tracking-tight" style={{ color: "var(--soft-mint)", fontSize: 13, fontWeight: 850, lineHeight: 1.55 }}>
-                    {room.lastMessage}
-                  </p>
-                  <div className="mt-4 flex items-center justify-between gap-3">
-                    <span className="inline-flex items-center gap-1.5" style={{ color: "var(--muted)", fontSize: 12, fontWeight: 800 }}>
-                      <Clock3 size={13} />
-                      {room.updatedAt}
-                    </span>
-                    <span className="inline-flex items-center gap-1.5" style={{ color: room.accent, fontSize: 12, fontWeight: 950 }}>
-                      입장
-                      <ArrowRight size={14} className="transition-transform group-hover:translate-x-1" />
-                    </span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          <aside className="p-5 xl:border-l" style={{ borderColor: "rgba(32, 227, 255, 0.12)" }}>
-            <div className="rounded-2xl px-4 py-4" style={{
-              background: "rgba(5, 11, 20, 0.46)",
-              border: "1px solid rgba(32, 227, 255, 0.14)"
-            }}>
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div>
-                  <p className="m-0 tracking-tight" style={{ color: "var(--white)", fontSize: 15, fontWeight: 950 }}>
-                    {activeRoom.name} 미리보기
-                  </p>
-                  <p className="m-0 mt-1 tracking-tight" style={{ color: "var(--muted)", fontSize: 12, fontWeight: 800 }}>
-                    {activeRoom.online}명 대화 중
-                  </p>
-                </div>
-                <span className="h-3 w-3 rounded-full" style={{ background: activeRoom.accent, boxShadow: `0 0 16px ${activeRoom.accent}` }} />
-              </div>
-
-              <div className="grid gap-3">
-                {roomPreviewMessages.map((message) => (
-                  <div key={`${message.author}-${message.time}`} className="rounded-2xl px-3 py-3" style={{
-                    background: "rgba(234, 247, 255, 0.055)",
-                    border: "1px solid rgba(234, 247, 255, 0.08)"
-                  }}>
-                    <div className="mb-1 flex items-center justify-between gap-2">
-                      <span style={{ color: "var(--white)", fontSize: 12, fontWeight: 950 }}>{message.author}</span>
-                      <span className="font-mono" style={{ color: "var(--muted)", fontSize: 10, fontWeight: 800 }}>{message.time}</span>
-                    </div>
-                    <p className="m-0 tracking-tight" style={{ color: "var(--soft-mint)", fontSize: 12, fontWeight: 800, lineHeight: 1.55 }}>
-                      {message.text}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </aside>
-        </div>
-      </section>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {members.map((member) => (
@@ -469,7 +338,7 @@ export function TeamPanel({ onInvite, onOpenChannel }: TeamPanelProps) {
                 </span>
                 <button
                   type="button"
-                  onClick={() => handleDeleteMember(member.id)}
+                  onClick={() => handleDeleteClick(member)}
                   disabled={member.protected}
                   className="flex h-8 w-8 items-center justify-center rounded-lg transition-all hover:scale-105"
                   style={{
@@ -568,6 +437,73 @@ export function TeamPanel({ onInvite, onOpenChannel }: TeamPanelProps) {
           })}
         </div>
       </section>
+
+      {confirmTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center px-4"
+          style={{ background: "rgba(0, 0, 0, 0.65)", backdropFilter: "blur(8px)" }}
+          onClick={() => setConfirmTarget(null)}
+        >
+          <div
+            className="w-full max-w-[420px] rounded-[24px] px-8 py-8"
+            style={{
+              background: "linear-gradient(135deg, rgba(11, 22, 40, 0.98), rgba(5, 11, 20, 0.98))",
+              border: "1px solid rgba(255, 107, 107, 0.35)",
+              boxShadow: "0 28px 80px rgba(0, 0, 0, 0.55), 0 0 40px rgba(255, 107, 107, 0.10)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl" style={{
+              background: "rgba(255, 107, 107, 0.12)",
+              border: "1px solid rgba(255, 107, 107, 0.30)"
+            }}>
+              <Trash2 size={26} style={{ color: "#FF6B6B" }} />
+            </div>
+
+            <h3 className="m-0 mb-2 tracking-tight" style={{ color: "var(--white)", fontSize: 20, fontWeight: 950 }}>
+              정말 추방하시겠어요?
+            </h3>
+            <p className="m-0 mb-7 tracking-tight" style={{ color: "var(--muted)", fontSize: 14, fontWeight: 800, lineHeight: 1.6 }}>
+              <span style={{ color: "var(--white)", fontWeight: 950 }}>{confirmTarget.name}</span> 팀원을 워크스페이스에서
+              추방합니다. 이 작업은 되돌릴 수 없습니다.
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmTarget(null)}
+                className="flex-1 rounded-xl border-0 py-3 tracking-tight transition-all hover:scale-[1.02]"
+                style={{
+                  background: "rgba(234, 247, 255, 0.07)",
+                  border: "1px solid rgba(234, 247, 255, 0.14)",
+                  color: "var(--muted)",
+                  cursor: "pointer",
+                  fontSize: 15,
+                  fontWeight: 900
+                }}
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                className="flex-1 rounded-xl border-0 py-3 tracking-tight transition-all hover:scale-[1.02]"
+                style={{
+                  background: "linear-gradient(135deg, #FF6B6B, #cc3333)",
+                  border: "none",
+                  color: "#fff",
+                  cursor: "pointer",
+                  fontSize: 15,
+                  fontWeight: 950,
+                  boxShadow: "0 0 24px rgba(255, 107, 107, 0.30)"
+                }}
+              >
+                추방하기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
