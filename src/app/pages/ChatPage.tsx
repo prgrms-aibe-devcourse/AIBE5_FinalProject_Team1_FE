@@ -1,4 +1,4 @@
-import { Hash, Users, GitPullRequest, Home, CheckSquare, ChevronDown, ChevronRight, GitBranch, Code2, Database, BookOpen, Maximize2, Minimize2, Plus, Pencil, Trash2, MoreVertical, X, type LucideIcon } from "lucide-react";
+import { Hash, Users, GitPullRequest, Home, CheckSquare, ChevronDown, ChevronRight, GitBranch, Code2, Database, BookOpen, Maximize2, Minimize2, Plus, Pencil, Trash2, MoreVertical, X, LayoutGrid, type LucideIcon } from "lucide-react";
 import { ChatPanel } from "../components/ChatPanel";
 import { PRReviewPanel } from "../components/PRReviewPanel";
 import { IssuePanel } from "../components/IssuePanel";
@@ -10,6 +10,7 @@ import { APISpecPage } from "./APISpecPage";
 import { ERDPage } from "./ERDPage";
 import { DocsPage } from "./DocsPage";
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router";
 import { AnimatePresence, motion } from "motion/react";
 import type { MessageAttachment } from "../components/messageAttachments";
 import { TeamInviteModal } from "../components/TeamInviteModal";
@@ -375,8 +376,23 @@ export function ChatPage() {
   const [channelMenuOpenId, setChannelMenuOpenId] = useState<string | null>(null);
   const [editingCustomChannelId, setEditingCustomChannelId] = useState<string | null>(null);
   const [editingCustomChannelLabel, setEditingCustomChannelLabel] = useState('');
+  const [showAddChannelForm, setShowAddChannelForm] = useState(false);
+  const [newChannelName, setNewChannelName] = useState('');
+  const [channelUnreadCounts, setChannelUnreadCounts] = useState<Record<string, number>>({
+    general: 3,
+    'frontend-chat': 2,
+    'backend-chat': 1,
+    'review-room': 2,
+  });
+
+  const navigate = useNavigate();
 
   const hasRepositories = repositoriesImported && repositories.length > 0;
+
+  const getChannelBadge = (channelId: string): string | undefined => {
+    const count = channelUnreadCounts[channelId];
+    return count && count > 0 ? String(count) : undefined;
+  };
 
   const currentMessages = messages[selectedChannel] || [];
   const isRepository = ['pull-requests', 'ai-review'].includes(selectedChannel);
@@ -426,14 +442,30 @@ export function ChatPage() {
     saveRepositories(repositories);
   }, [repositories, repositoriesImported]);
 
+  useEffect(() => {
+    setChannelUnreadCounts(prev => {
+      if (!prev[selectedChannel]) return prev;
+      return { ...prev, [selectedChannel]: 0 };
+    });
+  }, [selectedChannel]);
+
   const handleAddCustomChannel = () => {
+    setShowAddChannelForm(true);
+    setNewChannelName('');
+  };
+
+  const handleSubmitAddChannel = () => {
+    const label = newChannelName.trim() || `새 채널 ${customChannels.length + 1}`;
     const id = `custom-${Date.now()}`;
-    const label = `새 채널 ${customChannels.length + 1}`;
     setCustomChannels(prev => [...prev, { id, label }]);
     setSelectedChannel(id);
-    setChannelMenuOpenId(null);
-    setEditingCustomChannelId(id);
-    setEditingCustomChannelLabel(label);
+    setShowAddChannelForm(false);
+    setNewChannelName('');
+  };
+
+  const handleCancelAddChannel = () => {
+    setShowAddChannelForm(false);
+    setNewChannelName('');
   };
 
   const handleDeleteCustomChannel = (channelId: string) => {
@@ -744,7 +776,75 @@ export function ChatPage() {
                   <Plus size={13} />
                 </button>
               </div>
-              {renderSidebarChannel({ id: 'general', label: '일반', icon: Hash })}
+              <AnimatePresence initial={false}>
+                {showAddChannelForm && (
+                  <motion.div
+                    className="mx-1 overflow-hidden rounded-xl px-3 py-3"
+                    style={{
+                      background: 'rgba(5, 11, 20, 0.58)',
+                      border: '1px solid rgba(32, 227, 255, 0.18)',
+                      boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.06)'
+                    }}
+                    initial={{ opacity: 0, y: -8, height: 0 }}
+                    animate={{ opacity: 1, y: 0, height: 'auto' }}
+                    exit={{ opacity: 0, y: -8, height: 0 }}
+                    transition={{ type: 'spring', stiffness: 360, damping: 32 }}
+                  >
+                    <p style={{ fontSize: '11px', fontWeight: 900, color: 'var(--muted)', margin: '0 0 8px 0' }}>채널 이름</p>
+                    <input
+                      value={newChannelName}
+                      onChange={e => setNewChannelName(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') { e.preventDefault(); handleSubmitAddChannel(); }
+                        if (e.key === 'Escape') { e.preventDefault(); handleCancelAddChannel(); }
+                      }}
+                      autoFocus
+                      placeholder="새 채널 이름..."
+                      className="w-full rounded-lg px-3 py-2 outline-none tracking-tight"
+                      style={{
+                        background: 'rgba(234, 247, 255, 0.08)',
+                        border: '1px solid rgba(32, 227, 255, 0.22)',
+                        color: 'var(--white)',
+                        fontSize: '13px',
+                        fontWeight: 850
+                      }}
+                    />
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={handleCancelAddChannel}
+                        className="flex-1 rounded-full border-0 px-3 py-2 tracking-tight"
+                        style={{
+                          background: 'rgba(234, 247, 255, 0.07)',
+                          border: '1px solid rgba(32, 227, 255, 0.12)',
+                          color: 'var(--muted)',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                          fontWeight: 900
+                        }}
+                      >
+                        취소
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSubmitAddChannel}
+                        className="flex-1 rounded-full border-0 px-3 py-2 tracking-tight"
+                        style={{
+                          background: 'linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))',
+                          color: '#021014',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                          fontWeight: 950
+                        }}
+                      >
+                        만들기
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {renderSidebarChannel({ id: 'general', label: '일반', icon: Hash, badge: getChannelBadge('general') })}
 
               {customChannels.map((ch) => {
                 const isActive = selectedChannel === ch.id;
@@ -790,13 +890,24 @@ export function ChatPage() {
                           style={{ cursor: 'pointer' }}
                         >
                           <Hash size={15} style={{ color: isActive ? 'var(--neon-cyan)' : 'var(--muted)', flexShrink: 0 }} />
-                          <span className="truncate tracking-tight" style={{
+                          <span className="truncate tracking-tight flex-1" style={{
                             fontSize: '13px',
                             fontWeight: isActive ? 900 : 800,
                             color: isActive ? 'var(--white)' : 'var(--muted)'
                           }}>
                             {ch.label}
                           </span>
+                          {getChannelBadge(ch.id) && (
+                            <span className="relative z-10 flex-shrink-0 rounded-full px-1.5 py-0.5" style={{
+                              background: 'rgba(32, 227, 255, 0.22)',
+                              border: '1px solid rgba(32, 227, 255, 0.18)',
+                              color: 'var(--neon-cyan)',
+                              fontSize: '10px',
+                              fontWeight: 950
+                            }}>
+                              {getChannelBadge(ch.id)}
+                            </span>
+                          )}
                         </button>
                       )}
                       <button
@@ -869,13 +980,24 @@ export function ChatPage() {
                         style={{ cursor: 'pointer' }}
                       >
                         <GitBranch size={15} style={{ color: isRepoBodyActive ? 'var(--neon-cyan)' : 'var(--muted)', flexShrink: 0 }} />
-                        <span className="truncate tracking-tight" style={{
+                        <span className="truncate tracking-tight flex-1" style={{
                           fontSize: '13px',
                           fontWeight: isRepoBodyActive ? 900 : 800,
                           color: isRepoBodyActive ? 'var(--white)' : 'var(--muted)'
                         }}>
                           {repo.name}
                         </span>
+                        {getChannelBadge(repoChannelId) && (
+                          <span className="relative z-10 flex-shrink-0 rounded-full px-1.5 py-0.5" style={{
+                            background: 'rgba(32, 227, 255, 0.22)',
+                            border: '1px solid rgba(32, 227, 255, 0.18)',
+                            color: 'var(--neon-cyan)',
+                            fontSize: '10px',
+                            fontWeight: 950
+                          }}>
+                            {getChannelBadge(repoChannelId)}
+                          </span>
+                        )}
                       </button>
                       <button
                         type="button"
@@ -967,6 +1089,19 @@ export function ChatPage() {
                               fontWeight: 950
                             }}>
                               {repo.activeIssues}
+                            </span>
+                          </motion.button>
+
+                          <motion.button
+                            type="button"
+                            onClick={() => { setSelectedRepository(repo.id); navigate('/issues'); }}
+                            className="relative isolate flex w-full items-center gap-2 rounded-full border-0 py-2.5 pl-8 pr-3 text-left tracking-tight transition-colors"
+                            style={{ background: 'transparent', cursor: 'pointer' }}
+                            whileTap={{ scale: 0.99 }}
+                          >
+                            <LayoutGrid size={14} style={{ color: 'var(--muted)', flexShrink: 0, position: 'relative', zIndex: 1 }} />
+                            <span className="relative z-10 flex-1 tracking-tight" style={{ fontSize: '13px', fontWeight: 800, color: 'var(--muted)' }}>
+                              작업 보드
                             </span>
                           </motion.button>
                         </motion.div>
