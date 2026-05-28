@@ -375,12 +375,14 @@ export function ChatPage() {
     documentation: true
   });
   const [expandedRepoSubmenus, setExpandedRepoSubmenus] = useState<Record<string, boolean>>({});
+  const [repoMenuOpenId, setRepoMenuOpenId] = useState<string | null>(null);
   const [customChannels, setCustomChannels] = useState<{ id: string; label: string }[]>([]);
   const [channelMenuOpenId, setChannelMenuOpenId] = useState<string | null>(null);
   const [editingCustomChannelId, setEditingCustomChannelId] = useState<string | null>(null);
   const [editingCustomChannelLabel, setEditingCustomChannelLabel] = useState('');
-  const [showAddChannelForm, setShowAddChannelForm] = useState(false);
+  const [addChannelStep, setAddChannelStep] = useState<null | 'select' | 'chat' | 'repo'>(null);
   const [newChannelName, setNewChannelName] = useState('');
+  const [newRepoChannelUrl, setNewRepoChannelUrl] = useState('');
   const [channelUnreadCounts, setChannelUnreadCounts] = useState<Record<string, number>>({
     general: 3,
     'frontend-chat': 2,
@@ -423,7 +425,11 @@ export function ChatPage() {
     : "grid h-[calc(100vh-160px)] min-h-0 gap-6 overflow-hidden";
   const selectedChannelMeta = ALL_SIDEBAR_CHANNELS.find((channel) => channel.id === selectedChannel);
   const selectedCustomChannel = customChannels.find(ch => ch.id === selectedChannel);
-  const selectedChannelTitle = selectedCustomChannel?.label
+  const selectedChannelTitle = selectedChannel === 'pull-requests'
+    ? `${currentRepo?.name ?? '레포'} - PR`
+    : selectedChannel === 'issues'
+    ? `${currentRepo?.name ?? '레포'} - 이슈`
+    : selectedCustomChannel?.label
     ?? selectedChannelMeta?.label
     ?? selectedChannel.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 
@@ -512,8 +518,13 @@ export function ChatPage() {
   };
 
   const handleAddCustomChannel = () => {
-    setShowAddChannelForm(true);
+    setAddChannelStep('select');
     setNewChannelName('');
+    setNewRepoChannelUrl('');
+  };
+
+  const handleSelectChannelType = (type: 'chat' | 'repo') => {
+    setAddChannelStep(type);
   };
 
   const handleSubmitAddChannel = () => {
@@ -521,13 +532,34 @@ export function ChatPage() {
     const id = `custom-${Date.now()}`;
     setCustomChannels(prev => [...prev, { id, label }]);
     setSelectedChannel(id);
-    setShowAddChannelForm(false);
+    setAddChannelStep(null);
     setNewChannelName('');
   };
 
+  const handleSubmitAddRepoChannel = () => {
+    const repoName = parseRepoNameFromUrl(newRepoChannelUrl);
+    if (!repoName) return;
+    const nextRepository: RepositoryItem = {
+      id: `repo-${Date.now()}`,
+      name: repoName,
+      openPRs: 0,
+      highRisk: 0,
+      activeIssues: 0,
+      connected: true,
+      membersOnline: 1
+    };
+    setRepositories(prev => [nextRepository, ...prev]);
+    setRepositoriesImported(true);
+    setSelectedRepository(nextRepository.id);
+    setSelectedChannel(nextRepository.id);
+    setAddChannelStep(null);
+    setNewRepoChannelUrl('');
+  };
+
   const handleCancelAddChannel = () => {
-    setShowAddChannelForm(false);
+    setAddChannelStep(null);
     setNewChannelName('');
+    setNewRepoChannelUrl('');
   };
 
   const handleDeleteCustomChannel = (channelId: string) => {
@@ -1073,7 +1105,7 @@ export function ChatPage() {
 
           {hasRepositories ? (
             <div className="flex flex-1 flex-col overflow-y-auto">
-            <div className="grid gap-2">
+            <div className="grid gap-2 min-w-0">
               {renderSidebarChannel({ id: 'overview', label: '통합 개요', icon: Home })}
 
               <div className="my-1" style={{ borderTop: '1px solid rgba(32, 227, 255, 0.14)' }} />
@@ -1092,8 +1124,75 @@ export function ChatPage() {
                 </button>
               </div>
               <AnimatePresence initial={false}>
-                {showAddChannelForm && (
+                {addChannelStep === 'select' && (
                   <motion.div
+                    key="select"
+                    className="mx-1 overflow-hidden rounded-xl px-3 py-3"
+                    style={{
+                      background: 'rgba(5, 11, 20, 0.58)',
+                      border: '1px solid rgba(32, 227, 255, 0.18)',
+                      boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.06)'
+                    }}
+                    initial={{ opacity: 0, y: -8, height: 0 }}
+                    animate={{ opacity: 1, y: 0, height: 'auto' }}
+                    exit={{ opacity: 0, y: -8, height: 0 }}
+                    transition={{ type: 'spring', stiffness: 360, damping: 32 }}
+                  >
+                    <p style={{ fontSize: '11px', fontWeight: 900, color: 'var(--muted)', margin: '0 0 10px 0' }}>채널 유형 선택</p>
+                    <div className="flex flex-col gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleSelectChannelType('chat')}
+                        className="flex items-center gap-3 rounded-xl border-0 px-3 py-2.5 text-left tracking-tight transition-all hover:scale-[1.01]"
+                        style={{
+                          background: 'rgba(32, 227, 255, 0.08)',
+                          border: '1px solid rgba(32, 227, 255, 0.2)',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <Hash size={14} style={{ color: 'var(--neon-cyan)', flexShrink: 0 }} />
+                        <div>
+                          <p className="m-0 tracking-tight" style={{ fontSize: '12px', fontWeight: 900, color: 'var(--white)' }}>대화 채널</p>
+                          <p className="m-0 tracking-tight" style={{ fontSize: '11px', fontWeight: 800, color: 'var(--muted)' }}>팀 대화용 채널</p>
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectChannelType('repo')}
+                        className="flex items-center gap-3 rounded-xl border-0 px-3 py-2.5 text-left tracking-tight transition-all hover:scale-[1.01]"
+                        style={{
+                          background: 'rgba(57, 255, 136, 0.08)',
+                          border: '1px solid rgba(57, 255, 136, 0.2)',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <GitBranch size={14} style={{ color: 'var(--matrix-green)', flexShrink: 0 }} />
+                        <div>
+                          <p className="m-0 tracking-tight" style={{ fontSize: '12px', fontWeight: 900, color: 'var(--white)' }}>레포 채널</p>
+                          <p className="m-0 tracking-tight" style={{ fontSize: '11px', fontWeight: 800, color: 'var(--muted)' }}>GitHub 저장소 연결</p>
+                        </div>
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleCancelAddChannel}
+                      className="mt-2 w-full rounded-full border-0 px-3 py-2 tracking-tight"
+                      style={{
+                        background: 'rgba(234, 247, 255, 0.07)',
+                        border: '1px solid rgba(32, 227, 255, 0.12)',
+                        color: 'var(--muted)',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        fontWeight: 900
+                      }}
+                    >
+                      취소
+                    </button>
+                  </motion.div>
+                )}
+                {addChannelStep === 'chat' && (
+                  <motion.div
+                    key="chat"
                     className="mx-1 overflow-hidden rounded-xl px-3 py-3"
                     style={{
                       background: 'rgba(5, 11, 20, 0.58)',
@@ -1153,6 +1252,75 @@ export function ChatPage() {
                         }}
                       >
                         만들기
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+                {addChannelStep === 'repo' && (
+                  <motion.div
+                    key="repo"
+                    className="mx-1 overflow-hidden rounded-xl px-3 py-3"
+                    style={{
+                      background: 'rgba(5, 11, 20, 0.58)',
+                      border: '1px solid rgba(57, 255, 136, 0.18)',
+                      boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.06)'
+                    }}
+                    initial={{ opacity: 0, y: -8, height: 0 }}
+                    animate={{ opacity: 1, y: 0, height: 'auto' }}
+                    exit={{ opacity: 0, y: -8, height: 0 }}
+                    transition={{ type: 'spring', stiffness: 360, damping: 32 }}
+                  >
+                    <p style={{ fontSize: '11px', fontWeight: 900, color: 'var(--muted)', margin: '0 0 4px 0' }}>레포 채널</p>
+                    <p style={{ fontSize: '11px', fontWeight: 800, color: 'var(--muted)', margin: '0 0 8px 0' }}>GitHub 저장소 URL을 입력하세요</p>
+                    <input
+                      value={newRepoChannelUrl}
+                      onChange={e => setNewRepoChannelUrl(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') { e.preventDefault(); handleSubmitAddRepoChannel(); }
+                        if (e.key === 'Escape') { e.preventDefault(); handleCancelAddChannel(); }
+                      }}
+                      autoFocus
+                      placeholder="https://github.com/owner/repository"
+                      className="w-full rounded-lg px-3 py-2 outline-none tracking-tight"
+                      style={{
+                        background: 'rgba(234, 247, 255, 0.08)',
+                        border: '1px solid rgba(57, 255, 136, 0.22)',
+                        color: 'var(--white)',
+                        fontSize: '13px',
+                        fontWeight: 850
+                      }}
+                    />
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={handleCancelAddChannel}
+                        className="flex-1 rounded-full border-0 px-3 py-2 tracking-tight"
+                        style={{
+                          background: 'rgba(234, 247, 255, 0.07)',
+                          border: '1px solid rgba(32, 227, 255, 0.12)',
+                          color: 'var(--muted)',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                          fontWeight: 900
+                        }}
+                      >
+                        취소
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSubmitAddRepoChannel}
+                        disabled={!parseRepoNameFromUrl(newRepoChannelUrl)}
+                        className="flex flex-1 items-center justify-center gap-1 rounded-full border-0 px-3 py-2 tracking-tight transition-all disabled:opacity-40"
+                        style={{
+                          background: 'linear-gradient(135deg, var(--matrix-green), var(--deep-teal))',
+                          color: '#021014',
+                          cursor: parseRepoNameFromUrl(newRepoChannelUrl) ? 'pointer' : 'not-allowed',
+                          fontSize: '12px',
+                          fontWeight: 950
+                        }}
+                      >
+                        <Plus size={13} />
+                        등록
                       </button>
                     </div>
                   </motion.div>
@@ -1228,12 +1396,13 @@ export function ChatPage() {
                       <button
                         type="button"
                         onClick={() => setChannelMenuOpenId(isMenuOpen ? null : ch.id)}
-                        className="relative z-10 mr-2 grid h-7 w-7 flex-shrink-0 place-items-center rounded-full border-0 bg-transparent transition-all hover:bg-[rgba(32,227,255,0.10)]"
+                        className="relative z-10 grid h-7 w-7 flex-shrink-0 place-items-center rounded-full border-0 bg-transparent transition-all hover:bg-[rgba(32,227,255,0.10)]"
                         style={{ cursor: 'pointer' }}
                         aria-label="채널 옵션"
                       >
                         <MoreVertical size={13} style={{ color: 'var(--muted)' }} />
                       </button>
+                      <div className="mr-2" />
                     </div>
                     {isMenuOpen && (
                       <div className="mx-2 overflow-hidden rounded-lg" style={{
@@ -1273,16 +1442,16 @@ export function ChatPage() {
                 const isRepoBodyActive = selectedRepository === repo.id && selectedChannel === repoChannelId;
 
                 return (
-                  <div key={repo.id} className="grid gap-1">
-                    <div className="relative isolate flex w-full items-center rounded-full">
+                  <div key={repo.id} className="grid gap-1 min-w-0">
+                    <div className="relative isolate flex w-full min-w-0 items-center rounded-full">
                       {isRepoBodyActive && (
                         <motion.div
                           layoutId="workspaceSidebarActiveTab"
                           className="absolute inset-0 rounded-full"
                           style={{
-                            background: 'linear-gradient(135deg, rgba(32, 227, 255, 0.18), rgba(234, 247, 255, 0.045)), rgba(11, 22, 40, 0.52)',
-                            border: '1px solid rgba(32, 227, 255, 0.30)',
-                            boxShadow: '0 0 24px rgba(32, 227, 255, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12)',
+                            background: 'linear-gradient(135deg, rgba(57, 255, 136, 0.18), rgba(234, 247, 255, 0.045)), rgba(11, 22, 40, 0.52)',
+                            border: '1px solid rgba(57, 255, 136, 0.30)',
+                            boxShadow: '0 0 24px rgba(57, 255, 136, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12)',
                             backdropFilter: 'blur(14px) saturate(180%)'
                           }}
                           transition={{ type: 'spring', stiffness: 380, damping: 30 }}
@@ -1294,7 +1463,7 @@ export function ChatPage() {
                         className="relative z-10 flex min-w-0 flex-1 items-center gap-3 border-0 bg-transparent px-4 py-3 text-left"
                         style={{ cursor: 'pointer' }}
                       >
-                        <GitBranch size={15} style={{ color: isRepoBodyActive ? 'var(--neon-cyan)' : 'var(--muted)', flexShrink: 0 }} />
+                        <GitBranch size={15} style={{ color: isRepoBodyActive ? 'var(--matrix-green)' : 'var(--muted)', flexShrink: 0 }} />
                         <span className="truncate tracking-tight flex-1" style={{
                           fontSize: '13px',
                           fontWeight: isRepoBodyActive ? 900 : 800,
@@ -1316,6 +1485,15 @@ export function ChatPage() {
                       </button>
                       <button
                         type="button"
+                        onClick={() => setRepoMenuOpenId(repoMenuOpenId === repo.id ? null : repo.id)}
+                        className="relative z-10 grid h-7 w-7 flex-shrink-0 place-items-center rounded-full border-0 bg-transparent transition-all hover:bg-[rgba(32,227,255,0.10)]"
+                        style={{ cursor: 'pointer' }}
+                        aria-label="레포 옵션"
+                      >
+                        <MoreVertical size={13} style={{ color: 'var(--muted)' }} />
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => toggleRepoSubmenu(repo.id)}
                         className="relative z-10 mr-2 grid h-7 w-7 flex-shrink-0 place-items-center rounded-full border-0 bg-transparent transition-all hover:bg-[rgba(32,227,255,0.10)]"
                         style={{ cursor: 'pointer' }}
@@ -1327,6 +1505,24 @@ export function ChatPage() {
                         }
                       </button>
                     </div>
+
+                    {repoMenuOpenId === repo.id && (
+                      <div className="mx-2 overflow-hidden rounded-lg" style={{
+                        background: 'rgba(5, 11, 20, 0.92)',
+                        border: '1px solid rgba(32, 227, 255, 0.18)',
+                        boxShadow: '0 4px 16px rgba(0,0,0,0.4)'
+                      }}>
+                        <button
+                          type="button"
+                          onClick={() => { handleDeleteRepository(repo.id); setRepoMenuOpenId(null); }}
+                          className="flex w-full items-center gap-2 border-0 px-3 py-2 text-left tracking-tight transition-all hover:bg-[rgba(255,107,107,0.08)]"
+                          style={{ background: 'transparent', color: '#FF6B6B', fontSize: '12px', fontWeight: 800, cursor: 'pointer' }}
+                        >
+                          <Trash2 size={13} />
+                          채널 삭제
+                        </button>
+                      </div>
+                    )}
 
                     <AnimatePresence initial={false}>
                       {isExpanded && (
@@ -1349,22 +1545,22 @@ export function ChatPage() {
                                 layoutId="workspaceSidebarActiveTab"
                                 className="absolute inset-0 rounded-full"
                                 style={{
-                                  background: 'linear-gradient(135deg, rgba(32, 227, 255, 0.18), rgba(234, 247, 255, 0.045)), rgba(11, 22, 40, 0.52)',
-                                  border: '1px solid rgba(32, 227, 255, 0.30)',
-                                  boxShadow: '0 0 24px rgba(32, 227, 255, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12)',
+                                  background: 'linear-gradient(135deg, rgba(57, 255, 136, 0.18), rgba(234, 247, 255, 0.045)), rgba(11, 22, 40, 0.52)',
+                                  border: '1px solid rgba(57, 255, 136, 0.30)',
+                                  boxShadow: '0 0 24px rgba(57, 255, 136, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12)',
                                   backdropFilter: 'blur(14px) saturate(180%)'
                                 }}
                                 transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                               />
                             )}
-                            <GitPullRequest size={14} style={{ color: isPRActive ? 'var(--neon-cyan)' : 'var(--muted)', flexShrink: 0, position: 'relative', zIndex: 1 }} />
+                            <GitPullRequest size={14} style={{ color: isPRActive ? 'var(--matrix-green)' : 'var(--muted)', flexShrink: 0, position: 'relative', zIndex: 1 }} />
                             <span className="relative z-10 flex-1 tracking-tight" style={{ fontSize: '13px', fontWeight: isPRActive ? 900 : 800, color: isPRActive ? 'var(--white)' : 'var(--muted)' }}>
                               PR
                             </span>
                             <span className="relative z-10 flex-shrink-0 rounded-full px-2 py-0.5 tracking-tight" style={{
-                              background: isPRActive ? 'rgba(32, 227, 255, 0.22)' : 'rgba(234, 247, 255, 0.08)',
-                              border: '1px solid rgba(32, 227, 255, 0.18)',
-                              color: isPRActive ? 'var(--neon-cyan)' : 'var(--muted)',
+                              background: isPRActive ? 'rgba(57, 255, 136, 0.22)' : 'rgba(234, 247, 255, 0.08)',
+                              border: '1px solid rgba(57, 255, 136, 0.18)',
+                              color: isPRActive ? 'var(--matrix-green)' : 'var(--muted)',
                               fontSize: '10px',
                               fontWeight: 950
                             }}>
@@ -1384,22 +1580,22 @@ export function ChatPage() {
                                 layoutId="workspaceSidebarActiveTab"
                                 className="absolute inset-0 rounded-full"
                                 style={{
-                                  background: 'linear-gradient(135deg, rgba(32, 227, 255, 0.18), rgba(234, 247, 255, 0.045)), rgba(11, 22, 40, 0.52)',
-                                  border: '1px solid rgba(32, 227, 255, 0.30)',
-                                  boxShadow: '0 0 24px rgba(32, 227, 255, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12)',
+                                  background: 'linear-gradient(135deg, rgba(57, 255, 136, 0.18), rgba(234, 247, 255, 0.045)), rgba(11, 22, 40, 0.52)',
+                                  border: '1px solid rgba(57, 255, 136, 0.30)',
+                                  boxShadow: '0 0 24px rgba(57, 255, 136, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12)',
                                   backdropFilter: 'blur(14px) saturate(180%)'
                                 }}
                                 transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                               />
                             )}
-                            <CheckSquare size={14} style={{ color: isIssueActive ? 'var(--neon-cyan)' : 'var(--muted)', flexShrink: 0, position: 'relative', zIndex: 1 }} />
+                            <CheckSquare size={14} style={{ color: isIssueActive ? 'var(--matrix-green)' : 'var(--muted)', flexShrink: 0, position: 'relative', zIndex: 1 }} />
                             <span className="relative z-10 flex-1 tracking-tight" style={{ fontSize: '13px', fontWeight: isIssueActive ? 900 : 800, color: isIssueActive ? 'var(--white)' : 'var(--muted)' }}>
                               이슈
                             </span>
                             <span className="relative z-10 flex-shrink-0 rounded-full px-2 py-0.5 tracking-tight" style={{
-                              background: isIssueActive ? 'rgba(32, 227, 255, 0.22)' : 'rgba(234, 247, 255, 0.08)',
-                              border: '1px solid rgba(32, 227, 255, 0.18)',
-                              color: isIssueActive ? 'var(--soft-mint)' : 'var(--muted)',
+                              background: isIssueActive ? 'rgba(57, 255, 136, 0.22)' : 'rgba(234, 247, 255, 0.08)',
+                              border: '1px solid rgba(57, 255, 136, 0.18)',
+                              color: isIssueActive ? 'var(--matrix-green)' : 'var(--muted)',
                               fontSize: '10px',
                               fontWeight: 950
                             }}>
@@ -1498,12 +1694,23 @@ export function ChatPage() {
               <ERDPage embedded />
             ) : selectedChannel === 'docs' ? (
               <DocsPage embedded />
-            ) : selectedChannel === 'general' ? (
-              <ChannelPanel onOpenThread={handleOpenThread} onOpenInvite={() => setTeamInviteOpen(true)} />
+            ) : selectedChannel === 'general' || customChannels.some(ch => ch.id === selectedChannel) ? (
+              <ChannelPanel
+                repoName={customChannels.find(ch => ch.id === selectedChannel)?.label}
+                onOpenThread={handleOpenThread}
+                onOpenInvite={() => setTeamInviteOpen(true)}
+              />
             ) : REPO_CHANNEL_IDS_REVERSE[selectedChannel] !== undefined ? (
               <ChannelPanel
                 repoId={REPO_CHANNEL_IDS_REVERSE[selectedChannel]}
                 repoName={repositories.find(r => r.id === REPO_CHANNEL_IDS_REVERSE[selectedChannel])?.name}
+                onOpenThread={handleOpenThread}
+                onOpenInvite={() => setTeamInviteOpen(true)}
+              />
+            ) : repositories.find(r => r.id === selectedChannel) ? (
+              <ChannelPanel
+                repoId={selectedChannel}
+                repoName={repositories.find(r => r.id === selectedChannel)?.name}
                 onOpenThread={handleOpenThread}
                 onOpenInvite={() => setTeamInviteOpen(true)}
               />
