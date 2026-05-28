@@ -156,7 +156,7 @@ export function ChatPanel({ title, messages, onSendMessage, showAISummary = true
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       handleSend();
     }
@@ -275,11 +275,12 @@ export function ChatPanel({ title, messages, onSendMessage, showAISummary = true
       <div className="flex items-center justify-between px-6 py-4" style={{
         borderBottom: '1px solid rgba(32, 227, 255, 0.14)'
       }}>
-        <h3 className="m-0 tracking-[-0.065em]" style={{
+        <h3 className="m-0 flex items-center gap-2 tracking-[-0.065em]" style={{
           fontSize: '18px',
           fontWeight: 950,
           color: 'var(--white)'
         }}>
+          <Hash size={18} style={{ color: 'var(--neon-cyan)', flexShrink: 0 }} />
           {title}
         </h3>
         {showAISummary && (

@@ -182,7 +182,7 @@ export function ChannelPanel({ repoId, repoName, onOpenThread, onOpenInvite }: C
   };
 
   const handleMessageKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Enter') {
+    if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
       event.preventDefault();
       handleSendMessage();
     }

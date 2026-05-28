@@ -425,7 +425,11 @@ export function ChatPage() {
     : "grid h-[calc(100vh-160px)] min-h-0 gap-6 overflow-hidden";
   const selectedChannelMeta = ALL_SIDEBAR_CHANNELS.find((channel) => channel.id === selectedChannel);
   const selectedCustomChannel = customChannels.find(ch => ch.id === selectedChannel);
-  const selectedChannelTitle = selectedCustomChannel?.label
+  const selectedChannelTitle = selectedChannel === 'pull-requests'
+    ? `${currentRepo?.name ?? '레포'} - PR`
+    : selectedChannel === 'issues'
+    ? `${currentRepo?.name ?? '레포'} - 이슈`
+    : selectedCustomChannel?.label
     ?? selectedChannelMeta?.label
     ?? selectedChannel.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 
@@ -1101,7 +1105,7 @@ export function ChatPage() {
 
           {hasRepositories ? (
             <div className="flex flex-1 flex-col overflow-y-auto">
-            <div className="grid gap-2">
+            <div className="grid gap-2 min-w-0">
               {renderSidebarChannel({ id: 'overview', label: '통합 개요', icon: Home })}
 
               <div className="my-1" style={{ borderTop: '1px solid rgba(32, 227, 255, 0.14)' }} />
@@ -1438,8 +1442,8 @@ export function ChatPage() {
                 const isRepoBodyActive = selectedRepository === repo.id && selectedChannel === repoChannelId;
 
                 return (
-                  <div key={repo.id} className="grid gap-1">
-                    <div className="relative isolate flex w-full items-center rounded-full">
+                  <div key={repo.id} className="grid gap-1 min-w-0">
+                    <div className="relative isolate flex w-full min-w-0 items-center rounded-full">
                       {isRepoBodyActive && (
                         <motion.div
                           layoutId="workspaceSidebarActiveTab"
@@ -1690,12 +1694,23 @@ export function ChatPage() {
               <ERDPage embedded />
             ) : selectedChannel === 'docs' ? (
               <DocsPage embedded />
-            ) : selectedChannel === 'general' ? (
-              <ChannelPanel onOpenThread={handleOpenThread} onOpenInvite={() => setTeamInviteOpen(true)} />
+            ) : selectedChannel === 'general' || customChannels.some(ch => ch.id === selectedChannel) ? (
+              <ChannelPanel
+                repoName={customChannels.find(ch => ch.id === selectedChannel)?.label}
+                onOpenThread={handleOpenThread}
+                onOpenInvite={() => setTeamInviteOpen(true)}
+              />
             ) : REPO_CHANNEL_IDS_REVERSE[selectedChannel] !== undefined ? (
               <ChannelPanel
                 repoId={REPO_CHANNEL_IDS_REVERSE[selectedChannel]}
                 repoName={repositories.find(r => r.id === REPO_CHANNEL_IDS_REVERSE[selectedChannel])?.name}
+                onOpenThread={handleOpenThread}
+                onOpenInvite={() => setTeamInviteOpen(true)}
+              />
+            ) : repositories.find(r => r.id === selectedChannel) ? (
+              <ChannelPanel
+                repoId={selectedChannel}
+                repoName={repositories.find(r => r.id === selectedChannel)?.name}
                 onOpenThread={handleOpenThread}
                 onOpenInvite={() => setTeamInviteOpen(true)}
               />
