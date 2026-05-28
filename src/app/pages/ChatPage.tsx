@@ -360,6 +360,9 @@ export function ChatPage() {
   const [selectedRepository, setSelectedRepository] = useState<string>(() =>
     getRepositoryImportPreference() ? getSavedRepositories()?.[0]?.id ?? DEFAULT_REPOSITORIES[0].id : ""
   );
+  const [showRepoDropdown, setShowRepoDropdown] = useState(false);
+  const [showRepoForm, setShowRepoForm] = useState(false);
+  const [repoUrlInput, setRepoUrlInput] = useState('');
   const [selectedChannel, setSelectedChannel] = useState<string>('overview');
   const [messages, setMessages] = useState<Record<string, any[]>>(initialMessages);
   const [selectedPR, setSelectedPR] = useState<any>(null);
@@ -388,6 +391,7 @@ export function ChatPage() {
   const navigate = useNavigate();
 
   const hasRepositories = repositoriesImported && repositories.length > 0;
+  const currentRepo = repositories.find(repo => repo.id === selectedRepository);
 
   const getChannelBadge = (channelId: string): string | undefined => {
     const count = channelUnreadCounts[channelId];
@@ -448,6 +452,64 @@ export function ChatPage() {
       return { ...prev, [selectedChannel]: 0 };
     });
   }, [selectedChannel]);
+
+  const parseRepoNameFromUrl = (url: string): string | null => {
+    try {
+      const trimmed = url.trim().replace(/\.git$/, '');
+      const parts = trimmed.split('/').filter(Boolean);
+      const name = parts[parts.length - 1];
+      return name || null;
+    } catch {
+      return null;
+    }
+  };
+
+  const handleOpenRepoForm = () => {
+    setShowRepoDropdown(false);
+    setShowRepoForm(true);
+    setRepoUrlInput('');
+  };
+
+  const handleCloseRepoForm = () => {
+    setShowRepoForm(false);
+    setRepoUrlInput('');
+  };
+
+  const handleSubmitRepoForm = () => {
+    const repoName = parseRepoNameFromUrl(repoUrlInput);
+    if (!repoName) return;
+    const nextRepository: RepositoryItem = {
+      id: `repo-${Date.now()}`,
+      name: repoName,
+      openPRs: 0,
+      highRisk: 0,
+      activeIssues: 0,
+      connected: true,
+      membersOnline: 1
+    };
+    setRepositories(prev => [nextRepository, ...prev]);
+    setRepositoriesImported(true);
+    setSelectedRepository(nextRepository.id);
+    setSelectedChannel('overview');
+    handleCloseRepoForm();
+  };
+
+  const handleDeleteRepository = (repositoryId: string) => {
+    const nextRepositories = repositories.filter((repo) => repo.id !== repositoryId);
+    setRepositories(nextRepositories);
+    if (selectedRepository === repositoryId) {
+      setSelectedRepository(nextRepositories[0]?.id ?? "");
+    }
+    if (nextRepositories.length === 0) {
+      setRepositoriesImported(false);
+      setSelectedChannel('overview');
+      setShowRepoDropdown(false);
+      saveRepositoryImportPreferenceValue(false);
+      saveRepositories([]);
+      return;
+    }
+    saveRepositories(nextRepositories);
+  };
 
   const handleAddCustomChannel = () => {
     setShowAddChannelForm(true);
@@ -756,6 +818,259 @@ export function ChatPage() {
             boxShadow: '0 20px 60px rgba(0, 0, 0, 0.32)',
             backdropFilter: 'blur(16px)'
           }}>
+          <div className="mb-4">
+            {hasRepositories ? (
+              <div className="relative">
+                <button
+                  onClick={() => setShowRepoDropdown(!showRepoDropdown)}
+                  className="w-full px-4 py-3 rounded-lg border-0 flex items-center justify-between gap-2 transition-all"
+                  style={{
+                    background: 'rgba(32, 227, 255, 0.12)',
+                    border: '1px solid rgba(32, 227, 255, 0.3)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{
+                      background: 'linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))'
+                    }}>
+                      <GitBranch size={14} style={{ color: '#021014' }} />
+                    </div>
+                    <span className="tracking-tight truncate" style={{
+                      fontSize: '14px',
+                      fontWeight: 900,
+                      color: 'var(--white)'
+                    }}>
+                      {currentRepo?.name}
+                    </span>
+                  </div>
+                  <ChevronDown size={16} style={{ color: 'var(--neon-cyan)', flexShrink: 0 }} />
+                </button>
+
+                <AnimatePresence initial={false}>
+                  {showRepoDropdown && (
+                    <motion.div
+                      className="absolute top-full left-0 right-0 mt-2 rounded-lg overflow-hidden z-10"
+                      style={{
+                        background: 'rgba(5, 11, 20, 0.95)',
+                        border: '1px solid rgba(32, 227, 255, 0.3)',
+                        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5)'
+                      }}
+                      initial={{ opacity: 0, y: -8, height: 0 }}
+                      animate={{ opacity: 1, y: 0, height: 'auto' }}
+                      exit={{ opacity: 0, y: -8, height: 0 }}
+                      transition={{ type: 'spring', stiffness: 360, damping: 32 }}
+                    >
+                      {repositories.map((repo) => (
+                        <div
+                          key={repo.id}
+                          className="flex items-stretch gap-2 px-3 py-3"
+                          style={{
+                            background: selectedRepository === repo.id ? 'rgba(32, 227, 255, 0.15)' : 'transparent',
+                            borderBottom: '1px solid rgba(32, 227, 255, 0.1)'
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedRepository(repo.id);
+                              setShowRepoDropdown(false);
+                            }}
+                            className="min-w-0 flex-1 border-0 bg-transparent p-0 text-left"
+                            style={{ cursor: 'pointer' }}
+                          >
+                            <div className="flex flex-col gap-2">
+                              <span className="truncate tracking-tight" style={{
+                                fontSize: '14px',
+                                fontWeight: selectedRepository === repo.id ? 900 : 800,
+                                color: selectedRepository === repo.id ? 'var(--neon-cyan)' : 'var(--white)'
+                              }}>
+                                {repo.name}
+                              </span>
+                              <div className="flex flex-wrap gap-3">
+                                <span className="tracking-tight" style={{ fontSize: '11px', fontWeight: 800, color: 'var(--muted)' }}>
+                                  진행 중인 PR: <span style={{ color: 'var(--neon-cyan)' }}>{repo.openPRs}</span>
+                                </span>
+                                <span className="tracking-tight" style={{ fontSize: '11px', fontWeight: 800, color: 'var(--muted)' }}>
+                                  높은 위험: <span style={{ color: repo.highRisk > 0 ? '#FF6B6B' : 'var(--matrix-green)' }}>{repo.highRisk}</span>
+                                </span>
+                                <span className="tracking-tight" style={{ fontSize: '11px', fontWeight: 800, color: 'var(--muted)' }}>
+                                  이슈: <span style={{ color: 'var(--soft-mint)' }}>{repo.activeIssues}</span>
+                                </span>
+                              </div>
+                            </div>
+                          </button>
+                          <div className="flex shrink-0 items-center">
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteRepository(repo.id)}
+                              className="grid h-8 w-8 place-items-center rounded-full border-0 transition-all hover:scale-105"
+                              style={{
+                                background: 'rgba(255, 107, 107, 0.10)',
+                                border: '1px solid rgba(255, 107, 107, 0.22)',
+                                color: '#FF6B6B',
+                                cursor: 'pointer'
+                              }}
+                              aria-label={`${repo.name} 삭제`}
+                              title="삭제"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      <div className="px-3 py-3">
+                        <button
+                          type="button"
+                          onClick={handleOpenRepoForm}
+                          className="flex w-full items-center justify-center gap-2 rounded-full border-0 px-4 py-3 tracking-tight transition-all hover:scale-[1.01]"
+                          style={{
+                            background: 'rgba(57, 255, 136, 0.12)',
+                            border: '1px solid rgba(57, 255, 136, 0.22)',
+                            color: 'var(--matrix-green)',
+                            cursor: 'pointer',
+                            fontSize: '12px',
+                            fontWeight: 950
+                          }}
+                        >
+                          <Plus size={15} />
+                          리포지토리 추가
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            ) : (
+              <div
+                className="rounded-2xl px-4 py-4"
+                style={{
+                  background: 'rgba(234, 247, 255, 0.045)',
+                  border: '1px solid rgba(32, 227, 255, 0.16)'
+                }}
+              >
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{
+                    background: 'linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))'
+                  }}>
+                    <GitBranch size={14} style={{ color: '#021014' }} />
+                  </div>
+                  <div className="flex flex-col items-start min-w-0">
+                    <span className="tracking-tight" style={{ fontSize: '11px', fontWeight: 900, color: 'var(--muted)' }}>선택한 팀</span>
+                    <span className="tracking-tight truncate" style={{ fontSize: '14px', fontWeight: 900, color: 'var(--white)' }}>리포지토리 없음</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <AnimatePresence initial={false}>
+              {showRepoForm && (
+                <motion.div
+                  className="mt-4 rounded-2xl px-4 py-4"
+                  style={{
+                    background: 'rgba(5, 11, 20, 0.58)',
+                    border: '1px solid rgba(32, 227, 255, 0.18)',
+                    boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.06)'
+                  }}
+                  initial={{ opacity: 0, y: -8, height: 0 }}
+                  animate={{ opacity: 1, y: 0, height: 'auto' }}
+                  exit={{ opacity: 0, y: -8, height: 0 }}
+                  transition={{ type: 'spring', stiffness: 360, damping: 32 }}
+                >
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="m-0 tracking-tight" style={{ color: 'var(--white)', fontSize: '13px', fontWeight: 950 }}>
+                        리포지토리 추가
+                      </p>
+                      <p className="m-0 mt-1 tracking-tight" style={{ color: 'var(--muted)', fontSize: '11px', fontWeight: 800 }}>
+                        GitHub 저장소 URL을 입력하세요
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleCloseRepoForm}
+                      className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-0"
+                      style={{ background: 'rgba(234, 247, 255, 0.07)', color: 'var(--muted)', cursor: 'pointer' }}
+                      aria-label="닫기"
+                    >
+                      <X size={15} />
+                    </button>
+                  </div>
+
+                  <input
+                    value={repoUrlInput}
+                    onChange={(e) => setRepoUrlInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { e.preventDefault(); handleSubmitRepoForm(); }
+                      if (e.key === 'Escape') { e.preventDefault(); handleCloseRepoForm(); }
+                    }}
+                    placeholder="https://github.com/owner/repository"
+                    className="w-full rounded-xl px-4 py-3 outline-none tracking-tight"
+                    style={{
+                      background: 'rgba(234, 247, 255, 0.08)',
+                      border: '1px solid rgba(32, 227, 255, 0.22)',
+                      color: 'var(--white)',
+                      fontSize: '13px',
+                      fontWeight: 850
+                    }}
+                  />
+
+                  <div className="mt-3 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleCloseRepoForm}
+                      className="flex-1 rounded-full border-0 px-4 py-2.5 tracking-tight"
+                      style={{
+                        background: 'rgba(234, 247, 255, 0.07)',
+                        border: '1px solid rgba(32, 227, 255, 0.12)',
+                        color: 'var(--muted)',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        fontWeight: 900
+                      }}
+                    >
+                      취소
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSubmitRepoForm}
+                      disabled={!parseRepoNameFromUrl(repoUrlInput)}
+                      className="flex flex-1 items-center justify-center gap-2 rounded-full border-0 px-4 py-2.5 tracking-tight transition-all disabled:opacity-40"
+                      style={{
+                        background: 'linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))',
+                        color: '#021014',
+                        cursor: parseRepoNameFromUrl(repoUrlInput) ? 'pointer' : 'not-allowed',
+                        fontSize: '12px',
+                        fontWeight: 950
+                      }}
+                    >
+                      <Plus size={14} />
+                      등록
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {hasRepositories && (
+            <div className="mt-3 mb-2 flex items-center gap-2 px-2">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full" style={{ background: currentRepo?.connected ? 'var(--matrix-green)' : 'var(--muted)' }} />
+                <span className="tracking-tight" style={{ fontSize: '11px', fontWeight: 800, color: currentRepo?.connected ? 'var(--matrix-green)' : 'var(--muted)' }}>
+                  {currentRepo?.connected ? 'GitHub 연결됨' : '연결되지 않음'}
+                </span>
+              </div>
+              <span className="tracking-tight" style={{ fontSize: '11px', fontWeight: 800, color: 'var(--muted)' }}>•</span>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full" style={{ background: 'var(--matrix-green)' }} />
+                <span className="tracking-tight" style={{ fontSize: '11px', fontWeight: 800, color: 'var(--muted)' }}>
+                  {currentRepo?.membersOnline}명 접속 중
+                </span>
+              </div>
+            </div>
+          )}
+
           {hasRepositories ? (
             <div className="flex flex-1 flex-col overflow-y-auto">
             <div className="grid gap-2">
