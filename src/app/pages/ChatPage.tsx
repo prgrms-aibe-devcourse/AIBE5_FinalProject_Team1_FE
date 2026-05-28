@@ -29,7 +29,22 @@ interface RepositoryItem {
   activeIssues: number;
   connected: boolean;
   membersOnline: number;
+  workspaceId?: string;
 }
+
+interface WorkspaceItem {
+  id: string;
+  name: string;
+  connected: boolean;
+  membersOnline: number;
+  myRole: string;
+}
+
+const DEFAULT_WORKSPACES: WorkspaceItem[] = [
+  { id: 'workspace-1', name: 'SecureFlow Workspace', connected: true, membersOnline: 5, myRole: '소유자' },
+  { id: 'workspace-2', name: 'AI Chat Platform', connected: true, membersOnline: 8, myRole: '편집 가능' },
+  { id: 'workspace-3', name: 'Dashboard UI Kit', connected: true, membersOnline: 3, myRole: '보기 가능' },
+];
 
 interface SidebarChannel {
   id: string;
@@ -39,9 +54,9 @@ interface SidebarChannel {
 }
 
 const DEFAULT_REPOSITORIES: RepositoryItem[] = [
-  { id: 'secureflow', name: 'SecureFlow Workspace', openPRs: 7, highRisk: 2, activeIssues: 12, connected: true, membersOnline: 8 },
-  { id: 'aichat', name: 'AI Chat Platform', openPRs: 3, highRisk: 0, activeIssues: 8, connected: true, membersOnline: 5 },
-  { id: 'dashboard', name: 'Dashboard UI Kit', openPRs: 5, highRisk: 1, activeIssues: 6, connected: true, membersOnline: 3 }
+  { id: 'secureflow', name: 'BE', openPRs: 7, highRisk: 2, activeIssues: 12, connected: true, membersOnline: 8, workspaceId: 'workspace-1' },
+  { id: 'aichat', name: 'FE', openPRs: 3, highRisk: 0, activeIssues: 8, connected: true, membersOnline: 5, workspaceId: 'workspace-2' },
+  { id: 'dashboard', name: 'Design', openPRs: 5, highRisk: 1, activeIssues: 6, connected: true, membersOnline: 3, workspaceId: 'workspace-3' }
 ];
 
 const REPO_CHANNEL_IDS: Record<string, string> = {
@@ -390,10 +405,14 @@ export function ChatPage() {
     'review-room': 2,
   });
 
+  const [selectedWorkspace, setSelectedWorkspace] = useState<string>(DEFAULT_WORKSPACES[0].id);
+
   const navigate = useNavigate();
 
   const hasRepositories = repositoriesImported && repositories.length > 0;
   const currentRepo = repositories.find(repo => repo.id === selectedRepository);
+  const currentWorkspace = DEFAULT_WORKSPACES.find(ws => ws.id === selectedWorkspace) ?? DEFAULT_WORKSPACES[0];
+  const visibleRepositories = repositories.filter(r => !r.workspaceId || r.workspaceId === selectedWorkspace);
 
   const getChannelBadge = (channelId: string): string | undefined => {
     const count = channelUnreadCounts[channelId];
@@ -491,7 +510,8 @@ export function ChatPage() {
       highRisk: 0,
       activeIssues: 0,
       connected: true,
-      membersOnline: 1
+      membersOnline: 1,
+      workspaceId: selectedWorkspace
     };
     setRepositories(prev => [nextRepository, ...prev]);
     setRepositoriesImported(true);
@@ -504,7 +524,8 @@ export function ChatPage() {
     const nextRepositories = repositories.filter((repo) => repo.id !== repositoryId);
     setRepositories(nextRepositories);
     if (selectedRepository === repositoryId) {
-      setSelectedRepository(nextRepositories[0]?.id ?? "");
+      const nextVisible = nextRepositories.filter(r => !r.workspaceId || r.workspaceId === selectedWorkspace);
+      setSelectedRepository(nextVisible[0]?.id ?? nextRepositories[0]?.id ?? "");
     }
     if (nextRepositories.length === 0) {
       setRepositoriesImported(false);
@@ -546,7 +567,8 @@ export function ChatPage() {
       highRisk: 0,
       activeIssues: 0,
       connected: true,
-      membersOnline: 1
+      membersOnline: 1,
+      workspaceId: selectedWorkspace
     };
     setRepositories(prev => [nextRepository, ...prev]);
     setRepositoriesImported(true);
@@ -1088,16 +1110,16 @@ export function ChatPage() {
           {hasRepositories && (
             <div className="mt-3 mb-2 flex items-center gap-2 px-2">
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full" style={{ background: currentRepo?.connected ? 'var(--matrix-green)' : 'var(--muted)' }} />
-                <span className="tracking-tight" style={{ fontSize: '11px', fontWeight: 800, color: currentRepo?.connected ? 'var(--matrix-green)' : 'var(--muted)' }}>
-                  {currentRepo?.connected ? 'GitHub 연결됨' : '연결되지 않음'}
+                <div className="w-2 h-2 rounded-full" style={{ background: currentWorkspace.connected ? 'var(--matrix-green)' : 'var(--muted)' }} />
+                <span className="tracking-tight" style={{ fontSize: '11px', fontWeight: 800, color: currentWorkspace.connected ? 'var(--matrix-green)' : 'var(--muted)' }}>
+                  {currentWorkspace.connected ? 'GitHub 연결됨' : '연결되지 않음'}
                 </span>
               </div>
               <span className="tracking-tight" style={{ fontSize: '11px', fontWeight: 800, color: 'var(--muted)' }}>•</span>
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full" style={{ background: 'var(--matrix-green)' }} />
                 <span className="tracking-tight" style={{ fontSize: '11px', fontWeight: 800, color: 'var(--muted)' }}>
-                  {currentRepo?.membersOnline}명 접속 중
+                  {currentWorkspace.membersOnline}명 접속 중
                 </span>
               </div>
             </div>
@@ -1434,7 +1456,7 @@ export function ChatPage() {
                 );
               })}
 
-              {repositories.map((repo) => {
+              {visibleRepositories.map((repo) => {
                 const repoChannelId = REPO_CHANNEL_IDS[repo.id] ?? repo.id;
                 const isExpanded = expandedRepoSubmenus[repo.id] ?? false;
                 const isPRActive = selectedRepository === repo.id && selectedChannel === 'pull-requests';
