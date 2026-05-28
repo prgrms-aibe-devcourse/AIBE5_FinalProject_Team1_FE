@@ -375,12 +375,13 @@ export function ChatPage() {
     documentation: true
   });
   const [expandedRepoSubmenus, setExpandedRepoSubmenus] = useState<Record<string, boolean>>({});
-  const [customChannels, setCustomChannels] = useState<{ id: string; label: string }[]>([]);
+  const [customChannels, setCustomChannels] = useState<{ id: string; label: string; type: 'chat' | 'repo' }[]>([]);
   const [channelMenuOpenId, setChannelMenuOpenId] = useState<string | null>(null);
   const [editingCustomChannelId, setEditingCustomChannelId] = useState<string | null>(null);
   const [editingCustomChannelLabel, setEditingCustomChannelLabel] = useState('');
-  const [showAddChannelForm, setShowAddChannelForm] = useState(false);
+  const [addChannelStep, setAddChannelStep] = useState<null | 'select' | 'chat' | 'repo'>(null);
   const [newChannelName, setNewChannelName] = useState('');
+  const [newRepoChannelUrl, setNewRepoChannelUrl] = useState('');
   const [channelUnreadCounts, setChannelUnreadCounts] = useState<Record<string, number>>({
     general: 3,
     'frontend-chat': 2,
@@ -512,22 +513,38 @@ export function ChatPage() {
   };
 
   const handleAddCustomChannel = () => {
-    setShowAddChannelForm(true);
+    setAddChannelStep('select');
     setNewChannelName('');
+    setNewRepoChannelUrl('');
+  };
+
+  const handleSelectChannelType = (type: 'chat' | 'repo') => {
+    setAddChannelStep(type);
   };
 
   const handleSubmitAddChannel = () => {
     const label = newChannelName.trim() || `새 채널 ${customChannels.length + 1}`;
     const id = `custom-${Date.now()}`;
-    setCustomChannels(prev => [...prev, { id, label }]);
+    setCustomChannels(prev => [...prev, { id, label, type: 'chat' }]);
     setSelectedChannel(id);
-    setShowAddChannelForm(false);
+    setAddChannelStep(null);
     setNewChannelName('');
   };
 
+  const handleSubmitAddRepoChannel = () => {
+    const repoName = parseRepoNameFromUrl(newRepoChannelUrl);
+    if (!repoName) return;
+    const id = `custom-${Date.now()}`;
+    setCustomChannels(prev => [...prev, { id, label: repoName, type: 'repo' }]);
+    setSelectedChannel(id);
+    setAddChannelStep(null);
+    setNewRepoChannelUrl('');
+  };
+
   const handleCancelAddChannel = () => {
-    setShowAddChannelForm(false);
+    setAddChannelStep(null);
     setNewChannelName('');
+    setNewRepoChannelUrl('');
   };
 
   const handleDeleteCustomChannel = (channelId: string) => {
@@ -1092,8 +1109,75 @@ export function ChatPage() {
                 </button>
               </div>
               <AnimatePresence initial={false}>
-                {showAddChannelForm && (
+                {addChannelStep === 'select' && (
                   <motion.div
+                    key="select"
+                    className="mx-1 overflow-hidden rounded-xl px-3 py-3"
+                    style={{
+                      background: 'rgba(5, 11, 20, 0.58)',
+                      border: '1px solid rgba(32, 227, 255, 0.18)',
+                      boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.06)'
+                    }}
+                    initial={{ opacity: 0, y: -8, height: 0 }}
+                    animate={{ opacity: 1, y: 0, height: 'auto' }}
+                    exit={{ opacity: 0, y: -8, height: 0 }}
+                    transition={{ type: 'spring', stiffness: 360, damping: 32 }}
+                  >
+                    <p style={{ fontSize: '11px', fontWeight: 900, color: 'var(--muted)', margin: '0 0 10px 0' }}>채널 유형 선택</p>
+                    <div className="flex flex-col gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleSelectChannelType('chat')}
+                        className="flex items-center gap-3 rounded-xl border-0 px-3 py-2.5 text-left tracking-tight transition-all hover:scale-[1.01]"
+                        style={{
+                          background: 'rgba(32, 227, 255, 0.08)',
+                          border: '1px solid rgba(32, 227, 255, 0.2)',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <Hash size={14} style={{ color: 'var(--neon-cyan)', flexShrink: 0 }} />
+                        <div>
+                          <p className="m-0 tracking-tight" style={{ fontSize: '12px', fontWeight: 900, color: 'var(--white)' }}>대화 채널</p>
+                          <p className="m-0 tracking-tight" style={{ fontSize: '11px', fontWeight: 800, color: 'var(--muted)' }}>팀 대화용 채널</p>
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectChannelType('repo')}
+                        className="flex items-center gap-3 rounded-xl border-0 px-3 py-2.5 text-left tracking-tight transition-all hover:scale-[1.01]"
+                        style={{
+                          background: 'rgba(57, 255, 136, 0.08)',
+                          border: '1px solid rgba(57, 255, 136, 0.2)',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <GitBranch size={14} style={{ color: 'var(--matrix-green)', flexShrink: 0 }} />
+                        <div>
+                          <p className="m-0 tracking-tight" style={{ fontSize: '12px', fontWeight: 900, color: 'var(--white)' }}>레포 채널</p>
+                          <p className="m-0 tracking-tight" style={{ fontSize: '11px', fontWeight: 800, color: 'var(--muted)' }}>GitHub 저장소 연결</p>
+                        </div>
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleCancelAddChannel}
+                      className="mt-2 w-full rounded-full border-0 px-3 py-2 tracking-tight"
+                      style={{
+                        background: 'rgba(234, 247, 255, 0.07)',
+                        border: '1px solid rgba(32, 227, 255, 0.12)',
+                        color: 'var(--muted)',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        fontWeight: 900
+                      }}
+                    >
+                      취소
+                    </button>
+                  </motion.div>
+                )}
+                {addChannelStep === 'chat' && (
+                  <motion.div
+                    key="chat"
                     className="mx-1 overflow-hidden rounded-xl px-3 py-3"
                     style={{
                       background: 'rgba(5, 11, 20, 0.58)',
@@ -1153,6 +1237,75 @@ export function ChatPage() {
                         }}
                       >
                         만들기
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+                {addChannelStep === 'repo' && (
+                  <motion.div
+                    key="repo"
+                    className="mx-1 overflow-hidden rounded-xl px-3 py-3"
+                    style={{
+                      background: 'rgba(5, 11, 20, 0.58)',
+                      border: '1px solid rgba(57, 255, 136, 0.18)',
+                      boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.06)'
+                    }}
+                    initial={{ opacity: 0, y: -8, height: 0 }}
+                    animate={{ opacity: 1, y: 0, height: 'auto' }}
+                    exit={{ opacity: 0, y: -8, height: 0 }}
+                    transition={{ type: 'spring', stiffness: 360, damping: 32 }}
+                  >
+                    <p style={{ fontSize: '11px', fontWeight: 900, color: 'var(--muted)', margin: '0 0 4px 0' }}>레포 채널</p>
+                    <p style={{ fontSize: '11px', fontWeight: 800, color: 'var(--muted)', margin: '0 0 8px 0' }}>GitHub 저장소 URL을 입력하세요</p>
+                    <input
+                      value={newRepoChannelUrl}
+                      onChange={e => setNewRepoChannelUrl(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') { e.preventDefault(); handleSubmitAddRepoChannel(); }
+                        if (e.key === 'Escape') { e.preventDefault(); handleCancelAddChannel(); }
+                      }}
+                      autoFocus
+                      placeholder="https://github.com/owner/repository"
+                      className="w-full rounded-lg px-3 py-2 outline-none tracking-tight"
+                      style={{
+                        background: 'rgba(234, 247, 255, 0.08)',
+                        border: '1px solid rgba(57, 255, 136, 0.22)',
+                        color: 'var(--white)',
+                        fontSize: '13px',
+                        fontWeight: 850
+                      }}
+                    />
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={handleCancelAddChannel}
+                        className="flex-1 rounded-full border-0 px-3 py-2 tracking-tight"
+                        style={{
+                          background: 'rgba(234, 247, 255, 0.07)',
+                          border: '1px solid rgba(32, 227, 255, 0.12)',
+                          color: 'var(--muted)',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                          fontWeight: 900
+                        }}
+                      >
+                        취소
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSubmitAddRepoChannel}
+                        disabled={!parseRepoNameFromUrl(newRepoChannelUrl)}
+                        className="flex flex-1 items-center justify-center gap-1 rounded-full border-0 px-3 py-2 tracking-tight transition-all disabled:opacity-40"
+                        style={{
+                          background: 'linear-gradient(135deg, var(--matrix-green), var(--deep-teal))',
+                          color: '#021014',
+                          cursor: parseRepoNameFromUrl(newRepoChannelUrl) ? 'pointer' : 'not-allowed',
+                          fontSize: '12px',
+                          fontWeight: 950
+                        }}
+                      >
+                        <Plus size={13} />
+                        등록
                       </button>
                     </div>
                   </motion.div>
