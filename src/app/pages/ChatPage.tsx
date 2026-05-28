@@ -1053,6 +1053,24 @@ export function ChatPage() {
             </AnimatePresence>
           </div>
 
+          {hasRepositories && (
+            <div className="mt-3 mb-2 flex items-center gap-2 px-2">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full" style={{ background: currentRepo?.connected ? 'var(--matrix-green)' : 'var(--muted)' }} />
+                <span className="tracking-tight" style={{ fontSize: '11px', fontWeight: 800, color: currentRepo?.connected ? 'var(--matrix-green)' : 'var(--muted)' }}>
+                  {currentRepo?.connected ? 'GitHub 연결됨' : '연결되지 않음'}
+                </span>
+              </div>
+              <span className="tracking-tight" style={{ fontSize: '11px', fontWeight: 800, color: 'var(--muted)' }}>•</span>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full" style={{ background: 'var(--matrix-green)' }} />
+                <span className="tracking-tight" style={{ fontSize: '11px', fontWeight: 800, color: 'var(--muted)' }}>
+                  {currentRepo?.membersOnline}명 접속 중
+                </span>
+              </div>
+            </div>
+          )}
+
           {hasRepositories ? (
             <div className="flex flex-1 flex-col overflow-y-auto">
             <div className="grid gap-2">
