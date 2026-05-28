@@ -17,7 +17,7 @@ import { TeamInviteModal } from "../components/TeamInviteModal";
 import { TeamPanel } from "../components/TeamPanel";
 
 const REPOSITORY_IMPORTED_KEY = "codedock-repository-imported";
-const REPOSITORY_LIST_KEY = "codedock-repositories";
+const REPOSITORY_LIST_KEY = "codedock-repositories-v2";
 
 type SidebarGroupId = 'documentation';
 
@@ -55,14 +55,26 @@ interface SidebarChannel {
 
 const DEFAULT_REPOSITORIES: RepositoryItem[] = [
   { id: 'secureflow', name: 'BE', openPRs: 7, highRisk: 2, activeIssues: 12, connected: true, membersOnline: 8, workspaceId: 'workspace-1' },
-  { id: 'aichat', name: 'FE', openPRs: 3, highRisk: 0, activeIssues: 8, connected: true, membersOnline: 5, workspaceId: 'workspace-2' },
-  { id: 'dashboard', name: 'Design', openPRs: 5, highRisk: 1, activeIssues: 6, connected: true, membersOnline: 3, workspaceId: 'workspace-3' }
+  { id: 'aichat', name: 'FE', openPRs: 3, highRisk: 0, activeIssues: 8, connected: true, membersOnline: 5, workspaceId: 'workspace-1' },
+  { id: 'dashboard', name: 'Design', openPRs: 5, highRisk: 1, activeIssues: 6, connected: true, membersOnline: 3, workspaceId: 'workspace-1' },
+  { id: 'secureflow-2', name: 'BE', openPRs: 7, highRisk: 2, activeIssues: 12, connected: true, membersOnline: 8, workspaceId: 'workspace-2' },
+  { id: 'aichat-2', name: 'FE', openPRs: 3, highRisk: 0, activeIssues: 8, connected: true, membersOnline: 5, workspaceId: 'workspace-2' },
+  { id: 'dashboard-2', name: 'Design', openPRs: 5, highRisk: 1, activeIssues: 6, connected: true, membersOnline: 3, workspaceId: 'workspace-2' },
+  { id: 'secureflow-3', name: 'BE', openPRs: 7, highRisk: 2, activeIssues: 12, connected: true, membersOnline: 8, workspaceId: 'workspace-3' },
+  { id: 'aichat-3', name: 'FE', openPRs: 3, highRisk: 0, activeIssues: 8, connected: true, membersOnline: 5, workspaceId: 'workspace-3' },
+  { id: 'dashboard-3', name: 'Design', openPRs: 5, highRisk: 1, activeIssues: 6, connected: true, membersOnline: 3, workspaceId: 'workspace-3' },
 ];
 
 const REPO_CHANNEL_IDS: Record<string, string> = {
   'secureflow': 'frontend-chat',
   'aichat': 'backend-chat',
   'dashboard': 'review-room',
+  'secureflow-2': 'frontend-chat',
+  'aichat-2': 'backend-chat',
+  'dashboard-2': 'review-room',
+  'secureflow-3': 'frontend-chat',
+  'aichat-3': 'backend-chat',
+  'dashboard-3': 'review-room',
 };
 
 // 역방향 매핑: 채널 ID → 레포 ID

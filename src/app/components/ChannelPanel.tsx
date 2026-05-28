@@ -29,19 +29,29 @@ const GENERAL_THREADS: Thread[] = [
   { id: 2, user: '김진필', avatar: '👨‍💻', message: '새로운 API 엔드포인트 추가했습니다. /api/v2/users 확인해주세요', time: '11:45 AM', replies: 5, lastReply: '김재준' }
 ];
 
+const SECUREFLOW_THREADS: Thread[] = [
+  { id: 101, user: '김진현', avatar: '🎨', message: '로그인 페이지 채팅형 전환 애니메이션 확인 부탁드려요.', time: '오늘 10:42', replies: 2, lastReply: '안현' },
+  { id: 102, user: '안현', avatar: '👩‍💻', message: '크게 보기 모드에서 헤더 덮는 부분까지 맞췄습니다.', time: '오늘 10:48', replies: 0 }
+];
+const AICHAT_THREADS: Thread[] = [
+  { id: 201, user: '김진필', avatar: '👨‍💻', message: '회원 탈퇴와 워크스페이스 삭제 API 명세 추가 예정입니다.', time: '오늘 09:55', replies: 1, lastReply: 'CodeDock' },
+  { id: 202, user: 'CodeDock', avatar: 'CD', message: '리포지토리 연동 해제 정책도 문서 목록에 연결해둘게요.', time: '오늘 09:58', replies: 0 }
+];
+const DASHBOARD_THREADS: Thread[] = [
+  { id: 301, user: '김재준', avatar: '👨‍💼', message: '새로운 디자인 토큰 추가했습니다. 색상 조합이 정말 좋네요!', time: '오늘 14:20', replies: 2, lastReply: '김진현' },
+  { id: 302, user: '김진현', avatar: '🎨', message: 'UI 컴포넌트 라이브러리 마이그레이션 완료했습니다.', time: '오늘 14:35', replies: 0 }
+];
+
 const REPO_THREADS: Record<string, Thread[]> = {
-  'secureflow': [
-    { id: 101, user: '김진현', avatar: '🎨', message: '로그인 페이지 채팅형 전환 애니메이션 확인 부탁드려요.', time: '오늘 10:42', replies: 2, lastReply: '안현' },
-    { id: 102, user: '안현', avatar: '👩‍💻', message: '크게 보기 모드에서 헤더 덮는 부분까지 맞췄습니다.', time: '오늘 10:48', replies: 0 }
-  ],
-  'aichat': [
-    { id: 201, user: '김진필', avatar: '👨‍💻', message: '회원 탈퇴와 워크스페이스 삭제 API 명세 추가 예정입니다.', time: '오늘 09:55', replies: 1, lastReply: 'CodeDock' },
-    { id: 202, user: 'CodeDock', avatar: 'CD', message: '리포지토리 연동 해제 정책도 문서 목록에 연결해둘게요.', time: '오늘 09:58', replies: 0 }
-  ],
-  'dashboard': [
-    { id: 301, user: '김재준', avatar: '👨‍💼', message: '새로운 디자인 토큰 추가했습니다. 색상 조합이 정말 좋네요!', time: '오늘 14:20', replies: 2, lastReply: '김진현' },
-    { id: 302, user: '김진현', avatar: '🎨', message: 'UI 컴포넌트 라이브러리 마이그레이션 완료했습니다.', time: '오늘 14:35', replies: 0 }
-  ]
+  'secureflow': SECUREFLOW_THREADS,
+  'secureflow-2': SECUREFLOW_THREADS,
+  'secureflow-3': SECUREFLOW_THREADS,
+  'aichat': AICHAT_THREADS,
+  'aichat-2': AICHAT_THREADS,
+  'aichat-3': AICHAT_THREADS,
+  'dashboard': DASHBOARD_THREADS,
+  'dashboard-2': DASHBOARD_THREADS,
+  'dashboard-3': DASHBOARD_THREADS,
 };
 
 export function ChannelPanel({ repoId, repoName, onOpenThread, onOpenInvite }: ChannelPanelProps) {
