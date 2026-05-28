@@ -361,6 +361,8 @@ export function ChatPage() {
     getRepositoryImportPreference() ? getSavedRepositories()?.[0]?.id ?? DEFAULT_REPOSITORIES[0].id : ""
   );
   const [showRepoDropdown, setShowRepoDropdown] = useState(false);
+  const [showRepoForm, setShowRepoForm] = useState(false);
+  const [repoUrlInput, setRepoUrlInput] = useState('');
   const [selectedChannel, setSelectedChannel] = useState<string>('overview');
   const [messages, setMessages] = useState<Record<string, any[]>>(initialMessages);
   const [selectedPR, setSelectedPR] = useState<any>(null);
@@ -450,6 +452,47 @@ export function ChatPage() {
       return { ...prev, [selectedChannel]: 0 };
     });
   }, [selectedChannel]);
+
+  const parseRepoNameFromUrl = (url: string): string | null => {
+    try {
+      const trimmed = url.trim().replace(/\.git$/, '');
+      const parts = trimmed.split('/').filter(Boolean);
+      const name = parts[parts.length - 1];
+      return name || null;
+    } catch {
+      return null;
+    }
+  };
+
+  const handleOpenRepoForm = () => {
+    setShowRepoDropdown(false);
+    setShowRepoForm(true);
+    setRepoUrlInput('');
+  };
+
+  const handleCloseRepoForm = () => {
+    setShowRepoForm(false);
+    setRepoUrlInput('');
+  };
+
+  const handleSubmitRepoForm = () => {
+    const repoName = parseRepoNameFromUrl(repoUrlInput);
+    if (!repoName) return;
+    const nextRepository: RepositoryItem = {
+      id: `repo-${Date.now()}`,
+      name: repoName,
+      openPRs: 0,
+      highRisk: 0,
+      activeIssues: 0,
+      connected: true,
+      membersOnline: 1
+    };
+    setRepositories(prev => [nextRepository, ...prev]);
+    setRepositoriesImported(true);
+    setSelectedRepository(nextRepository.id);
+    setSelectedChannel('overview');
+    handleCloseRepoForm();
+  };
 
   const handleDeleteRepository = (repositoryId: string) => {
     const nextRepositories = repositories.filter((repo) => repo.id !== repositoryId);
@@ -879,6 +922,7 @@ export function ChatPage() {
                       <div className="px-3 py-3">
                         <button
                           type="button"
+                          onClick={handleOpenRepoForm}
                           className="flex w-full items-center justify-center gap-2 rounded-full border-0 px-4 py-3 tracking-tight transition-all hover:scale-[1.01]"
                           style={{
                             background: 'rgba(57, 255, 136, 0.12)',
@@ -918,6 +962,95 @@ export function ChatPage() {
                 </div>
               </div>
             )}
+
+            <AnimatePresence initial={false}>
+              {showRepoForm && (
+                <motion.div
+                  className="mt-4 rounded-2xl px-4 py-4"
+                  style={{
+                    background: 'rgba(5, 11, 20, 0.58)',
+                    border: '1px solid rgba(32, 227, 255, 0.18)',
+                    boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.06)'
+                  }}
+                  initial={{ opacity: 0, y: -8, height: 0 }}
+                  animate={{ opacity: 1, y: 0, height: 'auto' }}
+                  exit={{ opacity: 0, y: -8, height: 0 }}
+                  transition={{ type: 'spring', stiffness: 360, damping: 32 }}
+                >
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="m-0 tracking-tight" style={{ color: 'var(--white)', fontSize: '13px', fontWeight: 950 }}>
+                        리포지토리 추가
+                      </p>
+                      <p className="m-0 mt-1 tracking-tight" style={{ color: 'var(--muted)', fontSize: '11px', fontWeight: 800 }}>
+                        GitHub 저장소 URL을 입력하세요
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleCloseRepoForm}
+                      className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-0"
+                      style={{ background: 'rgba(234, 247, 255, 0.07)', color: 'var(--muted)', cursor: 'pointer' }}
+                      aria-label="닫기"
+                    >
+                      <X size={15} />
+                    </button>
+                  </div>
+
+                  <input
+                    value={repoUrlInput}
+                    onChange={(e) => setRepoUrlInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { e.preventDefault(); handleSubmitRepoForm(); }
+                      if (e.key === 'Escape') { e.preventDefault(); handleCloseRepoForm(); }
+                    }}
+                    placeholder="https://github.com/owner/repository"
+                    className="w-full rounded-xl px-4 py-3 outline-none tracking-tight"
+                    style={{
+                      background: 'rgba(234, 247, 255, 0.08)',
+                      border: '1px solid rgba(32, 227, 255, 0.22)',
+                      color: 'var(--white)',
+                      fontSize: '13px',
+                      fontWeight: 850
+                    }}
+                  />
+
+                  <div className="mt-3 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleCloseRepoForm}
+                      className="flex-1 rounded-full border-0 px-4 py-2.5 tracking-tight"
+                      style={{
+                        background: 'rgba(234, 247, 255, 0.07)',
+                        border: '1px solid rgba(32, 227, 255, 0.12)',
+                        color: 'var(--muted)',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        fontWeight: 900
+                      }}
+                    >
+                      취소
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSubmitRepoForm}
+                      disabled={!parseRepoNameFromUrl(repoUrlInput)}
+                      className="flex flex-1 items-center justify-center gap-2 rounded-full border-0 px-4 py-2.5 tracking-tight transition-all disabled:opacity-40"
+                      style={{
+                        background: 'linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))',
+                        color: '#021014',
+                        cursor: parseRepoNameFromUrl(repoUrlInput) ? 'pointer' : 'not-allowed',
+                        fontSize: '12px',
+                        fontWeight: 950
+                      }}
+                    >
+                      <Plus size={14} />
+                      등록
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           {hasRepositories ? (
