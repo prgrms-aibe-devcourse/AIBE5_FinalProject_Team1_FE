@@ -1336,7 +1336,10 @@ export function ChatPage() {
                       )}
                       {isEditing ? (
                         <div className="relative z-10 flex min-w-0 flex-1 items-center gap-3 px-4 py-3">
-                          <Hash size={15} style={{ color: 'var(--neon-cyan)', flexShrink: 0 }} />
+                          {ch.type === 'repo'
+                            ? <GitBranch size={15} style={{ color: 'var(--matrix-green)', flexShrink: 0 }} />
+                            : <Hash size={15} style={{ color: 'var(--neon-cyan)', flexShrink: 0 }} />
+                          }
                           <input
                             value={editingCustomChannelLabel}
                             onChange={e => setEditingCustomChannelLabel(e.target.value)}
@@ -1357,7 +1360,10 @@ export function ChatPage() {
                           className="relative z-10 flex min-w-0 flex-1 items-center gap-3 border-0 bg-transparent px-4 py-3 text-left"
                           style={{ cursor: 'pointer' }}
                         >
-                          <Hash size={15} style={{ color: isActive ? 'var(--neon-cyan)' : 'var(--muted)', flexShrink: 0 }} />
+                          {ch.type === 'repo'
+                            ? <GitBranch size={15} style={{ color: isActive ? 'var(--matrix-green)' : 'var(--muted)', flexShrink: 0 }} />
+                            : <Hash size={15} style={{ color: isActive ? 'var(--neon-cyan)' : 'var(--muted)', flexShrink: 0 }} />
+                          }
                           <span className="truncate tracking-tight flex-1" style={{
                             fontSize: '13px',
                             fontWeight: isActive ? 900 : 800,
@@ -1394,15 +1400,17 @@ export function ChatPage() {
                         border: '1px solid rgba(32, 227, 255, 0.18)',
                         boxShadow: '0 4px 16px rgba(0,0,0,0.4)'
                       }}>
-                        <button
-                          type="button"
-                          onClick={() => handleStartRenameCustomChannel(ch)}
-                          className="flex w-full items-center gap-2 border-0 px-3 py-2 text-left tracking-tight transition-all hover:bg-[rgba(32,227,255,0.08)]"
-                          style={{ background: 'transparent', color: 'var(--white)', fontSize: '12px', fontWeight: 800, cursor: 'pointer', borderBottom: '1px solid rgba(32, 227, 255, 0.10)' }}
-                        >
-                          <Pencil size={13} style={{ color: 'var(--neon-cyan)' }} />
-                          이름 수정
-                        </button>
+                        {ch.type === 'chat' && (
+                          <button
+                            type="button"
+                            onClick={() => handleStartRenameCustomChannel(ch)}
+                            className="flex w-full items-center gap-2 border-0 px-3 py-2 text-left tracking-tight transition-all hover:bg-[rgba(32,227,255,0.08)]"
+                            style={{ background: 'transparent', color: 'var(--white)', fontSize: '12px', fontWeight: 800, cursor: 'pointer', borderBottom: '1px solid rgba(32, 227, 255, 0.10)' }}
+                          >
+                            <Pencil size={13} style={{ color: 'var(--neon-cyan)' }} />
+                            이름 수정
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => handleDeleteCustomChannel(ch.id)}
