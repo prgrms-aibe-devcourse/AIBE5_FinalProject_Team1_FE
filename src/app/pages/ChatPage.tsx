@@ -43,6 +43,7 @@ const DEFAULT_REPOSITORIES: RepositoryItem[] = [
   { id: 'dashboard', name: 'Dashboard UI Kit', openPRs: 5, highRisk: 1, activeIssues: 6, connected: true, membersOnline: 3 }
 ];
 
+
 const DOCUMENTATION_CHANNELS: SidebarChannel[] = [
   { id: 'api-spec', label: 'API', icon: Code2 },
   { id: 'erd', label: 'ERD', icon: Database },
@@ -490,6 +491,13 @@ export function ChatPage() {
     setExpandedSidebarGroups((prev) => ({
       ...prev,
       [group]: !prev[group]
+    }));
+  };
+
+  const toggleRepoSubmenu = (repoId: string) => {
+    setExpandedRepoSubmenus((prev) => ({
+      ...prev,
+      [repoId]: !prev[repoId]
     }));
   };
 
@@ -1097,6 +1105,144 @@ export function ChatPage() {
             <div className="grid gap-2">
               {renderSidebarChannel({ id: 'overview', label: '통합 개요', icon: Home })}
               {renderSidebarChannel({ id: 'general', label: '채널', icon: Hash, badge: '4' })}
+
+              <div className="my-1" style={{ borderTop: '1px solid rgba(32, 227, 255, 0.14)' }}></div>
+
+              {repositories.map((repo) => {
+                const isExpanded = expandedRepoSubmenus[repo.id] ?? false;
+                const isPRActive = selectedRepository === repo.id && selectedChannel === 'pull-requests';
+                const isIssueActive = selectedRepository === repo.id && selectedChannel === 'issues';
+                const isRepoBodyActive = selectedRepository === repo.id && !isPRActive && !isIssueActive;
+
+                return (
+                  <div key={repo.id} className="grid gap-1">
+                    <div className="relative isolate flex w-full items-center rounded-full">
+                      {isRepoBodyActive && (
+                        <motion.div
+                          layoutId="workspaceSidebarActiveTab"
+                          className="absolute inset-0 rounded-full"
+                          style={{
+                            background: 'linear-gradient(135deg, rgba(32, 227, 255, 0.18), rgba(234, 247, 255, 0.045)), rgba(11, 22, 40, 0.52)',
+                            border: '1px solid rgba(32, 227, 255, 0.30)',
+                            boxShadow: '0 0 24px rgba(32, 227, 255, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12)',
+                            backdropFilter: 'blur(14px) saturate(180%)'
+                          }}
+                          transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                        />
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => { setSelectedRepository(repo.id); setSelectedChannel('general'); }}
+                        className="relative z-10 flex min-w-0 flex-1 items-center gap-3 border-0 bg-transparent px-4 py-3 text-left"
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <GitBranch size={15} style={{ color: isRepoBodyActive ? 'var(--neon-cyan)' : 'var(--muted)', flexShrink: 0 }} />
+                        <span className="truncate tracking-tight" style={{
+                          fontSize: '13px',
+                          fontWeight: isRepoBodyActive ? 900 : 800,
+                          color: isRepoBodyActive ? 'var(--white)' : 'var(--muted)'
+                        }}>
+                          {repo.name}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => toggleRepoSubmenu(repo.id)}
+                        className="relative z-10 mr-2 grid h-7 w-7 flex-shrink-0 place-items-center rounded-full border-0 bg-transparent transition-all hover:bg-[rgba(32,227,255,0.10)]"
+                        style={{ cursor: 'pointer' }}
+                        aria-label={isExpanded ? '서브메뉴 닫기' : '서브메뉴 열기'}
+                      >
+                        {isExpanded
+                          ? <ChevronDown size={13} style={{ color: 'var(--muted)' }} />
+                          : <ChevronRight size={13} style={{ color: 'var(--muted)' }} />
+                        }
+                      </button>
+                    </div>
+
+                    <AnimatePresence initial={false}>
+                      {isExpanded && (
+                        <motion.div
+                          className="grid gap-1 overflow-hidden"
+                          initial={{ height: 0, opacity: 0, y: -4 }}
+                          animate={{ height: 'auto', opacity: 1, y: 0 }}
+                          exit={{ height: 0, opacity: 0, y: -4 }}
+                          transition={{ type: 'spring', stiffness: 360, damping: 32 }}
+                        >
+                          <motion.button
+                            type="button"
+                            onClick={() => { setSelectedRepository(repo.id); setSelectedChannel('pull-requests'); }}
+                            className="relative isolate flex w-full items-center gap-2 rounded-full border-0 py-2.5 pl-8 pr-3 text-left tracking-tight transition-colors"
+                            style={{ background: 'transparent', cursor: 'pointer' }}
+                            whileTap={{ scale: 0.99 }}
+                          >
+                            {isPRActive && (
+                              <motion.div
+                                layoutId="workspaceSidebarActiveTab"
+                                className="absolute inset-0 rounded-full"
+                                style={{
+                                  background: 'linear-gradient(135deg, rgba(32, 227, 255, 0.18), rgba(234, 247, 255, 0.045)), rgba(11, 22, 40, 0.52)',
+                                  border: '1px solid rgba(32, 227, 255, 0.30)',
+                                  boxShadow: '0 0 24px rgba(32, 227, 255, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12)',
+                                  backdropFilter: 'blur(14px) saturate(180%)'
+                                }}
+                                transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                              />
+                            )}
+                            <GitPullRequest size={14} style={{ color: isPRActive ? 'var(--neon-cyan)' : 'var(--muted)', flexShrink: 0, position: 'relative', zIndex: 1 }} />
+                            <span className="relative z-10 flex-1 tracking-tight" style={{ fontSize: '13px', fontWeight: isPRActive ? 900 : 800, color: isPRActive ? 'var(--white)' : 'var(--muted)' }}>
+                              PR
+                            </span>
+                            <span className="relative z-10 flex-shrink-0 rounded-full px-2 py-0.5 tracking-tight" style={{
+                              background: isPRActive ? 'rgba(32, 227, 255, 0.22)' : 'rgba(234, 247, 255, 0.08)',
+                              border: '1px solid rgba(32, 227, 255, 0.18)',
+                              color: isPRActive ? 'var(--neon-cyan)' : 'var(--muted)',
+                              fontSize: '10px',
+                              fontWeight: 950
+                            }}>
+                              {repo.openPRs}
+                            </span>
+                          </motion.button>
+
+                          <motion.button
+                            type="button"
+                            onClick={() => { setSelectedRepository(repo.id); setSelectedChannel('issues'); }}
+                            className="relative isolate flex w-full items-center gap-2 rounded-full border-0 py-2.5 pl-8 pr-3 text-left tracking-tight transition-colors"
+                            style={{ background: 'transparent', cursor: 'pointer' }}
+                            whileTap={{ scale: 0.99 }}
+                          >
+                            {isIssueActive && (
+                              <motion.div
+                                layoutId="workspaceSidebarActiveTab"
+                                className="absolute inset-0 rounded-full"
+                                style={{
+                                  background: 'linear-gradient(135deg, rgba(32, 227, 255, 0.18), rgba(234, 247, 255, 0.045)), rgba(11, 22, 40, 0.52)',
+                                  border: '1px solid rgba(32, 227, 255, 0.30)',
+                                  boxShadow: '0 0 24px rgba(32, 227, 255, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12)',
+                                  backdropFilter: 'blur(14px) saturate(180%)'
+                                }}
+                                transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                              />
+                            )}
+                            <CheckSquare size={14} style={{ color: isIssueActive ? 'var(--neon-cyan)' : 'var(--muted)', flexShrink: 0, position: 'relative', zIndex: 1 }} />
+                            <span className="relative z-10 flex-1 tracking-tight" style={{ fontSize: '13px', fontWeight: isIssueActive ? 900 : 800, color: isIssueActive ? 'var(--white)' : 'var(--muted)' }}>
+                              이슈
+                            </span>
+                            <span className="relative z-10 flex-shrink-0 rounded-full px-2 py-0.5 tracking-tight" style={{
+                              background: isIssueActive ? 'rgba(32, 227, 255, 0.22)' : 'rgba(234, 247, 255, 0.08)',
+                              border: '1px solid rgba(32, 227, 255, 0.18)',
+                              color: isIssueActive ? 'var(--soft-mint)' : 'var(--muted)',
+                              fontSize: '10px',
+                              fontWeight: 950
+                            }}>
+                              {repo.activeIssues}
+                            </span>
+                          </motion.button>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                );
+              })}
 
               <div className="my-1" style={{ borderTop: '1px solid rgba(32, 227, 255, 0.14)' }}></div>
 
