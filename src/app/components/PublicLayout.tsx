@@ -54,7 +54,7 @@ export function PublicLayout() {
         <div className="mx-auto flex w-[min(1180px,100%)] items-center justify-between gap-3">
           <Link
             to="/"
-            className="flex min-w-0 items-center gap-2 no-underline sm:gap-3"
+            className="codedock-brand-link flex min-w-0 items-center gap-2 no-underline sm:gap-3"
             style={{
               color: "var(--white)",
               fontSize: "26px",
@@ -64,8 +64,7 @@ export function PublicLayout() {
             aria-label="CodeDock 랜딩"
           >
             <CoffeeLogo
-              className="h-12 w-12 flex-shrink-0 sm:h-16 sm:w-16"
-              style={{ filter: `drop-shadow(0 0 14px ${colors.primary}, 0.3))` }}
+              className="codedock-header-logo h-12 w-12 flex-shrink-0 sm:h-16 sm:w-16"
             />
             <CodeDockWordmark accentColor={colors.primaryHex} className="hidden sm:inline-flex" />
           </Link>

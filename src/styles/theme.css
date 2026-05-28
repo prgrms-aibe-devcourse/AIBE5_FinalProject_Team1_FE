@@ -260,12 +260,33 @@
   text-shadow:
     0 0 10px rgba(255, 255, 255, 0.05),
     0 0 30px rgba(255, 255, 255, 0.03);
+  transform: translateY(0) scale(1);
+  transform-origin: 50% 64%;
+  transition:
+    transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    filter 260ms ease,
+    text-shadow 260ms ease;
+  will-change: transform, filter;
+}
+
+.codedock-brand-link,
+.codedock-brand-link:focus,
+.codedock-brand-link:focus-visible,
+.codedock-brand-link:active {
+  box-shadow: none !important;
+  outline: none !important;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .codedock-wordmark__code,
 .codedock-wordmark__dock {
   display: inline-block;
   line-height: 1 !important;
+  transform: translateY(0);
+  transition:
+    transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    text-shadow 260ms ease,
+    color 260ms ease;
 }
 
 .codedock-wordmark__code {
@@ -301,11 +322,213 @@
 
 .codedock-wordmark__dock-capital {
   color: var(--codedock-wordmark-accent) !important;
+  display: inline-block;
+  transform: translateY(0) scale(1);
+  transform-origin: 52% 72%;
+  transition:
+    transform 280ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    text-shadow 280ms ease,
+    color 280ms ease;
   text-shadow:
     1px 0 0 rgba(234, 247, 255, 0.24),
     0 1px 0 rgba(234, 247, 255, 0.18),
     0 0 14px var(--codedock-wordmark-accent),
     0 0 26px rgba(32, 227, 255, 0.18);
+}
+
+.codedock-wordmark:hover,
+.codedock-brand-link:hover .codedock-wordmark {
+  filter: drop-shadow(0 0 16px rgba(32, 227, 255, 0.16));
+  transform: translateY(-2px) scale(1.018);
+}
+
+.codedock-wordmark:hover .codedock-wordmark__code,
+.codedock-brand-link:hover .codedock-wordmark__code {
+  text-shadow:
+    0 0 10px rgba(255, 255, 255, 0.16),
+    0 0 20px rgba(32, 227, 255, 0.16),
+    0 0 32px rgba(57, 255, 136, 0.08);
+  transform: translateY(-1px);
+}
+
+.codedock-wordmark:hover .codedock-wordmark__dock,
+.codedock-brand-link:hover .codedock-wordmark__dock {
+  text-shadow:
+    1px 0 0 rgba(234, 247, 255, 0.62),
+    0 1px 0 rgba(234, 247, 255, 0.40),
+    0 0 18px rgba(32, 227, 255, 0.34);
+  transform: translateY(-1px);
+}
+
+.codedock-wordmark:hover .codedock-wordmark__dock-capital,
+.codedock-brand-link:hover .codedock-wordmark__dock-capital {
+  animation: codedock-wordmark-capital-pop 520ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  text-shadow:
+    1px 0 0 rgba(234, 247, 255, 0.28),
+    0 1px 0 rgba(234, 247, 255, 0.22),
+    0 0 18px var(--codedock-wordmark-accent),
+    0 0 34px rgba(32, 227, 255, 0.30);
+}
+
+@keyframes codedock-wordmark-capital-pop {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+  }
+  38% {
+    transform: translateY(-0.08em) scale(1.08);
+  }
+  66% {
+    transform: translateY(0.02em) scale(0.99);
+  }
+}
+
+.codedock-header-logo {
+  filter: none;
+  transform-box: fill-box;
+  transform-origin: 50% 58%;
+  transition: transform 180ms ease;
+  will-change: transform;
+}
+
+.codedock-header-logo .codedock-logo__ear,
+.codedock-header-logo .codedock-logo__eye-pair,
+.codedock-header-logo .codedock-logo__mouth,
+.codedock-header-logo .codedock-logo__mug {
+  transform-box: fill-box;
+}
+
+.codedock-header-logo .codedock-logo__ear--left {
+  transform-origin: 42% 100%;
+}
+
+.codedock-header-logo .codedock-logo__ear--right {
+  transform-origin: 58% 100%;
+}
+
+.codedock-header-logo .codedock-logo__eye-pair {
+  transform-origin: center;
+}
+
+.codedock-header-logo .codedock-logo__mouth {
+  transform-origin: 50% 50%;
+}
+
+.codedock-header-logo .codedock-logo__mug {
+  transform-origin: 44% 72%;
+}
+
+:where(a, button):hover .codedock-header-logo {
+  animation: codedock-header-logo-hop 760ms cubic-bezier(0.2, 0.75, 0.22, 1) both;
+  filter: drop-shadow(0 0 16px color-mix(in srgb, var(--neon-cyan) 48%, transparent));
+}
+
+:where(a, button):hover .codedock-header-logo .codedock-logo__ear--left {
+  animation: codedock-header-left-ear 680ms ease both;
+}
+
+:where(a, button):hover .codedock-header-logo .codedock-logo__ear--right {
+  animation: codedock-header-right-ear 680ms ease both 60ms;
+}
+
+:where(a, button):hover .codedock-header-logo .codedock-logo__eye-pair {
+  animation: codedock-header-eye-smile 760ms ease both 90ms;
+}
+
+:where(a, button):hover .codedock-header-logo .codedock-logo__mouth {
+  animation: codedock-header-smile 760ms ease both 110ms;
+}
+
+:where(a, button):hover .codedock-header-logo .codedock-logo__mug {
+  animation: codedock-header-mug-nudge 860ms ease both 80ms;
+}
+
+@keyframes codedock-header-logo-hop {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg) scale(1);
+  }
+  36% {
+    transform: translateY(-3px) rotate(-1.5deg) scale(1.035);
+  }
+  64% {
+    transform: translateY(1px) rotate(0.8deg) scale(0.995);
+  }
+}
+
+@keyframes codedock-header-left-ear {
+  0%, 100% {
+    transform: rotate(0deg) translateY(0) scale(1);
+  }
+  38% {
+    transform: rotate(-8deg) translateY(-2px) scale(1.045);
+  }
+  62% {
+    transform: rotate(2deg) translateY(0) scale(1);
+  }
+}
+
+@keyframes codedock-header-right-ear {
+  0%, 100% {
+    transform: rotate(0deg) translateY(0) scale(1);
+  }
+  38% {
+    transform: rotate(8deg) translateY(-2px) scale(1.045);
+  }
+  62% {
+    transform: rotate(-2deg) translateY(0) scale(1);
+  }
+}
+
+@keyframes codedock-header-eye-smile {
+  0%, 100% {
+    transform: scaleY(1);
+  }
+  42% {
+    transform: translateY(1px) scaleY(0.22);
+  }
+  58% {
+    transform: translateY(0) scaleY(1);
+  }
+}
+
+@keyframes codedock-header-smile {
+  0%, 100% {
+    transform: scaleX(1) translateY(0);
+  }
+  46% {
+    transform: scaleX(1.18) translateY(1px);
+  }
+}
+
+@keyframes codedock-header-mug-nudge {
+  0%, 100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  36% {
+    transform: translate(4px, -5px) rotate(-5deg);
+  }
+  62% {
+    transform: translate(1px, 1px) rotate(1.5deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .codedock-wordmark,
+  .codedock-wordmark__code,
+  .codedock-wordmark__dock,
+  .codedock-wordmark__dock-capital,
+  .codedock-header-logo {
+    transition: none !important;
+  }
+
+  .codedock-wordmark:hover .codedock-wordmark__dock-capital,
+  .codedock-brand-link:hover .codedock-wordmark__dock-capital,
+  :where(a, button):hover .codedock-header-logo,
+  :where(a, button):hover .codedock-header-logo .codedock-logo__ear,
+  :where(a, button):hover .codedock-header-logo .codedock-logo__eye-pair,
+  :where(a, button):hover .codedock-header-logo .codedock-logo__mouth,
+  :where(a, button):hover .codedock-header-logo .codedock-logo__mug {
+    animation: none !important;
+  }
 }
 
 .codedock-auth-input {

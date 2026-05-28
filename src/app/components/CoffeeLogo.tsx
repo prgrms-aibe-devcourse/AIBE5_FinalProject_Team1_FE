@@ -14,6 +14,7 @@ export function CoffeeLogo({ className = "", style, alive = false, eyeX, eyeY, m
   const isCtaMood = mood === "cta";
   const isRiskMood = mood === "risk";
   const isSuccessMood = mood === "success";
+  const mouthPath = isRiskMood ? "M166 202c7-8 17-8 24 0" : "M174 194c5 6 11 6 16 0";
   const floatTransition = { duration: 4.2, repeat: Infinity, ease: "easeInOut" } as const;
   const tinyTransition = { duration: 2.8, repeat: Infinity, ease: "easeInOut" } as const;
   const activityDuration = 11.5;
@@ -109,6 +110,7 @@ export function CoffeeLogo({ className = "", style, alive = false, eyeX, eyeY, m
           style={{ transformBox: "fill-box", transformOrigin: "50% 46%" }}
         >
           <motion.g
+            className="codedock-logo__ear codedock-logo__ear--left"
             animate={alive ? leftEarAnimation : undefined}
             transition={earTransition}
             style={{ transformBox: "fill-box", transformOrigin: "42% 100%" }}
@@ -124,6 +126,7 @@ export function CoffeeLogo({ className = "", style, alive = false, eyeX, eyeY, m
           </motion.g>
 
           <motion.g
+            className="codedock-logo__ear codedock-logo__ear--right"
             animate={alive ? rightEarAnimation : undefined}
             transition={{ ...earTransition, delay: isRiskMood ? 0.08 : 0.14 }}
             style={{ transformBox: "fill-box", transformOrigin: "58% 100%" }}
@@ -145,8 +148,9 @@ export function CoffeeLogo({ className = "", style, alive = false, eyeX, eyeY, m
             strokeWidth="7"
           />
 
-          <motion.g style={alive ? { x: eyeX, y: eyeY } : undefined}>
+          <motion.g className="codedock-logo__eyes" style={alive ? { x: eyeX, y: eyeY } : undefined}>
             <motion.g
+              className="codedock-logo__eye-pair"
               animate={alive ? { scaleY: [1, 1, 0.18, 1, 1] } : undefined}
               transition={{
                 duration: isRiskMood ? 2.7 : 4.8,
@@ -161,14 +165,33 @@ export function CoffeeLogo({ className = "", style, alive = false, eyeX, eyeY, m
             </motion.g>
           </motion.g>
 
+          {isRiskMood && (
+            <motion.g
+              className="codedock-logo__brows"
+              animate={alive ? { y: [0, -1, 0], opacity: [0.82, 1, 0.82] } : undefined}
+              transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
+            >
+              <path d="M141 157l23 7" stroke="#7A1420" strokeWidth="6" strokeLinecap="round" />
+              <path d="M213 157l-23 7" stroke="#7A1420" strokeWidth="6" strokeLinecap="round" />
+            </motion.g>
+          )}
+
           <motion.path
-            d="M174 194c5 6 11 6 16 0"
+            className="codedock-logo__mouth"
+            d={mouthPath}
             fill="none"
-            stroke="#0B1628"
+            stroke={isRiskMood ? "#7A1420" : "#0B1628"}
             strokeWidth="6"
             strokeLinecap="round"
-            animate={alive ? { y: [0, isCtaMood ? 1.8 : 1, 0], scaleX: isCtaMood ? [1, 1.28, 1] : [1, 1.04, 1] } : undefined}
-            transition={isCtaMood ? { duration: 2.15, repeat: Infinity, ease: "easeInOut" } : tinyTransition}
+            animate={
+              alive
+                ? {
+                    y: isRiskMood ? [0, -0.8, 0] : [0, isCtaMood ? 1.8 : 1, 0],
+                    scaleX: isRiskMood ? [1, 1.08, 1] : isCtaMood ? [1, 1.28, 1] : [1, 1.04, 1],
+                  }
+                : undefined
+            }
+            transition={isRiskMood ? { duration: 1.15, repeat: Infinity, ease: "easeInOut" } : isCtaMood ? { duration: 2.15, repeat: Infinity, ease: "easeInOut" } : tinyTransition}
             style={{ transformBox: "fill-box", transformOrigin: "50% 50%" }}
           />
 
@@ -274,6 +297,7 @@ export function CoffeeLogo({ className = "", style, alive = false, eyeX, eyeY, m
         </motion.g>
 
         <motion.g
+          className="codedock-logo__mug"
           animate={
             alive
               ? isCtaMood

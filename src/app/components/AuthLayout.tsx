@@ -36,7 +36,7 @@ export function AuthLayout() {
       <header className="relative z-10 mx-auto flex w-[min(1180px,calc(100vw-32px))] items-center justify-between py-5">
         <Link
           to="/"
-          className="flex items-center gap-3 no-underline"
+          className="codedock-brand-link flex items-center gap-3 no-underline"
           style={{
             color: "var(--white)",
             fontSize: "24px",
@@ -46,8 +46,7 @@ export function AuthLayout() {
           aria-label="랜딩으로 돌아가기"
         >
           <CoffeeLogo
-            className="h-14 w-14 flex-shrink-0"
-            style={{ filter: `drop-shadow(0 0 14px ${colors.primary}, 0.3))` }}
+            className="codedock-header-logo h-14 w-14 flex-shrink-0"
           />
           <CodeDockWordmark accentColor={colors.primaryHex} />
         </Link>

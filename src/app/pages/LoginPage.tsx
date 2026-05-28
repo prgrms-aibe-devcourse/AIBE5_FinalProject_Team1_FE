@@ -24,6 +24,22 @@ const loginDemoMessagesKo = [
   { speaker: "팀 채팅", text: "리뷰 기준 문서에 반영할게요.", tone: "#CFF8FF" },
 ];
 
+const loginWelcomeMessagesKo = [
+  "오늘의 PR 산책은 제가 먼저 다녀왔어요.\n위험한 변경은 줄 세워두고, 문서는 따뜻하게 데워둘게요.",
+  "코드 바다에 오신 걸 환영합니다.\n리뷰 파도는 CodeDock이 잔잔하게 만들어둘게요.",
+  "커피는 없지만 컨텍스트는 준비됐어요.\nPR, 문서, 팀 대화까지 제가 한 화면에 착 붙여둘게요.",
+  "버그는 숨바꼭질을 좋아하죠.\n오늘은 CodeDock이 술래가 되어 먼저 찾아볼게요.",
+  "리뷰 대기열이 길어도 괜찮아요.\n제가 중요한 파일부터 콕 집어서 길을 열어둘게요.",
+];
+
+const loginWelcomeMessagesEn = [
+  "I already took today's PRs for a walk.\nI'll line up the risky changes and keep the docs warm.",
+  "Welcome aboard the code harbor.\nCodeDock will keep the review waves pleasantly calm.",
+  "No coffee here, but the context is ready.\nI'll keep PRs, docs, and team chat neatly docked.",
+  "Bugs love hide-and-seek.\nToday, CodeDock will count first and find them faster.",
+  "A long review queue is fine.\nI'll point out the important files and clear the runway.",
+];
+
 const loginTabDemosKo = [
   {
     icon: Sparkles,
@@ -76,7 +92,9 @@ export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [message, setMessage] = useState("");
+  const [isLoginButtonHovering, setIsLoginButtonHovering] = useState(false);
   const [activeDemoIndex, setActiveDemoIndex] = useState(0);
+  const [welcomeMessageIndex] = useState(() => Math.floor(Math.random() * loginWelcomeMessagesKo.length));
   const trimmedEmail = email.trim();
   const emailAtIndex = trimmedEmail.indexOf("@");
   const shouldRevealPassword = emailAtIndex > 0 && trimmedEmail.slice(emailAtIndex + 1).trim().length > 0;
@@ -133,14 +151,15 @@ export function LoginPage() {
         },
       ]
     : loginTabDemosKo;
+  const loginWelcomeMessage = isEnglish ? loginWelcomeMessagesEn[welcomeMessageIndex] : loginWelcomeMessagesKo[welcomeMessageIndex];
   const loginCopy = {
     access: isEnglish ? "CodeDock Access" : "CodeDock 접속",
     login: isEnglish ? "Login" : "로그인",
     accountTitle: isEnglish ? "Access your account" : "계정에 접속하기",
-    emailPrompt: isEnglish ? "Tell me the email to sign in with." : "접속할 이메일을 알려주세요.",
+    emailPrompt: isEnglish ? "Which email do you sign in with?" : "로그인할 이메일을 알려주세요.",
     emailLabel: isEnglish ? "Email" : "이메일",
     emailPlaceholder: "name@company.com",
-    passwordPrompt: isEnglish ? "Great. Enter your password too." : "좋아요. 비밀번호도 입력해주세요.",
+    passwordPrompt: isEnglish ? "Got it! Now enter your password." : "이메일 확인했어요! 비밀번호를 입력해주세요.",
     passwordLabel: isEnglish ? "Password" : "비밀번호",
     passwordPlaceholder: isEnglish ? "Enter password" : "비밀번호 입력",
     remember: isEnglish ? "Keep me signed in" : "로그인 상태 유지",
@@ -154,11 +173,8 @@ export function LoginPage() {
     hidePassword: isEnglish ? "Hide password" : "비밀번호 숨기기",
     miniBrand: "CodeDock",
     liveWorkspace: isEnglish ? "LIVE WORKSPACE" : "실시간 작업 공간",
-    welcomeEyebrow: isEnglish ? "Welcome aboard" : "환영합니다",
-    welcomeTitle: isEnglish ? "Welcome to the joyful world of coding." : "즐거운 코딩의 세계로 오신 걸 환영합니다.",
-    welcomeBody: isEnglish
-      ? "CodeDock keeps reviews, documents, and team conversations flowing while you build."
-      : "리뷰와 문서, 팀 대화는 CodeDock이 정리할게요.\n오늘도 편하게 개발을 시작하세요.",
+    welcomeTitle: "Hello CodeDock!",
+    welcomeBody: loginWelcomeMessage,
   };
   const activeDemo = loginTabDemos[activeDemoIndex];
   const demoCount = loginTabDemos.length;
@@ -248,11 +264,8 @@ export function LoginPage() {
                   exit={{ opacity: 0, y: -8, height: 0, filter: "blur(8px)" }}
                   transition={{ duration: 0.42, ease: "easeOut" }}
                 >
-                  <p className="m-0 text-sm font-black tracking-tight" style={{ color: colors.primaryHex }}>
-                    {loginCopy.welcomeEyebrow}
-                  </p>
                   <h2
-                    className="m-0 mt-2 leading-tight tracking-tight"
+                    className="m-0 leading-tight tracking-tight"
                     style={{
                       color: "var(--white)",
                       fontSize: "clamp(30px, 4.4vw, 54px)",
@@ -727,6 +740,10 @@ export function LoginPage() {
 
                   <button
                     type="submit"
+                    onMouseEnter={() => setIsLoginButtonHovering(true)}
+                    onMouseLeave={() => setIsLoginButtonHovering(false)}
+                    onFocus={() => setIsLoginButtonHovering(true)}
+                    onBlur={() => setIsLoginButtonHovering(false)}
                     className="mt-1 flex h-14 w-full items-center justify-center gap-2 rounded-2xl border-0 px-6 tracking-tight transition hover:scale-[1.01]"
                     style={{
                       background: `linear-gradient(135deg, ${colors.primaryHex}, ${colors.secondary})`,
@@ -736,7 +753,7 @@ export function LoginPage() {
                       fontWeight: 950,
                     }}
                   >
-                    {loginCopy.submit}
+                    <LoginSubmitLabel isHovering={isLoginButtonHovering} defaultLabel={loginCopy.submit} />
                     <ArrowRight size={19} strokeWidth={2.5} />
                   </button>
                 </motion.div>
@@ -803,6 +820,70 @@ interface LoginChatPromptProps {
   text: string;
   delay?: number;
   typingDelay?: number;
+}
+
+function LoginSubmitLabel({ isHovering, defaultLabel }: { isHovering: boolean; defaultLabel: string }) {
+  const targetText = "Hello CodeDock!";
+  const [visibleCount, setVisibleCount] = useState(0);
+  const visibleText = targetText.slice(0, visibleCount);
+
+  useEffect(() => {
+    if (!isHovering) {
+      setVisibleCount(0);
+      return;
+    }
+
+    setVisibleCount(0);
+  }, [isHovering]);
+
+  useEffect(() => {
+    if (!isHovering || visibleCount >= targetText.length) {
+      return;
+    }
+
+    const typingTimer = window.setTimeout(() => {
+      setVisibleCount((count) => Math.min(targetText.length, count + 1));
+    }, visibleCount === 0 ? 120 : 38);
+
+    return () => window.clearTimeout(typingTimer);
+  }, [isHovering, targetText.length, visibleCount]);
+
+  return (
+    <span className="inline-flex min-w-[150px] items-center justify-center text-center">
+      <AnimatePresence mode="wait" initial={false}>
+        {isHovering ? (
+          <motion.span
+            key="login-code-typing"
+            className="inline-flex items-center justify-center font-black"
+            initial={{ opacity: 0, y: 5, filter: "blur(4px)" }}
+            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+            exit={{ opacity: 0, y: -5, filter: "blur(4px)" }}
+            transition={{ duration: 0.16, ease: "easeOut" }}
+            style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" }}
+          >
+            <span>{visibleText}</span>
+            <motion.span
+              className="ml-1 inline-block h-5 w-1 rounded-full"
+              style={{ background: "#021014" }}
+              animate={{ opacity: [0, 1, 0] }}
+              transition={{ duration: 0.62, repeat: Infinity, ease: "easeInOut" }}
+            />
+          </motion.span>
+        ) : (
+          <motion.span
+            key="login-default-label"
+            className="inline-block"
+            initial={{ opacity: 0, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -5 }}
+            transition={{ duration: 0.16, ease: "easeOut" }}
+          >
+            {defaultLabel}
+          </motion.span>
+        )}
+      </AnimatePresence>
+    </span>
+  );
 }
 
 function LoginChatPrompt({ text, delay = 0, typingDelay = 620 }: LoginChatPromptProps) {
