@@ -43,6 +43,17 @@ const DEFAULT_REPOSITORIES: RepositoryItem[] = [
   { id: 'dashboard', name: 'Dashboard UI Kit', openPRs: 5, highRisk: 1, activeIssues: 6, connected: true, membersOnline: 3 }
 ];
 
+const REPO_CHANNEL_IDS: Record<string, string> = {
+  'secureflow': 'frontend-chat',
+  'aichat': 'backend-chat',
+  'dashboard': 'review-room',
+};
+
+// 역방향 매핑: 채널 ID → 레포 ID
+const REPO_CHANNEL_IDS_REVERSE: Record<string, string> = Object.fromEntries(
+  Object.entries(REPO_CHANNEL_IDS).map(([repoId, channelId]) => [channelId, repoId])
+);
+
 
 const DOCUMENTATION_CHANNELS: SidebarChannel[] = [
   { id: 'api-spec', label: 'API', icon: Code2 },
@@ -52,7 +63,7 @@ const DOCUMENTATION_CHANNELS: SidebarChannel[] = [
 
 const ALL_SIDEBAR_CHANNELS = [
   { id: 'overview', label: '통합 개요', icon: Home },
-  { id: 'general', label: '채널', icon: Hash },
+  { id: 'general', label: '일반', icon: Hash },
   ...DOCUMENTATION_CHANNELS
 ];
 
@@ -1104,15 +1115,16 @@ export function ChatPage() {
             <div className="flex flex-1 flex-col overflow-y-auto">
             <div className="grid gap-2">
               {renderSidebarChannel({ id: 'overview', label: '통합 개요', icon: Home })}
-              {renderSidebarChannel({ id: 'general', label: '채널', icon: Hash, badge: '4' })}
 
-              <div className="my-1" style={{ borderTop: '1px solid rgba(32, 227, 255, 0.14)' }}></div>
+              <p className="px-3 pb-1 pt-3 tracking-tight" style={{ fontSize: '11px', fontWeight: 950, color: 'var(--muted)', margin: 0 }}>채널</p>
+              {renderSidebarChannel({ id: 'general', label: '일반', icon: Hash })}
 
               {repositories.map((repo) => {
+                const repoChannelId = REPO_CHANNEL_IDS[repo.id] ?? repo.id;
                 const isExpanded = expandedRepoSubmenus[repo.id] ?? false;
                 const isPRActive = selectedRepository === repo.id && selectedChannel === 'pull-requests';
                 const isIssueActive = selectedRepository === repo.id && selectedChannel === 'issues';
-                const isRepoBodyActive = selectedRepository === repo.id && !isPRActive && !isIssueActive;
+                const isRepoBodyActive = selectedRepository === repo.id && selectedChannel === repoChannelId;
 
                 return (
                   <div key={repo.id} className="grid gap-1">
@@ -1132,7 +1144,7 @@ export function ChatPage() {
                       )}
                       <button
                         type="button"
-                        onClick={() => { setSelectedRepository(repo.id); setSelectedChannel('general'); }}
+                        onClick={() => { setSelectedRepository(repo.id); setSelectedChannel(REPO_CHANNEL_IDS[repo.id] ?? repo.id); }}
                         className="relative z-10 flex min-w-0 flex-1 items-center gap-3 border-0 bg-transparent px-4 py-3 text-left"
                         style={{ cursor: 'pointer' }}
                       >
@@ -1317,7 +1329,14 @@ export function ChatPage() {
             ) : selectedChannel === 'docs' ? (
               <DocsPage embedded />
             ) : selectedChannel === 'general' ? (
-              <ChannelPanel repositories={repositories} onOpenThread={handleOpenThread} onOpenInvite={() => setTeamInviteOpen(true)} />
+              <ChannelPanel onOpenThread={handleOpenThread} onOpenInvite={() => setTeamInviteOpen(true)} />
+            ) : REPO_CHANNEL_IDS_REVERSE[selectedChannel] !== undefined ? (
+              <ChannelPanel
+                repoId={REPO_CHANNEL_IDS_REVERSE[selectedChannel]}
+                repoName={repositories.find(r => r.id === REPO_CHANNEL_IDS_REVERSE[selectedChannel])?.name}
+                onOpenThread={handleOpenThread}
+                onOpenInvite={() => setTeamInviteOpen(true)}
+              />
             ) : selectedChannel === 'team' ? (
               <TeamPanel
                 onInvite={() => setTeamInviteOpen(true)}
