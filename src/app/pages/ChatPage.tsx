@@ -1,4 +1,4 @@
-import { Hash, Users, GitPullRequest, Home, CheckSquare, Settings, ChevronDown, ChevronRight, GitBranch, Code2, Database, BookOpen, Maximize2, Minimize2, UserPlus, Plus, Pencil, Trash2, Check, X, type LucideIcon } from "lucide-react";
+import { Hash, Users, GitPullRequest, Home, CheckSquare, ChevronDown, ChevronRight, GitBranch, Code2, Database, BookOpen, Maximize2, Minimize2, UserPlus, Plus, Pencil, Trash2, Check, X, type LucideIcon } from "lucide-react";
 import { ChatPanel } from "../components/ChatPanel";
 import { PRReviewPanel } from "../components/PRReviewPanel";
 import { IssuePanel } from "../components/IssuePanel";
@@ -311,9 +311,6 @@ const initialMessages: Record<string, any[]> = {
     { id: 1, user: '김재준', text: '팀 미팅 금요일 오후 3시로 변경되었습니다.', time: '오늘 09:00' },
     { id: 2, user: '김진필', text: '다음 주 휴가 예정입니다.', time: '오늘 10:00' }
   ],
-  'settings': [
-    { id: 1, user: '시스템', text: '설정 페이지입니다.', time: '오늘 09:00', type: 'system' as const }
-  ]
 };
 
 const initialThreadReplies: Record<number, any[]> = {
@@ -1117,7 +1114,6 @@ export function ChatPage() {
               <div className="mb-2" style={{ borderTop: '1px solid rgba(32, 227, 255, 0.14)' }}></div>
 
               {renderSidebarChannel({ id: 'team', label: '팀', icon: Users })}
-              {renderSidebarChannel({ id: 'settings', label: '설정', icon: Settings })}
             </div>
           </div>
           ) : (
