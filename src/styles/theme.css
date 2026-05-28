@@ -625,18 +625,63 @@
 }
 
 .codedock-mermaid-diagram .relationshipLabelBox {
-  fill: #07101d !important;
-  stroke: rgba(57, 255, 136, 0.20) !important;
-  opacity: 0.96 !important;
+  fill: rgba(7, 16, 29, 0.96) !important;
+  stroke: rgba(57, 255, 136, 0.34) !important;
+  stroke-width: 1.2px !important;
+  opacity: 1 !important;
+  rx: 6;
+  ry: 6;
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.45));
+}
+
+.codedock-mermaid-diagram .relationshipLabel {
+  font-size: 11.5px !important;
+  font-weight: 850 !important;
+  fill: #b7ffe3 !important;
+  letter-spacing: 0.01em;
 }
 
 .codedock-mermaid-diagram .relationshipLine {
   stroke: #39ff88 !important;
-  stroke-width: 2.2px !important;
+  stroke-width: 2.6px !important;
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
+  filter: drop-shadow(0 0 6px rgba(57, 255, 136, 0.45));
 }
 
 .codedock-mermaid-diagram .marker {
   stroke: #39ff88 !important;
+  fill: #39ff88 !important;
+}
+
+/* 까마귀발(crow's foot) 마커 자체 — path/line 모두 굵고 둥글게 */
+.codedock-mermaid-diagram marker {
+  overflow: visible !important;
+}
+
+.codedock-mermaid-diagram marker path,
+.codedock-mermaid-diagram marker line {
+  stroke: #39ff88 !important;
+  stroke-width: 2.4 !important;
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
+  fill: none !important;
+  filter: drop-shadow(0 0 3px rgba(57, 255, 136, 0.55));
+}
+
+/* "only one" / "one or more" 표기의 직선 짧은 막대는 fill이 있어야 보임 */
+.codedock-mermaid-diagram marker[id*="ONLY_ONE"] path,
+.codedock-mermaid-diagram marker[id*="ONE_ONLY"] path {
+  fill: #39ff88 !important;
+}
+
+/* "zero" 표기의 동그라미 — 외곽선만, fill은 배경색 */
+.codedock-mermaid-diagram marker[id*="ZERO"] circle,
+.codedock-mermaid-diagram marker circle {
+  stroke: #39ff88 !important;
+  stroke-width: 2.2 !important;
+  fill: #050b14 !important;
+  filter: drop-shadow(0 0 4px rgba(57, 255, 136, 0.5));
 }
 
 .codedock-mermaid-diagram .node rect,
@@ -672,10 +717,7 @@
   stroke-width: 2.1px !important;
 }
 
-.codedock-mermaid-diagram marker path {
-  fill: #39ff88 !important;
-  stroke: #39ff88 !important;
-}
+/* marker path 기본 색상은 위쪽의 까마귀발 규칙에서 더 구체적으로 처리됨 */
 
 .codedock-scrollbar-hidden {
   scrollbar-width: none;
