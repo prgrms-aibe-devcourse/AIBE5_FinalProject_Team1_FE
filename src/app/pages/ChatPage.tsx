@@ -18,7 +18,7 @@ import { TeamPanel } from "../components/TeamPanel";
 const REPOSITORY_IMPORTED_KEY = "codedock-repository-imported";
 const REPOSITORY_LIST_KEY = "codedock-repositories";
 
-type SidebarGroupId = 'work' | 'documentation';
+type SidebarGroupId = 'documentation';
 
 interface RepositoryItem {
   id: string;
@@ -43,11 +43,6 @@ const DEFAULT_REPOSITORIES: RepositoryItem[] = [
   { id: 'dashboard', name: 'Dashboard UI Kit', openPRs: 5, highRisk: 1, activeIssues: 6, connected: true, membersOnline: 3 }
 ];
 
-const WORK_CHANNELS: SidebarChannel[] = [
-  { id: 'pull-requests', label: 'PR 목록', icon: GitPullRequest, badge: '7' },
-  { id: 'issues', label: '이슈', icon: CheckSquare, badge: '12' }
-];
-
 const DOCUMENTATION_CHANNELS: SidebarChannel[] = [
   { id: 'api-spec', label: 'API', icon: Code2 },
   { id: 'erd', label: 'ERD', icon: Database },
@@ -57,7 +52,6 @@ const DOCUMENTATION_CHANNELS: SidebarChannel[] = [
 const ALL_SIDEBAR_CHANNELS = [
   { id: 'overview', label: '통합 개요', icon: Home },
   { id: 'general', label: '채널', icon: Hash },
-  ...WORK_CHANNELS,
   ...DOCUMENTATION_CHANNELS
 ];
 
@@ -366,9 +360,9 @@ export function ChatPage() {
   const [isMainExpanded, setIsMainExpanded] = useState(false);
   const [teamInviteOpen, setTeamInviteOpen] = useState(false);
   const [expandedSidebarGroups, setExpandedSidebarGroups] = useState<Record<SidebarGroupId, boolean>>({
-    work: true,
     documentation: true
   });
+  const [expandedRepoSubmenus, setExpandedRepoSubmenus] = useState<Record<string, boolean>>({});
 
   const hasRepositories = repositoriesImported && repositories.length > 0;
   const currentRepo = repositories.find(repo => repo.id === selectedRepository);
@@ -1106,7 +1100,6 @@ export function ChatPage() {
 
               <div className="my-1" style={{ borderTop: '1px solid rgba(32, 227, 255, 0.14)' }}></div>
 
-              {renderSidebarGroup('work', '작업', WORK_CHANNELS)}
               {renderSidebarGroup('documentation', '문서', DOCUMENTATION_CHANNELS)}
             </div>
 
