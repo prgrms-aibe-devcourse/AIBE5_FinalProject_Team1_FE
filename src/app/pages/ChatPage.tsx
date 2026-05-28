@@ -1,4 +1,4 @@
-import { Hash, Users, GitPullRequest, Home, CheckSquare, ChevronDown, ChevronRight, GitBranch, Code2, Database, BookOpen, Maximize2, Minimize2, UserPlus, Plus, Pencil, Trash2, Check, X, type LucideIcon } from "lucide-react";
+import { Hash, Users, GitPullRequest, Home, CheckSquare, ChevronDown, ChevronRight, GitBranch, Code2, Database, BookOpen, Maximize2, Minimize2, Plus, Pencil, Trash2, MoreVertical, X, type LucideIcon } from "lucide-react";
 import { ChatPanel } from "../components/ChatPanel";
 import { PRReviewPanel } from "../components/PRReviewPanel";
 import { IssuePanel } from "../components/IssuePanel";
@@ -359,10 +359,6 @@ export function ChatPage() {
   const [selectedRepository, setSelectedRepository] = useState<string>(() =>
     getRepositoryImportPreference() ? getSavedRepositories()?.[0]?.id ?? DEFAULT_REPOSITORIES[0].id : ""
   );
-  const [showRepoDropdown, setShowRepoDropdown] = useState(false);
-  const [repositoryFormMode, setRepositoryFormMode] = useState<"create" | "edit" | null>(null);
-  const [editingRepositoryId, setEditingRepositoryId] = useState<string | null>(null);
-  const [repositoryNameInput, setRepositoryNameInput] = useState("");
   const [selectedChannel, setSelectedChannel] = useState<string>('overview');
   const [messages, setMessages] = useState<Record<string, any[]>>(initialMessages);
   const [selectedPR, setSelectedPR] = useState<any>(null);
@@ -375,9 +371,12 @@ export function ChatPage() {
     documentation: true
   });
   const [expandedRepoSubmenus, setExpandedRepoSubmenus] = useState<Record<string, boolean>>({});
+  const [customChannels, setCustomChannels] = useState<{ id: string; label: string }[]>([]);
+  const [channelMenuOpenId, setChannelMenuOpenId] = useState<string | null>(null);
+  const [editingCustomChannelId, setEditingCustomChannelId] = useState<string | null>(null);
+  const [editingCustomChannelLabel, setEditingCustomChannelLabel] = useState('');
 
   const hasRepositories = repositoriesImported && repositories.length > 0;
-  const currentRepo = repositories.find(repo => repo.id === selectedRepository);
 
   const currentMessages = messages[selectedChannel] || [];
   const isRepository = ['pull-requests', 'ai-review'].includes(selectedChannel);
@@ -403,7 +402,9 @@ export function ChatPage() {
     ? "grid h-full min-h-0 gap-4 overflow-hidden"
     : "grid h-[calc(100vh-160px)] min-h-0 gap-6 overflow-hidden";
   const selectedChannelMeta = ALL_SIDEBAR_CHANNELS.find((channel) => channel.id === selectedChannel);
-  const selectedChannelTitle = selectedChannelMeta?.label
+  const selectedCustomChannel = customChannels.find(ch => ch.id === selectedChannel);
+  const selectedChannelTitle = selectedCustomChannel?.label
+    ?? selectedChannelMeta?.label
     ?? selectedChannel.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 
   useEffect(() => {
@@ -425,77 +426,38 @@ export function ChatPage() {
     saveRepositories(repositories);
   }, [repositories, repositoriesImported]);
 
-  const closeRepositoryForm = () => {
-    setRepositoryFormMode(null);
-    setEditingRepositoryId(null);
-    setRepositoryNameInput("");
+  const handleAddCustomChannel = () => {
+    const id = `custom-${Date.now()}`;
+    const label = `새 채널 ${customChannels.length + 1}`;
+    setCustomChannels(prev => [...prev, { id, label }]);
+    setSelectedChannel(id);
+    setChannelMenuOpenId(null);
+    setEditingCustomChannelId(id);
+    setEditingCustomChannelLabel(label);
   };
 
-  const openCreateRepositoryForm = () => {
-    setShowRepoDropdown(false);
-    setRepositoryFormMode("create");
-    setEditingRepositoryId(null);
-    setRepositoryNameInput("");
+  const handleDeleteCustomChannel = (channelId: string) => {
+    setCustomChannels(prev => prev.filter(ch => ch.id !== channelId));
+    if (selectedChannel === channelId) setSelectedChannel('general');
+    setChannelMenuOpenId(null);
   };
 
-  const openEditRepositoryForm = (repository: RepositoryItem) => {
-    setShowRepoDropdown(false);
-    setRepositoryFormMode("edit");
-    setEditingRepositoryId(repository.id);
-    setRepositoryNameInput(repository.name);
+  const handleStartRenameCustomChannel = (channel: { id: string; label: string }) => {
+    setEditingCustomChannelId(channel.id);
+    setEditingCustomChannelLabel(channel.label);
+    setChannelMenuOpenId(null);
   };
 
-  const handleSubmitRepositoryForm = () => {
-    const nextName = repositoryNameInput.trim();
-    if (!nextName) return;
-
-    if (repositoryFormMode === "edit" && editingRepositoryId) {
-      setRepositories((prevRepositories) =>
-        prevRepositories.map((repo) =>
-          repo.id === editingRepositoryId ? { ...repo, name: nextName } : repo
-        )
+  const handleCommitRenameCustomChannel = () => {
+    if (!editingCustomChannelId) return;
+    const nextLabel = editingCustomChannelLabel.trim();
+    if (nextLabel) {
+      setCustomChannels(prev =>
+        prev.map(ch => ch.id === editingCustomChannelId ? { ...ch, label: nextLabel } : ch)
       );
-      closeRepositoryForm();
-      return;
     }
-
-    const nextRepository: RepositoryItem = {
-      id: `repo-${Date.now()}`,
-      name: nextName,
-      openPRs: 0,
-      highRisk: 0,
-      activeIssues: 0,
-      connected: true,
-      membersOnline: 1
-    };
-
-    setRepositories((prevRepositories) => [nextRepository, ...prevRepositories]);
-    setRepositoriesImported(true);
-    setSelectedRepository(nextRepository.id);
-    setSelectedChannel("overview");
-    closeRepositoryForm();
-  };
-
-  const handleDeleteRepository = (repositoryId: string) => {
-    const nextRepositories = repositories.filter((repo) => repo.id !== repositoryId);
-
-    setRepositories(nextRepositories);
-
-    if (selectedRepository === repositoryId) {
-      setSelectedRepository(nextRepositories[0]?.id ?? "");
-    }
-
-    if (nextRepositories.length === 0) {
-      setRepositoriesImported(false);
-      setSelectedChannel("general");
-      setShowRepoDropdown(false);
-      closeRepositoryForm();
-      saveRepositoryImportPreferenceValue(false);
-      saveRepositories([]);
-      return;
-    }
-
-    saveRepositories(nextRepositories);
+    setEditingCustomChannelId(null);
+    setEditingCustomChannelLabel('');
   };
 
   const toggleSidebarGroup = (group: SidebarGroupId) => {
@@ -762,362 +724,120 @@ export function ChatPage() {
             boxShadow: '0 20px 60px rgba(0, 0, 0, 0.32)',
             backdropFilter: 'blur(16px)'
           }}>
-          <div className="mb-6">
-            {hasRepositories ? (
-              <div className="relative">
-                <button
-                  onClick={() => setShowRepoDropdown(!showRepoDropdown)}
-                  className="w-full px-4 py-3 rounded-lg border-0 flex items-center justify-between gap-2 transition-all"
-                  style={{
-                    background: 'rgba(32, 227, 255, 0.12)',
-                    border: '1px solid rgba(32, 227, 255, 0.3)',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{
-                      background: 'linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))'
-                    }}>
-                      <GitBranch size={14} style={{ color: '#021014' }} />
-                    </div>
-                    <div className="flex flex-col items-start min-w-0">
-                      <span className="tracking-tight truncate" style={{
-                        fontSize: '14px',
-                        fontWeight: 900,
-                        color: 'var(--white)'
-                      }}>
-                        {currentRepo?.name}
-                      </span>
-                    </div>
-                  </div>
-                  <ChevronDown size={16} style={{ color: 'var(--neon-cyan)', flexShrink: 0 }} />
-                </button>
-
-                {showRepoDropdown && (
-                  <div className="absolute top-full left-0 right-0 mt-2 rounded-lg overflow-hidden z-10" style={{
-                    background: 'rgba(5, 11, 20, 0.95)',
-                    border: '1px solid rgba(32, 227, 255, 0.3)',
-                    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5)'
-                  }}>
-                    {repositories.map((repo) => (
-                      <div
-                        key={repo.id}
-                        className="flex items-stretch gap-2 px-3 py-3"
-                        style={{
-                          background: selectedRepository === repo.id ? 'rgba(32, 227, 255, 0.15)' : 'transparent',
-                          borderBottom: '1px solid rgba(32, 227, 255, 0.1)'
-                        }}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedRepository(repo.id);
-                            setShowRepoDropdown(false);
-                          }}
-                          className="min-w-0 flex-1 border-0 bg-transparent p-0 text-left"
-                          style={{ cursor: 'pointer' }}
-                        >
-                          <div className="flex flex-col gap-2">
-                            <span className="truncate tracking-tight" style={{
-                              fontSize: '14px',
-                              fontWeight: selectedRepository === repo.id ? 900 : 800,
-                              color: selectedRepository === repo.id ? 'var(--neon-cyan)' : 'var(--white)'
-                            }}>
-                              {repo.name}
-                            </span>
-                            <div className="flex flex-wrap gap-3">
-                              <span className="tracking-tight" style={{
-                                fontSize: '11px',
-                                fontWeight: 800,
-                                color: 'var(--muted)'
-                              }}>
-                                진행 중인 PR: <span style={{ color: 'var(--neon-cyan)' }}>{repo.openPRs}</span>
-                              </span>
-                              <span className="tracking-tight" style={{
-                                fontSize: '11px',
-                                fontWeight: 800,
-                                color: 'var(--muted)'
-                              }}>
-                                높은 위험: <span style={{ color: repo.highRisk > 0 ? '#FF6B6B' : 'var(--matrix-green)' }}>{repo.highRisk}</span>
-                              </span>
-                              <span className="tracking-tight" style={{
-                                fontSize: '11px',
-                                fontWeight: 800,
-                                color: 'var(--muted)'
-                              }}>
-                                이슈: <span style={{ color: 'var(--soft-mint)' }}>{repo.activeIssues}</span>
-                              </span>
-                            </div>
-                          </div>
-                        </button>
-                        <div className="flex shrink-0 items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => openEditRepositoryForm(repo)}
-                            className="grid h-8 w-8 place-items-center rounded-full border-0 transition-all hover:scale-105"
-                            style={{
-                              background: 'rgba(234, 247, 255, 0.07)',
-                              border: '1px solid rgba(32, 227, 255, 0.16)',
-                              color: 'var(--neon-cyan)',
-                              cursor: 'pointer'
-                            }}
-                            aria-label={`${repo.name} 이름 수정`}
-                            title="이름 수정"
-                          >
-                            <Pencil size={14} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteRepository(repo.id)}
-                            className="grid h-8 w-8 place-items-center rounded-full border-0 transition-all hover:scale-105"
-                            style={{
-                              background: 'rgba(255, 107, 107, 0.10)',
-                              border: '1px solid rgba(255, 107, 107, 0.22)',
-                              color: '#FF6B6B',
-                              cursor: 'pointer'
-                            }}
-                            aria-label={`${repo.name} 삭제`}
-                            title="삭제"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                    <div className="px-3 py-3">
-                      <button
-                        type="button"
-                        onClick={openCreateRepositoryForm}
-                        className="flex w-full items-center justify-center gap-2 rounded-full border-0 px-4 py-3 tracking-tight transition-all hover:scale-[1.01]"
-                        style={{
-                          background: 'rgba(57, 255, 136, 0.12)',
-                          border: '1px solid rgba(57, 255, 136, 0.22)',
-                          color: 'var(--matrix-green)',
-                          cursor: 'pointer',
-                          fontSize: '12px',
-                          fontWeight: 950
-                        }}
-                      >
-                        <Plus size={15} />
-                        리포지토리 추가
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div
-                className="rounded-2xl px-4 py-4"
-                style={{
-                  background: 'rgba(234, 247, 255, 0.045)',
-                  border: '1px solid rgba(32, 227, 255, 0.16)'
-                }}
-              >
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{
-                    background: 'linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))'
-                  }}>
-                    <GitBranch size={14} style={{ color: '#021014' }} />
-                  </div>
-                  <div className="flex flex-col items-start min-w-0">
-                    <span className="tracking-tight" style={{
-                      fontSize: '11px',
-                      fontWeight: 900,
-                      color: 'var(--muted)'
-                    }}>
-                      선택한 팀
-                    </span>
-                    <span className="tracking-tight truncate" style={{
-                      fontSize: '14px',
-                      fontWeight: 900,
-                      color: 'var(--white)'
-                    }}>
-                      리포지토리 없음
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {hasRepositories ? (
-              <div className="mt-3 flex items-center gap-2 px-2">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full" style={{
-                  background: currentRepo?.connected ? 'var(--matrix-green)' : 'var(--muted)'
-                }}></div>
-                <span className="tracking-tight" style={{
-                  fontSize: '11px',
-                  fontWeight: 800,
-                  color: currentRepo?.connected ? 'var(--matrix-green)' : 'var(--muted)'
-                }}>
-                  {currentRepo?.connected ? 'GitHub 연결됨' : '연결되지 않음'}
-                </span>
-              </div>
-              <span className="tracking-tight" style={{
-                fontSize: '11px',
-                fontWeight: 800,
-                color: 'var(--muted)'
-              }}>•</span>
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full" style={{
-                  background: 'var(--matrix-green)'
-                }}></div>
-                <span className="tracking-tight" style={{
-                  fontSize: '11px',
-                  fontWeight: 800,
-                  color: 'var(--muted)'
-                }}>
-                  {currentRepo?.membersOnline}명 접속 중
-                </span>
-              </div>
-              </div>
-            ) : (
-              <div className="mt-3 flex items-center gap-2 px-2">
-                <div className="w-2 h-2 rounded-full" style={{ background: 'var(--muted)' }}></div>
-                <span className="tracking-tight" style={{
-                  fontSize: '11px',
-                  fontWeight: 800,
-                  color: 'var(--muted)'
-                }}>
-                  연결된 리포지토리가 없습니다
-                </span>
-              </div>
-            )}
-
-            <AnimatePresence initial={false}>
-              {repositoryFormMode && (
-                <motion.div
-                  className="mt-4 rounded-2xl px-4 py-4"
-                  style={{
-                    background: 'rgba(5, 11, 20, 0.58)',
-                    border: '1px solid rgba(32, 227, 255, 0.18)',
-                    boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.06)'
-                  }}
-                  initial={{ opacity: 0, y: -8, height: 0 }}
-                  animate={{ opacity: 1, y: 0, height: 'auto' }}
-                  exit={{ opacity: 0, y: -8, height: 0 }}
-                  transition={{ type: 'spring', stiffness: 360, damping: 32 }}
-                >
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="m-0 tracking-tight" style={{
-                        color: 'var(--white)',
-                        fontSize: '13px',
-                        fontWeight: 950
-                      }}>
-                        {repositoryFormMode === 'edit' ? '리포지토리 이름 수정' : '리포지토리 추가'}
-                      </p>
-                      <p className="m-0 mt-1 tracking-tight" style={{
-                        color: 'var(--muted)',
-                        fontSize: '11px',
-                        fontWeight: 800
-                      }}>
-                        GitHub 저장소 이름을 등록합니다
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={closeRepositoryForm}
-                      className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-0"
-                      style={{
-                        background: 'rgba(234, 247, 255, 0.07)',
-                        color: 'var(--muted)',
-                        cursor: 'pointer'
-                      }}
-                      aria-label="리포지토리 입력 닫기"
-                    >
-                      <X size={15} />
-                    </button>
-                  </div>
-
-                  <input
-                    value={repositoryNameInput}
-                    onChange={(event) => setRepositoryNameInput(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') {
-                        event.preventDefault();
-                        handleSubmitRepositoryForm();
-                      }
-                      if (event.key === 'Escape') {
-                        event.preventDefault();
-                        closeRepositoryForm();
-                      }
-                    }}
-                    placeholder="owner/repository"
-                    className="w-full rounded-xl px-4 py-3 outline-none tracking-tight"
-                    style={{
-                      background: 'rgba(234, 247, 255, 0.08)',
-                      border: '1px solid rgba(32, 227, 255, 0.22)',
-                      color: 'var(--white)',
-                      fontSize: '13px',
-                      fontWeight: 850
-                    }}
-                  />
-
-                  <div className="mt-3 flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={closeRepositoryForm}
-                      className="flex-1 rounded-full border-0 px-4 py-2.5 tracking-tight"
-                      style={{
-                        background: 'rgba(234, 247, 255, 0.07)',
-                        border: '1px solid rgba(32, 227, 255, 0.12)',
-                        color: 'var(--muted)',
-                        cursor: 'pointer',
-                        fontSize: '12px',
-                        fontWeight: 900
-                      }}
-                    >
-                      취소
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleSubmitRepositoryForm}
-                      disabled={!repositoryNameInput.trim()}
-                      className="flex flex-1 items-center justify-center gap-2 rounded-full border-0 px-4 py-2.5 tracking-tight transition-all disabled:cursor-not-allowed disabled:opacity-40"
-                      style={{
-                        background: 'linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))',
-                        color: '#021014',
-                        cursor: repositoryNameInput.trim() ? 'pointer' : 'not-allowed',
-                        fontSize: '12px',
-                        fontWeight: 950
-                      }}
-                    >
-                      <Check size={14} />
-                      {repositoryFormMode === 'edit' ? '저장' : '등록'}
-                    </button>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {hasRepositories && selectedChannel !== 'team' && (
-              <button
-                type="button"
-                onClick={() => setTeamInviteOpen(true)}
-                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border-0 px-4 py-3 tracking-tight transition-all"
-                style={{
-                  background: 'rgba(32, 227, 255, 0.12)',
-                  border: '1px solid rgba(32, 227, 255, 0.24)',
-                  color: 'var(--neon-cyan)',
-                  cursor: 'pointer',
-                  fontSize: '13px',
-                  fontWeight: 950
-                }}
-              >
-                <UserPlus size={16} />
-                팀원 추가
-              </button>
-            )}
-          </div>
-
           {hasRepositories ? (
             <div className="flex flex-1 flex-col overflow-y-auto">
             <div className="grid gap-2">
               {renderSidebarChannel({ id: 'overview', label: '통합 개요', icon: Home })}
 
-              <p className="px-3 pb-1 pt-3 tracking-tight" style={{ fontSize: '11px', fontWeight: 950, color: 'var(--muted)', margin: 0 }}>채널</p>
+              <div className="my-1" style={{ borderTop: '1px solid rgba(32, 227, 255, 0.14)' }} />
+
+              <div className="flex items-center justify-between px-3 pb-1 pt-2">
+                <p style={{ fontSize: '11px', fontWeight: 950, color: 'var(--muted)', margin: 0 }}>채널</p>
+                <button
+                  type="button"
+                  onClick={handleAddCustomChannel}
+                  className="grid h-5 w-5 place-items-center rounded border-0 transition-all hover:scale-110"
+                  style={{ background: 'transparent', color: 'var(--muted)', cursor: 'pointer' }}
+                  aria-label="채널 추가"
+                  title="채널 추가"
+                >
+                  <Plus size={13} />
+                </button>
+              </div>
               {renderSidebarChannel({ id: 'general', label: '일반', icon: Hash })}
+
+              {customChannels.map((ch) => {
+                const isActive = selectedChannel === ch.id;
+                const isEditing = editingCustomChannelId === ch.id;
+                const isMenuOpen = channelMenuOpenId === ch.id;
+                return (
+                  <div key={ch.id} className="grid gap-0.5">
+                    <div className="relative isolate flex w-full items-center rounded-full">
+                      {isActive && (
+                        <motion.div
+                          layoutId="workspaceSidebarActiveTab"
+                          className="absolute inset-0 rounded-full"
+                          style={{
+                            background: 'linear-gradient(135deg, rgba(32, 227, 255, 0.18), rgba(234, 247, 255, 0.045)), rgba(11, 22, 40, 0.52)',
+                            border: '1px solid rgba(32, 227, 255, 0.30)',
+                            boxShadow: '0 0 24px rgba(32, 227, 255, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12)',
+                            backdropFilter: 'blur(14px) saturate(180%)'
+                          }}
+                          transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                        />
+                      )}
+                      {isEditing ? (
+                        <div className="relative z-10 flex min-w-0 flex-1 items-center gap-3 px-4 py-3">
+                          <Hash size={15} style={{ color: 'var(--neon-cyan)', flexShrink: 0 }} />
+                          <input
+                            value={editingCustomChannelLabel}
+                            onChange={e => setEditingCustomChannelLabel(e.target.value)}
+                            onBlur={handleCommitRenameCustomChannel}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') { e.preventDefault(); handleCommitRenameCustomChannel(); }
+                              if (e.key === 'Escape') { e.preventDefault(); setEditingCustomChannelId(null); setEditingCustomChannelLabel(''); }
+                            }}
+                            autoFocus
+                            className="min-w-0 flex-1 rounded-md border-0 bg-transparent px-0 py-0 outline-none tracking-tight"
+                            style={{ color: 'var(--white)', fontSize: '13px', fontWeight: 900 }}
+                          />
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => { setSelectedChannel(ch.id); setChannelMenuOpenId(null); }}
+                          className="relative z-10 flex min-w-0 flex-1 items-center gap-3 border-0 bg-transparent px-4 py-3 text-left"
+                          style={{ cursor: 'pointer' }}
+                        >
+                          <Hash size={15} style={{ color: isActive ? 'var(--neon-cyan)' : 'var(--muted)', flexShrink: 0 }} />
+                          <span className="truncate tracking-tight" style={{
+                            fontSize: '13px',
+                            fontWeight: isActive ? 900 : 800,
+                            color: isActive ? 'var(--white)' : 'var(--muted)'
+                          }}>
+                            {ch.label}
+                          </span>
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setChannelMenuOpenId(isMenuOpen ? null : ch.id)}
+                        className="relative z-10 mr-2 grid h-7 w-7 flex-shrink-0 place-items-center rounded-full border-0 bg-transparent transition-all hover:bg-[rgba(32,227,255,0.10)]"
+                        style={{ cursor: 'pointer' }}
+                        aria-label="채널 옵션"
+                      >
+                        <MoreVertical size={13} style={{ color: 'var(--muted)' }} />
+                      </button>
+                    </div>
+                    {isMenuOpen && (
+                      <div className="mx-2 overflow-hidden rounded-lg" style={{
+                        background: 'rgba(5, 11, 20, 0.92)',
+                        border: '1px solid rgba(32, 227, 255, 0.18)',
+                        boxShadow: '0 4px 16px rgba(0,0,0,0.4)'
+                      }}>
+                        <button
+                          type="button"
+                          onClick={() => handleStartRenameCustomChannel(ch)}
+                          className="flex w-full items-center gap-2 border-0 px-3 py-2 text-left tracking-tight transition-all hover:bg-[rgba(32,227,255,0.08)]"
+                          style={{ background: 'transparent', color: 'var(--white)', fontSize: '12px', fontWeight: 800, cursor: 'pointer', borderBottom: '1px solid rgba(32, 227, 255, 0.10)' }}
+                        >
+                          <Pencil size={13} style={{ color: 'var(--neon-cyan)' }} />
+                          이름 수정
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteCustomChannel(ch.id)}
+                          className="flex w-full items-center gap-2 border-0 px-3 py-2 text-left tracking-tight transition-all hover:bg-[rgba(255,107,107,0.08)]"
+                          style={{ background: 'transparent', color: '#FF6B6B', fontSize: '12px', fontWeight: 800, cursor: 'pointer' }}
+                        >
+                          <Trash2 size={13} />
+                          채널 삭제
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
 
               {repositories.map((repo) => {
                 const repoChannelId = REPO_CHANNEL_IDS[repo.id] ?? repo.id;
