@@ -94,7 +94,6 @@ export function Layout() {
           >
             <CoffeeLogo
               className="codedock-header-logo h-16 w-16 flex-shrink-0"
-              style={{ filter: `drop-shadow(0 0 14px ${colors.primary}, 0.3))` }}
             />
             <CodeDockWordmark accentColor={colors.primaryHex} />
           </Link>

@@ -34,3 +34,6 @@ Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
+
+# Git fetch metadata accidentally created in the workspace root
+/FETCH_HEAD

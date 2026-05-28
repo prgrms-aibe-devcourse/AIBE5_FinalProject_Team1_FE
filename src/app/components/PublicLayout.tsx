@@ -65,7 +65,6 @@ export function PublicLayout() {
           >
             <CoffeeLogo
               className="codedock-header-logo h-12 w-12 flex-shrink-0 sm:h-16 sm:w-16"
-              style={{ filter: `drop-shadow(0 0 14px ${colors.primary}, 0.3))` }}
             />
             <CodeDockWordmark accentColor={colors.primaryHex} className="hidden sm:inline-flex" />
           </Link>
