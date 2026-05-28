@@ -463,6 +463,7 @@ export function ChatPage() {
     : selectedCustomChannel?.label
     ?? selectedChannelMeta?.label
     ?? selectedChannel.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+  const selectedRepositoryName = repositories.find((repo) => repo.id === selectedRepository)?.name ?? '전체 리포지토리';
 
   useEffect(() => {
     if (!isMainExpanded) return;
@@ -1578,7 +1579,7 @@ export function ChatPage() {
             ) : selectedChannel === 'api-spec' ? (
               <APISpecPage embedded />
             ) : selectedChannel === 'erd' ? (
-              <ERDPage embedded />
+              <ERDPage embedded repositoryId={selectedRepository} repositoryName={selectedRepositoryName} />
             ) : selectedChannel === 'docs' ? (
               <DocsPage embedded />
             ) : selectedChannel === 'general' || customChannels.some(ch => ch.id === selectedChannel) ? (
