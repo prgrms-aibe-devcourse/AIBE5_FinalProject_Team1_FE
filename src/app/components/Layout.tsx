@@ -1,5 +1,5 @@
-import { Link, Outlet, useLocation } from "react-router";
-import { Menu, UserRound, X } from "lucide-react";
+import { Link, Outlet, useLocation, useNavigate } from "react-router";
+import { Github, LogOut, Menu, Settings, UserRound, UsersRound, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { CodeDockWordmark } from "./CodeDockWordmark";
@@ -7,6 +7,14 @@ import { CoffeeLogo } from "./CoffeeLogo";
 import { Footer } from "./Footer";
 import { LanguageToggleButton } from "./LanguageToggleButton";
 import { ThemeToggleButton } from "./ThemeToggleButton";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
 import { useTheme } from "../contexts/ThemeContext";
 
 const navItems = [
@@ -24,11 +32,15 @@ const currentUser = {
 
 export function Layout() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [remoteNav, setRemoteNav] = useState(false);
   const { colors } = useTheme();
 
   const isActive = (path: string) => location.pathname === path;
+  const handleLogout = () => {
+    navigate("/login");
+  };
 
   useEffect(() => {
     const handleScroll = () => {
@@ -138,9 +150,12 @@ export function Layout() {
           >
             <ThemeToggleButton />
 
+            <AccountMenu variant="full" onLogout={handleLogout} />
+            <AccountMenu variant="icon" onLogout={handleLogout} />
+
             <Link
               to="/profile"
-              className="hidden h-12 items-center gap-3 rounded-2xl px-3 no-underline transition-all hover:scale-[1.02] xl:flex"
+              className="hidden"
               style={{
                 background: `linear-gradient(135deg, ${colors.primary}, 0.12), rgba(234, 247, 255, 0.045))`,
                 border: `1px solid ${colors.primary}, 0.22)`,
@@ -165,7 +180,7 @@ export function Layout() {
 
             <Link
               to="/profile"
-              className="grid h-10 w-10 place-items-center rounded-xl no-underline transition-all hover:scale-110 xl:hidden"
+              className="hidden"
               style={{
                 background: `${colors.primary}, 0.10)`,
                 border: `1px solid ${colors.primary}, 0.22)`,
@@ -199,9 +214,10 @@ export function Layout() {
             transform: remoteNav ? "translateY(0) scale(1)" : "translateY(-8px) scale(0.96)",
           }}
         >
+          <AccountMenu variant="compact" onLogout={handleLogout} tabIndex={remoteNav ? 0 : -1} />
           <Link
             to="/profile"
-            className="hidden h-12 items-center gap-2 rounded-full px-3 no-underline lg:flex"
+            className="hidden"
             style={{
               background: `linear-gradient(135deg, ${colors.primary}, 0.12), rgba(234, 247, 255, 0.045))`,
               border: `1px solid ${colors.primary}, 0.22)`,
@@ -240,6 +256,39 @@ export function Layout() {
                 </span>
               </span>
             </Link>
+            <HeaderLink
+              item={{ path: "/settings", label: "계정 설정" }}
+              active={isActive("/settings")}
+              onClick={() => setMobileMenuOpen(false)}
+            />
+            <HeaderLink
+              item={{ path: "/profile", label: "GitHub 연동 관리" }}
+              active={false}
+              onClick={() => setMobileMenuOpen(false)}
+            />
+            <HeaderLink
+              item={{ path: "/chat", label: "워크스페이스 / 팀 관리" }}
+              active={isActive("/chat")}
+              onClick={() => setMobileMenuOpen(false)}
+            />
+            <button
+              type="button"
+              onClick={() => {
+                setMobileMenuOpen(false);
+                handleLogout();
+              }}
+              className="relative rounded-full px-4 py-2 text-left tracking-tight transition-colors"
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "#FF6B6B",
+                fontSize: "14px",
+                fontWeight: 800,
+                cursor: "pointer",
+              }}
+            >
+              로그아웃
+            </button>
             {navItems.map((item) => (
               <HeaderLink
                 key={item.path}
@@ -258,6 +307,156 @@ export function Layout() {
 
       <Footer />
     </div>
+  );
+}
+
+interface AccountMenuProps {
+  variant: "full" | "icon" | "compact";
+  onLogout: () => void;
+  tabIndex?: number;
+}
+
+function AccountMenu({ variant, onLogout, tabIndex }: AccountMenuProps) {
+  const { colors } = useTheme();
+  const isFull = variant === "full";
+  const isCompact = variant === "compact";
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className={
+            isFull
+              ? "hidden h-12 items-center gap-3 rounded-2xl px-3 transition-all hover:scale-[1.02] xl:flex"
+              : isCompact
+                ? "hidden h-12 items-center gap-2 rounded-full px-3 transition-all hover:scale-[1.02] lg:flex"
+                : "grid h-10 w-10 place-items-center rounded-xl transition-all hover:scale-110 xl:hidden"
+          }
+          style={
+            isFull
+              ? {
+                  background: `linear-gradient(135deg, ${colors.primary}, 0.12), rgba(234, 247, 255, 0.045))`,
+                  border: `1px solid ${colors.primary}, 0.22)`,
+                  color: "var(--white)",
+                  boxShadow: `0 0 24px ${colors.primary}, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.10)`,
+                  backdropFilter: "blur(16px) saturate(180%)",
+                  cursor: "pointer",
+                }
+              : isCompact
+                ? {
+                    background: `linear-gradient(135deg, ${colors.primary}, 0.12), rgba(234, 247, 255, 0.045))`,
+                    border: `1px solid ${colors.primary}, 0.22)`,
+                    color: "var(--white)",
+                    boxShadow: `0 18px 55px rgba(0, 0, 0, 0.38), 0 0 24px ${colors.primary}, 0.10)`,
+                    backdropFilter: "blur(22px) saturate(190%)",
+                    WebkitBackdropFilter: "blur(22px) saturate(190%)",
+                    cursor: "pointer",
+                  }
+                : {
+                    background: `${colors.primary}, 0.10)`,
+                    border: `1px solid ${colors.primary}, 0.22)`,
+                    color: colors.primaryHex,
+                    cursor: "pointer",
+                  }
+          }
+          aria-label="계정 메뉴 열기"
+          title={`${currentUser.name} - ${currentUser.email}`}
+          tabIndex={tabIndex}
+        >
+          {variant === "icon" ? (
+            <UserRound size={19} strokeWidth={2.4} />
+          ) : (
+            <>
+              <AccountAvatar />
+              <span className="grid min-w-0 leading-none">
+                <span
+                  className={
+                    isCompact
+                      ? "max-w-[92px] truncate text-sm font-black tracking-tight"
+                      : "max-w-[112px] truncate text-sm font-black tracking-tight"
+                  }
+                >
+                  {currentUser.name}
+                </span>
+                {isFull && (
+                  <span
+                    className="mt-1 max-w-[112px] truncate text-[11px] font-bold tracking-tight"
+                    style={{ color: "rgba(234, 247, 255, 0.62)" }}
+                  >
+                    {currentUser.workspace}
+                  </span>
+                )}
+              </span>
+            </>
+          )}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        sideOffset={10}
+        className="w-64 rounded-2xl p-2"
+        style={{
+          background: "rgba(5, 11, 20, 0.96)",
+          border: `1px solid ${colors.primary}, 0.22)`,
+          color: "var(--white)",
+          boxShadow: `0 18px 55px rgba(0, 0, 0, 0.45), 0 0 28px ${colors.primary}, 0.10)`,
+          backdropFilter: "blur(22px) saturate(180%)",
+        }}
+      >
+        <DropdownMenuLabel className="px-3 py-2">
+          <span className="block truncate text-sm font-black tracking-tight">{currentUser.name}</span>
+          <span className="mt-1 block truncate text-xs font-bold tracking-tight" style={{ color: "var(--muted)" }}>
+            {currentUser.email}
+          </span>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator style={{ background: `${colors.primary}, 0.14)` }} />
+        <AccountMenuLink to="/profile" icon={UserRound} label="프로필 보기" />
+        <AccountMenuLink to="/settings" icon={Settings} label="계정 설정" />
+        <AccountMenuLink to="/profile" icon={Github} label="GitHub 연동 관리" />
+        <AccountMenuLink to="/chat" icon={UsersRound} label="워크스페이스 / 팀 관리" />
+        <DropdownMenuSeparator style={{ background: `${colors.primary}, 0.14)` }} />
+        <DropdownMenuItem
+          onSelect={onLogout}
+          className="rounded-xl px-3 py-2.5 tracking-tight"
+          style={{
+            color: "#FF6B6B",
+            cursor: "pointer",
+            fontSize: "14px",
+            fontWeight: 900,
+          }}
+        >
+          <LogOut size={17} strokeWidth={2.2} />
+          로그아웃
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+interface AccountMenuLinkProps {
+  to: string;
+  icon: typeof UserRound;
+  label: string;
+}
+
+function AccountMenuLink({ to, icon: Icon, label }: AccountMenuLinkProps) {
+  return (
+    <DropdownMenuItem asChild className="rounded-xl px-3 py-2.5 tracking-tight">
+      <Link
+        to={to}
+        className="flex items-center gap-2 no-underline"
+        style={{
+          color: "var(--white)",
+          cursor: "pointer",
+          fontSize: "14px",
+          fontWeight: 900,
+        }}
+      >
+        <Icon size={17} strokeWidth={2.2} />
+        {label}
+      </Link>
+    </DropdownMenuItem>
   );
 }
 
