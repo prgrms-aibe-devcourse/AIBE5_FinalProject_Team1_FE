@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import type { ReactNode } from "react";
-import { AlertCircle, ChevronRight, Copy, Folder, Globe2, Link2, Lock, Play, Trash2, X } from "lucide-react";
+import { AlertCircle, ChevronRight, Copy, Folder, Github, Globe2, Link2, Lock, Mail, Play, Trash2, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 
 interface TeamInviteModalProps {
@@ -8,18 +8,21 @@ interface TeamInviteModalProps {
   onClose: () => void;
 }
 
+const CURRENT_USER_ID = "junwoo";
+
 interface TeamMember {
   id: string;
   name: string;
   avatar: string;
   role: "owner" | "editor" | "viewer";
   warning?: boolean;
+  isGithub?: boolean;
 }
 
 const initialMembers: TeamMember[] = [
+  { id: "junwoo", name: "김준우", avatar: "준", role: "owner" },
   { id: "jaejun", name: "김재준", avatar: "재", role: "editor" },
   { id: "jinpil", name: "김진필", avatar: "필", role: "editor" },
-  { id: "junwoo", name: "김준우", avatar: "준", role: "owner" },
   { id: "jinhyun", name: "김진현", avatar: "현", role: "editor", warning: true },
   { id: "hyun", name: "안현", avatar: "안", role: "editor", warning: true }
 ];
@@ -32,27 +35,36 @@ const permissionLabels = {
 
 export function TeamInviteModal({ isOpen, onClose }: TeamInviteModalProps) {
   const [inviteValue, setInviteValue] = useState("");
+  const [inviteMode, setInviteMode] = useState<"email" | "github">("email");
   const [members, setMembers] = useState(initialMembers);
   const [copyState, setCopyState] = useState<"idle" | "copied">("idle");
   const [confirmTarget, setConfirmTarget] = useState<TeamMember | null>(null);
+
+  // Current user always first, rest follow in original order
+  const sortedMembers = useMemo(() => {
+    const me = members.find((m) => m.id === CURRENT_USER_ID);
+    const others = members.filter((m) => m.id !== CURRENT_USER_ID);
+    return me ? [me, ...others] : others;
+  }, [members]);
 
   if (!isOpen) return null;
 
   const canInvite = inviteValue.trim().length > 0;
 
   const handleInvite = () => {
-    const emails = inviteValue
-      .split(";")
-      .map((email) => email.trim())
+    const values = inviteValue
+      .split(/[,;]/)
+      .map((v) => v.trim())
       .filter(Boolean);
 
-    if (emails.length === 0) return;
+    if (values.length === 0) return;
 
-    const invitedMembers = emails.map((email, index) => ({
+    const invitedMembers = values.map((val, index) => ({
       id: `${Date.now()}-${index}`,
-      name: email,
-      avatar: email.charAt(0).toUpperCase(),
-      role: "editor" as const
+      name: val,
+      avatar: val.charAt(0).toUpperCase(),
+      role: "editor" as const,
+      isGithub: inviteMode === "github",
     }));
 
     setMembers((prev) => [...invitedMembers, ...prev]);
@@ -143,6 +155,30 @@ export function TeamInviteModal({ isOpen, onClose }: TeamInviteModalProps) {
         </div>
 
         <div className="px-5 py-5" style={{ maxHeight: "58vh", overflowY: "auto" }}>
+          {/* Mode toggle */}
+          <div className="flex gap-1 mb-3 p-1 rounded-xl" style={{ background: "#f3f4f6" }}>
+            {(["email", "github"] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => { setInviteMode(mode); setInviteValue(""); }}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 tracking-tight transition-all"
+                style={{
+                  background: inviteMode === mode ? "#ffffff" : "transparent",
+                  color: inviteMode === mode ? "#111827" : "#6b7280",
+                  fontSize: "13px",
+                  fontWeight: 900,
+                  border: "none",
+                  cursor: "pointer",
+                  boxShadow: inviteMode === mode ? "0 1px 4px rgba(0,0,0,0.10)" : "none",
+                }}
+              >
+                {mode === "email" ? <Mail size={14} /> : <Github size={14} />}
+                {mode === "email" ? "이메일로 초대" : "GitHub ID로 초대"}
+              </button>
+            ))}
+          </div>
+
           <div className="flex gap-2">
             <input
               value={inviteValue}
@@ -153,7 +189,11 @@ export function TeamInviteModal({ isOpen, onClose }: TeamInviteModalProps) {
                   handleInvite();
                 }
               }}
-              placeholder="쉼표 또는 세미콜론으로 구분된 이메일을 추가하여 초대하세요"
+              placeholder={
+                inviteMode === "email"
+                  ? "쉼표 또는 세미콜론으로 구분된 이메일을 추가하여 초대하세요"
+                  : "쉼표 또는 세미콜론으로 구분된 GitHub ID를 추가하여 초대하세요"
+              }
               className="min-w-0 flex-1 rounded-lg px-4 py-3 outline-none"
               style={{
                 border: "2px solid #6d5dfc",
@@ -170,7 +210,7 @@ export function TeamInviteModal({ isOpen, onClose }: TeamInviteModalProps) {
               className="rounded-lg border-0 px-5 py-3 tracking-tight"
               style={{
                 background: canInvite ? "#6d5dfc" : "#d1d5db",
-                color: canInvite ? "#ffffff" : "#ffffff",
+                color: "#ffffff",
                 cursor: canInvite ? "pointer" : "not-allowed",
                 fontSize: "14px",
                 fontWeight: 900
@@ -197,66 +237,88 @@ export function TeamInviteModal({ isOpen, onClose }: TeamInviteModalProps) {
               action={<ChevronRight size={16} />}
             />
 
-            {members.map((member) => (
-              <div key={member.id} className="flex items-center gap-3 rounded-xl px-1 py-2">
-                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full" style={{
-                  background: member.id === "junwoo" ? "#ff5b8a" : "linear-gradient(135deg, #20e3ff, #7c3aed)",
-                  color: "#ffffff",
-                  fontSize: "12px",
-                  fontWeight: 950
-                }}>
-                  {member.avatar}
-                </div>
-                <span className="min-w-0 flex-1 truncate tracking-tight" style={{
-                  color: "#374151",
-                  fontSize: "14px",
-                  fontWeight: 900
-                }}>
-                  {member.name}
-                </span>
-                {member.warning && (
-                  <AlertCircle size={18} style={{ color: "#f59e0b" }} />
-                )}
-                {member.role === "owner" ? (
-                  <span className="tracking-tight" style={{ color: "#374151", fontSize: "13px", fontWeight: 900 }}>
-                    {permissionLabels.owner}
-                  </span>
-                ) : (
-                  <div className="flex items-center gap-1.5">
-                    <select
-                      value={member.role}
-                      onChange={(event) => handleRoleChange(member.id, event.target.value as TeamMember["role"])}
-                      className="rounded-lg border-0 px-2 py-1 outline-none"
-                      style={{
-                        background: "#ffffff",
-                        color: "#374151",
-                        fontSize: "13px",
-                        fontWeight: 900,
-                        cursor: "pointer"
-                      }}
-                      aria-label={`${member.name} 권한`}
-                    >
-                      <option value="editor">{permissionLabels.editor}</option>
-                      <option value="viewer">{permissionLabels.viewer}</option>
-                    </select>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveClick(member)}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg border-0"
-                      style={{
-                        background: "rgba(239, 68, 68, 0.08)",
-                        color: "#ef4444",
-                        cursor: "pointer"
-                      }}
-                      aria-label={`${member.name} 삭제`}
-                      title={`${member.name} 삭제`}
-                    >
-                      <Trash2 size={15} />
-                    </button>
+            {sortedMembers.map((member) => {
+              const isMe = member.id === CURRENT_USER_ID;
+              return (
+                <div
+                  key={member.id}
+                  className="flex items-center gap-3 rounded-xl px-1 py-2"
+                  style={{}}
+                >
+                  {/* Avatar */}
+                  <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full" style={{
+                    background: isMe ? "#ff5b8a" : member.isGithub ? "#24292e" : "linear-gradient(135deg, #20e3ff, #7c3aed)",
+                    color: "#ffffff",
+                    fontSize: "12px",
+                    fontWeight: 950
+                  }}>
+                    {member.isGithub ? <Github size={14} /> : member.avatar}
                   </div>
-                )}
-              </div>
-            ))}
+
+                  {/* Name */}
+                  <span className="min-w-0 flex-1 truncate tracking-tight" style={{
+                    color: "#374151",
+                    fontSize: "14px",
+                    fontWeight: 900
+                  }}>
+                    {member.name}
+                    {isMe && (
+                      <span style={{ color: "#374151", fontWeight: 700, fontSize: "13px", marginLeft: "6px" }}>
+                        (나)
+                      </span>
+                    )}
+                  </span>
+
+                  {member.warning && !isMe && (
+                    <AlertCircle size={18} style={{ color: "#f59e0b" }} />
+                  )}
+
+                  {/* Role / controls */}
+                  {isMe ? (
+                    <span className="tracking-tight" style={{ color: "#374151", fontSize: "13px", fontWeight: 900 }}>
+                      {permissionLabels[member.role]}
+                    </span>
+                  ) : member.role === "owner" ? (
+                    <span className="tracking-tight" style={{ color: "#374151", fontSize: "13px", fontWeight: 900 }}>
+                      {permissionLabels.owner}
+                    </span>
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      <select
+                        value={member.role}
+                        onChange={(event) => handleRoleChange(member.id, event.target.value as TeamMember["role"])}
+                        className="rounded-lg border-0 px-2 py-1 outline-none"
+                        style={{
+                          background: "#ffffff",
+                          color: "#374151",
+                          fontSize: "13px",
+                          fontWeight: 900,
+                          cursor: "pointer"
+                        }}
+                        aria-label={`${member.name} 권한`}
+                      >
+                        <option value="editor">{permissionLabels.editor}</option>
+                        <option value="viewer">{permissionLabels.viewer}</option>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveClick(member)}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg border-0"
+                        style={{
+                          background: "rgba(239, 68, 68, 0.08)",
+                          color: "#ef4444",
+                          cursor: "pointer"
+                        }}
+                        aria-label={`${member.name} 삭제`}
+                        title={`${member.name} 삭제`}
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
