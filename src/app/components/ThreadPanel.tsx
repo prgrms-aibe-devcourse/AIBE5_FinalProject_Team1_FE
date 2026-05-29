@@ -1,14 +1,18 @@
-import { X, Send, Smile } from "lucide-react";
+import { X, Send, Smile, FileCode } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { TypingIndicator } from "./TypingIndicator";
 import { EmojiPicker } from "./EmojiPicker";
 import { MessageReactions, toggleMessageReaction, type MessageReaction } from "./MessageReactions";
 
 interface ThreadMessage {
-  id: number;
+  id: number | string;
   user: string;
   text: string;
   time: string;
+  fileId?: string;
+  fileName?: string;
+  line?: number;
+  code?: string;
 }
 
 interface ThreadPanelProps {
@@ -53,8 +57,8 @@ export function ThreadPanel({ originalMessage, replies, onClose, onSendReply }: 
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       handleSend();
     }
@@ -173,58 +177,92 @@ export function ThreadPanel({ originalMessage, replies, onClose, onSendReply }: 
           </div>
 
           {/* 답글 목록 */}
-          {replies.map((reply, index) => (
-            <div key={reply.id} className="mb-4">
-              <div className="px-4 py-3 rounded-xl" style={{
-                background: 'linear-gradient(135deg, rgba(5, 11, 20, 0.6), rgba(11, 22, 40, 0.4))',
-                border: '1px solid rgba(32, 227, 255, 0.16)',
-                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)'
-              }}>
-                <div className="flex items-center gap-2 mb-2 pb-2" style={{
-                  borderBottom: '1px solid rgba(32, 227, 255, 0.1)'
+          {replies.map((reply) => {
+            const isMine = reply.user === '나';
+            const hasDiffRef = reply.fileId && reply.line > 0;
+            return (
+              <div key={reply.id} className="mb-2">
+                <div className="px-4 py-3 rounded-xl" style={{
+                  background: isMine ? 'rgba(32, 227, 255, 0.10)' : 'linear-gradient(135deg, rgba(5, 11, 20, 0.6), rgba(11, 22, 40, 0.4))',
+                  border: isMine ? '1px solid rgba(32, 227, 255, 0.28)' : '1px solid rgba(32, 227, 255, 0.16)',
+                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)'
                 }}>
-                  <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{
-                    background: 'linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))'
+                  <div className="flex items-center gap-2 mb-2 pb-2" style={{
+                    borderBottom: '1px solid rgba(32, 227, 255, 0.1)'
                   }}>
-                    <span style={{
-                      fontSize: '10px',
-                      fontWeight: 900,
-                      color: '#021014'
+                    <div className="w-7 h-7 flex-shrink-0 rounded-full flex items-center justify-center" style={{
+                      background: isMine ? 'linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))' : 'rgba(32, 227, 255, 0.14)'
                     }}>
-                      {reply.user.charAt(0)}
-                    </span>
+                      <span style={{
+                        fontSize: '10px',
+                        fontWeight: 900,
+                        color: isMine ? '#021014' : 'var(--neon-cyan)'
+                      }}>
+                        {reply.user.charAt(0)}
+                      </span>
+                    </div>
+                    <div className="flex flex-col flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="tracking-tight" style={{
+                          fontSize: '13px',
+                          fontWeight: 900,
+                          color: isMine ? 'var(--neon-cyan)' : 'var(--white)'
+                        }}>
+                          {reply.user}
+                        </span>
+                        {isMine && (
+                          <span className="rounded px-1.5 py-0.5" style={{ background: 'rgba(32, 227, 255, 0.14)', color: 'var(--neon-cyan)', fontSize: '9px', fontWeight: 950 }}>나</span>
+                        )}
+                      </div>
+                      <span className="tracking-tight" style={{
+                        fontSize: '10px',
+                        fontWeight: 700,
+                        color: 'var(--muted)'
+                      }}>
+                        {reply.time}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex flex-col flex-1">
-                    <span className="tracking-tight" style={{
-                      fontSize: '13px',
-                      fontWeight: 900,
-                      color: 'var(--neon-cyan)'
+                  {hasDiffRef && (
+                    <div className="mb-2 overflow-hidden rounded-xl" style={{
+                      background: 'rgba(5, 11, 20, 0.72)',
+                      border: '1px solid rgba(32, 227, 255, 0.22)',
+                      userSelect: 'none'
                     }}>
-                      {reply.user}
-                    </span>
-                    <span className="tracking-tight" style={{
-                      fontSize: '10px',
-                      fontWeight: 700,
-                      color: 'var(--muted)'
-                    }}>
-                      {reply.time}
-                    </span>
-                  </div>
+                      <div className="flex items-center gap-2 px-3 py-1.5" style={{
+                        borderBottom: '1px solid rgba(32, 227, 255, 0.12)',
+                        background: 'rgba(32, 227, 255, 0.07)'
+                      }}>
+                        <FileCode size={11} style={{ color: 'var(--neon-cyan)', flexShrink: 0 }} />
+                        <span className="truncate font-mono" style={{ color: 'var(--neon-cyan)', fontSize: '10px', fontWeight: 950 }}>
+                          {reply.fileName ?? reply.fileId}
+                        </span>
+                        <span className="flex-shrink-0 rounded px-1.5 py-0.5 font-mono" style={{ background: 'rgba(32, 227, 255, 0.14)', color: 'var(--neon-cyan)', fontSize: '9px', fontWeight: 950 }}>
+                          L{reply.line}
+                        </span>
+                      </div>
+                      {reply.code && (
+                        <div className="px-3 py-2 font-mono" style={{ color: '#C6D4E5', fontSize: '11px', fontWeight: 850, lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                          {reply.code}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <p className="m-0 leading-[1.5] tracking-tight whitespace-pre-wrap" style={{
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    color: 'var(--soft-mint)'
+                  }}>
+                    {reply.text}
+                  </p>
+                  <MessageReactions
+                    reactions={messageReactions[`reply-${reply.id}`]}
+                    onToggle={(emoji) => handleReactionToggle(`reply-${reply.id}`, emoji)}
+                  />
                 </div>
-                <p className="m-0 leading-[1.5] tracking-tight" style={{
-                  fontSize: '14px',
-                  fontWeight: 700,
-                  color: 'var(--white)'
-                }}>
-                  {reply.text}
-                </p>
-                <MessageReactions
-                  reactions={messageReactions[`reply-${reply.id}`]}
-                  onToggle={(emoji) => handleReactionToggle(`reply-${reply.id}`, emoji)}
-                />
               </div>
-            </div>
-          ))}
+            );
+          })}
           {typingLabel && (
             <TypingIndicator
               label={typingLabel}
@@ -249,7 +287,7 @@ export function ThreadPanel({ originalMessage, replies, onClose, onSendReply }: 
           <textarea
             value={replyText}
             onChange={(e) => setReplyText(e.target.value)}
-            onKeyPress={handleKeyPress}
+            onKeyDown={handleKeyDown}
             placeholder="답글 남기기..."
             className="min-w-0 flex-1 px-4 py-3 rounded-xl border-0 tracking-tight resize-none"
             rows={3}
