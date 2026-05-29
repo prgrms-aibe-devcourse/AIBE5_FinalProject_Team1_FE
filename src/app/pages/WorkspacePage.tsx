@@ -136,6 +136,8 @@ function DraggableTeamCard({
 export function WorkspacePage() {
   const navigate = useNavigate();
   const teamSectionRef = useRef<HTMLDivElement>(null);
+  const teamListRef = useRef<HTMLDivElement>(null);
+  const [teamListScrollable, setTeamListScrollable] = useState(false);
 
   const [orgs, setOrgs] = useState<Org[]>([
     { id: 1, name: "SecureFlow Workspace", openPRs: 7, highRisk: 2, activeIssues: 12, memberCount: 5, myRole: "소유자" },
@@ -153,21 +155,28 @@ export function WorkspacePage() {
   }, []);
 
   useEffect(() => {
-    const workspaceBlock = teamSectionRef.current;
-    if (!workspaceBlock) return;
+    const teamList = teamListRef.current;
+    if (!teamList) return;
 
-    const preventWorkspaceScroll = (event: WheelEvent | TouchEvent) => {
-      event.preventDefault();
+    const updateScrollState = () => {
+      setTeamListScrollable(teamList.scrollHeight > teamList.clientHeight + 1);
     };
 
-    workspaceBlock.addEventListener("wheel", preventWorkspaceScroll, { passive: false });
-    workspaceBlock.addEventListener("touchmove", preventWorkspaceScroll, { passive: false });
+    updateScrollState();
+    window.addEventListener("resize", updateScrollState);
+
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(updateScrollState);
+      resizeObserver.observe(teamList);
+      Array.from(teamList.children).forEach((child) => resizeObserver?.observe(child));
+    }
 
     return () => {
-      workspaceBlock.removeEventListener("wheel", preventWorkspaceScroll);
-      workspaceBlock.removeEventListener("touchmove", preventWorkspaceScroll);
+      window.removeEventListener("resize", updateScrollState);
+      resizeObserver?.disconnect();
     };
-  }, []);
+  }, [orgs.length]);
 
   const recentActivity = [
     { type: "pr", user: "김진필", action: "PR 열림", target: "#234: 인증 미들웨어 추가", time: "10분 전", risk: "high" },
@@ -262,7 +271,6 @@ export function WorkspacePage() {
             border: "1px solid rgba(32, 227, 255, 0.16)",
             boxShadow: "0 20px 60px rgba(0, 0, 0, 0.32)",
             backdropFilter: "blur(16px)",
-            overscrollBehavior: "contain",
           }}
         >
           <div className="flex items-center justify-between mb-6">
@@ -303,7 +311,11 @@ export function WorkspacePage() {
             </div>
           </div>
 
-          <div className="grid gap-4">
+          <div
+            ref={teamListRef}
+            className="codedock-scrollbar-hidden grid max-h-[min(56vh,520px)] gap-4 overflow-y-auto pr-1"
+            style={{ overscrollBehavior: teamListScrollable ? "contain" : "auto" }}
+          >
             {orgs.map((org, index) => (
               <DraggableTeamCard key={org.id} org={org} index={index} moveOrg={moveOrg} />
             ))}
