@@ -1452,7 +1452,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
     <div
       className="grid grid-rows-1 h-full min-h-0 overflow-hidden rounded-2xl"
       style={{
-        gridTemplateColumns: "3fr 7fr",
+        gridTemplateColumns: "2.5fr 7.5fr",
         background: "rgba(5, 11, 20, 0.42)",
         border: "1px solid rgba(32, 227, 255, 0.14)"
       }}
