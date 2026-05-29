@@ -1,4 +1,4 @@
-import { X, FileText, History, CircleDot, Clock, CircleCheck, UserRound, Tag, MessageSquare, CheckCircle2, Send } from "lucide-react";
+import { X, FileText, History, CircleDot, Clock, CircleCheck, UserRound, Tag, MessageSquare, CheckCircle2, XCircle, Send } from "lucide-react";
 import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import type { IssueLabel, IssueHistoryEvent } from "./ChatPanel";
@@ -25,9 +25,11 @@ const issueTabs = [
 ];
 
 const statusConfig: Record<string, { label: string; color: string; icon: typeof CircleDot }> = {
-  open:        { label: "열림",    color: "#22C55E",          icon: CircleDot   },
-  in_progress: { label: "진행 중", color: "var(--neon-cyan)", icon: Clock       },
-  closed:      { label: "닫힘",    color: "var(--muted)",     icon: CircleCheck },
+  todo:        { label: "할 일",   color: "var(--muted)",        icon: Clock       },
+  in_progress: { label: "진행 중", color: "var(--neon-cyan)",    icon: Clock       },
+  review:      { label: "검토 중", color: "var(--soft-mint)",    icon: CircleDot   },
+  done:        { label: "완료",    color: "var(--matrix-green)", icon: CircleCheck },
+  blocked:     { label: "막힘",    color: "#FF6B6B",             icon: XCircle     },
 };
 
 const priorityConfig: Record<string, { label: string; color: string }> = {
@@ -123,7 +125,7 @@ export function IssuePanel({ issueData, onClose, externalThreadMessages, onAddTh
   const priority                       = issueData.issuePriority  ?? "medium";
   const issueType: string              = issueData.issueType      ?? "";
 
-  const statusCfg   = statusConfig[status]   ?? statusConfig.open;
+  const statusCfg   = statusConfig[status]   ?? statusConfig.todo;
   const priorityCfg = priorityConfig[priority] ?? priorityConfig.medium;
   const StatusIcon  = statusCfg.icon;
 
