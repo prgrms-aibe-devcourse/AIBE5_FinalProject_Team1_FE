@@ -1429,7 +1429,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR }: PRReviewPanelProps
     <div
       className="grid grid-rows-1 h-full min-h-0 overflow-hidden rounded-2xl"
       style={{
-        gridTemplateColumns: "230px minmax(0, 1fr) 380px",
+        gridTemplateColumns: "3fr 7fr",
         background: "rgba(5, 11, 20, 0.42)",
         border: "1px solid rgba(32, 227, 255, 0.14)"
       }}
@@ -1512,15 +1512,6 @@ export function PRReviewPanel({ prData, onClose, onMergePR }: PRReviewPanelProps
           <span className="truncate font-mono" style={{ color: "var(--white)", fontSize: 13, fontWeight: 900 }}>
             {activeFile.path}/{activeFile.name}
           </span>
-          <span className="ml-auto rounded-full px-3 py-1 tracking-tight" style={{
-            background: "rgba(32, 227, 255, 0.08)",
-            border: "1px solid rgba(32, 227, 255, 0.16)",
-            color: "var(--neon-cyan)",
-            fontSize: 11,
-            fontWeight: 900
-          }}>
-            라인 클릭: 스레드 참조 · 코드 셀 입력: diff 수정
-          </span>
         </div>
 
         <div className="py-5 font-mono" style={{ color: "var(--soft-mint)", fontSize: 13, lineHeight: 1.65 }}>
@@ -1535,7 +1526,6 @@ export function PRReviewPanel({ prData, onClose, onMergePR }: PRReviewPanelProps
               <div key={row.line}>
                 <div
                   className="grid items-center"
-                  onClick={() => handleDiffReferenceSelect(activeFile, row)}
                   style={{
                     gridTemplateColumns: "58px 32px minmax(0, 1fr) 92px",
                     background: isThreadOpen
@@ -1544,7 +1534,6 @@ export function PRReviewPanel({ prData, onClose, onMergePR }: PRReviewPanelProps
                         ? "rgba(34, 197, 94, 0.12)"
                         : "transparent",
                     borderLeft: isThreadOpen ? "3px solid var(--neon-cyan)" : row.added ? "3px solid #22C55E" : "3px solid transparent",
-                    cursor: "pointer"
                   }}
                 >
                   <span className="select-none text-right" style={{ color: "var(--muted)", fontSize: 12, fontWeight: 800 }}>
@@ -1556,10 +1545,6 @@ export function PRReviewPanel({ prData, onClose, onMergePR }: PRReviewPanelProps
                   <textarea
                     value={editedCode}
                     onChange={(event) => handleDiffLineCodeChange(activeFile, row, event.target.value)}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      handleDiffReferenceSelect(activeFile, row);
-                    }}
                     onKeyDown={(event) => event.stopPropagation()}
                     aria-label={`${activeFile.name} ${row.line}번 줄 코드 수정`}
                     className="codedock-scrollbar-hidden min-w-0 resize-none whitespace-pre-wrap break-words border-0 bg-transparent px-2 py-1.5 font-mono outline-none"
@@ -1713,9 +1698,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR }: PRReviewPanelProps
         </div>
       </main>
 
-      <aside className="flex min-h-0 flex-col overflow-hidden" style={{ borderLeft: "1px solid rgba(32, 227, 255, 0.12)" }}>
-        {renderPrThreadChat()}
-        {false && (() => {
+      {false && (() => {
           const activeThreadFile = activeDiffThread
             ? diffFiles.find((file) => file.id === activeDiffThread.fileId)
             : null;
@@ -1949,7 +1932,6 @@ export function PRReviewPanel({ prData, onClose, onMergePR }: PRReviewPanelProps
             </div>
           );
         })()}
-      </aside>
     </div>
   );
 
