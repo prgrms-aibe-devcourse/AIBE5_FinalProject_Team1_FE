@@ -125,6 +125,7 @@ function AutoScrollContainer({ children, itemCount }: { children: React.ReactNod
         padding: "8px",
         margin: "-8px",
         scrollbarWidth: "none",
+        overscrollBehavior: "contain",
       }}
     >
       {children}
