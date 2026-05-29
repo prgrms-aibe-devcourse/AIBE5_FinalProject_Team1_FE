@@ -58,14 +58,19 @@ interface Message {
 }
 
 interface ChatPanelProps {
+  channelId?: string;
   title: string;
   messages: Message[];
+  reactions?: Record<string, MessageReaction[]>;
+  replyCounts?: Record<number, number>;
   onSendMessage?: (message: string, attachments?: MessageAttachment[]) => void;
+  onSharePR?: (prData: any, message: string, channelIds: string[]) => void;
   showAISummary?: boolean;
   onMergePR?: (messageId: number) => void;
   onReviewPR?: (prData: any) => void;
   onViewIssue?: (issueData: any) => void;
   onOpenThread?: (message: any) => void;
+  onToggleReaction?: (reactionKey: string, emoji: string) => void;
   isRepository?: boolean;
 }
 
@@ -77,9 +82,9 @@ const riskLabel: Record<NonNullable<Message["aiRisk"]>, string> = {
 
 const shareChannels = [
   { id: "general", label: "일반" },
-  { id: "frontend", label: "프론트엔드" },
-  { id: "backend", label: "백엔드" },
-  { id: "design", label: "디자인" }
+  { id: "frontend-chat", label: "프론트엔드" },
+  { id: "backend-chat", label: "백엔드" },
+  { id: "review-room", label: "리뷰룸" }
 ];
 
 const issueStatusConfig = {
@@ -94,11 +99,14 @@ const issuePriorityConfig = {
   low: { label: 'Low', color: '#22C55E' },
 };
 
-export function ChatPanel({ title, messages, onSendMessage, showAISummary = true, onMergePR, onReviewPR, onViewIssue, onOpenThread, isRepository = false }: ChatPanelProps) {
+export function ChatPanel({ channelId = "general", title, messages, reactions, replyCounts = {}, onSendMessage, onSharePR, showAISummary = true, onMergePR, onReviewPR, onViewIssue, onOpenThread, onToggleReaction, isRepository = false }: ChatPanelProps) {
   const [message, setMessage] = useState('');
+  const [codeBlockText, setCodeBlockText] = useState('');
   const [showCodeBlock, setShowCodeBlock] = useState(false);
   const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'completed'>('all');
   const [hoveredMessageId, setHoveredMessageId] = useState<number | null>(null);
+  const [bookmarkedMessageIds, setBookmarkedMessageIds] = useState<Record<number, boolean>>({});
+  const [openMessageMenuId, setOpenMessageMenuId] = useState<number | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
   const [selectedPRForShare, setSelectedPRForShare] = useState<any>(null);
   const [shareMessage, setShareMessage] = useState('');
@@ -111,7 +119,8 @@ export function ChatPanel({ title, messages, onSendMessage, showAISummary = true
   const [linkUrl, setLinkUrl] = useState("");
   const [linkTitle, setLinkTitle] = useState("");
   const [responderTyping, setResponderTyping] = useState(false);
-  const [messageReactions, setMessageReactions] = useState<Record<number, MessageReaction[]>>({});
+  const [localMessageReactions, setLocalMessageReactions] = useState<Record<string, MessageReaction[]>>({});
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const responderTypingTimerRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
@@ -137,14 +146,20 @@ export function ChatPanel({ title, messages, onSendMessage, showAISummary = true
 
   const handleSend = () => {
     const trimmedMessage = message.trim();
+    const trimmedCodeBlock = codeBlockText.trim();
     const detectedLinkAttachment = createLinkMessageAttachmentFromText(trimmedMessage);
     const outgoingAttachments = detectedLinkAttachment && !selectedAttachments.some((attachment) => attachment.url === detectedLinkAttachment.url)
       ? [...selectedAttachments, detectedLinkAttachment]
       : selectedAttachments;
+    const outgoingMessage = trimmedCodeBlock
+      ? `${trimmedMessage}${trimmedMessage ? "\n\n" : ""}\`\`\`\n${trimmedCodeBlock}\n\`\`\``
+      : trimmedMessage;
 
-    if ((trimmedMessage || outgoingAttachments.length > 0) && onSendMessage) {
-      onSendMessage(trimmedMessage, outgoingAttachments);
+    if ((outgoingMessage || outgoingAttachments.length > 0) && onSendMessage) {
+      onSendMessage(outgoingMessage, outgoingAttachments);
       setMessage('');
+      setCodeBlockText('');
+      setShowCodeBlock(false);
       setSelectedAttachments([]);
       setAttachmentPickerOpen(false);
       setEmojiPickerOpen(false);
@@ -182,9 +197,7 @@ export function ChatPanel({ title, messages, onSendMessage, showAISummary = true
   const handleShareSubmit = () => {
     if (!selectedPRForShare || !shareMessage.trim() || selectedChannels.length === 0) return;
 
-    console.log('Sharing PR:', selectedPRForShare.prNumber);
-    console.log('To channels:', selectedChannels);
-    console.log('Message:', shareMessage);
+    onSharePR?.(selectedPRForShare, shareMessage, selectedChannels);
 
     setShowShareModal(false);
     setSelectedPRForShare(null);
@@ -205,7 +218,7 @@ export function ChatPanel({ title, messages, onSendMessage, showAISummary = true
     ? createLinkMessageAttachment(linkUrl, linkTitle)
     : null;
 
-  const canSend = message.trim().length > 0 || selectedAttachments.length > 0;
+  const canSend = message.trim().length > 0 || codeBlockText.trim().length > 0 || selectedAttachments.length > 0;
   const composerTyping = message.trim().length > 0;
   const typingLabel = responderTyping
     ? "CodeDock AI가 답변을 정리 중입니다"
@@ -256,10 +269,38 @@ export function ChatPanel({ title, messages, onSendMessage, showAISummary = true
     setEmojiPickerOpen(false);
   };
 
-  const handleReactionToggle = (messageId: number, emoji: string) => {
-    setMessageReactions((prev) => ({
+  const handleMentionClick = (user?: string) => {
+    const mention = user ? `@${user} ` : "@";
+    setMessage((prev) => `${prev}${prev && !prev.endsWith(" ") ? " " : ""}${mention}`);
+  };
+
+  const handleBookmarkToggle = (messageId: number) => {
+    setBookmarkedMessageIds((prev) => ({
       ...prev,
-      [messageId]: toggleMessageReaction(prev[messageId], emoji)
+      [messageId]: !prev[messageId]
+    }));
+  };
+
+  const handleShareMessage = (msg: Message) => {
+    setMessage((prev) => {
+      const sharedText = msg.text || msg.prTitle || msg.issueTitle || msg.code || "";
+      return `${prev}${prev ? "\n" : ""}> ${sharedText}`;
+    });
+  };
+
+  const getMessageReactionKey = (messageId: number) => `chat:${channelId}:message:${messageId}`;
+
+  const handleReactionToggle = (messageId: number, emoji: string) => {
+    const reactionKey = getMessageReactionKey(messageId);
+
+    if (onToggleReaction) {
+      onToggleReaction(reactionKey, emoji);
+      return;
+    }
+
+    setLocalMessageReactions((prev) => ({
+      ...prev,
+      [reactionKey]: toggleMessageReaction(prev[reactionKey], emoji)
     }));
   };
 
@@ -269,6 +310,17 @@ export function ChatPanel({ title, messages, onSendMessage, showAISummary = true
     if (activeTab === 'completed') return msg.type === 'pr' && msg.prStatus === 'merged';
     return true;
   }) : messages;
+  const reactionMap = reactions ?? localMessageReactions;
+
+  useEffect(() => {
+    const scrollContainer = scrollContainerRef.current;
+    if (!scrollContainer) return;
+
+    scrollContainer.scrollTo({
+      top: scrollContainer.scrollHeight,
+      behavior: "smooth"
+    });
+  }, [filteredMessages.length, responderTyping]);
 
   return (
     <div className="flex flex-col h-full min-h-0 relative overflow-hidden">
@@ -328,7 +380,7 @@ export function ChatPanel({ title, messages, onSendMessage, showAISummary = true
         </div>
       )}
 
-      <div className="min-h-0 flex-1 px-6 py-4 overflow-y-auto">
+      <div ref={scrollContainerRef} className="min-h-0 flex-1 px-6 py-4 overflow-y-auto">
         <div className="grid gap-4">
           {filteredMessages.map((msg) => (
             <div
@@ -591,9 +643,14 @@ export function ChatPanel({ title, messages, onSendMessage, showAISummary = true
                       >
                         <MessageSquare size={14} />
                       </button>
-                      <button className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all hover:bg-[rgba(32,227,255,0.15)]" style={{
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleBookmarkToggle(msg.id);
+                        }}
+                        className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all hover:bg-[rgba(32,227,255,0.15)]" style={{
                         background: 'transparent',
-                        color: 'var(--muted)',
+                        color: bookmarkedMessageIds[msg.id] ? 'var(--neon-cyan)' : 'var(--muted)',
                         cursor: 'pointer'
                       }} title="북마크">
                         <Bookmark size={14} />
@@ -613,13 +670,37 @@ export function ChatPanel({ title, messages, onSendMessage, showAISummary = true
                       >
                         <Share2 size={14} />
                       </button>
-                      <button className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all hover:bg-[rgba(32,227,255,0.15)]" style={{
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenMessageMenuId((currentId) => currentId === msg.id ? null : msg.id);
+                        }}
+                        className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all hover:bg-[rgba(32,227,255,0.15)]" style={{
                         background: 'transparent',
-                        color: 'var(--muted)',
+                        color: openMessageMenuId === msg.id ? 'var(--neon-cyan)' : 'var(--muted)',
                         cursor: 'pointer'
                       }} title="더보기">
                         <MoreVertical size={14} />
                       </button>
+                      {openMessageMenuId === msg.id && (
+                        <div className="absolute right-2 top-10 z-20 grid gap-1 rounded-lg p-2" style={{
+                          background: 'rgba(5, 11, 20, 0.96)',
+                          border: '1px solid rgba(32, 227, 255, 0.24)'
+                        }}>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleMentionClick(msg.user);
+                              setOpenMessageMenuId(null);
+                            }}
+                            className="rounded-md border-0 px-3 py-2 text-left tracking-tight"
+                            style={{ background: 'transparent', color: 'var(--white)', cursor: 'pointer', fontSize: '12px', fontWeight: 850 }}
+                          >
+                            Mention
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -785,13 +866,23 @@ export function ChatPanel({ title, messages, onSendMessage, showAISummary = true
                       >
                         <MessageSquare size={14} />
                       </button>
-                      <button className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all hover:bg-[rgba(32,227,255,0.15)]" style={{
-                        background: 'transparent', color: 'var(--muted)', cursor: 'pointer'
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleBookmarkToggle(msg.id);
+                        }}
+                        className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all hover:bg-[rgba(32,227,255,0.15)]" style={{
+                        background: 'transparent', color: bookmarkedMessageIds[msg.id] ? 'var(--neon-cyan)' : 'var(--muted)', cursor: 'pointer'
                       }} title="북마크">
                         <Bookmark size={14} />
                       </button>
-                      <button className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all hover:bg-[rgba(32,227,255,0.15)]" style={{
-                        background: 'transparent', color: 'var(--muted)', cursor: 'pointer'
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenMessageMenuId((currentId) => currentId === msg.id ? null : msg.id);
+                        }}
+                        className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all hover:bg-[rgba(32,227,255,0.15)]" style={{
+                        background: 'transparent', color: openMessageMenuId === msg.id ? 'var(--neon-cyan)' : 'var(--muted)', cursor: 'pointer'
                       }} title="더보기">
                         <MoreVertical size={14} />
                       </button>
@@ -842,23 +933,38 @@ export function ChatPanel({ title, messages, onSendMessage, showAISummary = true
                       >
                         <MessageSquare size={14} />
                       </button>
-                      <button className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all" style={{
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleBookmarkToggle(msg.id);
+                        }}
+                        className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all" style={{
                         background: 'transparent',
-                        color: 'var(--muted)',
+                        color: bookmarkedMessageIds[msg.id] ? 'var(--neon-cyan)' : 'var(--muted)',
                         cursor: 'pointer'
                       }} title="북마크">
                         <Bookmark size={14} />
                       </button>
-                      <button className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all" style={{
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleShareMessage(msg);
+                        }}
+                        className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all" style={{
                         background: 'transparent',
                         color: 'var(--muted)',
                         cursor: 'pointer'
                       }} title="공유">
                         <Share2 size={14} />
                       </button>
-                      <button className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all" style={{
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenMessageMenuId((currentId) => currentId === msg.id ? null : msg.id);
+                        }}
+                        className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all" style={{
                         background: 'transparent',
-                        color: 'var(--muted)',
+                        color: openMessageMenuId === msg.id ? 'var(--neon-cyan)' : 'var(--muted)',
                         cursor: 'pointer'
                       }} title="더보기">
                         <MoreVertical size={14} />
@@ -921,23 +1027,38 @@ export function ChatPanel({ title, messages, onSendMessage, showAISummary = true
                       >
                         <MessageSquare size={14} />
                       </button>
-                      <button className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all" style={{
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleBookmarkToggle(msg.id);
+                        }}
+                        className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all" style={{
                         background: 'transparent',
-                        color: 'var(--muted)',
+                        color: bookmarkedMessageIds[msg.id] ? 'var(--neon-cyan)' : 'var(--muted)',
                         cursor: 'pointer'
                       }} title="북마크">
                         <Bookmark size={14} />
                       </button>
-                      <button className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all" style={{
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleShareMessage(msg);
+                        }}
+                        className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all" style={{
                         background: 'transparent',
                         color: 'var(--muted)',
                         cursor: 'pointer'
                       }} title="공유">
                         <Share2 size={14} />
                       </button>
-                      <button className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all" style={{
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenMessageMenuId((currentId) => currentId === msg.id ? null : msg.id);
+                        }}
+                        className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all" style={{
                         background: 'transparent',
-                        color: 'var(--muted)',
+                        color: openMessageMenuId === msg.id ? 'var(--neon-cyan)' : 'var(--muted)',
                         cursor: 'pointer'
                       }} title="더보기">
                         <MoreVertical size={14} />
@@ -947,9 +1068,27 @@ export function ChatPanel({ title, messages, onSendMessage, showAISummary = true
                 </div>
               )}
               <MessageReactions
-                reactions={messageReactions[msg.id]}
+                reactions={reactionMap[getMessageReactionKey(msg.id)]}
                 onToggle={(emoji) => handleReactionToggle(msg.id, emoji)}
               />
+              {((replyCounts[msg.id] ?? (msg as any).replies ?? 0) > 0) && (
+                <button
+                  type="button"
+                  onClick={() => onOpenThread?.(msg)}
+                  className="mt-1 inline-flex w-fit items-center gap-1.5 rounded-full border-0 px-3 py-1.5 tracking-tight"
+                  style={{
+                    background: 'rgba(32, 227, 255, 0.08)',
+                    border: '1px solid rgba(32, 227, 255, 0.18)',
+                    color: 'var(--neon-cyan)',
+                    cursor: 'pointer',
+                    fontSize: '11px',
+                    fontWeight: 900
+                  }}
+                >
+                  <MessageSquare size={13} />
+                  답글 {replyCounts[msg.id] ?? (msg as any).replies ?? 0}개
+                </button>
+              )}
             </div>
           ))}
           {typingLabel && (
@@ -981,6 +1120,8 @@ export function ChatPanel({ title, messages, onSendMessage, showAISummary = true
             </p>
             <textarea
               placeholder="코드를 입력하세요..."
+              value={codeBlockText}
+              onChange={(event) => setCodeBlockText(event.target.value)}
               className="w-full px-3 py-2 rounded-lg border-0 font-mono tracking-tight resize-none"
               rows={4}
               style={{
@@ -1306,6 +1447,7 @@ export function ChatPanel({ title, messages, onSendMessage, showAISummary = true
               <Link2 size={18} />
             </button>
             <button
+              onClick={() => handleMentionClick()}
               className="w-9 h-9 rounded-lg border-0 flex items-center justify-center"
               style={{
                 background: 'rgba(5, 11, 20, 0.6)',
