@@ -348,36 +348,108 @@ const initialMessages: Record<string, any[]> = {
   ],
 };
 
-const initialThreadReplies: Record<number, any[]> = {
+// 메시지 타입별 threadReplies 키 생성 (PR/이슈/일반 채팅 충돌 방지)
+function getThreadKey(msg: any): string | number {
+  if (msg?.type === 'pr') return `pr-${msg.id}`;
+  if (msg?.type === 'issue') return `issue-${msg.id}`;
+  return msg?.id;
+}
+
+const initialThreadReplies: Record<number | string, any[]> = {
+  // ── PR 스레드 (pr-{id} 키) ──────────────────────────────────────
+  // PR #104 — AI 인터뷰 리팩터 (diff seed 포함)
+  'pr-1': [
+    {
+      id: 'seed-security-22',
+      user: '김진필',
+      author: '김진필',
+      text: 'CSRF 비활성화 이유를 주석으로 남기면 좋을 것 같습니다.',
+      time: '10:45',
+      fileId: 'security',
+      fileName: 'SecurityConfig.java',
+      filePath: 'src/main/java/com/codedock/config',
+      line: 22,
+      code: 'public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {'
+    },
+    {
+      id: 'seed-security-23',
+      user: '김준우',
+      author: '김준우',
+      text: '동의합니다. JWT stateless 구조라면 문서화하면 좋겠어요.',
+      time: '10:47',
+      fileId: 'security',
+      fileName: 'SecurityConfig.java',
+      filePath: 'src/main/java/com/codedock/config',
+      line: 23,
+      code: 'http.csrf(csrf -> csrf.disable());'
+    },
+    { id: 'pr1-1', user: '김재준', text: '전체적으로 리팩터 방향 좋습니다. 부분 수정 유지 정책 쪽만 한번 더 확인 부탁드려요.', time: '오전 11:30' },
+    { id: 'pr1-2', user: '김진필', text: '네, 해당 부분 테스트 케이스 추가해서 다시 올리겠습니다.', time: '오전 11:35' },
+  ],
+  // PR #141 — WebSocket 메모리 누수 수정
+  'pr-2': [
+    { id: 'pr2-1', user: '김진필', text: '메모리 누수 재현 확인했습니다. 연결 해제 시 cleanup 로직이 빠져 있었네요.', time: '오전 09:32' },
+    { id: 'pr2-2', user: '안현', text: 'WeakReference 처리도 같이 넣어주면 좋을 것 같아요.', time: '오전 09:40' },
+    { id: 'pr2-3', user: '김재준', text: '리뷰 완료했습니다. LGTM!', time: '오전 09:48' },
+  ],
+  // PR #140 — API 문서 업데이트 (merged)
+  'pr-3': [
+    { id: 'pr3-1', user: '김진현', text: 'Swagger 명세서 v2 기준으로 전부 업데이트했습니다. 확인 부탁드려요.', time: '오전 10:32' },
+    { id: 'pr3-2', user: '안현', text: '엔드포인트 설명 번역 깔끔하게 됐네요!', time: '오전 10:37' },
+    { id: 'pr3-3', user: '김재준', text: '확인했습니다. 바로 merge 하겠습니다.', time: '오전 10:42' },
+  ],
+  // ── 이슈 스레드 (issue-{id} 키) ─────────────────────────────────
+  // Issue #45 — 로그인 반응형 깨짐
+  'issue-1': [
+    { id: 'iss1-1', user: '김진현', text: '재현 확인했습니다. flex-wrap 설정이 누락된 것 같아요.', time: '오늘 10:30' },
+    { id: 'iss1-2', user: '안현', text: '모바일 375px 기준으로 수정 진행 중입니다.', time: '오늘 11:00' },
+    { id: 'iss1-3', user: '김진필', text: 'iPhone SE에서도 재현됩니다. PR 올리면 바로 리뷰할게요.', time: '오늘 11:10' },
+  ],
+  // Issue #46 — API 응답 시간
+  'issue-2': [
+    { id: 'iss2-1', user: '김재준', text: 'N+1 쿼리 문제인 것 같습니다. 인덱스 추가해보겠습니다.', time: '오늘 10:35' },
+    { id: 'iss2-2', user: '김진필', text: '캐싱 레이어도 고려해볼 만 합니다. Redis 적용 어떤가요?', time: '오늘 10:50' },
+  ],
+  // Issue #47 — 다크모드 색상
+  'issue-3': [
+    { id: 'iss3-1', user: '김진현', text: 'CSS 변수 적용 범위 문제입니다. 설정 페이지 카드만 따로 처리하면 될 것 같아요.', time: '오늘 11:05' },
+  ],
+  // ── 일반 채팅 스레드 (숫자 키, ChannelPanel GENERAL_THREADS 기준) ──
+  // GENERAL id:1 — 이번 주 스프린트 계획
   1: [
-    { id: 101, user: '김진필', text: '이번 주는 인증 기능 개선에 집중할 예정입니다.', time: '10:25 AM' },
-    { id: 102, user: '김진현', text: 'UI 개선 작업도 같이 진행하면 좋을 것 같아요.', time: '10:30 AM' },
-    { id: 103, user: '안현', text: '네, 확인했습니다! 금요일까지 완료 가능할 것 같습니다.', time: '10:35 AM' }
+    { id: 'g1-1', user: '김진필', text: '이번 주는 인증 기능 개선에 집중할 예정입니다.', time: '10:25 AM' },
+    { id: 'g1-2', user: '김진현', text: 'UI 개선 작업도 같이 진행하면 좋을 것 같아요.', time: '10:30 AM' },
+    { id: 'g1-3', user: '안현', text: '네, 확인했습니다! 금요일까지 완료 가능할 것 같습니다.', time: '10:35 AM' }
   ],
+  // GENERAL id:2 — 새로운 API 엔드포인트
   2: [
-    { id: 201, user: '김재준', text: '좋습니다! 문서도 업데이트 부탁드려요.', time: '11:50 AM' },
-    { id: 202, user: '안현', text: 'Swagger 문서 자동 생성되도록 설정했습니다.', time: '12:00 PM' },
-    { id: 203, user: '김진필', text: '테스트 케이스도 추가했어요.', time: '12:15 PM' },
-    { id: 204, user: '김진현', text: '프론트엔드 연동 테스트 완료했습니다.', time: '12:30 PM' },
-    { id: 205, user: '김재준', text: '수고하셨습니다!', time: '12:45 PM' }
+    { id: 'g2-1', user: '김재준', text: '좋습니다! 문서도 업데이트 부탁드려요.', time: '11:50 AM' },
+    { id: 'g2-2', user: '안현', text: 'Swagger 문서 자동 생성되도록 설정했습니다.', time: '12:00 PM' },
+    { id: 'g2-3', user: '김진필', text: '테스트 케이스도 추가했어요.', time: '12:15 PM' },
+    { id: 'g2-4', user: '김진현', text: '프론트엔드 연동 테스트 완료했습니다.', time: '12:30 PM' },
+    { id: 'g2-5', user: '김재준', text: '수고하셨습니다!', time: '12:45 PM' }
   ],
-  3: [
-    { id: 301, user: '김진필', text: 'shadcn/ui 추천드립니다.', time: '2:20 PM' },
-    { id: 302, user: '안현', text: 'MUI도 고려해볼만 한 것 같아요.', time: '2:25 PM' },
-    { id: 303, user: '김재준', text: '프로젝트 요구사항에 맞춰 선택하면 좋겠네요.', time: '2:30 PM' },
-    { id: 304, user: '김진현', text: '디자인 토큰 호환성도 확인해보겠습니다.', time: '2:35 PM' },
-    { id: 305, user: '김진필', text: 'Tailwind CSS와의 통합도 고려하면 좋을 것 같습니다.', time: '2:40 PM' },
-    { id: 306, user: '안현', text: '다음 주 회의에서 결정하죠.', time: '2:45 PM' },
-    { id: 307, user: '김재준', text: 'POC 자료 준비 부탁드립니다.', time: '2:50 PM' },
-    { id: 308, user: '김진현', text: '네, 준비하겠습니다!', time: '2:55 PM' }
+  // ── 레포 채널 스레드 (ChannelPanel REPO_THREADS 기준) ──────────────
+  // SECUREFLOW id:101 — 로그인 애니메이션
+  101: [
+    { id: 'sf101-1', user: '안현', text: '확인했습니다! 전환 속도가 훨씬 자연스러워졌어요.', time: '오늘 10:44' },
+    { id: 'sf101-2', user: '김재준', text: '모바일에서도 테스트해봤는데 괜찮네요.', time: '오늘 10:50' },
   ],
-  4: [
-    { id: 401, user: '김진현', text: '색상 조합이 정말 좋네요!', time: '3:35 PM' },
-    { id: 402, user: '김재준', text: '고생하셨습니다!', time: '3:40 PM' }
+  // SECUREFLOW id:102 — 크게 보기 헤더
+  102: [],
+  // AICHAT id:201 — API 명세 추가
+  201: [
+    { id: 'ai201-1', user: 'CodeDock', text: '리포지토리 연동 해제 정책도 함께 추가해두면 좋을 것 같습니다.', time: '오늘 09:57' },
   ],
-  5: [
-    { id: 501, user: '김재준', text: '인덱스 추가는 검토하셨나요?', time: '4:10 PM' }
-  ]
+  // AICHAT id:202 — 연동 해제 정책
+  202: [],
+  // DASHBOARD id:301 — 디자인 토큰
+  301: [
+    { id: 'db301-1', user: '김진현', text: '색상 조합이 정말 좋네요! 특히 primary 계열이 깔끔합니다.', time: '오늘 14:22' },
+    { id: 'db301-2', user: '김재준', text: '고생하셨습니다! 다음 스프린트에 반영하겠습니다.', time: '오늘 14:28' },
+  ],
+  // DASHBOARD id:302 — UI 라이브러리 마이그레이션
+  302: [],
 };
 
 export function ChatPage() {
@@ -396,7 +468,7 @@ export function ChatPage() {
   const [selectedPR, setSelectedPR] = useState<any>(null);
   const [selectedIssue, setSelectedIssue] = useState<any>(null);
   const [selectedThread, setSelectedThread] = useState<any>(null);
-  const [threadReplies, setThreadReplies] = useState<Record<number, any[]>>(initialThreadReplies);
+  const [threadReplies, setThreadReplies] = useState<Record<number | string, any[]>>(initialThreadReplies);
   const [isMainExpanded, setIsMainExpanded] = useState(false);
   const [teamInviteOpen, setTeamInviteOpen] = useState(false);
   const [expandedSidebarGroups, setExpandedSidebarGroups] = useState<Record<SidebarGroupId, boolean>>({
@@ -877,6 +949,7 @@ export function ChatPage() {
 
   const handleSendReply = (text: string) => {
     if (selectedThread) {
+      const key = getThreadKey(selectedThread);
       const newReply = {
         id: Date.now(),
         user: '나',
@@ -886,9 +959,27 @@ export function ChatPage() {
 
       setThreadReplies(prev => ({
         ...prev,
-        [selectedThread.id]: [...(prev[selectedThread.id] || []), newReply]
+        [key]: [...(prev[key] || []), newReply]
       }));
     }
+  };
+
+  const handleAddPrThreadReply = (msg: any) => {
+    if (!selectedPR) return;
+    const key = `pr-${selectedPR.id}`;
+    setThreadReplies(prev => ({
+      ...prev,
+      [key]: [...(prev[key] || []), msg]
+    }));
+  };
+
+  const handleAddIssueThreadReply = (msg: any) => {
+    if (!selectedIssue) return;
+    const key = `issue-${selectedIssue.id}`;
+    setThreadReplies(prev => ({
+      ...prev,
+      [key]: [...(prev[key] || []), msg]
+    }));
   };
 
   return (
@@ -1669,6 +1760,8 @@ export function ChatPage() {
               prData={selectedPR}
               onClose={handleClosePRReview}
               onMergePR={handleMergePR}
+              externalThreadMessages={threadReplies[`pr-${selectedPR.id}`] ?? []}
+              onAddThreadMessage={handleAddPrThreadReply}
             />
           </section>
         )}
@@ -1678,6 +1771,8 @@ export function ChatPage() {
             <IssuePanel
               issueData={selectedIssue}
               onClose={handleCloseIssue}
+              externalThreadMessages={threadReplies[`issue-${selectedIssue.id}`] ?? []}
+              onAddThreadMessage={handleAddIssueThreadReply}
             />
           </section>
         )}
@@ -1686,7 +1781,7 @@ export function ChatPage() {
           <section className="min-h-0 rounded-[30px] overflow-hidden">
             <ThreadPanel
               originalMessage={selectedThread}
-              replies={threadReplies[selectedThread.id] || []}
+              replies={threadReplies[getThreadKey(selectedThread)] || []}
               onClose={handleCloseThread}
               onSendReply={handleSendReply}
             />
