@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useLayoutEffect } from "react";
 import { useNavigate } from "react-router";
-import { AlertCircle, ArrowRight, Check, Plus, Users, X } from "lucide-react";
+import { AlertCircle, ArrowRight, Check, GitFork, Plus, Users, X } from "lucide-react";
 import { DndProvider, useDrag, useDrop, useDragLayer } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 
@@ -13,6 +13,7 @@ type Org = {
   highRisk: number;
   activeIssues: number;
   memberCount: number;
+  repoCount: number;
   myRole: string;
 };
 
@@ -24,6 +25,9 @@ type Invite = {
   time: string;
   memberCount: number;
   repoCount: number;
+  openPRs: number;
+  highRisk: number;
+  activeIssues: number;
   expiresInDays: number;
   expiresTime: string;
 };
@@ -49,11 +53,14 @@ function AutoScrollContainer({ children, itemCount }: { children: React.ReactNod
   const prevIsDraggingRef = useRef(false);
 
   useLayoutEffect(() => {
-    if (!ref.current) return;
+    if (!ref.current || lockedHeight !== null) return;
     if (itemCount > 0 && itemCount <= 3) {
       setLockedHeight(ref.current.scrollHeight);
+    } else if (itemCount >= 4) {
+      const perItem = ref.current.scrollHeight / itemCount;
+      setLockedHeight(Math.round(perItem * 3));
     }
-  }, [itemCount]);
+  }, [itemCount, lockedHeight]);
 
   useLayoutEffect(() => {
     if (!ref.current) return;
@@ -114,7 +121,7 @@ function AutoScrollContainer({ children, itemCount }: { children: React.ReactNod
       ref={ref}
       className="grid gap-4 overflow-y-auto"
       style={{
-        maxHeight: itemCount >= 4 && lockedHeight ? `${lockedHeight}px` : "none",
+        maxHeight: lockedHeight !== null ? `${lockedHeight}px` : "none",
         padding: "8px",
         margin: "-8px",
         scrollbarWidth: "none",
@@ -234,6 +241,13 @@ function DraggableTeamCard({
             >
               <Users size={13} />
               <span style={{ color: "var(--white)" }}>{org.memberCount}</span>
+            </span>
+            <span
+              className="flex items-center gap-1 tracking-tight"
+              style={{ fontSize: "14px", fontWeight: 800, color: "var(--muted)" }}
+            >
+              <GitFork size={13} />
+              <span style={{ color: "var(--white)" }}>{org.repoCount}</span>
             </span>
           </div>
         </div>
@@ -688,14 +702,14 @@ export function WorkspacePage() {
   const teamSectionRef = useRef<HTMLDivElement>(null);
 
   const [orgs, setOrgs] = useState<Org[]>([
-    { id: 1, name: "SecureFlow Workspace", openPRs: 7, highRisk: 2, activeIssues: 12, memberCount: 5, myRole: "소유자" },
-    { id: 2, name: "AI Chat Platform", openPRs: 3, highRisk: 0, activeIssues: 8, memberCount: 8, myRole: "편집 가능" },
-    { id: 3, name: "Dashboard UI Kit", openPRs: 5, highRisk: 1, activeIssues: 6, memberCount: 3, myRole: "보기 가능" },
+    { id: 1, name: "SecureFlow Workspace", openPRs: 7, highRisk: 2, activeIssues: 12, memberCount: 5, repoCount: 3, myRole: "소유자" },
+    { id: 2, name: "AI Chat Platform", openPRs: 3, highRisk: 0, activeIssues: 8, memberCount: 8, repoCount: 2, myRole: "편집 가능" },
+    { id: 3, name: "Dashboard UI Kit", openPRs: 5, highRisk: 1, activeIssues: 6, memberCount: 3, repoCount: 1, myRole: "보기 가능" },
   ]);
 
   const [invites, setInvites] = useState<Invite[]>([
-    { id: 1, teamName: "Backend Infra Team", inviterName: "김재준", role: "편집 가능", time: "3일 전", memberCount: 8, repoCount: 4, expiresInDays: 1, expiresTime: "23시 59분" },
-    { id: 2, teamName: "Design System Squad", inviterName: "안현", role: "보기 가능", time: "1주 전", memberCount: 3, repoCount: 2, expiresInDays: 6, expiresTime: "09시 00분" },
+    { id: 1, teamName: "Backend Infra Team", inviterName: "김재준", role: "편집 가능", time: "3일 전", memberCount: 8, repoCount: 4, openPRs: 5, highRisk: 1, activeIssues: 9, expiresInDays: 1, expiresTime: "23시 59분" },
+    { id: 2, teamName: "Design System Squad", inviterName: "안현", role: "보기 가능", time: "1주 전", memberCount: 3, repoCount: 2, openPRs: 2, highRisk: 0, activeIssues: 4, expiresInDays: 6, expiresTime: "09시 00분" },
   ]);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -710,10 +724,10 @@ export function WorkspacePage() {
     });
   }, []);
 
-  const handleCreateTeam = (name: string, _repoIds: number[]) => {
+  const handleCreateTeam = (name: string, repoIds: number[]) => {
     setOrgs((prev) => [
       ...prev,
-      { id: Date.now(), name, openPRs: 0, highRisk: 0, activeIssues: 0, memberCount: 1, myRole: "소유자" },
+      { id: Date.now(), name, openPRs: 0, highRisk: 0, activeIssues: 0, memberCount: 1, repoCount: repoIds.length, myRole: "소유자" },
     ]);
   };
 
@@ -721,7 +735,7 @@ export function WorkspacePage() {
     setInvites((prev) => prev.filter((i) => i.id !== invite.id));
     setOrgs((prev) => [
       ...prev,
-      { id: Date.now(), name: invite.teamName, openPRs: 0, highRisk: 0, activeIssues: 0, memberCount: 1, myRole: invite.role },
+      { id: Date.now(), name: invite.teamName, openPRs: invite.openPRs, highRisk: invite.highRisk, activeIssues: invite.activeIssues, memberCount: invite.memberCount, repoCount: invite.repoCount, myRole: invite.role },
     ]);
   };
 
