@@ -720,8 +720,14 @@
 /* marker path 기본 색상은 위쪽의 까마귀발 규칙에서 더 구체적으로 처리됨 */
 
 .codedock-scrollbar-hidden {
+  overscroll-behavior: contain;
   scrollbar-width: none;
   -ms-overflow-style: none;
+}
+
+.overflow-y-auto,
+.overflow-auto {
+  overscroll-behavior: contain;
 }
 
 .codedock-scrollbar-hidden::-webkit-scrollbar {

@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { AlertCircle, ArrowRight, Plus, Users } from "lucide-react";
 import { DndProvider, useDrag, useDrop } from "react-dnd";
@@ -152,6 +152,23 @@ export function WorkspacePage() {
     });
   }, []);
 
+  useEffect(() => {
+    const workspaceBlock = teamSectionRef.current;
+    if (!workspaceBlock) return;
+
+    const preventWorkspaceScroll = (event: WheelEvent | TouchEvent) => {
+      event.preventDefault();
+    };
+
+    workspaceBlock.addEventListener("wheel", preventWorkspaceScroll, { passive: false });
+    workspaceBlock.addEventListener("touchmove", preventWorkspaceScroll, { passive: false });
+
+    return () => {
+      workspaceBlock.removeEventListener("wheel", preventWorkspaceScroll);
+      workspaceBlock.removeEventListener("touchmove", preventWorkspaceScroll);
+    };
+  }, []);
+
   const recentActivity = [
     { type: "pr", user: "김진필", action: "PR 열림", target: "#234: 인증 미들웨어 추가", time: "10분 전", risk: "high" },
     { type: "comment", user: "김준우", action: "댓글 작성", target: "PR #233", time: "25분 전", risk: "low" },
@@ -245,6 +262,7 @@ export function WorkspacePage() {
             border: "1px solid rgba(32, 227, 255, 0.16)",
             boxShadow: "0 20px 60px rgba(0, 0, 0, 0.32)",
             backdropFilter: "blur(16px)",
+            overscrollBehavior: "contain",
           }}
         >
           <div className="flex items-center justify-between mb-6">
