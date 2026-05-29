@@ -180,12 +180,12 @@ export function LoginPage() {
   const demoCount = loginTabDemos.length;
 
   useEffect(() => {
-    const demoTimer = window.setInterval(() => {
+    const demoTimer = window.setTimeout(() => {
       setActiveDemoIndex((index) => (index + 1) % demoCount);
     }, 2600);
 
-    return () => window.clearInterval(demoTimer);
-  }, [demoCount]);
+    return () => window.clearTimeout(demoTimer);
+  }, [demoCount, activeDemoIndex]);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -388,6 +388,7 @@ export function LoginPage() {
                         style={{
                           background: `linear-gradient(135deg, ${activeDemo.tone}14, rgba(234, 247, 255, 0.04))`,
                           border: `1px solid ${activeDemo.tone}38`,
+                          minHeight: "300px",
                         }}
                         initial={{ opacity: 0, y: 10, scale: 0.98 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -504,11 +505,20 @@ export function LoginPage() {
                         )}
 
                         {activeDemoIndex === 3 && (
-                          <div className="relative min-h-[168px]">
+                          <div className="relative" style={{ height: "170px" }}>
+                            <svg
+                              style={{ position: "absolute", inset: 0, width: "100%", height: "100%", overflow: "visible" }}
+                              viewBox="0 0 100 100"
+                              preserveAspectRatio="none"
+                            >
+                              <line x1="15" y1="40" x2="71" y2="40" stroke={`${activeDemo.tone}88`} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+                              <line x1="15" y1="40" x2="46" y2="70" stroke={`${activeDemo.tone}66`} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+                              <line x1="71" y1="40" x2="46" y2="70" stroke={`${activeDemo.tone}66`} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+                            </svg>
                             {[
-                              { label: "users", left: "2%", top: "10%" },
-                              { label: "roles", left: "54%", top: "12%" },
-                              { label: "members", left: "26%", top: "58%" },
+                              { label: "users", left: "6%", top: "28%" },
+                              { label: "roles", left: "63%", top: "28%" },
+                              { label: "members", left: "35%", top: "58%" },
                             ].map((node) => (
                               <div
                                 key={node.label}
@@ -516,7 +526,7 @@ export function LoginPage() {
                                 style={{
                                   left: node.left,
                                   top: node.top,
-                                  background: "rgba(5, 11, 20, 0.62)",
+                                  background: "rgb(5, 11, 20)",
                                   border: `1px solid ${activeDemo.tone}55`,
                                   color: "#DFFAFF",
                                   boxShadow: `0 0 18px ${activeDemo.tone}18`,
@@ -525,9 +535,6 @@ export function LoginPage() {
                                 {node.label}
                               </div>
                             ))}
-                            <span className="absolute left-[31%] top-[28%] h-[2px] w-[30%] rotate-6 rounded-full" style={{ background: `${activeDemo.tone}88` }} />
-                            <span className="absolute left-[22%] top-[49%] h-[2px] w-[25%] rotate-[54deg] rounded-full" style={{ background: `${activeDemo.tone}66` }} />
-                            <span className="absolute left-[48%] top-[52%] h-[2px] w-[25%] -rotate-[44deg] rounded-full" style={{ background: `${activeDemo.tone}66` }} />
                           </div>
                         )}
 
