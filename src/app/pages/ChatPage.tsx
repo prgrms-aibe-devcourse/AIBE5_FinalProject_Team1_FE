@@ -1587,7 +1587,7 @@ export function ChatPage() {
             )}
             {selectedChannel === 'overview' ? (
               <OverviewPanel
-                repositories={repositories}
+                repositories={visibleRepositories}
                 selectedRepositoryId={selectedRepository}
                 onSelectRepository={setSelectedRepository}
               />
