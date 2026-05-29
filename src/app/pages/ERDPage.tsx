@@ -162,8 +162,9 @@ const entityCardWidth = 226;
 const entityColumnWidth = 264;
 const entityLeftInset = 24;
 const diagramCanvasWidth = entityLeftInset * 2 + entityColumnWidth * (diagramColumns - 1) + entityCardWidth;
-const minDiagramZoom = 0.06;
+const minDiagramZoom = 0.1;
 const maxDiagramZoom = 1.8;
+const defaultDiagramZoom = 1;
 const diagramZoomStep = 0.1;
 const defaultRepositoryName = "codedock-backend";
 const erdDocumentsStorageKey = "codedock-erd-documents";
@@ -458,7 +459,7 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
   const downloadMenuRef = useRef<HTMLDivElement>(null);
   const hasAutoFitCanvasRef = useRef(false);
   const repositoryKey = repositoryId ?? repositoryName;
-  const [diagramZoom, setDiagramZoom] = useState(0.42);
+  const [diagramZoom, setDiagramZoom] = useState(defaultDiagramZoom);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const [mermaidSvg, setMermaidSvg] = useState("");
   const [mermaidError, setMermaidError] = useState("");
@@ -584,12 +585,22 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
 
     if (!hasAutoFitCanvasRef.current) {
       hasAutoFitCanvasRef.current = true;
-      setDiagramZoom(minCanvasZoom);
+      setDiagramZoom(defaultDiagramZoom);
+
+      const viewport = diagramViewportRef.current;
+      if (viewport) {
+        window.requestAnimationFrame(() => {
+          const insetX = Math.max(0, (viewportSize.width - worldCanvasWidth * defaultDiagramZoom) / 2);
+          const insetY = Math.max(0, (viewportSize.height - worldCanvasHeight * defaultDiagramZoom) / 2);
+          viewport.scrollLeft = (diagramFrameOffsetX + diagramFrameWidth / 2) * defaultDiagramZoom + insetX - viewportSize.width / 2;
+          viewport.scrollTop = (diagramFrameOffsetY + diagramFrameHeight / 2) * defaultDiagramZoom + insetY - viewportSize.height / 2;
+        });
+      }
       return;
     }
 
-    setDiagramZoom((prev) => clampDiagramZoom(prev, minCanvasZoom));
-  }, [minCanvasZoom, viewportSize.width, viewportSize.height]);
+    setDiagramZoom((prev) => clampDiagramZoom(prev, minDiagramZoom));
+  }, [diagramFrameHeight, diagramFrameWidth, viewportSize.width, viewportSize.height, worldCanvasWidth, worldCanvasHeight]);
 
   const updateSelectedErdCode = (nextCode: string) => {
     if (!selectedErdId) return;
@@ -771,7 +782,7 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
   };
 
   const handleZoomChange = (delta: number) => {
-    setDiagramZoom((prev) => clampDiagramZoom(prev + delta, minCanvasZoom));
+    setDiagramZoom((prev) => clampDiagramZoom(prev + delta, minDiagramZoom));
   };
 
   const getCanvasInset = (zoom: number) => ({
@@ -801,7 +812,7 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
       </button>
       <button
         type="button"
-        onClick={() => setDiagramZoom(minCanvasZoom)}
+        onClick={() => setDiagramZoom(defaultDiagramZoom)}
         className="inline-flex h-9 items-center justify-center gap-1 rounded-lg border-0 px-3 font-mono transition-all hover:scale-105"
         style={{
           background: "rgba(32, 227, 255, 0.10)",
@@ -811,8 +822,8 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
           fontSize: "12px",
           fontWeight: 950
         }}
-        aria-label="ERD 캔버스 맞춤"
-        title="캔버스 맞춤 · Ctrl + 휠로 확대/축소"
+        aria-label="ERD 100%로 보기"
+        title="100%로 보기 · Ctrl + 휠로 확대/축소"
       >
         <RotateCcw size={14} />
         {zoomPercent}%
@@ -850,8 +861,9 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
       const delta = event.deltaY < 0 ? diagramZoomStep : -diagramZoomStep;
 
       setDiagramZoom((prev) => {
-        const nextZoom = clampDiagramZoom(prev + delta, minCanvasZoom);
+        const nextZoom = clampDiagramZoom(prev + delta, minDiagramZoom);
         if (nextZoom === prev) return prev;
+        if (prev <= 0) return nextZoom;
         const zoomRatio = nextZoom / prev;
         const currentInset = getCanvasInset(prev);
         const nextInset = getCanvasInset(nextZoom);
@@ -872,7 +884,7 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
     return () => {
       viewport.removeEventListener("wheel", handleDiagramWheel);
     };
-  }, [minCanvasZoom, viewportSize.width, viewportSize.height, worldCanvasWidth, worldCanvasHeight]);
+  }, [viewportSize.width, viewportSize.height, worldCanvasWidth, worldCanvasHeight]);
 
   return (
     <div
