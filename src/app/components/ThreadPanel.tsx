@@ -18,15 +18,20 @@ interface ThreadMessage {
 interface ThreadPanelProps {
   originalMessage: any;
   replies: ThreadMessage[];
+  displayReplyCount?: number;
+  reactionScope?: string;
+  reactions?: Record<string, MessageReaction[]>;
   onClose: () => void;
   onSendReply: (text: string) => void;
+  onToggleReaction?: (reactionKey: string, emoji: string) => void;
 }
 
-export function ThreadPanel({ originalMessage, replies, onClose, onSendReply }: ThreadPanelProps) {
+export function ThreadPanel({ originalMessage, replies, displayReplyCount, reactionScope, reactions, onClose, onSendReply, onToggleReaction }: ThreadPanelProps) {
   const [replyText, setReplyText] = useState('');
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [responderTyping, setResponderTyping] = useState(false);
-  const [messageReactions, setMessageReactions] = useState<Record<string, MessageReaction[]>>({});
+  const [localMessageReactions, setLocalMessageReactions] = useState<Record<string, MessageReaction[]>>({});
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const responderTypingTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -36,6 +41,16 @@ export function ThreadPanel({ originalMessage, replies, onClose, onSendReply }: 
       }
     };
   }, []);
+
+  useEffect(() => {
+    const scrollContainer = scrollContainerRef.current;
+    if (!scrollContainer) return;
+
+    scrollContainer.scrollTo({
+      top: scrollContainer.scrollHeight,
+      behavior: "smooth"
+    });
+  }, [replies.length, responderTyping]);
 
   const triggerResponderTyping = () => {
     if (responderTypingTimerRef.current) {
@@ -82,11 +97,20 @@ export function ThreadPanel({ originalMessage, replies, onClose, onSendReply }: 
   };
 
   const handleReactionToggle = (reactionKey: string, emoji: string) => {
-    setMessageReactions((prev) => ({
+    if (onToggleReaction) {
+      onToggleReaction(reactionKey, emoji);
+      return;
+    }
+
+    setLocalMessageReactions((prev) => ({
       ...prev,
       [reactionKey]: toggleMessageReaction(prev[reactionKey], emoji)
     }));
   };
+
+  const reactionMap = reactions ?? localMessageReactions;
+  const activeReactionScope = reactionScope ?? `thread:${originalMessage.id ?? 0}`;
+  const visibleReplyCount = displayReplyCount ?? Math.max(replies.length, originalMessage.replies ?? 0);
 
   return (
     <div className="h-full flex flex-col" style={{
@@ -119,7 +143,7 @@ export function ThreadPanel({ originalMessage, replies, onClose, onSendReply }: 
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-6 py-4">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-6 py-4">
         <div className="grid gap-4">
           {/* 원본 메시지 */}
           <div className="pb-4" style={{
@@ -154,8 +178,8 @@ export function ThreadPanel({ originalMessage, replies, onClose, onSendReply }: 
               </p>
             </div>
             <MessageReactions
-              reactions={messageReactions[`original-${originalMessage.id ?? 0}`]}
-              onToggle={(emoji) => handleReactionToggle(`original-${originalMessage.id ?? 0}`, emoji)}
+              reactions={reactionMap[`${activeReactionScope}:original`]}
+              onToggle={(emoji) => handleReactionToggle(`${activeReactionScope}:original`, emoji)}
             />
           </div>
 
@@ -169,7 +193,7 @@ export function ThreadPanel({ originalMessage, replies, onClose, onSendReply }: 
               fontWeight: 800,
               color: 'var(--muted)'
             }}>
-              {replies.length}개의 답글
+              {visibleReplyCount}개의 답글
             </span>
             <div className="h-px flex-1" style={{
               background: 'rgba(32, 227, 255, 0.14)'
@@ -256,8 +280,8 @@ export function ThreadPanel({ originalMessage, replies, onClose, onSendReply }: 
                     {reply.text}
                   </p>
                   <MessageReactions
-                    reactions={messageReactions[`reply-${reply.id}`]}
-                    onToggle={(emoji) => handleReactionToggle(`reply-${reply.id}`, emoji)}
+                    reactions={reactionMap[`${activeReactionScope}:reply:${reply.id}`]}
+                    onToggle={(emoji) => handleReactionToggle(`${activeReactionScope}:reply:${reply.id}`, emoji)}
                   />
                 </div>
               </div>

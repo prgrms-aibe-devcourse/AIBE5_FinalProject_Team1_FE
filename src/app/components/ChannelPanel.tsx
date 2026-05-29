@@ -18,11 +18,17 @@ interface Thread {
 }
 
 interface ChannelPanelProps {
+  channelId?: string;
   repoId?: string;
   repoName?: string;
+  reactions?: Record<string, MessageReaction[]>;
+  replyCounts?: Record<number, number>;
   onOpenThread?: (message: any) => void;
   onOpenInvite?: () => void;
+  onToggleReaction?: (reactionKey: string, emoji: string) => void;
 }
+
+const CHANNEL_THREADS_KEY_PREFIX = "codedock-channel-threads-v1";
 
 const GENERAL_THREADS: Thread[] = [
   { id: 1, user: '김재준', avatar: '👨‍💼', message: '이번 주 스프린트 계획 공유드립니다', time: '10:23 AM', replies: 3, lastReply: '안현' },
@@ -54,17 +60,43 @@ const REPO_THREADS: Record<string, Thread[]> = {
   'dashboard-3': DASHBOARD_THREADS,
 };
 
-export function ChannelPanel({ repoId, repoName, onOpenThread, onOpenInvite }: ChannelPanelProps) {
-  const initialThreads = repoId ? (REPO_THREADS[repoId] ?? []) : GENERAL_THREADS;
-  const [threads, setThreads] = useState<Thread[]>(initialThreads);
+function getDefaultThreads(repoId?: string) {
+  return repoId ? (REPO_THREADS[repoId] ?? []) : GENERAL_THREADS;
+}
 
-  // repoId가 바뀌면 스레드 목록 리셋
-  const prevRepoId = useRef(repoId);
-  if (prevRepoId.current !== repoId) {
-    prevRepoId.current = repoId;
-    const next = repoId ? (REPO_THREADS[repoId] ?? []) : GENERAL_THREADS;
-    setThreads(next);
+function getSavedThreads(storageKey: string, fallback: Thread[]) {
+  if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
+    return fallback;
   }
+
+  try {
+    const storedValue = window.localStorage.getItem(storageKey);
+    if (!storedValue) return fallback;
+    const parsed = JSON.parse(storedValue);
+    return Array.isArray(parsed) ? parsed : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function saveThreads(storageKey: string, threads: Thread[]) {
+  if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(storageKey, JSON.stringify(threads));
+  } catch {
+    // Storage can be unavailable in embedded previews; the in-memory state still updates.
+  }
+}
+
+export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCounts = {}, onOpenThread, onOpenInvite, onToggleReaction }: ChannelPanelProps) {
+  const channelStorageId = channelId ?? repoId ?? "general";
+  const channelStorageKey = `${CHANNEL_THREADS_KEY_PREFIX}:${channelStorageId}`;
+  const [threads, setThreads] = useState<Thread[]>(() =>
+    getSavedThreads(channelStorageKey, getDefaultThreads(repoId))
+  );
 
   const channelLabel = repoName ?? '일반';
   const [hoveredMessageId, setHoveredMessageId] = useState<number | null>(null);
@@ -77,7 +109,11 @@ export function ChannelPanel({ repoId, repoName, onOpenThread, onOpenInvite }: C
   const [linkUrl, setLinkUrl] = useState("");
   const [linkTitle, setLinkTitle] = useState("");
   const [responderTyping, setResponderTyping] = useState(false);
-  const [threadReactions, setThreadReactions] = useState<Record<number, MessageReaction[]>>({});
+  const [localThreadReactions, setLocalThreadReactions] = useState<Record<string, MessageReaction[]>>({});
+  const [bookmarkedThreadIds, setBookmarkedThreadIds] = useState<Record<number, boolean>>({});
+  const [openThreadMenuId, setOpenThreadMenuId] = useState<number | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const skipThreadSaveRef = useRef(false);
   const responderTypingTimerRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
@@ -89,6 +125,30 @@ export function ChannelPanel({ repoId, repoName, onOpenThread, onOpenInvite }: C
       }
     };
   }, []);
+
+  useEffect(() => {
+    skipThreadSaveRef.current = true;
+    setThreads(getSavedThreads(channelStorageKey, getDefaultThreads(repoId)));
+  }, [channelStorageKey, repoId]);
+
+  useEffect(() => {
+    if (skipThreadSaveRef.current) {
+      skipThreadSaveRef.current = false;
+      return;
+    }
+
+    saveThreads(channelStorageKey, threads);
+  }, [channelStorageKey, threads]);
+
+  useEffect(() => {
+    const scrollContainer = scrollContainerRef.current;
+    if (!scrollContainer) return;
+
+    scrollContainer.scrollTo({
+      top: scrollContainer.scrollHeight,
+      behavior: "smooth"
+    });
+  }, [threads.length, responderTyping]);
 
   const triggerResponderTyping = () => {
     if (responderTypingTimerRef.current) {
@@ -155,11 +215,31 @@ export function ChannelPanel({ repoId, repoName, onOpenThread, onOpenInvite }: C
     setEmojiPickerOpen(false);
   };
 
+  const getThreadReactionKey = (threadId: number) => `channel:${channelStorageId}:thread:${threadId}`;
+
   const handleReactionToggle = (threadId: number, emoji: string) => {
-    setThreadReactions((prev) => ({
+    const reactionKey = getThreadReactionKey(threadId);
+
+    if (onToggleReaction) {
+      onToggleReaction(reactionKey, emoji);
+      return;
+    }
+
+    setLocalThreadReactions((prev) => ({
       ...prev,
-      [threadId]: toggleMessageReaction(prev[threadId], emoji)
+      [reactionKey]: toggleMessageReaction(prev[reactionKey], emoji)
     }));
+  };
+
+  const handleBookmarkToggle = (threadId: number) => {
+    setBookmarkedThreadIds((prev) => ({
+      ...prev,
+      [threadId]: !prev[threadId]
+    }));
+  };
+
+  const handleShareThread = (thread: Thread) => {
+    setMessageText((prev) => `${prev}${prev ? "\n" : ""}> ${thread.message}`);
   };
 
   const handleSendMessage = () => {
@@ -198,6 +278,8 @@ export function ChannelPanel({ repoId, repoName, onOpenThread, onOpenInvite }: C
     }
   };
 
+  const reactionMap = reactions ?? localThreadReactions;
+
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
       {/* Header */}
@@ -234,9 +316,12 @@ export function ChannelPanel({ repoId, repoName, onOpenThread, onOpenInvite }: C
       </div>
 
       {/* Thread List */}
-      <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
+      <div ref={scrollContainerRef} className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
         <div className="grid gap-4">
-          {threads.map((thread) => (
+          {threads.map((thread) => {
+            const displayedReplyCount = replyCounts[thread.id] ?? thread.replies;
+
+            return (
             <div
               key={thread.id}
               className="rounded-xl overflow-hidden relative group"
@@ -286,7 +371,7 @@ export function ChannelPanel({ repoId, repoName, onOpenThread, onOpenInvite }: C
                         ))}
                       </div>
                     )}
-                    {thread.replies > 0 && (
+                    {displayedReplyCount > 0 && (
                       <div className="flex items-center gap-3">
                         <button
                           onClick={(e) => {
@@ -305,7 +390,7 @@ export function ChannelPanel({ repoId, repoName, onOpenThread, onOpenInvite }: C
                             fontWeight: 900,
                             color: 'var(--neon-cyan)'
                           }}>
-                            답글 {thread.replies}개
+                            답글 {displayedReplyCount}개
                           </span>
                         </button>
                         {thread.lastReply && (
@@ -323,7 +408,7 @@ export function ChannelPanel({ repoId, repoName, onOpenThread, onOpenInvite }: C
                 </div>
                 <div className="pl-11">
                   <MessageReactions
-                    reactions={threadReactions[thread.id]}
+                    reactions={reactionMap[getThreadReactionKey(thread.id)]}
                     onToggle={(emoji) => handleReactionToggle(thread.id, emoji)}
                   />
                 </div>
@@ -346,25 +431,60 @@ export function ChannelPanel({ repoId, repoName, onOpenThread, onOpenInvite }: C
                   >
                     <MessageSquare size={14} />
                   </button>
-                  <button className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all hover:bg-[rgba(32,227,255,0.15)]" style={{
-                    background: 'transparent', color: 'var(--muted)', cursor: 'pointer'
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleBookmarkToggle(thread.id);
+                    }}
+                    className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all hover:bg-[rgba(32,227,255,0.15)]" style={{
+                    background: 'transparent', color: bookmarkedThreadIds[thread.id] ? 'var(--neon-cyan)' : 'var(--muted)', cursor: 'pointer'
                   }} title="북마크">
                     <Bookmark size={14} />
                   </button>
-                  <button className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all hover:bg-[rgba(32,227,255,0.15)]" style={{
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleShareThread(thread);
+                    }}
+                    className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all hover:bg-[rgba(32,227,255,0.15)]" style={{
                     background: 'transparent', color: 'var(--muted)', cursor: 'pointer'
                   }} title="공유">
                     <Share2 size={14} />
                   </button>
-                  <button className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all hover:bg-[rgba(32,227,255,0.15)]" style={{
-                    background: 'transparent', color: 'var(--muted)', cursor: 'pointer'
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOpenThreadMenuId((currentId) => currentId === thread.id ? null : thread.id);
+                    }}
+                    className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all hover:bg-[rgba(32,227,255,0.15)]" style={{
+                    background: 'transparent', color: openThreadMenuId === thread.id ? 'var(--neon-cyan)' : 'var(--muted)', cursor: 'pointer'
                   }} title="더보기">
                     <MoreVertical size={14} />
                   </button>
+                  {openThreadMenuId === thread.id && (
+                    <div className="absolute right-2 top-10 z-20 grid gap-1 rounded-lg p-2" style={{
+                      background: 'rgba(5, 11, 20, 0.96)',
+                      border: '1px solid rgba(32, 227, 255, 0.24)'
+                    }}>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setMessageText((prev) => `${prev}${prev && !prev.endsWith(" ") ? " " : ""}@${thread.user} `);
+                          setOpenThreadMenuId(null);
+                        }}
+                        className="rounded-md border-0 px-3 py-2 text-left tracking-tight"
+                        style={{ background: 'transparent', color: 'var(--white)', cursor: 'pointer', fontSize: '12px', fontWeight: 850 }}
+                      >
+                        Mention
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
-          ))}
+          );
+          })}
           {typingLabel && (
             <TypingIndicator
               label={typingLabel}

@@ -5,7 +5,6 @@ import { PRReviewPanel } from "../components/PRReviewPanel";
 import { IssuePanel } from "../components/IssuePanel";
 import { ThreadPanel } from "../components/ThreadPanel";
 import { ChannelPanel } from "../components/ChannelPanel";
-import { CoffeeLogo } from "../components/CoffeeLogo";
 import { OverviewPanel } from "../components/OverviewPanel";
 import { APISpecPage } from "./APISpecPage";
 import { ERDPage } from "./ERDPage";
@@ -14,11 +13,16 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { AnimatePresence, motion } from "motion/react";
 import type { MessageAttachment } from "../components/messageAttachments";
+import { toggleMessageReaction, type MessageReaction } from "../components/MessageReactions";
 import { TeamInviteModal } from "../components/TeamInviteModal";
 import { TeamPanel } from "../components/TeamPanel";
 
 const REPOSITORY_IMPORTED_KEY = "codedock-repository-imported";
 const REPOSITORY_LIST_KEY = "codedock-repositories-v2";
+const CHAT_MESSAGES_KEY = "codedock-chat-messages-v1";
+const CHAT_THREAD_REPLIES_KEY = "codedock-chat-thread-replies-v1";
+const CHAT_THREAD_REPLY_COUNTS_KEY = "codedock-chat-thread-reply-counts-v1";
+const CHAT_REACTIONS_KEY = "codedock-chat-reactions-v1";
 
 type SidebarGroupId = 'documentation';
 
@@ -157,6 +161,31 @@ function saveRepositories(repositories: RepositoryItem[]) {
 
   try {
     window.localStorage.setItem(REPOSITORY_LIST_KEY, JSON.stringify(repositories));
+  } catch {
+    // Storage can be unavailable in embedded previews; the in-memory state still updates.
+  }
+}
+
+function getSavedJson<T>(key: string, fallback: T): T {
+  if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
+    return fallback;
+  }
+
+  try {
+    const storedValue = window.localStorage.getItem(key);
+    return storedValue ? JSON.parse(storedValue) as T : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function saveJson(key: string, value: unknown) {
+  if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
   } catch {
     // Storage can be unavailable in embedded previews; the in-memory state still updates.
   }
@@ -464,11 +493,21 @@ export function ChatPage() {
   const [showRepoForm, setShowRepoForm] = useState(false);
   const [repoUrlInput, setRepoUrlInput] = useState('');
   const [selectedChannel, setSelectedChannel] = useState<string>('overview');
-  const [messages, setMessages] = useState<Record<string, any[]>>(initialMessages);
+  const [messages, setMessages] = useState<Record<string, any[]>>(() =>
+    getSavedJson(CHAT_MESSAGES_KEY, initialMessages)
+  );
   const [selectedPR, setSelectedPR] = useState<any>(null);
   const [selectedIssue, setSelectedIssue] = useState<any>(null);
   const [selectedThread, setSelectedThread] = useState<any>(null);
-  const [threadReplies, setThreadReplies] = useState<Record<number | string, any[]>>(initialThreadReplies);
+  const [threadReplies, setThreadReplies] = useState<Record<number | string, any[]>>(() =>
+    getSavedJson(CHAT_THREAD_REPLIES_KEY, initialThreadReplies)
+  );
+  const [threadReplyCounts, setThreadReplyCounts] = useState<Record<number | string, number>>(() =>
+    getSavedJson(CHAT_THREAD_REPLY_COUNTS_KEY, {})
+  );
+  const [messageReactions, setMessageReactions] = useState<Record<string, MessageReaction[]>>(() =>
+    getSavedJson(CHAT_REACTIONS_KEY, {})
+  );
   const [isMainExpanded, setIsMainExpanded] = useState(false);
   const [teamInviteOpen, setTeamInviteOpen] = useState(false);
   const [expandedSidebarGroups, setExpandedSidebarGroups] = useState<Record<SidebarGroupId, boolean>>({
@@ -573,6 +612,22 @@ export function ChatPage() {
       };
     });
   }, [firstVisibleRepositoryId]);
+
+  useEffect(() => {
+    saveJson(CHAT_MESSAGES_KEY, messages);
+  }, [messages]);
+
+  useEffect(() => {
+    saveJson(CHAT_THREAD_REPLIES_KEY, threadReplies);
+  }, [threadReplies]);
+
+  useEffect(() => {
+    saveJson(CHAT_THREAD_REPLY_COUNTS_KEY, threadReplyCounts);
+  }, [threadReplyCounts]);
+
+  useEffect(() => {
+    saveJson(CHAT_REACTIONS_KEY, messageReactions);
+  }, [messageReactions]);
 
   useEffect(() => {
     setChannelUnreadCounts(prev => {
@@ -846,18 +901,6 @@ export function ChatPage() {
     );
   };
 
-  const handleImportRepositories = () => {
-    const savedRepositories = getSavedRepositories();
-    const importedRepositories = savedRepositories?.length ? savedRepositories : DEFAULT_REPOSITORIES;
-    saveRepositoryImportPreference();
-    setRepositoriesImported(true);
-    setRepositories(importedRepositories);
-    setSelectedRepository(importedRepositories[0]?.id ?? "");
-    setSelectedChannel("general");
-    setShowRepoDropdown(false);
-    handleCloseRepoForm();
-  };
-
   const handleMergePR = (messageId: number) => {
     setMessages(prevMessages => {
       const newMessages = { ...prevMessages };
@@ -929,6 +972,57 @@ export function ChatPage() {
     setSelectedThread(null);
   };
 
+  const handleToggleReaction = (reactionKey: string, emoji: string) => {
+    setMessageReactions((prev) => ({
+      ...prev,
+      [reactionKey]: toggleMessageReaction(prev[reactionKey], emoji)
+    }));
+  };
+
+  const handleSharePR = (prData: any, shareText: string, channelIds: string[]) => {
+    const trimmedShareText = shareText.trim();
+    if (!trimmedShareText || channelIds.length === 0) return;
+
+    const sharedMessage = {
+      id: Date.now(),
+      user: "CodeDock",
+      text: trimmedShareText,
+      time: "now",
+      type: "pr" as const,
+      prNumber: prData.prNumber,
+      prTitle: prData.prTitle,
+      prStatus: prData.prStatus ?? "open",
+      prAuthor: prData.prAuthor ?? prData.user,
+      filesChanged: prData.filesChanged,
+      additions: prData.additions,
+      deletions: prData.deletions,
+      repository: prData.repository,
+      aiRisk: prData.aiRisk,
+      labels: prData.labels
+    };
+
+    setMessages((prev) => {
+      const nextMessages = { ...prev };
+      channelIds.forEach((channelId, index) => {
+        nextMessages[channelId] = [
+          ...(nextMessages[channelId] || []),
+          { ...sharedMessage, id: sharedMessage.id + index }
+        ];
+      });
+      return nextMessages;
+    });
+
+    setChannelUnreadCounts((prev) => {
+      const nextCounts = { ...prev };
+      channelIds.forEach((channelId) => {
+        if (channelId !== selectedChannel) {
+          nextCounts[channelId] = (nextCounts[channelId] || 0) + 1;
+        }
+      });
+      return nextCounts;
+    });
+  };
+
   const handleSendMessage = (text: string, attachments: MessageAttachment[] = []) => {
     const trimmedText = text.trim();
     if (!trimmedText && attachments.length === 0) return;
@@ -961,6 +1055,22 @@ export function ChatPage() {
         ...prev,
         [key]: [...(prev[key] || []), newReply]
       }));
+      setThreadReplyCounts(prev => {
+        const nextCount = (prev[selectedThread.id] ?? selectedThread.replies ?? 0) + 1;
+        return {
+          ...prev,
+          [selectedThread.id]: nextCount
+        };
+      });
+      setSelectedThread((prevThread: any) =>
+        prevThread
+          ? {
+              ...prevThread,
+              replies: (threadReplyCounts[prevThread.id] ?? prevThread.replies ?? 0) + 1,
+              lastReply: newReply.user
+            }
+          : prevThread
+      );
     }
   };
 
@@ -1706,23 +1816,35 @@ export function ChatPage() {
               <DocsPage embedded />
             ) : selectedChannel === 'general' || customChannels.some(ch => ch.id === selectedChannel) ? (
               <ChannelPanel
+                channelId={selectedChannel}
                 repoName={customChannels.find(ch => ch.id === selectedChannel)?.label}
+                reactions={messageReactions}
+                replyCounts={threadReplyCounts}
                 onOpenThread={handleOpenThread}
                 onOpenInvite={() => setTeamInviteOpen(true)}
+                onToggleReaction={handleToggleReaction}
               />
             ) : REPO_CHANNEL_IDS_REVERSE[selectedChannel] !== undefined ? (
               <ChannelPanel
+                channelId={selectedChannel}
                 repoId={selectedRepository}
                 repoName={currentRepo?.name}
+                reactions={messageReactions}
+                replyCounts={threadReplyCounts}
                 onOpenThread={handleOpenThread}
                 onOpenInvite={() => setTeamInviteOpen(true)}
+                onToggleReaction={handleToggleReaction}
               />
             ) : repositories.find(r => r.id === selectedChannel) ? (
               <ChannelPanel
+                channelId={selectedChannel}
                 repoId={selectedChannel}
                 repoName={repositories.find(r => r.id === selectedChannel)?.name}
+                reactions={messageReactions}
+                replyCounts={threadReplyCounts}
                 onOpenThread={handleOpenThread}
                 onOpenInvite={() => setTeamInviteOpen(true)}
+                onToggleReaction={handleToggleReaction}
               />
             ) : selectedChannel === 'work-board' ? (
               <WorkBoardPanel
@@ -1740,14 +1862,19 @@ export function ChatPage() {
               />
             ) : (
               <ChatPanel
+                channelId={selectedChannel}
                 title={selectedChannelTitle}
                 messages={currentMessages}
+                reactions={messageReactions}
+                replyCounts={threadReplyCounts}
                 onSendMessage={handleSendMessage}
+                onSharePR={handleSharePR}
                 showAISummary={false}
                 onMergePR={handleMergePR}
                 onReviewPR={handleReviewPR}
                 onViewIssue={handleViewIssue}
                 onOpenThread={handleOpenThread}
+                onToggleReaction={handleToggleReaction}
                 isRepository={isRepository}
               />
             )}
@@ -1782,8 +1909,15 @@ export function ChatPage() {
             <ThreadPanel
               originalMessage={selectedThread}
               replies={threadReplies[getThreadKey(selectedThread)] || []}
+              displayReplyCount={
+                threadReplyCounts[selectedThread.id]
+                ?? Math.max((threadReplies[getThreadKey(selectedThread)] || []).length, selectedThread.replies ?? 0)
+              }
+              reactionScope={`thread:${selectedChannel}:${selectedThread.id}`}
+              reactions={messageReactions}
               onClose={handleCloseThread}
               onSendReply={handleSendReply}
+              onToggleReaction={handleToggleReaction}
             />
           </section>
         )}
@@ -1793,75 +1927,6 @@ export function ChatPage() {
         isOpen={teamInviteOpen}
         onClose={() => setTeamInviteOpen(false)}
       />
-    </div>
-  );
-}
-
-function RepositoryEmptyState({ onImport }: { onImport: () => void }) {
-  return (
-    <div className="flex h-full min-h-[520px] items-center justify-center px-6 py-10">
-      <div className="flex w-full max-w-[760px] items-center justify-center gap-6 max-md:flex-col">
-        <div className="relative flex-shrink-0">
-          <CoffeeLogo
-            className="h-32 w-32"
-            style={{ filter: 'drop-shadow(0 0 24px rgba(32, 227, 255, 0.28))' }}
-          />
-          <div className="absolute -bottom-2 left-1/2 h-3 w-24 -translate-x-1/2 rounded-full blur-md" style={{
-            background: 'rgba(32, 227, 255, 0.28)'
-          }} />
-        </div>
-
-        <div className="relative w-full rounded-[28px] px-7 py-7" style={{
-          background: 'linear-gradient(135deg, rgba(32, 227, 255, 0.13), rgba(234, 247, 255, 0.055))',
-          border: '1px solid rgba(32, 227, 255, 0.22)',
-          boxShadow: '0 26px 70px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.08)'
-        }}>
-          <span className="absolute left-[-13px] top-12 hidden h-7 w-7 rotate-45 border-b border-l md:block" style={{
-            background: 'rgba(25, 45, 66, 0.96)',
-            borderColor: 'rgba(32, 227, 255, 0.20)'
-          }} />
-          <p className="m-0 mb-3 tracking-tight" style={{
-            color: 'var(--neon-cyan)',
-            fontSize: '13px',
-            fontWeight: 950
-          }}>
-            CodeDock
-          </p>
-          <h2 className="m-0 mb-3 tracking-[-0.06em]" style={{
-            color: 'var(--white)',
-            fontSize: 'clamp(28px, 4vw, 44px)',
-            fontWeight: 950,
-            lineHeight: 1
-          }}>
-            리포지토리가 없습니다. 추가해주세요.
-          </h2>
-          <p className="m-0 mb-6 tracking-tight" style={{
-            color: 'var(--muted)',
-            fontSize: '15px',
-            fontWeight: 800,
-            lineHeight: 1.65
-          }}>
-            CodeDock이 팀에 연결할 저장소를 기다리고 있어요. GitHub 리포지토리를 가져오면 PR 리뷰, 이슈, 문서화 채널이 바로 열립니다.
-          </p>
-          <button
-            type="button"
-            onClick={onImport}
-            className="inline-flex items-center gap-2 rounded-full border-0 px-6 py-4 tracking-tight transition-all hover:scale-[1.02]"
-            style={{
-              background: 'linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))',
-              color: '#021014',
-              fontSize: '15px',
-              fontWeight: 950,
-              cursor: 'pointer',
-              boxShadow: '0 14px 34px rgba(32, 227, 255, 0.28)'
-            }}
-            aria-label="리포지토리 가져오기"
-          >
-            <GitBranch size={18} />
-            리포지토리 가져오기
-          </button>
-        </div>
-      </div>
     </div>
   );
 }
