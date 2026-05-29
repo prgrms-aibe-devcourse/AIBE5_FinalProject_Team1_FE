@@ -1604,8 +1604,8 @@ export function ChatPage() {
               />
             ) : REPO_CHANNEL_IDS_REVERSE[selectedChannel] !== undefined ? (
               <ChannelPanel
-                repoId={REPO_CHANNEL_IDS_REVERSE[selectedChannel]}
-                repoName={repositories.find(r => r.id === REPO_CHANNEL_IDS_REVERSE[selectedChannel])?.name}
+                repoId={selectedRepository}
+                repoName={currentRepo?.name}
                 onOpenThread={handleOpenThread}
                 onOpenInvite={() => setTeamInviteOpen(true)}
               />
