@@ -427,6 +427,7 @@ export function ChatPage() {
   const currentRepo = repositories.find(repo => repo.id === selectedRepository);
   const currentWorkspace = DEFAULT_WORKSPACES.find(ws => ws.id === selectedWorkspace) ?? DEFAULT_WORKSPACES[0];
   const visibleRepositories = repositories.filter(r => !r.workspaceId || r.workspaceId === selectedWorkspace);
+  const firstVisibleRepositoryId = visibleRepositories[0]?.id ?? null;
 
   const getChannelBadge = (channelId: string): string | undefined => {
     const count = channelUnreadCounts[channelId];
@@ -485,6 +486,21 @@ export function ChatPage() {
     saveRepositoryImportPreference();
     saveRepositories(repositories);
   }, [repositories, repositoriesImported]);
+
+  useEffect(() => {
+    if (!firstVisibleRepositoryId) return;
+
+    setExpandedRepoSubmenus((prev) => {
+      if (Object.prototype.hasOwnProperty.call(prev, firstVisibleRepositoryId)) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        [firstVisibleRepositoryId]: true
+      };
+    });
+  }, [firstVisibleRepositoryId]);
 
   useEffect(() => {
     setChannelUnreadCounts(prev => {
@@ -1328,7 +1344,7 @@ export function ChatPage() {
 
               {visibleRepositories.map((repo) => {
                 const repoChannelId = REPO_CHANNEL_IDS[repo.id] ?? repo.id;
-                const isExpanded = expandedRepoSubmenus[repo.id] ?? false;
+                const isExpanded = expandedRepoSubmenus[repo.id] ?? repo.id === firstVisibleRepositoryId;
                 const isPRActive = selectedRepository === repo.id && selectedChannel === 'pull-requests';
                 const isIssueActive = selectedRepository === repo.id && selectedChannel === 'issues';
                 const isRepoBodyActive = selectedRepository === repo.id && selectedChannel === repoChannelId;
