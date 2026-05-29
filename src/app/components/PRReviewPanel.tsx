@@ -492,15 +492,8 @@ export function PRReviewPanel({ prData, onClose, onMergePR, onAddThreadReply }: 
   );
 
   const handleDiffReferenceSelect = (file: DiffFile, row: (typeof diffRows)[number]) => {
-    const code = getEditedDiffCode(file, row);
-    const reference = `${file.name}:${row.line}`;
-    const referenceBlock = `> ${reference}\n> ${code || "(빈 줄)"}`;
-
     setActiveDiffThread({ fileId: file.id, line: row.line });
-    setPrThreadDraft((current) => {
-      if (current.includes(reference)) return current;
-      return current.trim() ? `${referenceBlock}\n\n${current}` : `${referenceBlock}\n\n`;
-    });
+    setShowThreadModal(true);
   };
 
   const handleDiffLineCodeChange = (file: DiffFile, row: (typeof diffRows)[number], value: string) => {
@@ -1334,26 +1327,38 @@ export function PRReviewPanel({ prData, onClose, onMergePR, onAddThreadReply }: 
                         {comment.time}
                       </span>
                     </div>
-                    {hasLineReference && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setActiveFileId(comment.fileId);
-                          setActiveDiffThread({ fileId: comment.fileId, line: comment.line });
-                        }}
-                        className="mb-2 rounded-lg border-0 px-2 py-1 text-left font-mono"
-                        style={{
-                          background: "rgba(32, 227, 255, 0.10)",
-                          border: "1px solid rgba(32, 227, 255, 0.18)",
-                          color: "var(--neon-cyan)",
-                          cursor: "pointer",
-                          fontSize: 10,
-                          fontWeight: 900
-                        }}
-                      >
-                        {comment.fileName}:{comment.line}
-                      </button>
-                    )}
+                    {hasLineReference && (() => {
+                      const refRow = diffRows.find((r) => r.line === comment.line);
+                      const refCode = refRow ? (diffEdits[getDiffThreadKey(comment.fileId, comment.line)] ?? refRow.code) : "";
+                      return (
+                        <div
+                          className="mb-2 overflow-hidden rounded-xl"
+                          style={{
+                            background: "rgba(5, 11, 20, 0.72)",
+                            border: "1px solid rgba(32, 227, 255, 0.22)",
+                            userSelect: "none"
+                          }}
+                        >
+                          <div
+                            className="flex items-center gap-2 px-3 py-1.5"
+                            style={{ borderBottom: "1px solid rgba(32, 227, 255, 0.12)", background: "rgba(32, 227, 255, 0.07)" }}
+                          >
+                            <FileCode size={11} style={{ color: "var(--neon-cyan)", flexShrink: 0 }} />
+                            <span className="truncate font-mono" style={{ color: "var(--neon-cyan)", fontSize: 10, fontWeight: 950 }}>
+                              {comment.fileName}
+                            </span>
+                            <span className="flex-shrink-0 rounded px-1.5 py-0.5 font-mono" style={{ background: "rgba(32, 227, 255, 0.14)", color: "var(--neon-cyan)", fontSize: 9, fontWeight: 950 }}>
+                              L{comment.line}
+                            </span>
+                          </div>
+                          {refCode && (
+                            <div className="px-3 py-2 font-mono" style={{ color: refRow?.added ? "#D7FFE7" : "#C6D4E5", fontSize: 11, fontWeight: 850, lineHeight: 1.55, whiteSpace: "pre", overflow: "hidden", textOverflow: "ellipsis" }}>
+                              {refCode}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                     <p className="m-0 whitespace-pre-wrap tracking-tight" style={{ color: "var(--soft-mint)", fontSize: 12, fontWeight: 800, lineHeight: 1.55 }}>
                       {comment.text}
                     </p>
@@ -1407,7 +1412,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, onAddThreadReply }: 
                 handlePrThreadSubmit();
               }
             }}
-            placeholder="PR 스레드에 댓글 남기기... DIFF 라인을 클릭하면 참조가 자동으로 들어옵니다."
+            placeholder="PR 스레드에 댓글 남기기..."
             className="block w-full resize-none rounded-xl px-3 py-2 outline-none tracking-tight"
             rows={3}
             style={{
