@@ -5,10 +5,14 @@ import { EmojiPicker } from "./EmojiPicker";
 import { MessageReactions, toggleMessageReaction, type MessageReaction } from "./MessageReactions";
 
 interface ThreadMessage {
-  id: number;
+  id: number | string;
   user: string;
   text: string;
   time: string;
+  fileId?: string;
+  fileName?: string;
+  line?: number;
+  code?: string;
 }
 
 interface ThreadPanelProps {
@@ -237,6 +241,11 @@ export function ThreadPanel({ originalMessage, replies, onClose, onSendReply }: 
                           L{reply.line}
                         </span>
                       </div>
+                      {reply.code && (
+                        <div className="px-3 py-2 font-mono" style={{ color: '#C6D4E5', fontSize: '11px', fontWeight: 850, lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                          {reply.code}
+                        </div>
+                      )}
                     </div>
                   )}
                   <p className="m-0 leading-[1.5] tracking-tight whitespace-pre-wrap" style={{

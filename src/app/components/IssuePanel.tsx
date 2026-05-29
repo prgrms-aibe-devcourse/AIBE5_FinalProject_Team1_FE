@@ -431,8 +431,10 @@ export function IssuePanel({ issueData, onClose, externalThreadMessages, onAddTh
       <button
         type="button"
         onClick={() => setShowThreadModal((prev) => !prev)}
-        className="absolute bottom-6 right-6 z-30 grid h-14 w-14 place-items-center rounded-full border-0 transition-all hover:scale-110"
+        className="absolute bottom-6 z-30 grid h-14 w-14 place-items-center rounded-full border-0 hover:scale-110"
         style={{
+          right: showThreadModal ? "474px" : "24px",
+          transition: "right 0.32s cubic-bezier(0.36, 0.66, 0.04, 1), transform 0.18s, background 0.18s",
           background: showThreadModal
             ? "linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))"
             : "rgba(11, 22, 40, 0.88)",

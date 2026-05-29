@@ -368,7 +368,8 @@ const initialThreadReplies: Record<number | string, any[]> = {
       fileId: 'security',
       fileName: 'SecurityConfig.java',
       filePath: 'src/main/java/com/codedock/config',
-      line: 22
+      line: 22,
+      code: 'public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {'
     },
     {
       id: 'seed-security-23',
@@ -379,7 +380,8 @@ const initialThreadReplies: Record<number | string, any[]> = {
       fileId: 'security',
       fileName: 'SecurityConfig.java',
       filePath: 'src/main/java/com/codedock/config',
-      line: 23
+      line: 23,
+      code: 'http.csrf(csrf -> csrf.disable());'
     },
     { id: 'pr1-1', user: '김재준', text: '전체적으로 리팩터 방향 좋습니다. 부분 수정 유지 정책 쪽만 한번 더 확인 부탁드려요.', time: '오전 11:30' },
     { id: 'pr1-2', user: '김진필', text: '네, 해당 부분 테스트 케이스 추가해서 다시 올리겠습니다.', time: '오전 11:35' },

@@ -43,6 +43,7 @@ interface DiffThreadComment {
   fileName: string;
   filePath: string;
   line: number;
+  code?: string;
 }
 
 interface ActiveDiffThread {
@@ -384,6 +385,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
         fileName: m.fileName ?? "",
         filePath: m.filePath ?? "",
         line: m.line ?? 0,
+        code: m.code,
       }));
   });
   const [showThreadModal, setShowThreadModal] = useState(false);
@@ -537,6 +539,10 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
       ? diffRows.find((row) => row.line === activeDiffThread.line)
       : null;
 
+    const referencedCode = referencedFile && referencedRow
+      ? (diffEdits[getDiffThreadKey(referencedFile.id, referencedRow.line)] ?? referencedRow.code)
+      : undefined;
+
     const newComment: DiffThreadComment = {
       id: `pr-thread-${Date.now()}`,
       author: "나",
@@ -546,6 +552,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
       fileName: referencedFile?.name ?? `PR #${prNumber}`,
       filePath: referencedFile?.path ?? prTitle,
       line: referencedRow?.line ?? 0,
+      code: referencedCode,
     };
     setPrThreadComments((prev) => [...prev, newComment]);
     onAddThreadMessage?.({ ...newComment, user: "나" });
@@ -1230,7 +1237,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
             <div className="flex min-w-0 items-center gap-2">
               <MessageSquare size={17} style={{ color: "var(--neon-cyan)" }} />
               <h3 className="m-0 truncate tracking-tight" style={{ color: "var(--white)", fontSize: 14, fontWeight: 950 }}>
-                PR #{prNumber} 스레드 채팅방
+                PR #{prNumber} 스레드
               </h3>
             </div>
             <div className="flex items-center gap-2">
@@ -1308,7 +1315,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
                   </div>
                   {hasLineReference && (() => {
                     const refRow = diffRows.find((r) => r.line === comment.line);
-                    const refCode = refRow ? (diffEdits[getDiffThreadKey(comment.fileId, comment.line)] ?? refRow.code) : "";
+                    const refCode = diffEdits[getDiffThreadKey(comment.fileId, comment.line)] ?? refRow?.code ?? comment.code ?? "";
                     return (
                       <div
                         className="mb-2 overflow-hidden rounded-xl"
@@ -2134,8 +2141,10 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
       <button
         type="button"
         onClick={() => setShowThreadModal((prev) => !prev)}
-        className="absolute bottom-6 right-6 z-30 grid h-14 w-14 place-items-center rounded-full border-0 transition-all hover:scale-110"
+        className="absolute bottom-6 z-30 grid h-14 w-14 place-items-center rounded-full border-0 hover:scale-110"
         style={{
+          right: showThreadModal ? "474px" : "24px",
+          transition: "right 0.32s cubic-bezier(0.36, 0.66, 0.04, 1), transform 0.18s, background 0.18s",
           background: showThreadModal
             ? "linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))"
             : "rgba(8, 17, 31, 0.88)",
