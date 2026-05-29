@@ -891,6 +891,20 @@ export function ChatPage() {
     }
   };
 
+  const handleAddPrThreadReply = (text: string) => {
+    if (!selectedPR) return;
+    const newReply = {
+      id: Date.now(),
+      user: '나',
+      text,
+      time: '방금'
+    };
+    setThreadReplies(prev => ({
+      ...prev,
+      [selectedPR.id]: [...(prev[selectedPR.id] || []), newReply]
+    }));
+  };
+
   return (
     <div className={pageShellClassName} style={pageShellStyle}>
       <div className={chatGridClassName} style={{
@@ -1669,6 +1683,7 @@ export function ChatPage() {
               prData={selectedPR}
               onClose={handleClosePRReview}
               onMergePR={handleMergePR}
+              onAddThreadReply={handleAddPrThreadReply}
             />
           </section>
         )}

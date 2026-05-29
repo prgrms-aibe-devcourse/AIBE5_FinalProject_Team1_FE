@@ -14,11 +14,13 @@ import {
   X
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
 
 interface PRReviewPanelProps {
   prData: any;
   onClose: () => void;
   onMergePR?: (messageId: number) => void;
+  onAddThreadReply?: (text: string) => void;
 }
 
 interface DiffFile {
@@ -354,7 +356,7 @@ function riskLabel(risk: string) {
   return labels[risk] ?? risk;
 }
 
-export function PRReviewPanel({ prData, onClose, onMergePR }: PRReviewPanelProps) {
+export function PRReviewPanel({ prData, onClose, onMergePR, onAddThreadReply }: PRReviewPanelProps) {
   const tabContentRef = useRef<HTMLDivElement>(null);
   const [activeFileId, setActiveFileId] = useState(diffFiles[0].id);
   const [activePrTab, setActivePrTab] = useState<PrDialogTab>("original");
@@ -364,6 +366,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR }: PRReviewPanelProps
   const [prThreadDraft, setPrThreadDraft] = useState("");
   const [prThreadComments, setPrThreadComments] = useState<DiffThreadComment[]>([]);
   const [diffEdits, setDiffEdits] = useState<Record<string, string>>({});
+  const [showThreadModal, setShowThreadModal] = useState(false);
   const activeFile = diffFiles.find((file) => file.id === activeFileId) ?? diffFiles[0];
   const prNumber = prData.prNumber ?? 142;
   const prTitle =
@@ -532,6 +535,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR }: PRReviewPanelProps
       }
     ]);
     setPrThreadDraft("");
+    onAddThreadReply?.(draft);
   };
 
   const renderOriginalPrTab = () => (
@@ -1186,7 +1190,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR }: PRReviewPanelProps
     );
   };
 
-  const renderPrThreadChat = () => {
+  const renderPrThreadChat = (showClose = false) => {
     const selectedFile = activeDiffThread
       ? diffFiles.find((file) => file.id === activeDiffThread.fileId)
       : null;
@@ -1215,18 +1219,36 @@ export function PRReviewPanel({ prData, onClose, onMergePR }: PRReviewPanelProps
                 PR #{prNumber} 스레드 채팅방
               </h3>
             </div>
-            <span
-              className="rounded-full px-2 py-1 font-mono"
-              style={{
-                background: "rgba(57, 255, 136, 0.10)",
-                border: "1px solid rgba(57, 255, 136, 0.24)",
-                color: "var(--matrix-green)",
-                fontSize: 9,
-                fontWeight: 950
-              }}
-            >
-              PR THREAD
-            </span>
+            <div className="flex items-center gap-2">
+              <span
+                className="rounded-full px-2 py-1 font-mono"
+                style={{
+                  background: "rgba(57, 255, 136, 0.10)",
+                  border: "1px solid rgba(57, 255, 136, 0.24)",
+                  color: "var(--matrix-green)",
+                  fontSize: 9,
+                  fontWeight: 950
+                }}
+              >
+                PR THREAD
+              </span>
+              {showClose && (
+                <button
+                  type="button"
+                  onClick={() => setShowThreadModal(false)}
+                  className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-full border-0 transition-all hover:scale-110"
+                  style={{
+                    background: "rgba(234, 247, 255, 0.07)",
+                    border: "1px solid rgba(32, 227, 255, 0.18)",
+                    color: "var(--muted)",
+                    cursor: "pointer"
+                  }}
+                  aria-label="스레드 닫기"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
           </div>
           <p className="m-0 tracking-tight" style={{ color: "var(--muted)", fontSize: 11, fontWeight: 800, lineHeight: 1.45 }}>
             DIFF 라인을 클릭하면 이 PR 스레드 입력창에 파일과 줄 번호가 참조로 붙습니다.
@@ -1945,7 +1967,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR }: PRReviewPanelProps
 
   return (
     <div
-      className="flex h-full min-h-0 flex-col overflow-hidden rounded-[30px]"
+      className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-[30px]"
       style={{
         background: "rgba(8, 17, 31, 0.96)",
         border: "1px solid rgba(32, 227, 255, 0.24)",
@@ -2113,6 +2135,62 @@ export function PRReviewPanel({ prData, onClose, onMergePR }: PRReviewPanelProps
           {renderTabContent()}
         </div>
       </div>
+
+      {/* 플로팅 스레드 버튼 */}
+      <button
+        type="button"
+        onClick={() => setShowThreadModal((prev) => !prev)}
+        className="absolute bottom-6 right-6 z-30 grid h-14 w-14 place-items-center rounded-full border-0 transition-all hover:scale-110"
+        style={{
+          background: showThreadModal
+            ? "linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))"
+            : "rgba(8, 17, 31, 0.88)",
+          border: showThreadModal
+            ? "1.5px solid var(--neon-cyan)"
+            : "1.5px solid rgba(32, 227, 255, 0.38)",
+          boxShadow: showThreadModal
+            ? "0 0 24px rgba(32, 227, 255, 0.38), 0 8px 24px rgba(0,0,0,0.38)"
+            : "0 8px 24px rgba(0,0,0,0.38)",
+          color: showThreadModal ? "#021014" : "var(--neon-cyan)",
+          cursor: "pointer"
+        }}
+        aria-label="PR 스레드 채팅"
+      >
+        <MessageSquare size={22} />
+      </button>
+
+      {/* 스레드 모달 */}
+      <AnimatePresence>
+        {showThreadModal && (
+          <>
+            {/* 백드롭 */}
+            <motion.div
+              className="absolute inset-0 z-10"
+              style={{ background: "rgba(3, 8, 18, 0.45)", backdropFilter: "blur(2px)" }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18 }}
+              onClick={() => setShowThreadModal(false)}
+            />
+            {/* 슬라이드 패널 */}
+            <motion.div
+              className="absolute bottom-0 right-0 top-0 z-20 w-[390px]"
+              style={{
+                background: "rgba(8, 17, 31, 0.97)",
+                borderLeft: "1px solid rgba(32, 227, 255, 0.20)",
+                boxShadow: "-12px 0 40px rgba(0,0,0,0.42)"
+              }}
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "spring", stiffness: 360, damping: 34 }}
+            >
+              {renderPrThreadChat(true)}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
