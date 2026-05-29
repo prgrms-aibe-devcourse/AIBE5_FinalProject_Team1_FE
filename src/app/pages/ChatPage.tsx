@@ -1,4 +1,5 @@
 import { Hash, Users, GitPullRequest, Home, CheckSquare, ChevronDown, ChevronRight, GitBranch, Code2, Database, BookOpen, Maximize2, Minimize2, Plus, Pencil, Trash2, MoreVertical, X, LayoutGrid, type LucideIcon } from "lucide-react";
+import { WorkBoardPanel } from "../components/WorkBoardPanel";
 import { ChatPanel } from "../components/ChatPanel";
 import { PRReviewPanel } from "../components/PRReviewPanel";
 import { IssuePanel } from "../components/IssuePanel";
@@ -10,7 +11,6 @@ import { APISpecPage } from "./APISpecPage";
 import { ERDPage } from "./ERDPage";
 import { DocsPage } from "./DocsPage";
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router";
 import { AnimatePresence, motion } from "motion/react";
 import type { MessageAttachment } from "../components/messageAttachments";
 import { TeamInviteModal } from "../components/TeamInviteModal";
@@ -421,6 +421,7 @@ export function ChatPage() {
 
   const navigate = useNavigate();
 
+
   const hasRepositories = repositoriesImported && repositories.length > 0;
   const currentRepo = repositories.find(repo => repo.id === selectedRepository);
   const currentWorkspace = DEFAULT_WORKSPACES.find(ws => ws.id === selectedWorkspace) ?? DEFAULT_WORKSPACES[0];
@@ -765,7 +766,7 @@ export function ChatPage() {
     setSelectedRepository(importedRepositories[0]?.id ?? "");
     setSelectedChannel("general");
     setShowRepoDropdown(false);
-    closeRepositoryForm();
+    handleCloseRepoForm();
   };
 
   const handleMergePR = (messageId: number) => {
@@ -1495,13 +1496,26 @@ export function ChatPage() {
 
                           <motion.button
                             type="button"
-                            onClick={() => { setSelectedRepository(repo.id); navigate('/issues'); }}
+                            onClick={() => { setSelectedRepository(repo.id); setSelectedChannel('work-board'); }}
                             className="relative isolate flex w-full items-center gap-2 rounded-full border-0 py-2.5 pl-8 pr-3 text-left tracking-tight transition-colors"
                             style={{ background: 'transparent', cursor: 'pointer' }}
                             whileTap={{ scale: 0.99 }}
                           >
-                            <LayoutGrid size={14} style={{ color: 'var(--muted)', flexShrink: 0, position: 'relative', zIndex: 1 }} />
-                            <span className="relative z-10 flex-1 tracking-tight" style={{ fontSize: '13px', fontWeight: 800, color: 'var(--muted)' }}>
+                            {selectedChannel === 'work-board' && selectedRepository === repo.id && (
+                              <motion.div
+                                layoutId="workspaceSidebarActiveTab"
+                                className="absolute inset-0 rounded-full"
+                                style={{
+                                  background: 'linear-gradient(135deg, rgba(32, 227, 255, 0.18), rgba(234, 247, 255, 0.045)), rgba(11, 22, 40, 0.52)',
+                                  border: '1px solid rgba(32, 227, 255, 0.30)',
+                                  boxShadow: '0 0 24px rgba(32, 227, 255, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12)',
+                                  backdropFilter: 'blur(14px) saturate(180%)'
+                                }}
+                                transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                              />
+                            )}
+                            <LayoutGrid size={14} style={{ color: selectedChannel === 'work-board' && selectedRepository === repo.id ? 'var(--neon-cyan)' : 'var(--muted)', flexShrink: 0, position: 'relative', zIndex: 1 }} />
+                            <span className="relative z-10 flex-1 tracking-tight" style={{ fontSize: '13px', fontWeight: selectedChannel === 'work-board' && selectedRepository === repo.id ? 900 : 800, color: selectedChannel === 'work-board' && selectedRepository === repo.id ? 'var(--white)' : 'var(--muted)' }}>
                               작업 보드
                             </span>
                           </motion.button>
@@ -1601,6 +1615,11 @@ export function ChatPage() {
                 repoName={repositories.find(r => r.id === selectedChannel)?.name}
                 onOpenThread={handleOpenThread}
                 onOpenInvite={() => setTeamInviteOpen(true)}
+              />
+            ) : selectedChannel === 'work-board' ? (
+              <WorkBoardPanel
+                repositoryName={currentRepo?.name}
+                onViewIssue={handleViewIssue}
               />
             ) : selectedChannel === 'team' ? (
               <TeamPanel

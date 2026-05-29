@@ -20,7 +20,6 @@ import { useTheme } from "../contexts/ThemeContext";
 const navItems = [
   { path: "/workspace", label: "Dashboard" },
   { path: "/prs", label: "PRs" },
-  { path: "/issues", label: "Issues" },
   { path: "/chat", label: "Workspace" },
 ];
 
