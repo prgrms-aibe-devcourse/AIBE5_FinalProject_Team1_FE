@@ -1565,21 +1565,19 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
                   <span className="select-none text-center" style={{ color: row.added ? "#22C55E" : "var(--muted)", fontWeight: 950 }}>
                     {row.added ? "+" : ""}
                   </span>
-                  <textarea
-                    value={editedCode}
-                    onChange={(event) => handleDiffLineCodeChange(activeFile, row, event.target.value)}
-                    onKeyDown={(event) => event.stopPropagation()}
-                    aria-label={`${activeFile.name} ${row.line}번 줄 코드 수정`}
-                    className="codedock-scrollbar-hidden min-w-0 resize-none whitespace-pre-wrap break-words border-0 bg-transparent px-2 py-1.5 font-mono outline-none"
-                    rows={1}
+                  <span
+                    className="min-w-0 whitespace-pre-wrap break-words px-2 py-1.5 font-mono"
                     style={{
+                      display: "block",
                       color: row.added ? "#D7FFE7" : "#C6D4E5",
                       fontSize: 13,
                       fontWeight: 850,
                       lineHeight: 1.65,
-                      overflow: "hidden"
+                      userSelect: "text"
                     }}
-                  />
+                  >
+                    {row.code}
+                  </span>
                   <button
                     type="button"
                     onClick={(event) => {
