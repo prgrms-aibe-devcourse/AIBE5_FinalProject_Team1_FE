@@ -11,6 +11,7 @@ import { APISpecPage } from "./APISpecPage";
 import { ERDPage } from "./ERDPage";
 import { DocsPage } from "./DocsPage";
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router";
 import { AnimatePresence, motion } from "motion/react";
 import type { MessageAttachment } from "../components/messageAttachments";
 import { TeamInviteModal } from "../components/TeamInviteModal";
