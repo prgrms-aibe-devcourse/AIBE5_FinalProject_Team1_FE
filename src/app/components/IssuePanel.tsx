@@ -6,7 +6,8 @@ import type { IssueLabel, IssueHistoryEvent } from "./ChatPanel";
 interface IssuePanelProps {
   issueData: any;
   onClose: () => void;
-  onAddThreadReply?: (text: string) => void;
+  externalThreadMessages?: any[];
+  onAddThreadMessage?: (msg: any) => void;
 }
 
 interface IssueThreadComment {
@@ -93,11 +94,23 @@ function renderBody(body: string) {
   });
 }
 
-export function IssuePanel({ issueData, onClose, onAddThreadReply }: IssuePanelProps) {
+export function IssuePanel({ issueData, onClose, externalThreadMessages, onAddThreadMessage }: IssuePanelProps) {
   const [activeTab, setActiveTab] = useState<IssueTab>("content");
   const [showThreadModal, setShowThreadModal] = useState(false);
   const [threadDraft, setThreadDraft] = useState("");
-  const [threadComments, setThreadComments] = useState<IssueThreadComment[]>([]);
+  // 낙관적 업데이트용: 아직 외부 prop에 반영 안 된 로컬 댓글만 보관
+  const [localPending, setLocalPending] = useState<IssueThreadComment[]>([]);
+
+  // 외부 prop에서 매핑한 댓글
+  const externalMapped: IssueThreadComment[] = (externalThreadMessages ?? []).map((m) => ({
+    id: String(m.id),
+    author: m.author ?? m.user ?? "",
+    time: m.time ?? "",
+    text: m.text ?? "",
+  }));
+  const externalIds = new Set(externalMapped.map((m) => m.id));
+  // 외부에 이미 포함된 로컬 pending은 제거 (중복 방지)
+  const threadComments = [...externalMapped, ...localPending.filter((m) => !externalIds.has(m.id))];
 
   const issueNumber = issueData.issueNumber ?? 0;
   const issueTitle  = issueData.issueTitle  ?? issueData.text ?? "";
@@ -117,12 +130,10 @@ export function IssuePanel({ issueData, onClose, onAddThreadReply }: IssuePanelP
   const handleThreadSubmit = () => {
     const text = threadDraft.trim();
     if (!text) return;
-    setThreadComments((prev) => [
-      ...prev,
-      { id: `issue-thread-${Date.now()}`, author: "나", time: "방금", text }
-    ]);
+    const newComment: IssueThreadComment = { id: `issue-thread-${Date.now()}`, author: "나", time: "방금", text };
+    setLocalPending((prev) => [...prev, newComment]);
+    onAddThreadMessage?.({ ...newComment, user: "나" });
     setThreadDraft("");
-    onAddThreadReply?.(text);
   };
 
   return (
@@ -453,7 +464,7 @@ export function IssuePanel({ issueData, onClose, onAddThreadReply }: IssuePanelP
               onClick={() => setShowThreadModal(false)}
             />
             <motion.div
-              className="absolute bottom-0 right-0 top-0 z-20 flex w-[360px] flex-col"
+              className="absolute bottom-0 right-0 top-0 z-20 flex w-[450px] flex-col"
               style={{
                 background: "rgba(8, 17, 31, 0.97)",
                 borderLeft: "1px solid rgba(32, 227, 255, 0.20)",
@@ -506,32 +517,34 @@ export function IssuePanel({ issueData, onClose, onAddThreadReply }: IssuePanelP
                     이슈에 대해 팀원들과 스레드를 시작하세요
                   </div>
                 ) : (
-                  <div className="grid gap-3">
+                  <div className="grid gap-2">
                     {threadComments.map((comment) => {
                       const isMine = comment.author === "나";
                       return (
-                        <div key={comment.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
-                          <div
-                            className="max-w-[92%] rounded-2xl px-3 py-2"
-                            style={{
-                              background: isMine ? "rgba(32, 227, 255, 0.12)" : "rgba(11, 22, 40, 0.78)",
-                              border: isMine ? "1px solid rgba(32, 227, 255, 0.28)" : "1px solid rgba(32, 227, 255, 0.12)"
-                            }}
-                          >
-                            <div className="mb-1 flex items-center gap-2">
-                              <span
-                                className="h-6 w-6 rounded-full text-center leading-6"
-                                style={{ background: isMine ? "linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))" : "rgba(32, 227, 255, 0.14)", color: isMine ? "#021014" : "var(--neon-cyan)", fontSize: 10, fontWeight: 950 }}
-                              >
-                                {comment.author.slice(0, 1)}
-                              </span>
-                              <span className="tracking-tight" style={{ color: "var(--white)", fontSize: 12, fontWeight: 950 }}>{comment.author}</span>
-                              <span className="tracking-tight" style={{ color: "var(--muted)", fontSize: 10, fontWeight: 800 }}>{comment.time}</span>
-                            </div>
-                            <p className="m-0 whitespace-pre-wrap tracking-tight" style={{ color: "var(--soft-mint)", fontSize: 12, fontWeight: 800, lineHeight: 1.55 }}>
-                              {comment.text}
-                            </p>
+                        <div
+                          key={comment.id}
+                          className="w-full rounded-2xl px-3 py-2"
+                          style={{
+                            background: isMine ? "rgba(32, 227, 255, 0.10)" : "rgba(11, 22, 40, 0.78)",
+                            border: isMine ? "1px solid rgba(32, 227, 255, 0.28)" : "1px solid rgba(32, 227, 255, 0.12)"
+                          }}
+                        >
+                          <div className="mb-1 flex items-center gap-2">
+                            <span
+                              className="h-6 w-6 flex-shrink-0 rounded-full text-center leading-6"
+                              style={{ background: isMine ? "linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))" : "rgba(32, 227, 255, 0.14)", color: isMine ? "#021014" : "var(--neon-cyan)", fontSize: 10, fontWeight: 950 }}
+                            >
+                              {comment.author.slice(0, 1)}
+                            </span>
+                            <span className="tracking-tight" style={{ color: isMine ? "var(--neon-cyan)" : "var(--white)", fontSize: 12, fontWeight: 950 }}>{comment.author}</span>
+                            {isMine && (
+                              <span className="rounded px-1.5 py-0.5" style={{ background: "rgba(32, 227, 255, 0.14)", color: "var(--neon-cyan)", fontSize: 9, fontWeight: 950 }}>나</span>
+                            )}
+                            <span className="tracking-tight" style={{ color: "var(--muted)", fontSize: 10, fontWeight: 800 }}>{comment.time}</span>
                           </div>
+                          <p className="m-0 whitespace-pre-wrap tracking-tight" style={{ color: "var(--soft-mint)", fontSize: 12, fontWeight: 800, lineHeight: 1.55 }}>
+                            {comment.text}
+                          </p>
                         </div>
                       );
                     })}
@@ -548,7 +561,7 @@ export function IssuePanel({ issueData, onClose, onAddThreadReply }: IssuePanelP
                   value={threadDraft}
                   onChange={(e) => setThreadDraft(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleThreadSubmit(); }
+                    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); handleThreadSubmit(); }
                   }}
                   placeholder="이슈 스레드에 댓글 남기기..."
                   className="block w-full resize-none rounded-xl px-3 py-2 outline-none tracking-tight"

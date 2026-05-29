@@ -20,7 +20,8 @@ interface PRReviewPanelProps {
   prData: any;
   onClose: () => void;
   onMergePR?: (messageId: number) => void;
-  onAddThreadReply?: (text: string) => void;
+  externalThreadMessages?: any[];
+  onAddThreadMessage?: (msg: any) => void;
 }
 
 interface DiffFile {
@@ -356,7 +357,7 @@ function riskLabel(risk: string) {
   return labels[risk] ?? risk;
 }
 
-export function PRReviewPanel({ prData, onClose, onMergePR, onAddThreadReply }: PRReviewPanelProps) {
+export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessages, onAddThreadMessage }: PRReviewPanelProps) {
   const tabContentRef = useRef<HTMLDivElement>(null);
   const [activeFileId, setActiveFileId] = useState(diffFiles[0].id);
   const [activePrTab, setActivePrTab] = useState<PrDialogTab>("original");
@@ -364,8 +365,27 @@ export function PRReviewPanel({ prData, onClose, onMergePR, onAddThreadReply }: 
   const [diffCommentDrafts, setDiffCommentDrafts] = useState<Record<string, string>>({});
   const [diffThreadComments, setDiffThreadComments] = useState<Record<string, DiffThreadComment[]>>({});
   const [prThreadDraft, setPrThreadDraft] = useState("");
-  const [prThreadComments, setPrThreadComments] = useState<DiffThreadComment[]>([]);
   const [diffEdits, setDiffEdits] = useState<Record<string, string>>({});
+  // 로컬 스레드 상태 — externalThreadMessages(시드 제외)로 초기화
+  const [prThreadComments, setPrThreadComments] = useState<DiffThreadComment[]>(() => {
+    const seedIds = new Set(
+      diffFiles.flatMap((f) => diffRows.flatMap((r) =>
+        f.id === "security" && r.comment ? [`seed-${f.id}-${r.line}`] : []
+      ))
+    );
+    return (externalThreadMessages ?? [])
+      .filter((m) => !seedIds.has(String(m.id)))
+      .map((m): DiffThreadComment => ({
+        id: String(m.id),
+        author: m.author ?? m.user ?? "",
+        time: m.time ?? "",
+        text: m.text ?? "",
+        fileId: m.fileId ?? "pr",
+        fileName: m.fileName ?? "",
+        filePath: m.filePath ?? "",
+        line: m.line ?? 0,
+      }));
+  });
   const [showThreadModal, setShowThreadModal] = useState(false);
   const activeFile = diffFiles.find((file) => file.id === activeFileId) ?? diffFiles[0];
   const prNumber = prData.prNumber ?? 142;
@@ -430,8 +450,9 @@ export function PRReviewPanel({ prData, onClose, onMergePR, onAddThreadReply }: 
 
   const getDiffThreadKey = (fileId: string, line: number) => `${fileId}:${line}`;
 
+  // seed 댓글은 PR #104 (id:1)에만 표시
   const getSeedDiffComments = (file: DiffFile, row: (typeof diffRows)[number]): DiffThreadComment[] => (
-    file.id === "security" && row.comment
+    prData.id === 1 && file.id === "security" && row.comment
       ? [{
           id: `seed-${file.id}-${row.line}`,
           author: row.comment.author,
@@ -482,10 +503,12 @@ export function PRReviewPanel({ prData, onClose, onMergePR, onAddThreadReply }: 
     diffEdits[getDiffThreadKey(file.id, row.line)] ?? row.code
   );
 
-  const getPrThreadMessages = () => [
-    ...diffFiles.flatMap((file) => diffRows.flatMap((row) => getSeedDiffComments(file, row))),
-    ...prThreadComments
-  ];
+  const getPrThreadMessages = (): DiffThreadComment[] => {
+    const seeds = diffFiles.flatMap((file) => diffRows.flatMap((row) => getSeedDiffComments(file, row)));
+    const seedIds = new Set(seeds.map((s) => s.id));
+    const local = prThreadComments.filter((c) => !seedIds.has(c.id));
+    return [...seeds, ...local];
+  };
 
   const getPrLineMessages = (file: DiffFile, row: (typeof diffRows)[number]) => (
     getPrThreadMessages().filter((comment) => comment.fileId === file.id && comment.line === row.line)
@@ -514,21 +537,19 @@ export function PRReviewPanel({ prData, onClose, onMergePR, onAddThreadReply }: 
       ? diffRows.find((row) => row.line === activeDiffThread.line)
       : null;
 
-    setPrThreadComments((prev) => [
-      ...prev,
-      {
-        id: `pr-thread-${Date.now()}`,
-        author: "나",
-        time: "방금",
-        text: draft,
-        fileId: referencedFile?.id ?? "pr",
-        fileName: referencedFile?.name ?? `PR #${prNumber}`,
-        filePath: referencedFile?.path ?? prTitle,
-        line: referencedRow?.line ?? 0
-      }
-    ]);
+    const newComment: DiffThreadComment = {
+      id: `pr-thread-${Date.now()}`,
+      author: "나",
+      time: "방금",
+      text: draft,
+      fileId: referencedFile?.id ?? "pr",
+      fileName: referencedFile?.name ?? `PR #${prNumber}`,
+      filePath: referencedFile?.path ?? prTitle,
+      line: referencedRow?.line ?? 0,
+    };
+    setPrThreadComments((prev) => [...prev, newComment]);
+    onAddThreadMessage?.({ ...newComment, user: "나" });
     setPrThreadDraft("");
-    onAddThreadReply?.(draft);
   };
 
   const renderOriginalPrTab = () => (
@@ -1031,43 +1052,43 @@ export function PRReviewPanel({ prData, onClose, onMergePR, onAddThreadReply }: 
                   </div>
                 ) : (
                   activeThreadComments.map((comment) => {
-                    const isMine = comment.id.startsWith("line-");
+                    const isMine = comment.author === "나";
 
                     return (
                       <div
                         key={comment.id}
-                        className={`flex ${isMine ? "justify-end" : "justify-start"}`}
+                        className="w-full rounded-2xl px-3 py-2"
+                        style={{
+                          background: isMine ? "rgba(32, 227, 255, 0.10)" : "rgba(11, 22, 40, 0.78)",
+                          border: isMine ? "1px solid rgba(32, 227, 255, 0.28)" : "1px solid rgba(32, 227, 255, 0.12)",
+                          borderLeft: isMine ? "3px solid var(--neon-cyan)" : "1px solid rgba(32, 227, 255, 0.12)"
+                        }}
                       >
-                        <div
-                          className="max-w-[92%] rounded-2xl px-3 py-2"
-                          style={{
-                            background: isMine ? "rgba(32, 227, 255, 0.12)" : "rgba(11, 22, 40, 0.78)",
-                            border: isMine ? "1px solid rgba(32, 227, 255, 0.28)" : "1px solid rgba(32, 227, 255, 0.12)"
-                          }}
-                        >
-                          <div className="mb-1 flex items-center gap-2">
-                            <span
-                              className="h-6 w-6 rounded-full text-center leading-6"
-                              style={{
-                                background: isMine ? "linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))" : "rgba(32, 227, 255, 0.14)",
-                                color: isMine ? "#021014" : "var(--neon-cyan)",
-                                fontSize: 10,
-                                fontWeight: 950
-                              }}
-                            >
-                              {comment.author.slice(0, 1)}
-                            </span>
-                            <span className="tracking-tight" style={{ color: "var(--white)", fontSize: 12, fontWeight: 950 }}>
-                              {comment.author}
-                            </span>
-                            <span className="tracking-tight" style={{ color: "var(--muted)", fontSize: 10, fontWeight: 800 }}>
-                              {comment.time}
-                            </span>
-                          </div>
-                          <p className="m-0 tracking-tight" style={{ color: "var(--soft-mint)", fontSize: 12, fontWeight: 800, lineHeight: 1.55 }}>
-                            {comment.text}
-                          </p>
+                        <div className="mb-1 flex items-center gap-2">
+                          <span
+                            className="h-6 w-6 flex-shrink-0 rounded-full text-center leading-6"
+                            style={{
+                              background: isMine ? "linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))" : "rgba(32, 227, 255, 0.14)",
+                              color: isMine ? "#021014" : "var(--neon-cyan)",
+                              fontSize: 10,
+                              fontWeight: 950
+                            }}
+                          >
+                            {comment.author.slice(0, 1)}
+                          </span>
+                          <span className="tracking-tight" style={{ color: isMine ? "var(--neon-cyan)" : "var(--white)", fontSize: 12, fontWeight: 950 }}>
+                            {comment.author}
+                          </span>
+                          {isMine && (
+                            <span className="rounded px-1.5 py-0.5" style={{ background: "rgba(32, 227, 255, 0.14)", color: "var(--neon-cyan)", fontSize: 9, fontWeight: 950 }}>나</span>
+                          )}
+                          <span className="tracking-tight" style={{ color: "var(--muted)", fontSize: 10, fontWeight: 800 }}>
+                            {comment.time}
+                          </span>
                         </div>
+                        <p className="m-0 tracking-tight" style={{ color: "var(--soft-mint)", fontSize: 12, fontWeight: 800, lineHeight: 1.55 }}>
+                          {comment.text}
+                        </p>
                       </div>
                     );
                   })
@@ -1249,120 +1270,77 @@ export function PRReviewPanel({ prData, onClose, onMergePR, onAddThreadReply }: 
         </div>
 
         <div className="codedock-scrollbar-hidden min-h-0 flex-1 overflow-y-auto px-4 py-3">
-          <div
-            className="mb-3 rounded-2xl px-3 py-3"
-            style={{
-              background: "rgba(32, 227, 255, 0.08)",
-              border: "1px solid rgba(32, 227, 255, 0.20)"
-            }}
-          >
-            <div className="mb-1 flex items-center justify-between gap-2">
-              <span className="truncate font-mono" style={{ color: "var(--neon-cyan)", fontSize: 12, fontWeight: 950 }}>
-                현재 참조: {selectedReferenceLabel}
-              </span>
-              <span className="rounded-full px-2 py-1" style={{
-                background: "rgba(234, 247, 255, 0.07)",
-                color: "var(--soft-mint)",
-                fontSize: 10,
-                fontWeight: 900
-              }}>
-                댓글 {threadMessages.length}
-              </span>
-            </div>
-            {selectedFile && selectedRow ? (
-              <>
-                <p className="m-0 mb-2 truncate font-mono" style={{ color: "var(--muted)", fontSize: 10, fontWeight: 800 }}>
-                  {selectedFile.path}/{selectedFile.name}
-                </p>
-                <code className="block rounded-xl px-3 py-2 font-mono" style={{
-                  background: "rgba(5, 11, 20, 0.72)",
-                  border: "1px solid rgba(234, 247, 255, 0.08)",
-                  color: selectedRow.added ? "#D7FFE7" : "#C6D4E5",
-                  fontSize: 10,
-                  fontWeight: 850,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap"
-                }}>
-                  {getEditedDiffCode(selectedFile, selectedRow) || " "}
-                </code>
-              </>
-            ) : (
-              <p className="m-0 tracking-tight" style={{ color: "var(--muted)", fontSize: 12, fontWeight: 800, lineHeight: 1.55 }}>
-                아직 선택한 DIFF 라인이 없습니다. 왼쪽 코드 라인을 클릭하면 참조가 입력창에 자동으로 붙습니다.
-              </p>
-            )}
-          </div>
-
-          <div className="grid gap-3">
+          <div className="grid gap-2">
             {threadMessages.map((comment) => {
               const isMine = comment.author === "나";
               const hasLineReference = comment.fileId !== "pr" && comment.line > 0;
 
               return (
-                <div key={comment.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
-                  <div
-                    className="max-w-[92%] rounded-2xl px-3 py-2"
-                    style={{
-                      background: isMine ? "rgba(32, 227, 255, 0.12)" : "rgba(11, 22, 40, 0.78)",
-                      border: isMine ? "1px solid rgba(32, 227, 255, 0.28)" : "1px solid rgba(32, 227, 255, 0.12)"
-                    }}
-                  >
-                    <div className="mb-1 flex items-center gap-2">
-                      <span
-                        className="h-6 w-6 rounded-full text-center leading-6"
+                <div
+                  key={comment.id}
+                  className="w-full rounded-2xl px-3 py-2"
+                  style={{
+                    background: isMine ? "rgba(32, 227, 255, 0.10)" : "rgba(11, 22, 40, 0.78)",
+                    border: isMine ? "1px solid rgba(32, 227, 255, 0.28)" : "1px solid rgba(32, 227, 255, 0.12)"
+                  }}
+                >
+                  <div className="mb-1 flex items-center gap-2">
+                    <span
+                      className="h-6 w-6 rounded-full text-center leading-6 flex-shrink-0"
+                      style={{
+                        background: isMine ? "linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))" : "rgba(32, 227, 255, 0.14)",
+                        color: isMine ? "#021014" : "var(--neon-cyan)",
+                        fontSize: 10,
+                        fontWeight: 950
+                      }}
+                    >
+                      {comment.author.slice(0, 1)}
+                    </span>
+                    <span className="tracking-tight" style={{ color: isMine ? "var(--neon-cyan)" : "var(--white)", fontSize: 12, fontWeight: 950 }}>
+                      {comment.author}
+                    </span>
+                    {isMine && (
+                      <span className="rounded px-1.5 py-0.5" style={{ background: "rgba(32, 227, 255, 0.14)", color: "var(--neon-cyan)", fontSize: 9, fontWeight: 950 }}>나</span>
+                    )}
+                    <span className="tracking-tight" style={{ color: "var(--muted)", fontSize: 10, fontWeight: 800 }}>
+                      {comment.time}
+                    </span>
+                  </div>
+                  {hasLineReference && (() => {
+                    const refRow = diffRows.find((r) => r.line === comment.line);
+                    const refCode = refRow ? (diffEdits[getDiffThreadKey(comment.fileId, comment.line)] ?? refRow.code) : "";
+                    return (
+                      <div
+                        className="mb-2 overflow-hidden rounded-xl"
                         style={{
-                          background: isMine ? "linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))" : "rgba(32, 227, 255, 0.14)",
-                          color: isMine ? "#021014" : "var(--neon-cyan)",
-                          fontSize: 10,
-                          fontWeight: 950
+                          background: "rgba(5, 11, 20, 0.72)",
+                          border: "1px solid rgba(32, 227, 255, 0.22)",
+                          userSelect: "none"
                         }}
                       >
-                        {comment.author.slice(0, 1)}
-                      </span>
-                      <span className="tracking-tight" style={{ color: "var(--white)", fontSize: 12, fontWeight: 950 }}>
-                        {comment.author}
-                      </span>
-                      <span className="tracking-tight" style={{ color: "var(--muted)", fontSize: 10, fontWeight: 800 }}>
-                        {comment.time}
-                      </span>
-                    </div>
-                    {hasLineReference && (() => {
-                      const refRow = diffRows.find((r) => r.line === comment.line);
-                      const refCode = refRow ? (diffEdits[getDiffThreadKey(comment.fileId, comment.line)] ?? refRow.code) : "";
-                      return (
                         <div
-                          className="mb-2 overflow-hidden rounded-xl"
-                          style={{
-                            background: "rgba(5, 11, 20, 0.72)",
-                            border: "1px solid rgba(32, 227, 255, 0.22)",
-                            userSelect: "none"
-                          }}
+                          className="flex items-center gap-2 px-3 py-1.5"
+                          style={{ borderBottom: "1px solid rgba(32, 227, 255, 0.12)", background: "rgba(32, 227, 255, 0.07)" }}
                         >
-                          <div
-                            className="flex items-center gap-2 px-3 py-1.5"
-                            style={{ borderBottom: "1px solid rgba(32, 227, 255, 0.12)", background: "rgba(32, 227, 255, 0.07)" }}
-                          >
-                            <FileCode size={11} style={{ color: "var(--neon-cyan)", flexShrink: 0 }} />
-                            <span className="truncate font-mono" style={{ color: "var(--neon-cyan)", fontSize: 10, fontWeight: 950 }}>
-                              {comment.fileName}
-                            </span>
-                            <span className="flex-shrink-0 rounded px-1.5 py-0.5 font-mono" style={{ background: "rgba(32, 227, 255, 0.14)", color: "var(--neon-cyan)", fontSize: 9, fontWeight: 950 }}>
-                              L{comment.line}
-                            </span>
-                          </div>
-                          {refCode && (
-                            <div className="px-3 py-2 font-mono" style={{ color: refRow?.added ? "#D7FFE7" : "#C6D4E5", fontSize: 11, fontWeight: 850, lineHeight: 1.55, whiteSpace: "pre", overflow: "hidden", textOverflow: "ellipsis" }}>
-                              {refCode}
-                            </div>
-                          )}
+                          <FileCode size={11} style={{ color: "var(--neon-cyan)", flexShrink: 0 }} />
+                          <span className="truncate font-mono" style={{ color: "var(--neon-cyan)", fontSize: 10, fontWeight: 950 }}>
+                            {comment.fileName}
+                          </span>
+                          <span className="flex-shrink-0 rounded px-1.5 py-0.5 font-mono" style={{ background: "rgba(32, 227, 255, 0.14)", color: "var(--neon-cyan)", fontSize: 9, fontWeight: 950 }}>
+                            L{comment.line}
+                          </span>
                         </div>
-                      );
-                    })()}
-                    <p className="m-0 whitespace-pre-wrap tracking-tight" style={{ color: "var(--soft-mint)", fontSize: 12, fontWeight: 800, lineHeight: 1.55 }}>
-                      {comment.text}
-                    </p>
-                  </div>
+                        {refCode && (
+                          <div className="px-3 py-2 font-mono" style={{ color: refRow?.added ? "#D7FFE7" : "#C6D4E5", fontSize: 11, fontWeight: 850, lineHeight: 1.55, whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+                            {refCode}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                  <p className="m-0 whitespace-pre-wrap tracking-tight" style={{ color: isMine ? "var(--soft-mint)" : "var(--soft-mint)", fontSize: 12, fontWeight: 800, lineHeight: 1.55 }}>
+                    {comment.text}
+                  </p>
                 </div>
               );
             })}
@@ -1376,38 +1354,49 @@ export function PRReviewPanel({ prData, onClose, onMergePR, onAddThreadReply }: 
             borderTop: "1px solid rgba(32, 227, 255, 0.14)"
           }}
         >
-          {selectedFile && selectedRow && (
-            <div
-              className="mb-2 flex items-center justify-between gap-2 rounded-xl px-3 py-2"
-              style={{
-                background: "rgba(32, 227, 255, 0.07)",
-                border: "1px solid rgba(32, 227, 255, 0.16)"
-              }}
-            >
-              <span className="truncate font-mono" style={{ color: "var(--neon-cyan)", fontSize: 10, fontWeight: 950 }}>
-                참조 중: {selectedFile.name}:{selectedRow.line}
-              </span>
-              <button
-                type="button"
-                onClick={() => setActiveDiffThread(null)}
-                className="rounded-md border-0 px-2 py-1"
+          {selectedFile && selectedRow && (() => {
+            const refCode = diffEdits[getDiffThreadKey(selectedFile.id, selectedRow.line)] ?? selectedRow.code;
+            return (
+              <div
+                className="mb-2 overflow-hidden rounded-xl"
                 style={{
-                  background: "rgba(234, 247, 255, 0.06)",
-                  color: "var(--muted)",
-                  cursor: "pointer",
-                  fontSize: 10,
-                  fontWeight: 900
+                  background: "rgba(5, 11, 20, 0.72)",
+                  border: "1px solid rgba(32, 227, 255, 0.26)"
                 }}
               >
-                해제
-              </button>
-            </div>
-          )}
+                <div
+                  className="flex items-center gap-2 px-3 py-1.5"
+                  style={{ background: "rgba(32, 227, 255, 0.09)", borderBottom: "1px solid rgba(32, 227, 255, 0.14)" }}
+                >
+                  <FileCode size={11} style={{ color: "var(--neon-cyan)", flexShrink: 0 }} />
+                  <span className="min-w-0 flex-1 truncate font-mono" style={{ color: "var(--neon-cyan)", fontSize: 10, fontWeight: 950 }}>
+                    {selectedFile.name}
+                  </span>
+                  <span className="flex-shrink-0 rounded px-1.5 py-0.5 font-mono" style={{ background: "rgba(32, 227, 255, 0.14)", color: "var(--neon-cyan)", fontSize: 9, fontWeight: 950 }}>
+                    L{selectedRow.line}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setActiveDiffThread(null)}
+                    className="flex-shrink-0 rounded-md border-0 px-2 py-0.5"
+                    style={{ background: "rgba(234, 247, 255, 0.06)", color: "var(--muted)", cursor: "pointer", fontSize: 10, fontWeight: 900 }}
+                  >
+                    해제
+                  </button>
+                </div>
+                {refCode && (
+                  <div className="px-3 py-2 font-mono" style={{ color: selectedRow.added ? "#D7FFE7" : "#C6D4E5", fontSize: 11, fontWeight: 850, lineHeight: 1.55, whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+                    {refCode}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
           <textarea
             value={prThreadDraft}
             onChange={(event) => setPrThreadDraft(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
+              if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
                 event.preventDefault();
                 handlePrThreadSubmit();
               }
@@ -2180,7 +2169,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, onAddThreadReply }: 
             />
             {/* 슬라이드 패널 */}
             <motion.div
-              className="absolute bottom-0 right-0 top-0 z-20 w-[390px]"
+              className="absolute bottom-0 right-0 top-0 z-20 w-[450px]"
               style={{
                 background: "rgba(8, 17, 31, 0.97)",
                 borderLeft: "1px solid rgba(32, 227, 255, 0.20)",
