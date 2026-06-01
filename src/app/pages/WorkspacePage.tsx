@@ -992,10 +992,41 @@ export function WorkspacePage() {
   }, []);
 
   const handleCreateTeam = (name: string, repoIds: number[], invitedMembers: TeamInviteDraft[]) => {
+    const newId = Date.now();   // capture once so org ID and storage key match
     setOrgs((prev) => [
       ...prev,
-      { id: Date.now(), name, openPRs: 0, highRisk: 0, activeIssues: 0, memberCount: invitedMembers.length + 1, repoCount: repoIds.length, myRole: "소유자" },
+      { id: newId, name, openPRs: 0, highRisk: 0, activeIssues: 0, memberCount: invitedMembers.length + 1, repoCount: repoIds.length, myRole: "소유자" },
     ]);
+
+    // Persist workspace team to localStorage
+    const memberPool: Record<string, object> = {
+      "jaejun@codedock.dev":  { id: "jaejun",  initials: "JJ", name: "김재준",  role: "Tech Lead",          email: "jaejun@codedock.dev",  github: "kimjaejun",  score: 95, online: true,  statusColor: "#39FF88", commits: 247, prs: 42, reviews: 68, protected: true },
+      "jinpil@codedock.dev":  { id: "jinpil",  initials: "JP", name: "김진필",  role: "Backend Developer",  email: "jinpil@codedock.dev",  github: "kimjinpil",  score: 88, online: true,  statusColor: "#39FF88", commits: 189, prs: 35, reviews: 52 },
+      "junwoo@codedock.dev":  { id: "junwoo",  initials: "JW", name: "김준우",  role: "Frontend Developer", email: "junwoo@codedock.dev",  github: "kimjunwoo",  score: 82, online: true,  statusColor: "#39FF88", commits: 156, prs: 28, reviews: 45 },
+      "jinhyun@codedock.dev": { id: "jinhyun", initials: "JH", name: "김진현",  role: "DevOps Engineer",    email: "jinhyun@codedock.dev", github: "kimjinhyun", score: 74, online: false, statusColor: "#8B94A7", commits: 98,  prs: 18, reviews: 31 },
+      "hyun@codedock.dev":    { id: "hyun",    initials: "AH", name: "안현",    role: "QA Engineer",        email: "hyun@codedock.dev",    github: "ahnhyun",    score: 79, online: false, statusColor: "#8B94A7", commits: 45,  prs: 12, reviews: 87 },
+    };
+
+    const creator = memberPool["junwoo@codedock.dev"];
+    const invitedAsFull = invitedMembers.map((draft) =>
+      memberPool[draft.email] ?? {
+        id: `invited-${draft.id}`,
+        initials: draft.name.slice(0, 2).toUpperCase(),
+        name: draft.name,
+        role: draft.role,
+        email: draft.email,
+        github: draft.email.split("@")[0],
+        score: 50, online: false, statusColor: "#8B94A7",
+        commits: 0, prs: 0, reviews: 0,
+      }
+    );
+
+    try {
+      const stored = localStorage.getItem("codedock-workspace-teams-v1");
+      const all: Record<string, unknown[]> = stored ? JSON.parse(stored) : {};
+      all[String(newId)] = [creator, ...invitedAsFull];
+      localStorage.setItem("codedock-workspace-teams-v1", JSON.stringify(all));
+    } catch { /* ignore */ }
   };
 
   const handleAcceptInvite = (invite: Invite) => {
