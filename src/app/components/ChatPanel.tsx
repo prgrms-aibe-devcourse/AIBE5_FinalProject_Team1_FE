@@ -1103,6 +1103,69 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
       <div className="px-6 py-4" style={{
         borderTop: '1px solid rgba(32, 227, 255, 0.14)'
       }}>
+        {(codeBlockText.trim() || selectedAttachments.length > 0) && (
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <span className="tracking-tight" style={{
+              fontSize: '11px',
+              fontWeight: 900,
+              color: 'var(--muted)'
+            }}>
+              첨부 {selectedAttachments.length + (codeBlockText.trim() ? 1 : 0)}
+            </span>
+            {codeBlockText.trim() && (
+              <button
+                type="button"
+                onClick={() => setActivePanel('code')}
+                className="flex items-center gap-1.5 rounded-full border-0 px-2.5 py-1 tracking-tight transition-all"
+                style={{
+                  background: 'rgba(32, 227, 255, 0.12)',
+                  border: '1px solid rgba(32, 227, 255, 0.34)',
+                  color: 'var(--neon-cyan)',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  fontWeight: 900,
+                }}
+                title="코드 블록 보기"
+              >
+                <Code size={12} />
+                <span>코드 블록</span>
+                <span
+                  role="button"
+                  aria-label="코드 블록 제거"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCodeBlockText('');
+                    if (activePanel === 'code') setActivePanel(null);
+                  }}
+                  style={{ marginLeft: '2px', opacity: 0.7, cursor: 'pointer' }}
+                >
+                  ×
+                </span>
+              </button>
+            )}
+            {selectedAttachments.map((attachment) => (
+              <button
+                key={attachment.id}
+                onClick={() => handleAttachmentRemove(attachment.id)}
+                className="px-3 py-1.5 rounded-full border-0 flex items-center gap-2 tracking-tight"
+                style={{
+                  background: 'rgba(32, 227, 255, 0.12)',
+                  border: '1px solid rgba(32, 227, 255, 0.24)',
+                  color: 'var(--white)',
+                  fontSize: '11px',
+                  fontWeight: 900,
+                  cursor: 'pointer'
+                }}
+                title="첨부 제거"
+              >
+                <span style={{ color: 'var(--neon-cyan)' }}>{messageAttachmentTypeLabels[attachment.type]}</span>
+                {attachment.title}
+                <X size={12} />
+              </button>
+            ))}
+          </div>
+        )}
+
         {activePanel === 'code' && (
           <div className="mb-3 px-4 py-3 rounded-xl" style={{
             background: 'rgba(32, 227, 255, 0.08)',
@@ -1129,38 +1192,6 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                 fontWeight: 700
               }}
             />
-          </div>
-        )}
-
-        {selectedAttachments.length > 0 && (
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <span className="tracking-tight" style={{
-              fontSize: '11px',
-              fontWeight: 900,
-              color: 'var(--muted)'
-            }}>
-              첨부 {selectedAttachments.length}
-            </span>
-            {selectedAttachments.map((attachment) => (
-              <button
-                key={attachment.id}
-                onClick={() => handleAttachmentRemove(attachment.id)}
-                className="px-3 py-1.5 rounded-full border-0 flex items-center gap-2 tracking-tight"
-                style={{
-                  background: 'rgba(32, 227, 255, 0.12)',
-                  border: '1px solid rgba(32, 227, 255, 0.24)',
-                  color: 'var(--white)',
-                  fontSize: '11px',
-                  fontWeight: 900,
-                  cursor: 'pointer'
-                }}
-                title="첨부 제거"
-              >
-                <span style={{ color: 'var(--neon-cyan)' }}>{messageAttachmentTypeLabels[attachment.type]}</span>
-                {attachment.title}
-                <X size={12} />
-              </button>
-            ))}
           </div>
         )}
 
@@ -1375,7 +1406,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
           <div className="flex shrink-0 flex-wrap justify-end gap-1">
             <button
               onClick={() => togglePanel('code')}
-              className="w-9 h-9 rounded-lg border-0 flex items-center justify-center"
+              className="relative w-9 h-9 rounded-lg border-0 flex items-center justify-center"
               style={{
                 background: activePanel === 'code' ? 'rgba(32, 227, 255, 0.15)' : 'rgba(5, 11, 20, 0.6)',
                 border: `1px solid ${activePanel === 'code' ? 'rgba(32, 227, 255, 0.3)' : 'rgba(32, 227, 255, 0.14)'}`,
@@ -1386,6 +1417,12 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
               aria-label="코드 블록"
             >
               <Code size={18} />
+              {codeBlockText.trim() && (
+                <span
+                  className="absolute top-1 right-1 h-2 w-2 rounded-full"
+                  style={{ background: 'var(--neon-cyan)', boxShadow: '0 0 4px var(--neon-cyan)' }}
+                />
+              )}
             </button>
             <button
               onClick={() => togglePanel('attachment')}

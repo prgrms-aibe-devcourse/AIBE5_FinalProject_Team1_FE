@@ -59,9 +59,10 @@ export function MessageReactions({ reactions = [], onToggle }: MessageReactionsP
 
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
-      // Place above the button — natural for reactions at the bottom of messages
-      // 116px = 2 rows × (36px + 6px gap) + 16px padding + 8px gap
-      setPickerPos({ top: rect.top - 116, left: rect.left });
+      // Prefer above the button; fall back to below if too close to the top of the viewport
+      const spaceAbove = rect.top - 116;
+      const top = spaceAbove >= 8 ? spaceAbove : rect.bottom + 8;
+      setPickerPos({ top, left: rect.left });
     }
 
     // Lock the nearest scrollable ancestor so the chat doesn't scroll while picker is open
