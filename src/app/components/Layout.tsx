@@ -92,7 +92,7 @@ export function Layout() {
       >
         <div className="relative mx-auto flex w-[min(1400px,100%)] items-center justify-between gap-4">
           <Link
-            to="/"
+            to="/workspace"
             className="codedock-brand-link flex items-center gap-3 no-underline transition-all duration-300"
             style={{
               color: "var(--white)",
