@@ -16,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import { useTheme } from "../contexts/ThemeContext";
+import { clearAuthenticated } from "../auth";
 
 const navItems = [
   { path: "/workspace", label: "Dashboard" },
@@ -38,6 +39,7 @@ export function Layout() {
 
   const isActive = (path: string) => location.pathname === path;
   const handleLogout = () => {
+    clearAuthenticated();
     navigate("/login");
   };
 
@@ -90,7 +92,7 @@ export function Layout() {
       >
         <div className="relative mx-auto flex w-[min(1400px,100%)] items-center justify-between gap-4">
           <Link
-            to="/"
+            to="/workspace"
             className="codedock-brand-link flex items-center gap-3 no-underline transition-all duration-300"
             style={{
               color: "var(--white)",

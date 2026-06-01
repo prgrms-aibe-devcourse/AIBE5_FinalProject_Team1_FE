@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from "react-router";
+import { BrowserRouter, Navigate, Routes, Route } from "react-router";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import { Layout } from "./components/Layout";
@@ -19,6 +19,11 @@ import { LoginPage } from "./pages/LoginPage";
 import { SignupPage } from "./pages/SignupPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { isAuthenticated } from "./auth";
+
+function HomeRoute() {
+  return isAuthenticated() ? <Navigate to="/workspace" replace /> : <HomePage />;
+}
 
 export default function App() {
   return (
@@ -28,7 +33,7 @@ export default function App() {
           <LanguageDomSync />
           <Routes>
             <Route element={<PublicLayout />}>
-              <Route path="/" element={<HomePage />} />
+              <Route path="/" element={<HomeRoute />} />
             </Route>
             <Route element={<AuthLayout />}>
               <Route path="/login" element={<LoginPage />} />
