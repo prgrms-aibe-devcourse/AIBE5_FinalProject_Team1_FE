@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { motion } from "motion/react";
-import { Bell, Shield, Palette, Globe, Save } from "lucide-react";
+import { Bell, Shield, Palette, Save } from "lucide-react";
 import { useTheme } from "../contexts/ThemeContext";
 import { useLanguage, type LanguageType } from "../contexts/LanguageContext";
 
 export function SettingsPage() {
-  const { colors } = useTheme();
+  const { colors, theme, setTheme } = useTheme();
   const { language, setLanguage } = useLanguage();
   const [settings, setSettings] = useState({
     notifications: {
@@ -21,7 +21,7 @@ export function SettingsPage() {
       emailVisibility: false
     },
     appearance: {
-      theme: 'dark',
+      theme,
       language
     }
   });
@@ -279,10 +279,14 @@ export function SettingsPage() {
                 </label>
                 <select
                   value={settings.appearance.theme}
-                  onChange={(e) => setSettings({
-                    ...settings,
-                    appearance: { ...settings.appearance, theme: e.target.value }
-                  })}
+                  onChange={(e) => {
+                    const nextTheme = e.target.value as typeof theme;
+                    setTheme(nextTheme);
+                    setSettings({
+                      ...settings,
+                      appearance: { ...settings.appearance, theme: nextTheme }
+                    });
+                  }}
                   className="w-full px-4 py-3 rounded-xl border-0 tracking-tight cursor-pointer"
                   style={{
                     background: 'rgba(5, 11, 20, 0.6)',
@@ -292,9 +296,8 @@ export function SettingsPage() {
                     fontWeight: 700
                   }}
                 >
-                  <option value="dark">다크 모드</option>
-                  <option value="light">라이트 모드</option>
-                  <option value="auto">시스템 설정</option>
+                  <option value="cyan">블루 모드</option>
+                  <option value="green">그린 모드</option>
                 </select>
               </div>
 

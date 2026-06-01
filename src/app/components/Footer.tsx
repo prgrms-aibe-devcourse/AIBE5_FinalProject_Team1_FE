@@ -1,4 +1,4 @@
-import { Github, Heart, Linkedin, Mail, Twitter } from "lucide-react";
+import { Github, Heart, Mail } from "lucide-react";
 import { Link } from "react-router";
 import { CodeDockWordmark } from "./CodeDockWordmark";
 import { CoffeeLogo } from "./CoffeeLogo";
@@ -6,39 +6,22 @@ import { useLanguage } from "../contexts/LanguageContext";
 import { useTheme } from "../contexts/ThemeContext";
 
 const footerLinks = {
-  product: [
-    { ko: "기능", en: "Features", path: "/#features" },
-    { ko: "대시보드", en: "Dashboard", path: "/workspace" },
-    { ko: "PR 리뷰", en: "PR Review", path: "/prs" },
+  navigation: [
+    { ko: "팀 대시보드", en: "Team Dashboard", path: "/workspace" },
+    { ko: "협업 워크스페이스", en: "Collaboration Workspace", path: "/chat" },
     { ko: "API 명세", en: "API Spec", path: "/api-spec" },
     { ko: "ERD", en: "ERD", path: "/erd" },
     { ko: "문서", en: "Docs", path: "/docs" }
   ],
-  company: [
-    { ko: "소개", en: "About", path: "/about" },
-    { ko: "소식", en: "Blog", path: "/blog" },
-    { ko: "채용", en: "Careers", path: "/careers" },
-    { ko: "문의", en: "Contact", path: "/contact" }
-  ],
-  resources: [
-    { ko: "문서", en: "Documentation", path: "/docs" },
-    { ko: "API 참조", en: "API Reference", path: "/api-spec" },
-    { ko: "튜토리얼", en: "Tutorials", path: "/tutorials" },
-    { ko: "커뮤니티", en: "Community", path: "/community" }
-  ],
-  legal: [
-    { ko: "개인정보", en: "Privacy", path: "/privacy" },
-    { ko: "이용약관", en: "Terms", path: "/terms" },
-    { ko: "보안", en: "Security", path: "/security" },
-    { ko: "쿠키", en: "Cookies", path: "/cookies" }
+  account: [
+    { ko: "프로필", en: "Profile", path: "/profile" },
+    { ko: "설정", en: "Settings", path: "/settings" }
   ]
 };
 
 const socialLinks = [
-  { icon: Github, href: "https://github.com", label: "GitHub" },
-  { icon: Twitter, href: "https://twitter.com", label: "Twitter" },
-  { icon: Linkedin, href: "https://linkedin.com", label: "LinkedIn" },
-  { icon: Mail, href: "mailto:contact@coffeeting.dev", label: "Email" }
+  { icon: Github, href: "https://github.com/prgrms-aibe-devcourse/AIBE5_FinalProject_Team1_FE", label: "GitHub" },
+  { icon: Mail, href: "mailto:contact@codedock.dev", label: "Email" }
 ];
 
 export function Footer() {
@@ -46,29 +29,28 @@ export function Footer() {
   const { colors } = useTheme();
   const { language } = useLanguage();
   const isKorean = language === "ko";
+  const tone = (alpha: number) => `${colors.primary}, ${alpha})`;
   const copy = {
-    product: isKorean ? "제품" : "Product",
-    company: isKorean ? "회사" : "Company",
-    resources: isKorean ? "자료" : "Resources",
-    legal: isKorean ? "정책" : "Legal",
+    navigation: isKorean ? "메뉴" : "Menu",
+    account: isKorean ? "계정" : "Account",
     description: isKorean
-      ? "AI 기반 개발 협업 플랫폼. 코딩은 개발자가, 리뷰와 문서는 AI가 돕습니다."
+      ? "PR 리뷰, 보안 점검, 문서화를 한 흐름으로 연결하는 AI 개발 워크스페이스입니다."
       : "An AI development workflow platform for reviews, docs, and team collaboration.",
-    madeBy: isKorean ? "DevFlow Team 제작" : "by DevFlow Team",
+    madeBy: "CodeDock Team",
     rights: isKorean ? "모든 권리 보유." : "All rights reserved.",
-    madeWith: isKorean ? "제작" : "Made with"
+    madeWith: "Made with"
   };
 
-  const renderLinks = (links: typeof footerLinks.product) => (
-    <ul className="m-0 grid list-none gap-3 p-0">
+  const renderLinks = (links: typeof footerLinks.navigation) => (
+    <ul className="m-0 grid list-none gap-2 p-0">
       {links.map((link) => (
         <li key={link.path}>
           <Link
             to={link.path}
-            className="no-underline tracking-tight transition-colors"
+            className="no-underline tracking-tight transition-colors hover:text-white"
             style={{
-              fontSize: "14px",
-              fontWeight: 700,
+              fontSize: "13px",
+              fontWeight: 750,
               color: "var(--muted)"
             }}
           >
@@ -81,43 +63,46 @@ export function Footer() {
 
   return (
     <footer
-      className="relative mt-20"
+      className="relative mt-12"
       style={{
         background: `
-          radial-gradient(circle at 20% 50%, ${colors.primary}, 0.08), transparent 40%),
-          radial-gradient(circle at 80% 50%, ${colors.primary}, 0.06), transparent 40%),
-          rgba(5, 11, 20, 0.95)
+          radial-gradient(circle at 18% 40%, ${tone(0.07)}, transparent 34%),
+          radial-gradient(circle at 84% 54%, ${tone(0.05)}, transparent 36%),
+          rgba(5, 11, 20, 0.94)
         `,
-        borderTop: `1px solid ${colors.primary}, 0.15)`
+        borderTop: `1px solid ${tone(0.14)}`
       }}
     >
-      <div className="relative mx-auto w-[min(1400px,calc(100vw-36px))] px-6 py-16">
-        <div className="mb-12 grid gap-12 md:grid-cols-2 lg:grid-cols-6">
-          <div className="lg:col-span-2">
+      <div className="relative mx-auto w-[min(1180px,calc(100vw-32px))] px-4 py-8 sm:px-6 sm:py-10">
+        <div className="mb-7 grid gap-7 md:grid-cols-[minmax(0,1.5fr)_minmax(150px,0.5fr)_minmax(130px,0.45fr)]">
+          <div>
             <Link
               to="/"
-              className="mb-6 flex items-center gap-3 no-underline tracking-[-0.07em]"
+              className="mb-3 flex items-center gap-3 no-underline tracking-[-0.07em]"
               style={{
                 fontWeight: 950,
-                fontSize: "30px",
+                fontSize: "24px",
                 color: "var(--white)"
               }}
             >
               <CoffeeLogo
-                className="h-16 w-16 flex-shrink-0"
-                style={{ filter: `drop-shadow(0 0 14px ${colors.primary}, 0.3))` }}
+                className="h-12 w-12 flex-shrink-0"
+                style={{ filter: `drop-shadow(0 0 14px ${tone(0.3)})` }}
               />
               <CodeDockWordmark accentColor={colors.primaryHex} />
             </Link>
-            <p className="m-0 mb-6 leading-[1.7] tracking-tight" style={{
-              fontSize: "15px",
-              fontWeight: 700,
-              color: "var(--muted)",
-              maxWidth: "320px"
-            }}>
+            <p
+              className="m-0 mb-4 leading-[1.55] tracking-tight"
+              style={{
+                fontSize: "13px",
+                fontWeight: 700,
+                color: "var(--muted)",
+                maxWidth: "420px"
+              }}
+            >
               {copy.description}
             </p>
-            <div className="flex gap-3">
+            <div className="flex gap-2">
               {socialLinks.map((social) => {
                 const Icon = social.icon;
                 return (
@@ -127,14 +112,14 @@ export function Footer() {
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label={social.label === "Email" && isKorean ? "이메일" : social.label}
-                    className="flex h-10 w-10 items-center justify-center rounded-lg transition-all hover:scale-110"
+                    className="flex h-9 w-9 items-center justify-center rounded-lg transition-all hover:scale-110"
                     style={{
-                      background: `${colors.primary}, 0.08)`,
-                      border: `1px solid ${colors.primary}, 0.22)`,
+                      background: tone(0.08),
+                      border: `1px solid ${tone(0.22)}`,
                       color: colors.primaryHex
                     }}
                   >
-                    <Icon size={20} strokeWidth={2} />
+                    <Icon size={18} strokeWidth={2} />
                   </a>
                 );
               })}
@@ -142,45 +127,34 @@ export function Footer() {
           </div>
 
           <div>
-            <h3 className="m-0 mb-4 tracking-tight" style={{ fontSize: "14px", fontWeight: 950, color: "var(--white)" }}>
-              {copy.product}
+            <h3 className="m-0 mb-3 tracking-tight" style={{ fontSize: "13px", fontWeight: 950, color: "var(--white)" }}>
+              {copy.navigation}
             </h3>
-            {renderLinks(footerLinks.product)}
+            {renderLinks(footerLinks.navigation)}
           </div>
 
           <div>
-            <h3 className="m-0 mb-4 tracking-tight" style={{ fontSize: "14px", fontWeight: 950, color: "var(--white)" }}>
-              {copy.company}
+            <h3 className="m-0 mb-3 tracking-tight" style={{ fontSize: "13px", fontWeight: 950, color: "var(--white)" }}>
+              {copy.account}
             </h3>
-            {renderLinks(footerLinks.company)}
-          </div>
-
-          <div>
-            <h3 className="m-0 mb-4 tracking-tight" style={{ fontSize: "14px", fontWeight: 950, color: "var(--white)" }}>
-              {copy.resources}
-            </h3>
-            {renderLinks(footerLinks.resources)}
-          </div>
-
-          <div>
-            <h3 className="m-0 mb-4 tracking-tight" style={{ fontSize: "14px", fontWeight: 950, color: "var(--white)" }}>
-              {copy.legal}
-            </h3>
-            {renderLinks(footerLinks.legal)}
+            {renderLinks(footerLinks.account)}
           </div>
         </div>
 
-        <div className="pt-8" style={{ borderTop: `1px solid ${colors.primary}, 0.15)` }}>
-          <div className="flex flex-col items-center justify-between gap-4 md:flex-row">
-            <p className="m-0 tracking-tight" style={{ fontSize: "13px", fontWeight: 700, color: "var(--muted)" }}>
+        <div className="pt-5" style={{ borderTop: `1px solid ${tone(0.14)}` }}>
+          <div className="flex flex-col items-center justify-between gap-3 md:flex-row">
+            <p className="m-0 tracking-tight" style={{ fontSize: "12px", fontWeight: 700, color: "var(--muted)" }}>
               © {currentYear} CodeDock. {copy.rights}
             </p>
-            <p className="m-0 flex items-center gap-2 tracking-tight" style={{
-              fontSize: "13px",
-              fontWeight: 700,
-              color: "var(--muted)"
-            }}>
-              {copy.madeWith} <Heart size={16} strokeWidth={2} style={{ color: "#FF6B6B" }} fill="#FF6B6B" /> {copy.madeBy}
+            <p
+              className="m-0 flex items-center gap-2 tracking-tight"
+              style={{
+                fontSize: "12px",
+                fontWeight: 700,
+                color: "var(--muted)"
+              }}
+            >
+              {copy.madeWith} <Heart size={14} strokeWidth={2} style={{ color: "#FF6B6B" }} fill="#FF6B6B" /> {copy.madeBy}
             </p>
           </div>
         </div>

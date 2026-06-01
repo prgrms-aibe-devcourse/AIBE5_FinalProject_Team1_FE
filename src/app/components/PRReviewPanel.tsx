@@ -358,6 +358,19 @@ function riskLabel(risk: string) {
   return labels[risk] ?? risk;
 }
 
+const currentUserDisplayName = "김재준";
+const currentUserAvatar = currentUserDisplayName.charAt(0);
+
+function isCurrentUser(author?: string) {
+  const trimmed = (author ?? "").trim();
+  return trimmed === "나" || trimmed === currentUserDisplayName;
+}
+
+function getDisplayAuthor(author?: string) {
+  const trimmed = (author ?? "").trim();
+  return isCurrentUser(trimmed) ? currentUserDisplayName : trimmed;
+}
+
 export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessages, onAddThreadMessage }: PRReviewPanelProps) {
   const tabContentRef = useRef<HTMLDivElement>(null);
   const [activeFileId, setActiveFileId] = useState(diffFiles[0].id);
@@ -487,7 +500,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
         ...(prev[threadKey] ?? []),
         {
           id: `line-${file.id}-${row.line}-${Date.now()}`,
-          author: "나",
+          author: currentUserDisplayName,
           time: "방금",
           text: draft,
           fileId: file.id,
@@ -545,7 +558,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
 
     const newComment: DiffThreadComment = {
       id: `pr-thread-${Date.now()}`,
-      author: "나",
+      author: currentUserDisplayName,
       time: "방금",
       text: draft,
       fileId: referencedFile?.id ?? "pr",
@@ -555,7 +568,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
       code: referencedCode,
     };
     setPrThreadComments((prev) => [...prev, newComment]);
-    onAddThreadMessage?.({ ...newComment, user: "나" });
+    onAddThreadMessage?.({ ...newComment, user: currentUserDisplayName });
     setPrThreadDraft("");
   };
 
@@ -925,292 +938,6 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
     </div>
   );
 
-  const renderEmbeddedDiffThreadChat = () => {
-    const activeThreadFile = activeDiffThread
-      ? diffFiles.find((file) => file.id === activeDiffThread.fileId)
-      : null;
-    const activeThreadRow = activeDiffThread
-      ? diffRows.find((row) => row.line === activeDiffThread.line)
-      : null;
-    const activeThreadKey = activeThreadFile && activeThreadRow
-      ? getDiffThreadKey(activeThreadFile.id, activeThreadRow.line)
-      : null;
-    const activeThreadComments = activeThreadFile && activeThreadRow
-      ? getDiffLineComments(activeThreadFile, activeThreadRow)
-      : [];
-    const allThreadItems = diffFiles.flatMap((file) => (
-      diffRows.map((row) => ({
-        key: getDiffThreadKey(file.id, row.line),
-        file,
-        row,
-        comments: getDiffLineComments(file, row)
-      }))
-    )).filter((item) => item.comments.length > 0);
-
-    return (
-      <div className="flex h-full min-h-0 flex-col">
-        <div
-          className="px-4 py-3"
-          style={{
-            background: "rgba(8, 17, 31, 0.96)",
-            borderBottom: "1px solid rgba(32, 227, 255, 0.14)",
-            backdropFilter: "blur(14px)"
-          }}
-        >
-          <div className="mb-1 flex items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-2">
-              <MessageSquare size={17} style={{ color: "var(--neon-cyan)" }} />
-              <h3 className="m-0 truncate tracking-tight" style={{ color: "var(--white)", fontSize: 14, fontWeight: 950 }}>
-                스레드 채팅방
-              </h3>
-            </div>
-            <span
-              className="rounded-full px-2 py-1 font-mono"
-              style={{
-                background: "rgba(57, 255, 136, 0.10)",
-                border: "1px solid rgba(57, 255, 136, 0.24)",
-                color: "var(--matrix-green)",
-                fontSize: 9,
-                fontWeight: 950
-              }}
-            >
-              EMBED
-            </span>
-          </div>
-          <p className="m-0 tracking-tight" style={{ color: "var(--muted)", fontSize: 11, fontWeight: 800, lineHeight: 1.45 }}>
-            메인 채팅의 리뷰 룸을 불러와 DIFF 라인별 댓글을 같은 스레드로 이어갑니다.
-          </p>
-        </div>
-
-        <div className="codedock-scrollbar-hidden min-h-0 flex-1 overflow-y-auto px-4 py-3">
-          {activeThreadFile && activeThreadRow && activeThreadKey ? (
-            <div className="grid gap-3">
-              <div
-                className="rounded-2xl px-3 py-2"
-                style={{
-                  background: "rgba(32, 227, 255, 0.08)",
-                  border: "1px solid rgba(32, 227, 255, 0.20)"
-                }}
-              >
-                <div className="mb-1 flex items-center justify-between gap-2">
-                  <span className="truncate font-mono" style={{ color: "var(--neon-cyan)", fontSize: 12, fontWeight: 950 }}>
-                    {activeThreadFile.name}:{activeThreadRow.line}
-                  </span>
-                  <span className="rounded-full px-2 py-1" style={{
-                    background: "rgba(234, 247, 255, 0.07)",
-                    color: "var(--soft-mint)",
-                    fontSize: 10,
-                    fontWeight: 900
-                  }}>
-                    댓글 {activeThreadComments.length}
-                  </span>
-                </div>
-                <p className="hidden">
-                  {activeThreadFile.path}/{activeThreadFile.name}
-                </p>
-                <code className="block rounded-xl px-3 py-1 font-mono" style={{
-                  background: "rgba(5, 11, 20, 0.72)",
-                  border: "1px solid rgba(234, 247, 255, 0.08)",
-                  color: activeThreadRow.added ? "#D7FFE7" : "#C6D4E5",
-                  fontSize: 10,
-                  fontWeight: 850,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap"
-                }}>
-                  {activeThreadRow.code || " "}
-                </code>
-              </div>
-
-              {false && (
-              <div
-                className="rounded-2xl px-4 py-3"
-                style={{
-                  background: "rgba(57, 255, 136, 0.08)",
-                  border: "1px solid rgba(57, 255, 136, 0.18)"
-                }}
-              >
-                <div className="mb-1 flex items-center gap-2">
-                  <Sparkles size={14} style={{ color: "var(--matrix-green)" }} />
-                  <span className="tracking-tight" style={{ color: "var(--matrix-green)", fontSize: 12, fontWeight: 950 }}>
-                    CodeDock
-                  </span>
-                </div>
-                <p className="m-0 tracking-tight" style={{ color: "var(--soft-mint)", fontSize: 12, fontWeight: 800, lineHeight: 1.55 }}>
-                  {activeThreadFile.name} {activeThreadRow.line}번 줄 스레드를 메인 리뷰 채팅방에서 불러왔어요.
-                </p>
-              </div>
-              )}
-
-              <div className="grid gap-3">
-                {activeThreadComments.length === 0 ? (
-                  <div
-                    className="rounded-2xl px-4 py-4 tracking-tight"
-                    style={{
-                      background: "rgba(234, 247, 255, 0.045)",
-                      border: "1px dashed rgba(32, 227, 255, 0.18)",
-                      color: "var(--muted)",
-                      fontSize: 12,
-                      fontWeight: 800,
-                      lineHeight: 1.6
-                    }}
-                  >
-                    아직 이 라인에는 댓글이 없습니다. 아래 입력창에서 첫 리뷰 스레드를 시작하세요.
-                  </div>
-                ) : (
-                  activeThreadComments.map((comment) => {
-                    const isMine = comment.author === "나";
-
-                    return (
-                      <div
-                        key={comment.id}
-                        className="w-full rounded-2xl px-3 py-2"
-                        style={{
-                          background: isMine ? "rgba(32, 227, 255, 0.10)" : "rgba(11, 22, 40, 0.78)",
-                          border: isMine ? "1px solid rgba(32, 227, 255, 0.28)" : "1px solid rgba(32, 227, 255, 0.12)",
-                          borderLeft: isMine ? "3px solid var(--neon-cyan)" : "1px solid rgba(32, 227, 255, 0.12)"
-                        }}
-                      >
-                        <div className="mb-1 flex items-center gap-2">
-                          <span
-                            className="h-6 w-6 flex-shrink-0 rounded-full text-center leading-6"
-                            style={{
-                              background: isMine ? "linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))" : "rgba(32, 227, 255, 0.14)",
-                              color: isMine ? "#021014" : "var(--neon-cyan)",
-                              fontSize: 10,
-                              fontWeight: 950
-                            }}
-                          >
-                            {comment.author.slice(0, 1)}
-                          </span>
-                          <span className="tracking-tight" style={{ color: isMine ? "var(--neon-cyan)" : "var(--white)", fontSize: 12, fontWeight: 950 }}>
-                            {comment.author}
-                          </span>
-                          {isMine && (
-                            <span className="rounded px-1.5 py-0.5" style={{ background: "rgba(32, 227, 255, 0.14)", color: "var(--neon-cyan)", fontSize: 9, fontWeight: 950 }}>나</span>
-                          )}
-                          <span className="tracking-tight" style={{ color: "var(--muted)", fontSize: 10, fontWeight: 800 }}>
-                            {comment.time}
-                          </span>
-                        </div>
-                        <p className="m-0 tracking-tight" style={{ color: "var(--soft-mint)", fontSize: 12, fontWeight: 800, lineHeight: 1.55 }}>
-                          {comment.text}
-                        </p>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="grid gap-3">
-              <div
-                className="rounded-2xl px-4 py-4"
-                style={{
-                  background: "rgba(32, 227, 255, 0.07)",
-                  border: "1px solid rgba(32, 227, 255, 0.16)"
-                }}
-              >
-                <p className="m-0 tracking-tight" style={{ color: "var(--soft-mint)", fontSize: 13, fontWeight: 850, lineHeight: 1.6 }}>
-                  DIFF의 말풍선 버튼을 누르면 해당 파일과 줄 번호가 연결된 스레드 채팅방이 열립니다.
-                </p>
-              </div>
-              {allThreadItems.map((item) => (
-                <button
-                  key={item.key}
-                  type="button"
-                  onClick={() => {
-                    setActiveFileId(item.file.id);
-                    setActiveDiffThread({ fileId: item.file.id, line: item.row.line });
-                  }}
-                  className="rounded-2xl border-0 px-4 py-3 text-left transition-all hover:translate-y-[-1px]"
-                  style={{
-                    background: "rgba(11, 22, 40, 0.72)",
-                    border: "1px solid rgba(32, 227, 255, 0.14)",
-                    cursor: "pointer"
-                  }}
-                >
-                  <div className="mb-1 flex items-center justify-between gap-2">
-                    <span className="truncate font-mono" style={{ color: "var(--neon-cyan)", fontSize: 11, fontWeight: 950 }}>
-                      {item.file.name}:{item.row.line}
-                    </span>
-                    <span style={{ color: "var(--soft-mint)", fontSize: 10, fontWeight: 900 }}>
-                      댓글 {item.comments.length}
-                    </span>
-                  </div>
-                  <p className="m-0 truncate tracking-tight" style={{ color: "var(--white)", fontSize: 12, fontWeight: 850 }}>
-                    {item.comments[item.comments.length - 1]?.text}
-                  </p>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div
-          className="px-4 py-3"
-          style={{
-            background: "rgba(8, 17, 31, 0.96)",
-            borderTop: "1px solid rgba(32, 227, 255, 0.14)"
-          }}
-        >
-          {activeThreadFile && activeThreadRow && activeThreadKey ? (
-            <>
-              <textarea
-                value={diffCommentDrafts[activeThreadKey] ?? ""}
-                onChange={(event) => setDiffCommentDrafts((prev) => ({ ...prev, [activeThreadKey]: event.target.value }))}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.shiftKey) {
-                    event.preventDefault();
-                    handleDiffCommentSubmit(activeThreadFile, activeThreadRow);
-                  }
-                }}
-                placeholder={`${activeThreadFile.name} ${activeThreadRow.line}번 줄에 답글 남기기...`}
-                className="block w-full resize-none rounded-xl px-3 py-2 outline-none tracking-tight"
-                rows={1}
-                style={{
-                  background: "rgba(11, 22, 40, 0.86)",
-                  border: "1px solid rgba(32, 227, 255, 0.18)",
-                  color: "var(--white)",
-                  fontFamily: "inherit",
-                  fontSize: 12,
-                  fontWeight: 800,
-                  lineHeight: 1.55
-                }}
-              />
-              <div className="mt-2 flex items-center justify-between gap-2">
-                <span className="tracking-tight" style={{ color: "var(--muted)", fontSize: 9, fontWeight: 750 }}>
-                  Enter 전송 · Shift+Enter 줄바꿈
-                </span>
-                <button
-                  type="button"
-                  onClick={() => handleDiffCommentSubmit(activeThreadFile, activeThreadRow)}
-                  disabled={!diffCommentDrafts[activeThreadKey]?.trim()}
-                  className="inline-flex items-center gap-2 rounded-xl border-0 px-3 py-2 tracking-tight"
-                  style={{
-                    background: "linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))",
-                    color: "#021014",
-                    cursor: diffCommentDrafts[activeThreadKey]?.trim() ? "pointer" : "not-allowed",
-                    opacity: diffCommentDrafts[activeThreadKey]?.trim() ? 1 : 0.48,
-                    fontSize: 12,
-                    fontWeight: 950
-                  }}
-                >
-                  <Send size={13} />
-                  답글
-                </button>
-              </div>
-            </>
-          ) : (
-            <p className="m-0 tracking-tight" style={{ color: "var(--muted)", fontSize: 12, fontWeight: 800, lineHeight: 1.55 }}>
-              오른쪽 채팅방에 연결할 DIFF 라인을 먼저 선택해주세요.
-            </p>
-          )}
-        </div>
-      </div>
-    );
-  };
-
   const renderPrThreadChat = (showClose = false) => {
     const selectedFile = activeDiffThread
       ? diffFiles.find((file) => file.id === activeDiffThread.fileId)
@@ -1279,7 +1006,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
         <div className="codedock-scrollbar-hidden min-h-0 flex-1 overflow-y-auto px-4 py-3">
           <div className="grid gap-2">
             {threadMessages.map((comment) => {
-              const isMine = comment.author === "나";
+              const isMine = isCurrentUser(comment.author);
               const hasLineReference = comment.fileId !== "pr" && comment.line > 0;
 
               return (
@@ -1301,13 +1028,13 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
                         fontWeight: 950
                       }}
                     >
-                      {comment.author.slice(0, 1)}
+                      {isMine ? currentUserAvatar : comment.author.slice(0, 1)}
                     </span>
                     <span className="tracking-tight" style={{ color: isMine ? "var(--neon-cyan)" : "var(--white)", fontSize: 12, fontWeight: 950 }}>
-                      {comment.author}
+                      {isMine ? getDisplayAuthor(comment.author) : comment.author}
                     </span>
                     {isMine && (
-                      <span className="rounded px-1.5 py-0.5" style={{ background: "rgba(32, 227, 255, 0.14)", color: "var(--neon-cyan)", fontSize: 9, fontWeight: 950 }}>나</span>
+                      <span className="rounded px-1.5 py-0.5" style={{ background: "rgba(32, 227, 255, 0.14)", color: "var(--neon-cyan)", fontSize: 9, fontWeight: 950 }}>내 메시지</span>
                     )}
                     <span className="tracking-tight" style={{ color: "var(--muted)", fontSize: 10, fontWeight: 800 }}>
                       {comment.time}
@@ -1399,28 +1126,59 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
               </div>
             );
           })()}
-          <textarea
-            value={prThreadDraft}
-            onChange={(event) => setPrThreadDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
-                event.preventDefault();
-                handlePrThreadSubmit();
-              }
-            }}
-            placeholder="PR 스레드에 댓글 남기기..."
-            className="block w-full resize-none rounded-xl px-3 py-2 outline-none tracking-tight"
-            rows={3}
-            style={{
-              background: "rgba(11, 22, 40, 0.86)",
-              border: "1px solid rgba(32, 227, 255, 0.18)",
-              color: "var(--white)",
-              fontFamily: "inherit",
-              fontSize: 12,
-              fontWeight: 800,
-              lineHeight: 1.55
-            }}
-          />
+          <div
+            className="relative"
+          >
+            <textarea
+              value={prThreadDraft}
+              onChange={(event) => setPrThreadDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+                  event.preventDefault();
+                  handlePrThreadSubmit();
+                }
+              }}
+              placeholder="PR 스레드에 댓글 남기기..."
+              className="block w-full resize-none rounded-xl px-3 py-2 outline-none tracking-tight"
+              rows={3}
+              style={{
+                background: "rgba(11, 22, 40, 0.86)",
+                border: "1px solid rgba(32, 227, 255, 0.18)",
+                color: "var(--white)",
+                fontFamily: "inherit",
+                fontSize: 12,
+                fontWeight: 800,
+                lineHeight: 1.55
+              }}
+            />
+            {prThreadDraft.trim() && (
+              <span
+                aria-live="polite"
+                className="codedock-typing-indicator-badge is-active pointer-events-none absolute right-3 top-1 inline-flex max-w-[70%] items-center gap-1.5 truncate rounded-full px-2 py-0.5 tracking-tight"
+                style={{
+                  background: "rgba(11, 22, 40, 0.78)",
+                  border: "1px solid rgba(32, 227, 255, 0.16)",
+                  color: "var(--neon-cyan)",
+                  fontSize: 10,
+                  fontWeight: 900
+                }}
+              >
+                <span className="truncate">{currentUserDisplayName} 입력 중입니다</span>
+                <span className="flex shrink-0 items-center gap-0.5" aria-hidden="true">
+                  {[0, 1, 2].map((dot) => (
+                    <span
+                      key={dot}
+                      className="codedock-typing-indicator-dot block h-1 w-1 rounded-full"
+                      style={{
+                        background: "var(--neon-cyan)",
+                        animationDelay: `${dot * 0.15}s`
+                      }}
+                    />
+                  ))}
+                </span>
+              </span>
+            )}
+          </div>
           <div className="mt-2 flex items-center justify-between gap-2">
             <span className="tracking-tight" style={{ color: "var(--muted)", fontSize: 9, fontWeight: 750 }}>
               PR 하나당 하나의 스레드 · Enter 전송
@@ -1819,13 +1577,13 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
                       ) : (
                         activeThreadComments.map((comment) => (
                           <div key={comment.id} className="rounded-xl px-3 py-3" style={{
-                            background: comment.author === "나" ? "rgba(32, 227, 255, 0.10)" : "rgba(11, 22, 40, 0.72)",
-                            border: comment.author === "나" ? "1px solid rgba(32, 227, 255, 0.26)" : "1px solid rgba(32, 227, 255, 0.12)"
+                            background: isCurrentUser(comment.author) ? "rgba(32, 227, 255, 0.10)" : "rgba(11, 22, 40, 0.72)",
+                            border: isCurrentUser(comment.author) ? "1px solid rgba(32, 227, 255, 0.26)" : "1px solid rgba(32, 227, 255, 0.12)"
                           }}>
                             <div className="mb-2 flex items-center gap-2">
                               <span className="h-6 w-6 rounded-full text-center leading-6" style={{
-                                background: comment.author === "나" ? "linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))" : "rgba(32, 227, 255, 0.14)",
-                                color: comment.author === "나" ? "#021014" : "var(--neon-cyan)",
+                                background: isCurrentUser(comment.author) ? "linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))" : "rgba(32, 227, 255, 0.14)",
+                                color: isCurrentUser(comment.author) ? "#021014" : "var(--neon-cyan)",
                                 fontSize: 10,
                                 fontWeight: 950
                               }}>

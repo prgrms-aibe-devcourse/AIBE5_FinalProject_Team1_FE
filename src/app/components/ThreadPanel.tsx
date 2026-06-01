@@ -1,8 +1,8 @@
 import { X, Send, Smile, FileCode } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { TypingIndicator } from "./TypingIndicator";
 import { EmojiPicker } from "./EmojiPicker";
 import { MessageReactions, toggleMessageReaction, type MessageReaction } from "./MessageReactions";
+import { TypingIndicatorBar } from "./TypingIndicatorBar";
 
 interface ThreadMessage {
   id: number | string;
@@ -26,6 +26,19 @@ interface ThreadPanelProps {
   onToggleReaction?: (reactionKey: string, emoji: string) => void;
 }
 
+const currentUserDisplayName = "김재준";
+const currentUserAvatar = currentUserDisplayName.charAt(0);
+const selfUserNames = new Set(["나", "me", "you", "jean", "jeaju", currentUserDisplayName]);
+
+function isSelfUser(user?: string) {
+  return selfUserNames.has((user ?? "").trim().toLowerCase());
+}
+
+function getDisplayUserName(user?: string) {
+  const trimmed = (user ?? "").trim();
+  return isSelfUser(trimmed) ? currentUserDisplayName : trimmed;
+}
+
 export function ThreadPanel({ originalMessage, replies, displayReplyCount, reactionScope, reactions, onClose, onSendReply, onToggleReaction }: ThreadPanelProps) {
   const [replyText, setReplyText] = useState('');
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
@@ -46,11 +59,15 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
     const scrollContainer = scrollContainerRef.current;
     if (!scrollContainer) return;
 
-    scrollContainer.scrollTo({
-      top: scrollContainer.scrollHeight,
-      behavior: "smooth"
+    const frameId = window.requestAnimationFrame(() => {
+      scrollContainer.scrollTo({
+        top: scrollContainer.scrollHeight,
+        behavior: "smooth"
+      });
     });
-  }, [replies.length, responderTyping]);
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [replies.length, responderTyping, replyText]);
 
   const triggerResponderTyping = () => {
     if (responderTypingTimerRef.current) {
@@ -81,14 +98,11 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
 
   const composerTyping = replyText.trim().length > 0;
   const typingLabel = responderTyping
-    ? "CodeDock AI가 답글을 정리 중입니다"
+    ? composerTyping
+      ? `CodeDock AI, ${currentUserDisplayName} 입력 중입니다`
+      : "CodeDock AI가 답글을 정리 중입니다"
     : composerTyping
       ? "내가 답글 입력 중입니다"
-      : "";
-  const typingNote = responderTyping
-    ? "스레드 맥락을 확인하고 있습니다."
-    : composerTyping
-      ? "팀원에게 입력 중 상태로 표시됩니다."
       : "";
 
   const handleEmojiSelect = (emoji: string) => {
@@ -113,7 +127,7 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
   const visibleReplyCount = displayReplyCount ?? Math.max(replies.length, originalMessage.replies ?? 0);
 
   return (
-    <div className="h-full flex flex-col" style={{
+    <div className="flex h-full min-h-0 flex-col overflow-hidden" style={{
       background: 'rgba(11, 22, 40, 0.82)',
       border: '1px solid rgba(32, 227, 255, 0.16)',
       borderRadius: '30px',
@@ -144,7 +158,7 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
         </button>
       </div>
 
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-6 py-4">
+      <div ref={scrollContainerRef} className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
         <div className="grid gap-4">
           {/* 원본 메시지 */}
           <div className="pb-4" style={{
@@ -203,27 +217,30 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
 
           {/* 답글 목록 */}
           {replies.map((reply) => {
-            const isMine = reply.user === '나';
+            const isMine = isSelfUser(reply.user);
             const hasDiffRef = reply.fileId && reply.line > 0;
             return (
               <div key={reply.id} className="mb-2">
                 <div className="px-4 py-3 rounded-xl" style={{
-                  background: isMine ? 'rgba(32, 227, 255, 0.10)' : 'linear-gradient(135deg, rgba(5, 11, 20, 0.6), rgba(11, 22, 40, 0.4))',
-                  border: isMine ? '1px solid rgba(32, 227, 255, 0.28)' : '1px solid rgba(32, 227, 255, 0.16)',
-                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)'
+                  width: '100%',
+                  maxWidth: '100%',
+                  background: isMine ? 'rgba(32, 227, 255, 0.075)' : 'linear-gradient(135deg, rgba(5, 11, 20, 0.6), rgba(11, 22, 40, 0.4))',
+                  border: isMine ? '1px solid rgba(32, 227, 255, 0.18)' : '1px solid rgba(32, 227, 255, 0.16)',
+                  borderRadius: '12px',
+                  boxShadow: 'none'
                 }}>
                   <div className="flex items-center gap-2 mb-2 pb-2" style={{
                     borderBottom: '1px solid rgba(32, 227, 255, 0.1)'
                   }}>
                     <div className="w-7 h-7 flex-shrink-0 rounded-full flex items-center justify-center" style={{
-                      background: isMine ? 'linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))' : 'rgba(32, 227, 255, 0.14)'
+                      background: isMine ? 'rgba(32, 227, 255, 0.16)' : 'rgba(32, 227, 255, 0.14)'
                     }}>
                       <span style={{
                         fontSize: '10px',
                         fontWeight: 900,
-                        color: isMine ? '#021014' : 'var(--neon-cyan)'
+                        color: 'var(--neon-cyan)'
                       }}>
-                        {reply.user.charAt(0)}
+                        {isMine ? currentUserAvatar : reply.user.charAt(0)}
                       </span>
                     </div>
                     <div className="flex flex-col flex-1 min-w-0">
@@ -233,10 +250,10 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
                           fontWeight: 900,
                           color: isMine ? 'var(--neon-cyan)' : 'var(--white)'
                         }}>
-                          {reply.user}
+                          {isMine ? getDisplayUserName(reply.user) : reply.user}
                         </span>
                         {isMine && (
-                          <span className="rounded px-1.5 py-0.5" style={{ background: 'rgba(32, 227, 255, 0.14)', color: 'var(--neon-cyan)', fontSize: '9px', fontWeight: 950 }}>나</span>
+                          <span className="rounded px-1.5 py-0.5" style={{ background: 'rgba(32, 227, 255, 0.14)', color: 'var(--neon-cyan)', fontSize: '9px', fontWeight: 950 }}>내 메시지</span>
                         )}
                       </div>
                       <span className="tracking-tight" style={{
@@ -288,14 +305,6 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
               </div>
             );
           })}
-          {typingLabel && (
-            <TypingIndicator
-              label={typingLabel}
-              note={typingNote}
-              avatar={responderTyping ? "AI" : "나"}
-              compact
-            />
-          )}
         </div>
       </div>
 
@@ -308,23 +317,27 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
           </div>
         )}
 
+        <TypingIndicatorBar label={typingLabel} />
+
         <div className="flex items-end gap-2">
-          <textarea
-            value={replyText}
-            onChange={(e) => setReplyText(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="답글 남기기..."
-            className="min-w-0 flex-1 px-4 py-3 rounded-xl border-0 tracking-tight resize-none"
-            rows={3}
-            style={{
-              background: 'rgba(5, 11, 20, 0.6)',
-              border: '1px solid rgba(32, 227, 255, 0.14)',
-              color: 'var(--white)',
-              fontSize: '14px',
-              fontWeight: 700
-            }}
-          />
-          <button
+          <div className="relative min-w-0 flex-1">
+            <textarea
+              value={replyText}
+              onChange={(e) => setReplyText(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="답글 남기기..."
+              className="w-full min-w-0 px-4 py-3 rounded-xl border-0 tracking-tight resize-none"
+              rows={3}
+              style={{
+                background: 'rgba(5, 11, 20, 0.6)',
+                border: '1px solid rgba(32, 227, 255, 0.14)',
+                color: 'var(--white)',
+                fontSize: '14px',
+                fontWeight: 700
+              }}
+            />
+          </div>
+            <button
             onClick={() => setEmojiPickerOpen((open) => !open)}
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border-0"
             style={{

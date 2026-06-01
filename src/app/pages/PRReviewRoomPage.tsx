@@ -1,6 +1,7 @@
 import { useParams } from "react-router";
 import { AlertTriangle, CheckCircle2, FileCode, MessageSquare, Send, Sparkles } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { TypingIndicatorBar } from "../components/TypingIndicatorBar";
 
 export function PRReviewRoomPage() {
   const { id } = useParams();
@@ -93,6 +94,64 @@ export function PRReviewRoomPage() {
   };
 
   const prData = id === '104' ? actualPrData : defaultPrData;
+
+  const [messages, setMessages] = useState(prData.messages);
+  const [responderTyping, setResponderTyping] = useState(false);
+  const responderTypingTimerRef = useRef<number | null>(null);
+  const messagesScrollRef = useRef<HTMLDivElement | null>(null);
+
+  // 다른 PR로 이동(id 변경)하면 대화를 해당 PR 기준으로 초기화한다.
+  useEffect(() => {
+    setMessages(prData.messages);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  useEffect(() => {
+    return () => {
+      if (responderTypingTimerRef.current) {
+        window.clearTimeout(responderTypingTimerRef.current);
+      }
+    };
+  }, []);
+
+  // 새 메시지/타이핑 상태가 바뀌면 대화 목록을 맨 아래로 스크롤.
+  useEffect(() => {
+    const container = messagesScrollRef.current;
+    if (!container) return;
+    container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+  }, [messages.length, responderTyping]);
+
+  const composerTyping = message.trim().length > 0;
+  const typingLabel = responderTyping
+    ? "CodeDock AI가 답변을 정리 중입니다"
+    : composerTyping
+      ? "내가 입력 중입니다"
+      : "";
+
+  const triggerResponderTyping = () => {
+    if (responderTypingTimerRef.current) {
+      window.clearTimeout(responderTypingTimerRef.current);
+    }
+    setResponderTyping(true);
+    responderTypingTimerRef.current = window.setTimeout(() => {
+      setResponderTyping(false);
+    }, 2200);
+  };
+
+  const handleSendMessage = () => {
+    const trimmed = message.trim();
+    if (!trimmed) return;
+    setMessages((prev) => [...prev, { user: "나", time: "방금", text: trimmed }]);
+    setMessage("");
+    triggerResponderTyping();
+  };
+
+  const handleMessageKeyDown = (e: KeyboardEvent) => {
+    if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
 
   const getRiskColor = (severity: string) => {
     switch (severity) {
@@ -323,8 +382,8 @@ export function PRReviewRoomPage() {
               </h2>
             </div>
 
-            <div className="grid gap-3 mb-4 max-h-[400px] overflow-y-auto">
-              {prData.messages.map((msg, idx) => (
+            <div ref={messagesScrollRef} className="grid gap-3 mb-4 max-h-[400px] overflow-y-auto">
+              {messages.map((msg, idx) => (
                 <div key={idx} className="px-4 py-3 rounded-xl" style={{
                   background: 'rgba(5, 11, 20, 0.42)',
                   border: '1px solid rgba(32, 227, 255, 0.10)'
@@ -356,11 +415,14 @@ export function PRReviewRoomPage() {
               ))}
             </div>
 
+            <TypingIndicatorBar label={typingLabel} />
+
             <div className="flex gap-2">
               <input
                 type="text"
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
+                onKeyDown={handleMessageKeyDown}
                 placeholder="메시지를 입력하세요..."
                 className="flex-1 px-4 py-3 rounded-xl border-0 tracking-tight"
                 style={{
@@ -371,11 +433,18 @@ export function PRReviewRoomPage() {
                   fontWeight: 700
                 }}
               />
-              <button className="px-4 py-3 rounded-xl border-0 flex items-center gap-2" style={{
-                background: 'linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))',
-                color: '#021014',
-                fontWeight: 950
-              }}>
+              <button
+                onClick={handleSendMessage}
+                disabled={!composerTyping}
+                className="px-4 py-3 rounded-xl border-0 flex items-center gap-2"
+                style={{
+                  background: 'linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))',
+                  color: '#021014',
+                  fontWeight: 950,
+                  cursor: composerTyping ? 'pointer' : 'not-allowed',
+                  opacity: composerTyping ? 1 : 0.5
+                }}
+              >
                 <Send size={18} />
               </button>
             </div>
