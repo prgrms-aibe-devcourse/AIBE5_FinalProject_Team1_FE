@@ -323,16 +323,16 @@ function AccountMenu({ variant, onLogout, tabIndex }: AccountMenuProps) {
   const isCompact = variant === "compact";
 
   return (
-    <DropdownMenu>
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
           className={
             isFull
-              ? "hidden h-12 items-center gap-3 rounded-2xl px-3 transition-all hover:scale-[1.02] xl:flex"
+              ? "hidden h-12 flex-shrink-0 items-center gap-3 rounded-2xl px-3 transition-all hover:scale-[1.02] xl:flex"
               : isCompact
-                ? "hidden h-12 items-center gap-2 rounded-full px-3 transition-all hover:scale-[1.02] lg:flex"
-                : "grid h-10 w-10 place-items-center rounded-xl transition-all hover:scale-110 xl:hidden"
+                ? "hidden h-12 flex-shrink-0 items-center gap-2 rounded-full px-3 transition-all hover:scale-[1.02] lg:flex"
+                : "grid h-10 w-10 flex-shrink-0 place-items-center rounded-xl transition-all hover:scale-110 xl:hidden"
           }
           style={
             isFull
@@ -395,14 +395,19 @@ function AccountMenu({ variant, onLogout, tabIndex }: AccountMenuProps) {
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
+        side="bottom"
         sideOffset={10}
-        className="w-64 rounded-2xl p-2"
+        collisionPadding={16}
+        avoidCollisions
+        className="z-[80] w-64 rounded-2xl p-2"
         style={{
           background: "rgba(5, 11, 20, 0.96)",
           border: `1px solid ${colors.primary}, 0.22)`,
           color: "var(--white)",
           boxShadow: `0 18px 55px rgba(0, 0, 0, 0.45), 0 0 28px ${colors.primary}, 0.10)`,
           backdropFilter: "blur(22px) saturate(180%)",
+          maxHeight: "min(var(--radix-dropdown-menu-content-available-height), 360px)",
+          willChange: "transform, opacity",
         }}
       >
         <DropdownMenuLabel className="px-3 py-2">
