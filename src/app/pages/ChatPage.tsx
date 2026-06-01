@@ -23,6 +23,7 @@ const CHAT_MESSAGES_KEY = "codedock-chat-messages-v1";
 const CHAT_THREAD_REPLIES_KEY = "codedock-chat-thread-replies-v1";
 const CHAT_THREAD_REPLY_COUNTS_KEY = "codedock-chat-thread-reply-counts-v1";
 const CHAT_REACTIONS_KEY = "codedock-chat-reactions-v1";
+const CURRENT_USER_NAME = "김재준";
 
 type SidebarGroupId = 'documentation';
 type UserPresence = 'active' | 'away' | 'busy' | 'offline';
@@ -1260,7 +1261,7 @@ export function ChatPage() {
 
     const nextMessage = {
       id: Date.now(),
-      user: '나',
+      user: CURRENT_USER_NAME,
       text: trimmedText || `${attachments.length}개 항목을 공유합니다.`,
       time: '방금',
       attachments
@@ -1277,7 +1278,7 @@ export function ChatPage() {
       const key = getThreadKey(selectedThread);
       const newReply = {
         id: Date.now(),
-        user: '나',
+        user: CURRENT_USER_NAME,
         text: text,
         time: '방금'
       };

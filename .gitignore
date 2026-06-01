@@ -37,3 +37,6 @@ Thumbs.db
 
 # Git fetch metadata accidentally created in the workspace root
 /FETCH_HEAD
+
+# 로컬 도구 설정
+.claude/
