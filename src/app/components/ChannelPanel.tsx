@@ -1,10 +1,10 @@
 import { Hash, MessageSquare, Send, Bookmark, Share2, MoreVertical, X, Paperclip, Smile, UserPlus, FileUp, Image as ImageIcon, Link2 } from "lucide-react";
 import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import { createFileMessageAttachment, createLinkMessageAttachment, createLinkMessageAttachmentFromText, messageAttachmentGroups, messageAttachmentTypeLabels, type MessageAttachment, type MessageAttachmentType } from "./messageAttachments";
-import { TypingIndicator } from "./TypingIndicator";
 import { EmojiPicker } from "./EmojiPicker";
 import { MessageReactions, toggleMessageReaction, type MessageReaction } from "./MessageReactions";
 import { MessageAttachmentCard } from "./MessageAttachmentCard";
+import { TypingIndicatorBar } from "./TypingIndicatorBar";
 
 interface Thread {
   id: number;
@@ -91,6 +91,19 @@ function saveThreads(storageKey: string, threads: Thread[]) {
   }
 }
 
+const currentUserDisplayName = "김재준";
+const currentUserAvatar = currentUserDisplayName.charAt(0);
+const selfUserNames = new Set(["나", "me", "you", "jean", "jeaju", currentUserDisplayName]);
+
+function isSelfUser(user?: string) {
+  return selfUserNames.has((user ?? "").trim().toLowerCase());
+}
+
+function getDisplayUserName(user?: string) {
+  const trimmed = (user ?? "").trim();
+  return isSelfUser(trimmed) ? currentUserDisplayName : trimmed;
+}
+
 export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCounts = {}, onOpenThread, onOpenInvite, onToggleReaction }: ChannelPanelProps) {
   const channelStorageId = channelId ?? repoId ?? "general";
   const channelStorageKey = `${CHANNEL_THREADS_KEY_PREFIX}:${channelStorageId}`;
@@ -145,11 +158,15 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
     const scrollContainer = scrollContainerRef.current;
     if (!scrollContainer) return;
 
-    scrollContainer.scrollTo({
-      top: scrollContainer.scrollHeight,
-      behavior: "smooth"
+    const frameId = window.requestAnimationFrame(() => {
+      scrollContainer.scrollTo({
+        top: scrollContainer.scrollHeight,
+        behavior: "smooth"
+      });
     });
-  }, [threads.length, responderTyping]);
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [threads.length, responderTyping, messageText]);
 
   const triggerResponderTyping = () => {
     if (responderTypingTimerRef.current) {
@@ -170,14 +187,11 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
   const canSendMessage = messageText.trim().length > 0 || selectedAttachments.length > 0;
   const composerTyping = messageText.trim().length > 0;
   const typingLabel = responderTyping
-    ? "CodeDock AI가 답변을 정리 중입니다"
+    ? composerTyping
+      ? `CodeDock AI, ${currentUserDisplayName} 입력 중입니다`
+      : "CodeDock AI가 답변을 정리 중입니다"
     : composerTyping
       ? "내가 입력 중입니다"
-      : "";
-  const typingNote = responderTyping
-    ? "채널 맥락을 확인하고 다음 메시지를 준비합니다."
-    : composerTyping
-      ? "팀원에게 입력 중 상태로 표시됩니다."
       : "";
 
   const handleAttachmentToggle = (attachment: MessageAttachment) => {
@@ -253,8 +267,8 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
 
     const nextThread: Thread = {
       id: Date.now(),
-      user: '나',
-      avatar: '나',
+      user: currentUserDisplayName,
+      avatar: currentUserAvatar,
       message: trimmedMessage || `${outgoingAttachments.length}개 항목을 공유합니다.`,
       time: '방금',
       replies: 0,
@@ -319,30 +333,51 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
         <div className="grid gap-4">
           {threads.map((thread) => {
             const displayedReplyCount = replyCounts[thread.id] ?? thread.replies;
+            const isOwnThread = isSelfUser(thread.user);
 
             return (
             <div
               key={thread.id}
               className="rounded-xl overflow-hidden relative group"
               style={{
-                background: 'rgba(5, 11, 20, 0.6)',
-                border: '1px solid rgba(32, 227, 255, 0.14)'
+                width: '100%',
+                background: isOwnThread ? 'rgba(32, 227, 255, 0.075)' : 'rgba(5, 11, 20, 0.54)',
+                border: isOwnThread ? '1px solid rgba(32, 227, 255, 0.18)' : '1px solid rgba(32, 227, 255, 0.14)',
+                borderRadius: '12px',
+                boxShadow: 'none'
               }}
               onMouseEnter={() => setHoveredMessageId(thread.id)}
               onMouseLeave={() => setHoveredMessageId(null)}
             >
               <div className="w-full px-5 py-4">
                 <div className="flex items-start gap-3">
-                  <span style={{ fontSize: '28px', lineHeight: 1 }}>{thread.avatar}</span>
+                  <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-full" style={{
+                    background: isOwnThread ? 'rgba(32, 227, 255, 0.16)' : 'rgba(32, 227, 255, 0.12)',
+                    border: isOwnThread ? '1px solid rgba(32, 227, 255, 0.30)' : '1px solid rgba(32, 227, 255, 0.22)',
+                    color: 'var(--neon-cyan)',
+                    fontSize: thread.avatar.length > 2 ? '18px' : '13px',
+                    fontWeight: 950,
+                    lineHeight: 1
+                  }}>{isOwnThread ? currentUserAvatar : thread.avatar}</span>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="tracking-tight" style={{
                         fontSize: '13px',
                         fontWeight: 900,
-                        color: 'var(--matrix-green)'
+                        color: isOwnThread ? 'var(--neon-cyan)' : 'var(--matrix-green)'
                       }}>
-                        {thread.user}
+                        {isOwnThread ? getDisplayUserName(thread.user) : thread.user}
                       </span>
+                      {isOwnThread && (
+                        <span className="rounded px-1.5 py-0.5 tracking-tight" style={{
+                          background: 'rgba(32, 227, 255, 0.12)',
+                          color: 'var(--neon-cyan)',
+                          fontSize: '10px',
+                          fontWeight: 950
+                        }}>
+                          내 메시지
+                        </span>
+                      )}
                       <span className="tracking-tight" style={{
                         fontSize: '11px',
                         fontWeight: 700,
@@ -484,13 +519,6 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
             </div>
           );
           })}
-          {typingLabel && (
-            <TypingIndicator
-              label={typingLabel}
-              note={typingNote}
-              avatar={responderTyping ? "AI" : "나"}
-            />
-          )}
         </div>
       </div>
 
@@ -693,20 +721,22 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
           onChange={(event) => handleLocalFilesSelected(event, "image")}
         />
 
-        <div className="flex items-center gap-2 px-4 py-3 rounded-xl" style={{
+        <TypingIndicatorBar label={typingLabel} />
+
+        <div className="relative flex items-center gap-2 px-4 py-3 rounded-xl" style={{
           background: 'rgba(5, 11, 20, 0.6)',
           border: '1px solid rgba(32, 227, 255, 0.14)'
         }}>
-          <input
-            type="text"
-            value={messageText}
-            onChange={(event) => setMessageText(event.target.value)}
-            onKeyDown={handleMessageKeyDown}
-            placeholder={`#${channelLabel}에 메시지 보내기`}
-            className="min-w-0 flex-1 bg-transparent border-0 outline-none tracking-tight"
-            style={{ color: 'var(--white)', fontSize: '14px', fontWeight: 700 }}
-          />
-          <div className="flex shrink-0 items-center gap-1">
+            <input
+              type="text"
+              value={messageText}
+              onChange={(event) => setMessageText(event.target.value)}
+              onKeyDown={handleMessageKeyDown}
+              placeholder={`#${channelLabel}에 메시지 보내기`}
+              className="min-w-0 flex-1 bg-transparent border-0 outline-none tracking-tight"
+              style={{ color: 'var(--white)', fontSize: '14px', fontWeight: 700 }}
+            />
+            <div className="flex shrink-0 items-center gap-1">
             <button
               onClick={() => togglePanel('attachment')}
               className="w-9 h-9 rounded-lg border-0 flex items-center justify-center transition-all cursor-pointer"

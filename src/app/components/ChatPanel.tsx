@@ -1,10 +1,10 @@
 import { Send, Sparkles, Code, AtSign, Smile, GitPullRequest, FileText, Plus, Minus, MessageSquare, Bookmark, Share2, MoreVertical, X, CheckCircle, Clock, AlertCircle, ExternalLink, GitMerge, Hash, Paperclip, FileUp, Image as ImageIcon, Link2, CircleDot, CircleCheck, CircleMinus } from "lucide-react";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { createFileMessageAttachment, createLinkMessageAttachment, createLinkMessageAttachmentFromText, messageAttachmentGroups, messageAttachmentTypeLabels, type MessageAttachment, type MessageAttachmentType } from "./messageAttachments";
-import { TypingIndicator } from "./TypingIndicator";
 import { EmojiPicker } from "./EmojiPicker";
 import { MessageReactions, toggleMessageReaction, type MessageReaction } from "./MessageReactions";
 import { MessageAttachmentCard } from "./MessageAttachmentCard";
+import { TypingIndicatorBar } from "./TypingIndicatorBar";
 
 export interface IssueLabel {
   name: string;
@@ -98,6 +98,24 @@ const issuePriorityConfig = {
   medium: { label: 'Medium', color: '#F59E0B' },
   low: { label: 'Low', color: '#22C55E' },
 };
+
+const currentUserDisplayName = "김재준";
+const currentUserAvatar = currentUserDisplayName.charAt(0);
+const selfUserNames = new Set(["나", "me", "you", "jean", "jeaju", currentUserDisplayName]);
+
+function isSelfUser(user?: string) {
+  return selfUserNames.has((user ?? "").trim().toLowerCase());
+}
+
+function getDisplayUserName(user?: string) {
+  const trimmed = (user ?? "").trim();
+  return isSelfUser(trimmed) ? currentUserDisplayName : trimmed;
+}
+
+function getUserInitial(user?: string) {
+  const trimmed = (user ?? "").trim();
+  return trimmed ? trimmed.charAt(0).toUpperCase() : "?";
+}
 
 export function ChatPanel({ channelId = "general", title, messages, reactions, replyCounts = {}, onSendMessage, onSharePR, showAISummary = true, onMergePR, onReviewPR, onViewIssue, onOpenThread, onToggleReaction, isRepository = false }: ChatPanelProps) {
   const [message, setMessage] = useState('');
@@ -218,14 +236,11 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
   const canSend = message.trim().length > 0 || codeBlockText.trim().length > 0 || selectedAttachments.length > 0;
   const composerTyping = message.trim().length > 0;
   const typingLabel = responderTyping
-    ? "CodeDock AI가 답변을 정리 중입니다"
+    ? composerTyping
+      ? `CodeDock AI, ${currentUserDisplayName} 입력 중입니다`
+      : "CodeDock AI가 답변을 정리 중입니다"
     : composerTyping
       ? "내가 입력 중입니다"
-      : "";
-  const typingNote = responderTyping
-    ? "맥락을 확인하고 다음 메시지를 준비합니다."
-    : composerTyping
-      ? "팀원에게 입력 중 상태로 표시됩니다."
       : "";
 
   const handleAttachmentToggle = (attachment: MessageAttachment) => {
@@ -313,11 +328,15 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
     const scrollContainer = scrollContainerRef.current;
     if (!scrollContainer) return;
 
-    scrollContainer.scrollTo({
-      top: scrollContainer.scrollHeight,
-      behavior: "smooth"
+    const frameId = window.requestAnimationFrame(() => {
+      scrollContainer.scrollTo({
+        top: scrollContainer.scrollHeight,
+        behavior: "smooth"
+      });
     });
-  }, [filteredMessages.length, responderTyping]);
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [filteredMessages.length, responderTyping, typingLabel]);
 
   return (
     <div className="flex flex-col h-full min-h-0 relative overflow-hidden">
@@ -379,21 +398,51 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
 
       <div ref={scrollContainerRef} className="min-h-0 flex-1 px-6 py-4 overflow-y-auto">
         <div className="grid gap-4">
-          {filteredMessages.map((msg) => (
+          {filteredMessages.map((msg) => {
+            const isOwnMessage = isSelfUser(msg.user);
+            const isStructuredMessage = msg.type === 'pr' || msg.type === 'issue';
+            const showSlackAvatar = !isStructuredMessage;
+
+            return (
             <div
               key={msg.id}
-              className="flex flex-col gap-2 relative group"
+              className="flex w-full flex-col gap-2 relative group"
+              style={{
+                alignSelf: 'stretch',
+                width: '100%'
+              }}
               onMouseEnter={() => setHoveredMessageId(msg.id)}
               onMouseLeave={() => setHoveredMessageId(null)}
             >
               <div className="flex items-center gap-2">
+                {showSlackAvatar && (
+                  <span className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-full tracking-tight" style={{
+                    background: isOwnMessage ? 'rgba(32, 227, 255, 0.16)' : msg.type === 'system' ? 'rgba(32, 227, 255, 0.18)' : 'rgba(57, 255, 136, 0.14)',
+                    border: isOwnMessage ? '1px solid rgba(32, 227, 255, 0.30)' : msg.type === 'system' ? '1px solid rgba(32, 227, 255, 0.32)' : '1px solid rgba(57, 255, 136, 0.28)',
+                    color: isOwnMessage ? 'var(--neon-cyan)' : msg.type === 'system' ? 'var(--neon-cyan)' : 'var(--matrix-green)',
+                    fontSize: '11px',
+                    fontWeight: 950
+                  }}>
+                    {isOwnMessage ? currentUserAvatar : msg.type === 'system' ? 'AI' : getUserInitial(msg.user)}
+                  </span>
+                )}
                 <span className="tracking-tight" style={{
                   fontSize: '13px',
                   fontWeight: 900,
-                  color: msg.type === 'system' ? 'var(--neon-cyan)' : 'var(--matrix-green)'
+                  color: isOwnMessage ? 'var(--neon-cyan)' : msg.type === 'system' ? 'var(--neon-cyan)' : 'var(--matrix-green)'
                 }}>
-                  {msg.user}
+                  {isOwnMessage ? getDisplayUserName(msg.user) : msg.user}
                 </span>
+                {isOwnMessage && (
+                  <span className="rounded px-1.5 py-0.5 tracking-tight" style={{
+                    background: 'rgba(32, 227, 255, 0.12)',
+                    color: 'var(--neon-cyan)',
+                    fontSize: '10px',
+                    fontWeight: 950
+                  }}>
+                    내 메시지
+                  </span>
+                )}
                 <span className="tracking-tight" style={{
                   fontSize: '11px',
                   fontWeight: 700,
@@ -971,11 +1020,15 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                 </div>
               ) : (
                 <div className="relative">
-                  <div className="px-4 py-3 rounded-xl" style={{
+                  <div className="px-4 py-3" style={{
                     background: msg.type === 'system'
                       ? 'rgba(32, 227, 255, 0.08)'
-                      : 'rgba(5, 11, 20, 0.42)',
-                    border: `1px solid ${msg.type === 'system' ? 'rgba(32, 227, 255, 0.22)' : 'rgba(32, 227, 255, 0.10)'}`
+                      : isOwnMessage
+                        ? 'rgba(32, 227, 255, 0.075)'
+                        : 'rgba(5, 11, 20, 0.42)',
+                    border: `1px solid ${msg.type === 'system' ? 'rgba(32, 227, 255, 0.22)' : isOwnMessage ? 'rgba(32, 227, 255, 0.18)' : 'rgba(32, 227, 255, 0.10)'}`,
+                    borderRadius: '12px',
+                    boxShadow: 'none'
                   }}>
                     <p className="m-0 leading-[1.5] tracking-tight whitespace-pre-wrap" style={{
                       fontSize: '14px',
@@ -1087,16 +1140,8 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                 </button>
               )}
             </div>
-          ))}
-          {typingLabel && (
-            <div className="pt-1">
-              <TypingIndicator
-                label={typingLabel}
-                note={typingNote}
-                avatar={responderTyping ? "AI" : "나"}
-              />
-            </div>
-          )}
+            );
+          })}
         </div>
       </div>
 
@@ -1384,24 +1429,28 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
           onChange={(event) => handleLocalFilesSelected(event, "image")}
         />
 
+        <TypingIndicatorBar label={typingLabel} />
+
         <div className="flex items-end gap-2">
-          <textarea
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="메시지를 입력하세요... (Shift+Enter로 줄바꿈)"
-            className="min-w-0 flex-1 rounded-xl border-0 px-4 py-3 tracking-tight resize-none"
-            rows={1}
-            style={{
-              background: 'rgba(5, 11, 20, 0.6)',
-              border: '1px solid rgba(32, 227, 255, 0.14)',
-              color: 'var(--white)',
-              fontSize: '14px',
-              fontWeight: 700,
-              minHeight: '44px',
-              maxHeight: '120px'
-            }}
-          />
+          <div className="relative min-w-0 flex-1">
+            <textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder="메시지를 입력하세요... (Shift+Enter로 줄바꿈)"
+              className="w-full min-w-0 rounded-xl border-0 px-4 py-3 tracking-tight resize-none"
+              rows={1}
+              style={{
+                background: 'rgba(5, 11, 20, 0.6)',
+                border: '1px solid rgba(32, 227, 255, 0.14)',
+                color: 'var(--white)',
+                fontSize: '14px',
+                fontWeight: 700,
+                minHeight: '44px',
+                maxHeight: '120px'
+              }}
+            />
+          </div>
 
           <div className="flex shrink-0 flex-wrap justify-end gap-1">
             <button

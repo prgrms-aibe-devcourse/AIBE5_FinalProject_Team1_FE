@@ -358,6 +358,19 @@ function riskLabel(risk: string) {
   return labels[risk] ?? risk;
 }
 
+const currentUserDisplayName = "김재준";
+const currentUserAvatar = currentUserDisplayName.charAt(0);
+
+function isCurrentUser(author?: string) {
+  const trimmed = (author ?? "").trim();
+  return trimmed === "나" || trimmed === currentUserDisplayName;
+}
+
+function getDisplayAuthor(author?: string) {
+  const trimmed = (author ?? "").trim();
+  return isCurrentUser(trimmed) ? currentUserDisplayName : trimmed;
+}
+
 export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessages, onAddThreadMessage }: PRReviewPanelProps) {
   const tabContentRef = useRef<HTMLDivElement>(null);
   const [activeFileId, setActiveFileId] = useState(diffFiles[0].id);
@@ -487,7 +500,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
         ...(prev[threadKey] ?? []),
         {
           id: `line-${file.id}-${row.line}-${Date.now()}`,
-          author: "나",
+          author: currentUserDisplayName,
           time: "방금",
           text: draft,
           fileId: file.id,
@@ -545,7 +558,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
 
     const newComment: DiffThreadComment = {
       id: `pr-thread-${Date.now()}`,
-      author: "나",
+      author: currentUserDisplayName,
       time: "방금",
       text: draft,
       fileId: referencedFile?.id ?? "pr",
@@ -555,7 +568,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
       code: referencedCode,
     };
     setPrThreadComments((prev) => [...prev, newComment]);
-    onAddThreadMessage?.({ ...newComment, user: "나" });
+    onAddThreadMessage?.({ ...newComment, user: currentUserDisplayName });
     setPrThreadDraft("");
   };
 
@@ -1059,7 +1072,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
                   </div>
                 ) : (
                   activeThreadComments.map((comment) => {
-                    const isMine = comment.author === "나";
+                    const isMine = isCurrentUser(comment.author);
 
                     return (
                       <div
@@ -1081,13 +1094,13 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
                               fontWeight: 950
                             }}
                           >
-                            {comment.author.slice(0, 1)}
+                            {isMine ? currentUserAvatar : comment.author.slice(0, 1)}
                           </span>
                           <span className="tracking-tight" style={{ color: isMine ? "var(--neon-cyan)" : "var(--white)", fontSize: 12, fontWeight: 950 }}>
-                            {comment.author}
+                            {isMine ? getDisplayAuthor(comment.author) : comment.author}
                           </span>
                           {isMine && (
-                            <span className="rounded px-1.5 py-0.5" style={{ background: "rgba(32, 227, 255, 0.14)", color: "var(--neon-cyan)", fontSize: 9, fontWeight: 950 }}>나</span>
+                            <span className="rounded px-1.5 py-0.5" style={{ background: "rgba(32, 227, 255, 0.14)", color: "var(--neon-cyan)", fontSize: 9, fontWeight: 950 }}>내 메시지</span>
                           )}
                           <span className="tracking-tight" style={{ color: "var(--muted)", fontSize: 10, fontWeight: 800 }}>
                             {comment.time}
@@ -1279,7 +1292,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
         <div className="codedock-scrollbar-hidden min-h-0 flex-1 overflow-y-auto px-4 py-3">
           <div className="grid gap-2">
             {threadMessages.map((comment) => {
-              const isMine = comment.author === "나";
+              const isMine = isCurrentUser(comment.author);
               const hasLineReference = comment.fileId !== "pr" && comment.line > 0;
 
               return (
@@ -1301,13 +1314,13 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
                         fontWeight: 950
                       }}
                     >
-                      {comment.author.slice(0, 1)}
+                      {isMine ? currentUserAvatar : comment.author.slice(0, 1)}
                     </span>
                     <span className="tracking-tight" style={{ color: isMine ? "var(--neon-cyan)" : "var(--white)", fontSize: 12, fontWeight: 950 }}>
-                      {comment.author}
+                      {isMine ? getDisplayAuthor(comment.author) : comment.author}
                     </span>
                     {isMine && (
-                      <span className="rounded px-1.5 py-0.5" style={{ background: "rgba(32, 227, 255, 0.14)", color: "var(--neon-cyan)", fontSize: 9, fontWeight: 950 }}>나</span>
+                      <span className="rounded px-1.5 py-0.5" style={{ background: "rgba(32, 227, 255, 0.14)", color: "var(--neon-cyan)", fontSize: 9, fontWeight: 950 }}>내 메시지</span>
                     )}
                     <span className="tracking-tight" style={{ color: "var(--muted)", fontSize: 10, fontWeight: 800 }}>
                       {comment.time}
@@ -1399,28 +1412,59 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
               </div>
             );
           })()}
-          <textarea
-            value={prThreadDraft}
-            onChange={(event) => setPrThreadDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
-                event.preventDefault();
-                handlePrThreadSubmit();
-              }
-            }}
-            placeholder="PR 스레드에 댓글 남기기..."
-            className="block w-full resize-none rounded-xl px-3 py-2 outline-none tracking-tight"
-            rows={3}
-            style={{
-              background: "rgba(11, 22, 40, 0.86)",
-              border: "1px solid rgba(32, 227, 255, 0.18)",
-              color: "var(--white)",
-              fontFamily: "inherit",
-              fontSize: 12,
-              fontWeight: 800,
-              lineHeight: 1.55
-            }}
-          />
+          <div
+            className="relative"
+          >
+            <textarea
+              value={prThreadDraft}
+              onChange={(event) => setPrThreadDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+                  event.preventDefault();
+                  handlePrThreadSubmit();
+                }
+              }}
+              placeholder="PR 스레드에 댓글 남기기..."
+              className="block w-full resize-none rounded-xl px-3 py-2 outline-none tracking-tight"
+              rows={3}
+              style={{
+                background: "rgba(11, 22, 40, 0.86)",
+                border: "1px solid rgba(32, 227, 255, 0.18)",
+                color: "var(--white)",
+                fontFamily: "inherit",
+                fontSize: 12,
+                fontWeight: 800,
+                lineHeight: 1.55
+              }}
+            />
+            {prThreadDraft.trim() && (
+              <span
+                aria-live="polite"
+                className="codedock-typing-indicator-badge is-active pointer-events-none absolute right-3 top-1 inline-flex max-w-[70%] items-center gap-1.5 truncate rounded-full px-2 py-0.5 tracking-tight"
+                style={{
+                  background: "rgba(11, 22, 40, 0.78)",
+                  border: "1px solid rgba(32, 227, 255, 0.16)",
+                  color: "var(--neon-cyan)",
+                  fontSize: 10,
+                  fontWeight: 900
+                }}
+              >
+                <span className="truncate">{currentUserDisplayName} 입력 중입니다</span>
+                <span className="flex shrink-0 items-center gap-0.5" aria-hidden="true">
+                  {[0, 1, 2].map((dot) => (
+                    <span
+                      key={dot}
+                      className="codedock-typing-indicator-dot block h-1 w-1 rounded-full"
+                      style={{
+                        background: "var(--neon-cyan)",
+                        animationDelay: `${dot * 0.15}s`
+                      }}
+                    />
+                  ))}
+                </span>
+              </span>
+            )}
+          </div>
           <div className="mt-2 flex items-center justify-between gap-2">
             <span className="tracking-tight" style={{ color: "var(--muted)", fontSize: 9, fontWeight: 750 }}>
               PR 하나당 하나의 스레드 · Enter 전송
@@ -1819,13 +1863,13 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
                       ) : (
                         activeThreadComments.map((comment) => (
                           <div key={comment.id} className="rounded-xl px-3 py-3" style={{
-                            background: comment.author === "나" ? "rgba(32, 227, 255, 0.10)" : "rgba(11, 22, 40, 0.72)",
-                            border: comment.author === "나" ? "1px solid rgba(32, 227, 255, 0.26)" : "1px solid rgba(32, 227, 255, 0.12)"
+                            background: isCurrentUser(comment.author) ? "rgba(32, 227, 255, 0.10)" : "rgba(11, 22, 40, 0.72)",
+                            border: isCurrentUser(comment.author) ? "1px solid rgba(32, 227, 255, 0.26)" : "1px solid rgba(32, 227, 255, 0.12)"
                           }}>
                             <div className="mb-2 flex items-center gap-2">
                               <span className="h-6 w-6 rounded-full text-center leading-6" style={{
-                                background: comment.author === "나" ? "linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))" : "rgba(32, 227, 255, 0.14)",
-                                color: comment.author === "나" ? "#021014" : "var(--neon-cyan)",
+                                background: isCurrentUser(comment.author) ? "linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))" : "rgba(32, 227, 255, 0.14)",
+                                color: isCurrentUser(comment.author) ? "#021014" : "var(--neon-cyan)",
                                 fontSize: 10,
                                 fontWeight: 950
                               }}>
