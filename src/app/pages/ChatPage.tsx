@@ -1,4 +1,4 @@
-import { Hash, Users, GitPullRequest, Home, CheckSquare, ChevronDown, ChevronRight, GitBranch, Code2, Database, BookOpen, Maximize2, Minimize2, Plus, Pencil, Trash2, MoreVertical, X, LayoutGrid, type LucideIcon } from "lucide-react";
+import { Hash, Users, GitPullRequest, Home, CheckSquare, ChevronDown, ChevronRight, GitBranch, Code2, Database, BookOpen, Maximize2, Minimize2, Plus, Pencil, Trash2, MoreVertical, X, LayoutGrid, Bell, BellOff, Check, Clock3, MessageCircle, Settings, UserRound, type LucideIcon } from "lucide-react";
 import { WorkBoardPanel } from "../components/WorkBoardPanel";
 import { ChatPanel } from "../components/ChatPanel";
 import { PRReviewPanel } from "../components/PRReviewPanel";
@@ -25,6 +25,8 @@ const CHAT_THREAD_REPLY_COUNTS_KEY = "codedock-chat-thread-reply-counts-v1";
 const CHAT_REACTIONS_KEY = "codedock-chat-reactions-v1";
 
 type SidebarGroupId = 'documentation';
+type UserPresence = 'active' | 'away' | 'busy' | 'offline';
+type NotificationMode = 'all' | 'mentions' | 'muted';
 
 interface RepositoryItem {
   id: string;
@@ -98,6 +100,26 @@ const ALL_SIDEBAR_CHANNELS = [
   { id: 'overview', label: '통합 개요', icon: Home },
   { id: 'general', label: '일반', icon: Hash },
   ...DOCUMENTATION_CHANNELS
+];
+
+const myProfile = {
+  name: "김준우",
+  role: "Frontend Developer",
+  email: "junwoo@codedock.dev",
+  initials: "JW"
+};
+
+const presenceOptions: Array<{ id: UserPresence; label: string; description: string; color: string }> = [
+  { id: 'active', label: '활동중', description: '바로 응답 가능', color: '#39FF88' },
+  { id: 'away', label: '자리비움', description: '잠시 후 확인', color: '#FFD166' },
+  { id: 'busy', label: '방해금지', description: '멘션만 확인', color: '#FF6B6B' },
+  { id: 'offline', label: '오프라인', description: '상태 숨김', color: '#8B94A7' }
+];
+
+const notificationOptions: Array<{ id: NotificationMode; label: string; description: string; icon: LucideIcon }> = [
+  { id: 'all', label: '모든 알림', description: '채널, PR, 이슈 알림 받기', icon: Bell },
+  { id: 'mentions', label: '멘션만', description: '@멘션과 배정 알림만 받기', icon: MessageCircle },
+  { id: 'muted', label: '알림 끄기', description: '새 알림을 조용히 보관', icon: BellOff }
 ];
 
 function getRepositoryImportPreference() {
@@ -528,6 +550,9 @@ export function ChatPage() {
     'backend-chat': 1,
     'review-room': 2,
   });
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [userPresence, setUserPresence] = useState<UserPresence>('active');
+  const [notificationMode, setNotificationMode] = useState<NotificationMode>('mentions');
 
   const [selectedWorkspace, setSelectedWorkspace] = useState<string>(DEFAULT_WORKSPACES[0].id);
 
@@ -578,6 +603,10 @@ export function ChatPage() {
     ?? selectedChannelMeta?.label
     ?? selectedChannel.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
   const selectedRepositoryName = repositories.find((repo) => repo.id === selectedRepository)?.name ?? '전체 리포지토리';
+
+  const currentPresence = presenceOptions.find((option) => option.id === userPresence) ?? presenceOptions[0];
+  const currentNotificationMode = notificationOptions.find((option) => option.id === notificationMode) ?? notificationOptions[0];
+  const CurrentNotificationIcon = currentNotificationMode.icon;
 
   useEffect(() => {
     if (!isMainExpanded) return;
@@ -901,6 +930,196 @@ export function ChatPage() {
     );
   };
 
+  const renderProfileDock = () => (
+    <div className="relative">
+      <AnimatePresence initial={false}>
+        {profileMenuOpen && (
+          <motion.div
+            className="absolute bottom-full left-0 right-0 mb-3 overflow-hidden rounded-2xl px-3 py-3"
+            style={{
+              background: 'rgba(5, 11, 20, 0.98)',
+              border: '1px solid rgba(32, 227, 255, 0.22)',
+              boxShadow: '0 20px 56px rgba(0, 0, 0, 0.48), 0 0 30px rgba(32, 227, 255, 0.12)',
+              backdropFilter: 'blur(18px) saturate(180%)',
+              zIndex: 30
+            }}
+            initial={{ opacity: 0, y: 10, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.98 }}
+            transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+          >
+            <div className="mb-3 px-1">
+              <p className="m-0 tracking-tight" style={{ color: 'var(--white)', fontSize: '13px', fontWeight: 950 }}>
+                내 상태
+              </p>
+              <p className="m-0 mt-1 tracking-tight" style={{ color: 'var(--muted)', fontSize: '11px', fontWeight: 800 }}>
+                팀원에게 표시되는 상태를 바꿉니다
+              </p>
+            </div>
+
+            <div className="grid gap-1.5">
+              {presenceOptions.map((option) => {
+                const selected = option.id === userPresence;
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => setUserPresence(option.id)}
+                    className="flex w-full items-center gap-3 rounded-xl border-0 px-3 py-2.5 text-left tracking-tight"
+                    style={{
+                      background: selected ? 'rgba(32, 227, 255, 0.12)' : 'transparent',
+                      border: selected ? '1px solid rgba(32, 227, 255, 0.20)' : '1px solid transparent',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <span className="h-2.5 w-2.5 flex-shrink-0 rounded-full" style={{ background: option.color }} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate" style={{ color: 'var(--white)', fontSize: '12px', fontWeight: 950 }}>
+                        {option.label}
+                      </span>
+                      <span className="block truncate" style={{ color: 'var(--muted)', fontSize: '10px', fontWeight: 800 }}>
+                        {option.description}
+                      </span>
+                    </span>
+                    {selected && <Check size={14} style={{ color: 'var(--neon-cyan)', flexShrink: 0 }} />}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="my-3" style={{ borderTop: '1px solid rgba(32, 227, 255, 0.14)' }} />
+
+            <div className="mb-2 px-1">
+              <p className="m-0 tracking-tight" style={{ color: 'var(--white)', fontSize: '13px', fontWeight: 950 }}>
+                알림 설정
+              </p>
+            </div>
+
+            <div className="grid gap-1.5">
+              {notificationOptions.map((option) => {
+                const selected = option.id === notificationMode;
+                const Icon = option.icon;
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => setNotificationMode(option.id)}
+                    className="flex w-full items-center gap-3 rounded-xl border-0 px-3 py-2.5 text-left tracking-tight"
+                    style={{
+                      background: selected ? 'rgba(57, 255, 136, 0.10)' : 'transparent',
+                      border: selected ? '1px solid rgba(57, 255, 136, 0.18)' : '1px solid transparent',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <Icon size={15} style={{ color: selected ? 'var(--matrix-green)' : 'var(--muted)', flexShrink: 0 }} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate" style={{ color: 'var(--white)', fontSize: '12px', fontWeight: 950 }}>
+                        {option.label}
+                      </span>
+                      <span className="block truncate" style={{ color: 'var(--muted)', fontSize: '10px', fontWeight: 800 }}>
+                        {option.description}
+                      </span>
+                    </span>
+                    {selected && <Check size={14} style={{ color: 'var(--matrix-green)', flexShrink: 0 }} />}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="my-3" style={{ borderTop: '1px solid rgba(32, 227, 255, 0.14)' }} />
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setProfileMenuOpen(false);
+                  navigate('/profile');
+                }}
+                className="flex items-center justify-center gap-2 rounded-xl border-0 px-3 py-2.5 tracking-tight"
+                style={{
+                  background: 'rgba(234, 247, 255, 0.07)',
+                  border: '1px solid rgba(32, 227, 255, 0.14)',
+                  color: 'var(--white)',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  fontWeight: 900
+                }}
+              >
+                <UserRound size={14} />
+                프로필
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setProfileMenuOpen(false);
+                  navigate('/settings');
+                }}
+                className="flex items-center justify-center gap-2 rounded-xl border-0 px-3 py-2.5 tracking-tight"
+                style={{
+                  background: 'rgba(234, 247, 255, 0.07)',
+                  border: '1px solid rgba(32, 227, 255, 0.14)',
+                  color: 'var(--white)',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  fontWeight: 900
+                }}
+              >
+                <Settings size={14} />
+                설정
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <button
+        type="button"
+        onClick={() => setProfileMenuOpen((open) => !open)}
+        className="flex w-full items-center gap-3 rounded-2xl border-0 px-3 py-3 text-left tracking-tight transition-all"
+        style={{
+          background: profileMenuOpen
+            ? 'linear-gradient(135deg, rgba(32, 227, 255, 0.16), rgba(57, 255, 136, 0.08)), rgba(11, 22, 40, 0.88)'
+            : 'rgba(5, 11, 20, 0.72)',
+          border: profileMenuOpen ? '1px solid rgba(32, 227, 255, 0.34)' : '1px solid rgba(32, 227, 255, 0.18)',
+          boxShadow: profileMenuOpen ? '0 0 28px rgba(32, 227, 255, 0.14)' : 'inset 0 1px 0 rgba(255, 255, 255, 0.06)',
+          cursor: 'pointer'
+        }}
+        aria-expanded={profileMenuOpen}
+        aria-label="내 프로필 메뉴 열기"
+      >
+        <span className="relative grid h-10 w-10 flex-shrink-0 place-items-center rounded-full" style={{
+          background: 'linear-gradient(135deg, var(--neon-cyan), var(--matrix-green))',
+          color: '#021014',
+          fontSize: '13px',
+          fontWeight: 950
+        }}>
+          {myProfile.initials}
+          <span className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full" style={{
+            background: currentPresence.color,
+            border: '2px solid #07111f'
+          }} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate" style={{ color: 'var(--white)', fontSize: '13px', fontWeight: 950 }}>
+            {myProfile.name}
+          </span>
+          <span className="mt-0.5 flex min-w-0 items-center gap-1.5">
+            <Clock3 size={11} style={{ color: currentPresence.color, flexShrink: 0 }} />
+            <span className="truncate" style={{ color: 'var(--muted)', fontSize: '11px', fontWeight: 850 }}>
+              {currentPresence.label}
+            </span>
+          </span>
+        </span>
+        <span className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full" style={{
+          background: notificationMode === 'muted' ? 'rgba(255, 107, 107, 0.10)' : 'rgba(32, 227, 255, 0.10)',
+          border: notificationMode === 'muted' ? '1px solid rgba(255, 107, 107, 0.22)' : '1px solid rgba(32, 227, 255, 0.16)'
+        }}>
+          <CurrentNotificationIcon size={14} style={{ color: notificationMode === 'muted' ? '#FF8FA3' : 'var(--neon-cyan)' }} />
+        </span>
+      </button>
+    </div>
+  );
+
   const handleMergePR = (messageId: number) => {
     setMessages(prevMessages => {
       const newMessages = { ...prevMessages };
@@ -1213,8 +1432,8 @@ export function ChatPage() {
           )}
 
           {visibleRepositories.length > 0 ? (
-            <div className="flex flex-1 flex-col overflow-y-auto">
-            <div className="grid gap-2 min-w-0">
+            <div className="flex flex-1 flex-col overflow-hidden">
+            <div className="grid min-w-0 flex-1 content-start gap-2 overflow-y-auto pr-1">
               {renderSidebarChannel({ id: 'overview', label: '통합 개요', icon: Home })}
 
               <div className="my-1" style={{ borderTop: '1px solid rgba(32, 227, 255, 0.14)' }} />
@@ -1753,6 +1972,7 @@ export function ChatPage() {
               <div className="mb-2" style={{ borderTop: '1px solid rgba(32, 227, 255, 0.14)' }}></div>
 
               {renderSidebarChannel({ id: 'team', label: '팀', icon: Users })}
+              {renderProfileDock()}
             </div>
           </div>
           ) : (
