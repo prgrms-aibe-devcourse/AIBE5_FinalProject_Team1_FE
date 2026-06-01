@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect, useLayoutEffect } from "react";
 import { useNavigate } from "react-router";
-import { AlertCircle, ArrowRight, Check, GitFork, Plus, Users, X } from "lucide-react";
+import { AlertCircle, AlertTriangle, ArrowRight, Check, GitFork, Plus, Users, X } from "lucide-react";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "../components/ui/hover-card";
 import { DndProvider, useDrag, useDrop, useDragLayer } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 
@@ -745,10 +746,10 @@ export function WorkspacePage() {
   };
 
   const recentActivity = [
-    { type: "pr", user: "김진필", action: "PR 열림", target: "#234: 인증 미들웨어 추가", time: "10분 전", risk: "high" },
+    { type: "pr", user: "김진필", action: "PR 열림", target: "#234: 인증 미들웨어 추가", time: "10분 전", risk: "high", message: "인증 로직 변경으로 인한 보안 취약점 가능성 감지" },
     { type: "comment", user: "김준우", action: "댓글 작성", target: "PR #233", time: "25분 전", risk: "low" },
     { type: "merge", user: "김진현", action: "병합", target: "PR #232: CORS 문제 수정", time: "1시간 전", risk: "medium" },
-    { type: "issue", user: "안현", action: "이슈 생성", target: "#145: 요청 제한이 작동하지 않음", time: "2시간 전", risk: "high" },
+    { type: "issue", user: "안현", action: "이슈 생성", target: "#145: 요청 제한이 작동하지 않음", time: "2시간 전", risk: "high", message: "요청 제한(Rate Limit) 미작동 — API 남용 위험" },
   ];
 
   const getRiskColor = (risk: string) => {
@@ -757,6 +758,15 @@ export function WorkspacePage() {
       case "medium": return "#FFD93D";
       case "low": return "#6BCF7F";
       default: return "var(--muted)";
+    }
+  };
+
+  const getRiskLabel = (risk: string) => {
+    switch (risk) {
+      case "high": return "높음";
+      case "medium": return "보통";
+      case "low": return "낮음";
+      default: return "미분석";
     }
   };
 
@@ -906,7 +916,49 @@ export function WorkspacePage() {
               >
                 <div className="flex items-start gap-3">
                   <span className="grid h-5 w-5 flex-shrink-0 place-items-center" style={{ marginTop: "2px" }}>
-                    {activity.risk === "high" && <AlertCircle size={20} style={{ color: getRiskColor(activity.risk) }} />}
+                    {activity.risk === "high" && (
+                      <HoverCard openDelay={200} closeDelay={100}>
+                        <HoverCardTrigger asChild>
+                          <AlertCircle size={20} style={{ color: getRiskColor(activity.risk), cursor: "pointer", flexShrink: 0 }} />
+                        </HoverCardTrigger>
+                        <HoverCardContent
+                          side="top"
+                          sideOffset={10}
+                          align="start"
+                          className="w-fit max-w-[460px] rounded-2xl p-0 border-0 shadow-[0_8px_32px_rgba(255,107,107,0.18)]"
+                          style={{
+                            background: "rgba(5, 11, 20, 0.95)",
+                            border: `1px solid ${getRiskColor(activity.risk)}44`,
+                          }}
+                        >
+                          <div className="flex items-start gap-3 pl-4 pr-[18px] py-4">
+                            <AlertTriangle
+                              size={18}
+                              style={{ color: getRiskColor(activity.risk), flexShrink: 0, marginTop: "2px" }}
+                            />
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1.5">
+                                <span
+                                  className="px-2 py-0.5 rounded text-xs font-black tracking-tight"
+                                  style={{
+                                    background: `${getRiskColor(activity.risk)}33`,
+                                    color: getRiskColor(activity.risk),
+                                  }}
+                                >
+                                  {getRiskLabel(activity.risk)}
+                                </span>
+                              </div>
+                              <p
+                                className="m-0 tracking-tight"
+                                style={{ fontSize: "14px", fontWeight: 800, color: "var(--white)" }}
+                              >
+                                {(activity as any).message ?? "위험 신호 감지됨"}
+                              </p>
+                            </div>
+                          </div>
+                        </HoverCardContent>
+                      </HoverCard>
+                    )}
                   </span>
                   <div className="flex-1">
                     <p className="m-0 mb-1 tracking-tight" style={{ fontSize: "15px", fontWeight: 900, color: "var(--white)" }}>

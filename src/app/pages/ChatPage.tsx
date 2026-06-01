@@ -9,7 +9,7 @@ import { OverviewPanel } from "../components/OverviewPanel";
 import { APISpecPage } from "./APISpecPage";
 import { ERDPage } from "./ERDPage";
 import { DocsPage } from "./DocsPage";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { AnimatePresence, motion } from "motion/react";
 import type { MessageAttachment } from "../components/messageAttachments";
@@ -512,6 +512,18 @@ export function ChatPage() {
     getSavedRepositories()?.[0]?.id ?? DEFAULT_REPOSITORIES[0].id
   );
   const [showRepoDropdown, setShowRepoDropdown] = useState(false);
+  const repoDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showRepoDropdown) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (repoDropdownRef.current && !repoDropdownRef.current.contains(e.target as Node)) {
+        setShowRepoDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, [showRepoDropdown]);
   const [showRepoForm, setShowRepoForm] = useState(false);
   const [repoUrlInput, setRepoUrlInput] = useState('');
   const [selectedChannel, setSelectedChannel] = useState<string>('overview');
@@ -1324,7 +1336,7 @@ export function ChatPage() {
             backdropFilter: 'blur(16px)'
           }}>
           <div className="mb-4">
-            <div className="relative">
+            <div className="relative" ref={repoDropdownRef}>
               <button
                 onClick={() => setShowRepoDropdown(!showRepoDropdown)}
                 className="w-full px-4 py-3 rounded-lg border-0 flex items-center justify-between gap-2 transition-all"

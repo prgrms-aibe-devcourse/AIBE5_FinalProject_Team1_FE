@@ -116,6 +116,7 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
     <div className="h-full flex flex-col" style={{
       background: 'rgba(11, 22, 40, 0.82)',
       border: '1px solid rgba(32, 227, 255, 0.16)',
+      borderRadius: '30px',
       boxShadow: '0 20px 60px rgba(0, 0, 0, 0.32)',
       backdropFilter: 'blur(16px)'
     }}>
