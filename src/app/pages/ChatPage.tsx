@@ -9,13 +9,14 @@ import { OverviewPanel } from "../components/OverviewPanel";
 import { APISpecPage } from "./APISpecPage";
 import { ERDPage } from "./ERDPage";
 import { DocsPage } from "./DocsPage";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { AnimatePresence, motion } from "motion/react";
 import type { MessageAttachment } from "../components/messageAttachments";
 import { toggleMessageReaction, type MessageReaction } from "../components/MessageReactions";
 import { TeamInviteModal } from "../components/TeamInviteModal";
 import { TeamPanel } from "../components/TeamPanel";
+import { createPortal } from "react-dom";
 
 const REPOSITORY_IMPORTED_KEY = "codedock-repository-imported";
 const REPOSITORY_LIST_KEY = "codedock-repositories-v2";
@@ -23,6 +24,19 @@ const CHAT_MESSAGES_KEY = "codedock-chat-messages-v1";
 const CHAT_THREAD_REPLIES_KEY = "codedock-chat-thread-replies-v1";
 const CHAT_THREAD_REPLY_COUNTS_KEY = "codedock-chat-thread-reply-counts-v1";
 const CHAT_REACTIONS_KEY = "codedock-chat-reactions-v1";
+const WORKSPACE_TEAMS_KEY = "codedock-workspace-teams-v1";
+const ROLE_PRIVILEGE_ORDER = [
+  "Tech Lead", "Backend Developer", "Frontend Developer", "DevOps Engineer",
+  "QA Engineer", "Product Manager", "Designer", "Viewer"
+];
+const PRESENCE_ORDER = ['active', 'away', 'busy', 'offline'] as const;
+type PresenceKey = typeof PRESENCE_ORDER[number];
+const PRESENCE_META: Record<PresenceKey, { label: string; color: string }> = {
+  active:  { label: '활동중',  color: '#39FF88' },
+  away:    { label: '자리비움', color: '#FFD166' },
+  busy:    { label: '방해금지', color: '#FF6B6B' },
+  offline: { label: '오프라인', color: '#8B94A7' },
+};
 const CURRENT_USER_NAME = "김재준";
 
 type SidebarGroupId = 'documentation';
@@ -104,6 +118,7 @@ const ALL_SIDEBAR_CHANNELS = [
 ];
 
 const myProfile = {
+  id: "junwoo",
   name: "김준우",
   role: "Frontend Developer",
   email: "junwoo@codedock.dev",
@@ -514,6 +529,11 @@ export function ChatPage() {
   );
   const [showRepoDropdown, setShowRepoDropdown] = useState(false);
   const repoDropdownRef = useRef<HTMLDivElement>(null);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+  const profileButtonRef = useRef<HTMLButtonElement>(null);
+  const profilePopupRef = useRef<HTMLDivElement>(null);
+  const sidebarRef = useRef<HTMLElement>(null);
+  const [profileMenuPos, setProfileMenuPos] = useState<{ bottom: number; left: number; width: number; maxHeight: number } | null>(null);
 
   useEffect(() => {
     if (!showRepoDropdown) return;
@@ -525,6 +545,7 @@ export function ChatPage() {
     document.addEventListener("mousedown", handleOutsideClick);
     return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, [showRepoDropdown]);
+
   const [showRepoForm, setShowRepoForm] = useState(false);
   const [repoUrlInput, setRepoUrlInput] = useState('');
   const [selectedChannel, setSelectedChannel] = useState<string>('overview');
@@ -564,10 +585,55 @@ export function ChatPage() {
     'review-room': 2,
   });
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (!profileMenuOpen) {
+      setProfileMenuPos(null);
+      return;
+    }
+
+    const recalcPos = () => {
+      if (!profileButtonRef.current || !sidebarRef.current) return;
+      const rect = profileButtonRef.current.getBoundingClientRect();
+      const sidebarRect = sidebarRef.current.getBoundingClientRect();
+      const availableSpace = rect.top - sidebarRect.top - 16;
+      const maxHeight = Math.min(sidebarRect.height * 0.7, availableSpace);
+      setProfileMenuPos({
+        bottom: window.innerHeight - rect.top + 8,
+        left: rect.left,
+        width: rect.width,
+        maxHeight,
+      });
+    };
+
+    recalcPos();
+
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (
+        profileMenuRef.current && !profileMenuRef.current.contains(e.target as Node) &&
+        profilePopupRef.current && !profilePopupRef.current.contains(e.target as Node)
+      ) {
+        setProfileMenuOpen(false);
+      }
+    };
+
+    const sidebar = sidebarRef.current;
+    document.addEventListener("mousedown", handleOutsideClick);
+    sidebar?.addEventListener("scroll", recalcPos);
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+      sidebar?.removeEventListener("scroll", recalcPos);
+    };
+  }, [profileMenuOpen]);
+
   const [userPresence, setUserPresence] = useState<UserPresence>('active');
   const [notificationMode, setNotificationMode] = useState<NotificationMode>('mentions');
 
   const [selectedWorkspace, setSelectedWorkspace] = useState<string>(DEFAULT_WORKSPACES[0].id);
+  const [memberListOpen, setMemberListOpen] = useState(false);
+  const memberListButtonRef = useRef<HTMLButtonElement>(null);
+  const memberListPopupRef = useRef<HTMLDivElement>(null);
+  const [memberListPos, setMemberListPos] = useState<{ top: number; left: number; width: number } | null>(null);
 
   const navigate = useNavigate();
 
@@ -620,6 +686,73 @@ export function ChatPage() {
   const currentPresence = presenceOptions.find((option) => option.id === userPresence) ?? presenceOptions[0];
   const currentNotificationMode = notificationOptions.find((option) => option.id === notificationMode) ?? notificationOptions[0];
   const CurrentNotificationIcon = currentNotificationMode.icon;
+
+  useEffect(() => {
+    if (!memberListOpen) { setMemberListPos(null); return; }
+    if (memberListButtonRef.current) {
+      const rect = memberListButtonRef.current.getBoundingClientRect();
+      setMemberListPos({ top: rect.bottom + 6, left: rect.left, width: Math.max(rect.width, 220) });
+    }
+    const handleOutside = (e: MouseEvent) => {
+      if (
+        memberListButtonRef.current && !memberListButtonRef.current.contains(e.target as Node) &&
+        memberListPopupRef.current && !memberListPopupRef.current.contains(e.target as Node)
+      ) setMemberListOpen(false);
+    };
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, [memberListOpen]);
+
+  // Sorted team member list for the current workspace — used by the member list popup.
+  // Order: presence group (active→away→busy→offline) → role privilege → Korean alphabetical.
+  const sortedWorkspaceMembers = useMemo(() => {
+    try {
+      const stored = localStorage.getItem(WORKSPACE_TEAMS_KEY);
+      if (!stored) return [];
+      const all: Record<string, Array<{ id: string; name: string; role: string; online: boolean; initials: string; statusColor: string }>> = JSON.parse(stored);
+      const members = all[selectedWorkspace] ?? [];
+      const resolvePresence = (m: { id: string; online: boolean; statusColor: string }): PresenceKey => {
+        if (m.id === myProfile.id) return userPresence as PresenceKey;
+        if (!m.online) return 'offline';
+        if (m.statusColor === '#FFD166') return 'away';
+        if (m.statusColor === '#FF6B6B') return 'busy';
+        return 'active';
+      };
+      return [...members]
+        .map((m) => {
+          const presence = resolvePresence(m);
+          return { ...m, online: presence !== 'offline', presence };
+        })
+        .sort((a, b) => {
+          const pA = PRESENCE_ORDER.indexOf(a.presence as PresenceKey);
+          const pB = PRESENCE_ORDER.indexOf(b.presence as PresenceKey);
+          if (pA !== pB) return pA - pB;
+          const rA = ROLE_PRIVILEGE_ORDER.indexOf(a.role);
+          const rB = ROLE_PRIVILEGE_ORDER.indexOf(b.role);
+          const priA = rA === -1 ? ROLE_PRIVILEGE_ORDER.length : rA;
+          const priB = rB === -1 ? ROLE_PRIVILEGE_ORDER.length : rB;
+          if (priA !== priB) return priA - priB;
+          return a.name.localeCompare(b.name, 'ko');
+        });
+    } catch { return []; }
+  }, [selectedWorkspace, memberListOpen, userPresence]);
+
+  // Dynamically compute online count per workspace from localStorage team data.
+  // Current user (김준우, id "junwoo") counts as online when presence is not "offline".
+  const workspaceOnlineCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    try {
+      const stored = localStorage.getItem(WORKSPACE_TEAMS_KEY);
+      if (!stored) return counts;
+      const all: Record<string, Array<{ id: string; online: boolean }>> = JSON.parse(stored);
+      const selfOnline = userPresence !== 'offline';
+      for (const [wsId, members] of Object.entries(all)) {
+        const othersOnline = members.filter((m) => m.id !== myProfile.id && m.online).length;
+        counts[wsId] = othersOnline + (selfOnline ? 1 : 0);
+      }
+    } catch { /* ignore */ }
+    return counts;
+  }, [userPresence]);
 
   useEffect(() => {
     if (!isMainExpanded) return;
@@ -944,150 +1077,11 @@ export function ChatPage() {
   };
 
   const renderProfileDock = () => (
-    <div className="relative">
-      <AnimatePresence initial={false}>
-        {profileMenuOpen && (
-          <motion.div
-            className="absolute bottom-full left-0 right-0 mb-3 overflow-hidden rounded-2xl px-3 py-3"
-            style={{
-              background: 'rgba(5, 11, 20, 0.98)',
-              border: '1px solid rgba(32, 227, 255, 0.22)',
-              boxShadow: '0 20px 56px rgba(0, 0, 0, 0.48), 0 0 30px rgba(32, 227, 255, 0.12)',
-              backdropFilter: 'blur(18px) saturate(180%)',
-              zIndex: 30
-            }}
-            initial={{ opacity: 0, y: 10, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 10, scale: 0.98 }}
-            transition={{ type: 'spring', stiffness: 420, damping: 34 }}
-          >
-            <div className="mb-3 px-1">
-              <p className="m-0 tracking-tight" style={{ color: 'var(--white)', fontSize: '13px', fontWeight: 950 }}>
-                내 상태
-              </p>
-              <p className="m-0 mt-1 tracking-tight" style={{ color: 'var(--muted)', fontSize: '11px', fontWeight: 800 }}>
-                팀원에게 표시되는 상태를 바꿉니다
-              </p>
-            </div>
-
-            <div className="grid gap-1.5">
-              {presenceOptions.map((option) => {
-                const selected = option.id === userPresence;
-                return (
-                  <button
-                    key={option.id}
-                    type="button"
-                    onClick={() => setUserPresence(option.id)}
-                    className="flex w-full items-center gap-3 rounded-xl border-0 px-3 py-2.5 text-left tracking-tight"
-                    style={{
-                      background: selected ? 'rgba(32, 227, 255, 0.12)' : 'transparent',
-                      border: selected ? '1px solid rgba(32, 227, 255, 0.20)' : '1px solid transparent',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <span className="h-2.5 w-2.5 flex-shrink-0 rounded-full" style={{ background: option.color }} />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate" style={{ color: 'var(--white)', fontSize: '12px', fontWeight: 950 }}>
-                        {option.label}
-                      </span>
-                      <span className="block truncate" style={{ color: 'var(--muted)', fontSize: '10px', fontWeight: 800 }}>
-                        {option.description}
-                      </span>
-                    </span>
-                    {selected && <Check size={14} style={{ color: 'var(--neon-cyan)', flexShrink: 0 }} />}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="my-3" style={{ borderTop: '1px solid rgba(32, 227, 255, 0.14)' }} />
-
-            <div className="mb-2 px-1">
-              <p className="m-0 tracking-tight" style={{ color: 'var(--white)', fontSize: '13px', fontWeight: 950 }}>
-                알림 설정
-              </p>
-            </div>
-
-            <div className="grid gap-1.5">
-              {notificationOptions.map((option) => {
-                const selected = option.id === notificationMode;
-                const Icon = option.icon;
-                return (
-                  <button
-                    key={option.id}
-                    type="button"
-                    onClick={() => setNotificationMode(option.id)}
-                    className="flex w-full items-center gap-3 rounded-xl border-0 px-3 py-2.5 text-left tracking-tight"
-                    style={{
-                      background: selected ? 'rgba(57, 255, 136, 0.10)' : 'transparent',
-                      border: selected ? '1px solid rgba(57, 255, 136, 0.18)' : '1px solid transparent',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <Icon size={15} style={{ color: selected ? 'var(--matrix-green)' : 'var(--muted)', flexShrink: 0 }} />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate" style={{ color: 'var(--white)', fontSize: '12px', fontWeight: 950 }}>
-                        {option.label}
-                      </span>
-                      <span className="block truncate" style={{ color: 'var(--muted)', fontSize: '10px', fontWeight: 800 }}>
-                        {option.description}
-                      </span>
-                    </span>
-                    {selected && <Check size={14} style={{ color: 'var(--matrix-green)', flexShrink: 0 }} />}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="my-3" style={{ borderTop: '1px solid rgba(32, 227, 255, 0.14)' }} />
-
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setProfileMenuOpen(false);
-                  navigate('/profile');
-                }}
-                className="flex items-center justify-center gap-2 rounded-xl border-0 px-3 py-2.5 tracking-tight"
-                style={{
-                  background: 'rgba(234, 247, 255, 0.07)',
-                  border: '1px solid rgba(32, 227, 255, 0.14)',
-                  color: 'var(--white)',
-                  cursor: 'pointer',
-                  fontSize: '12px',
-                  fontWeight: 900
-                }}
-              >
-                <UserRound size={14} />
-                프로필
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setProfileMenuOpen(false);
-                  navigate('/settings');
-                }}
-                className="flex items-center justify-center gap-2 rounded-xl border-0 px-3 py-2.5 tracking-tight"
-                style={{
-                  background: 'rgba(234, 247, 255, 0.07)',
-                  border: '1px solid rgba(32, 227, 255, 0.14)',
-                  color: 'var(--white)',
-                  cursor: 'pointer',
-                  fontSize: '12px',
-                  fontWeight: 900
-                }}
-              >
-                <Settings size={14} />
-                설정
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
+    <div className="relative" ref={profileMenuRef}>
       <button
+        ref={profileButtonRef}
         type="button"
-        onClick={() => setProfileMenuOpen((open) => !open)}
+        onClick={() => { setShowRepoDropdown(false); setProfileMenuOpen((open) => !open); }}
         className="flex w-full items-center gap-3 rounded-2xl border-0 px-3 py-3 text-left tracking-tight transition-all"
         style={{
           background: profileMenuOpen
@@ -1330,7 +1324,7 @@ export function ChatPage() {
         gridTemplateColumns
       }}>
         {!selectedPR && !selectedIssue && (
-          <section className="min-h-0 overflow-y-auto px-6 py-6 rounded-[30px] flex flex-col" style={{
+          <section ref={sidebarRef} className="min-h-0 overflow-y-auto px-6 py-6 rounded-[30px] flex flex-col" style={{
             background: 'rgba(11, 22, 40, 0.82)',
             border: '1px solid rgba(32, 227, 255, 0.16)',
             boxShadow: '0 20px 60px rgba(0, 0, 0, 0.32)',
@@ -1339,7 +1333,7 @@ export function ChatPage() {
           <div className="mb-4">
             <div className="relative" ref={repoDropdownRef}>
               <button
-                onClick={() => setShowRepoDropdown(!showRepoDropdown)}
+                onClick={() => { setProfileMenuOpen(false); setShowRepoDropdown(!showRepoDropdown); }}
                 className="w-full px-4 py-3 rounded-lg border-0 flex items-center justify-between gap-2 transition-all"
                 style={{
                   background: 'rgba(32, 227, 255, 0.12)',
@@ -1415,7 +1409,7 @@ export function ChatPage() {
                             </span>
                           </div>
                           <span className="tracking-tight" style={{ fontSize: '11px', fontWeight: 800, color: 'var(--muted)' }}>
-                            {ws.membersOnline}명 접속 중
+                            {workspaceOnlineCounts[ws.id] ?? ws.membersOnline}명 접속 중
                           </span>
                         </div>
                       </button>
@@ -1435,12 +1429,19 @@ export function ChatPage() {
                 </span>
               </div>
               <span className="tracking-tight" style={{ fontSize: '11px', fontWeight: 800, color: 'var(--muted)' }}>•</span>
-              <div className="flex items-center gap-2">
+              <button
+                ref={memberListButtonRef}
+                type="button"
+                onClick={() => setMemberListOpen((o) => !o)}
+                className="flex items-center gap-2 rounded-lg border-0 transition-all"
+                style={{ background: 'transparent', cursor: 'pointer', padding: '2px 6px', margin: '-2px -6px' }}
+                title="팀원 목록 보기"
+              >
                 <div className="w-2 h-2 rounded-full" style={{ background: 'var(--matrix-green)' }} />
                 <span className="tracking-tight" style={{ fontSize: '11px', fontWeight: 800, color: 'var(--muted)' }}>
-                  {currentWorkspace.membersOnline}명 접속 중
+                  {workspaceOnlineCounts[selectedWorkspace] ?? currentWorkspace.membersOnline}명 접속 중
                 </span>
-              </div>
+              </button>
             </div>
           )}
 
@@ -2086,6 +2087,9 @@ export function ChatPage() {
               />
             ) : selectedChannel === 'team' ? (
               <TeamPanel
+                workspaceId={selectedWorkspace}
+                currentUserId={myProfile.id}
+                currentUserOnline={userPresence !== 'offline'}
                 onInvite={() => setTeamInviteOpen(true)}
                 onOpenChannel={(channelId) => {
                   setSelectedPR(null);
@@ -2160,6 +2164,225 @@ export function ChatPage() {
         isOpen={teamInviteOpen}
         onClose={() => setTeamInviteOpen(false)}
       />
+
+      {/* Team member list — compact anchored popup near "X명 접속 중" */}
+      {createPortal(
+        <AnimatePresence>
+          {memberListOpen && memberListPos && (
+            <motion.div
+              ref={memberListPopupRef}
+              className="codedock-scrollbar-hidden"
+              style={{
+                position: 'fixed',
+                top: memberListPos.top,
+                left: memberListPos.left,
+                minWidth: memberListPos.width,
+                width: '240px',
+                maxHeight: '320px',
+                overflowY: 'auto',
+                overscrollBehavior: 'contain',
+                zIndex: 9997,
+                background: 'rgba(5, 11, 20, 0.97)',
+                border: '1px solid rgba(32, 227, 255, 0.22)',
+                borderRadius: '14px',
+                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5), 0 0 20px rgba(32, 227, 255, 0.06)',
+                backdropFilter: 'blur(16px)',
+                padding: '6px',
+              }}
+              initial={{ opacity: 0, y: -6, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -6, scale: 0.98 }}
+              transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+            >
+              {sortedWorkspaceMembers.length === 0 ? (
+                <p style={{ margin: 0, padding: '12px', textAlign: 'center', fontSize: '12px', color: 'var(--muted)' }}>팀원이 없습니다</p>
+              ) : sortedWorkspaceMembers.map((member, idx) => {
+                const pKey = (member.presence ?? (member.online ? 'active' : 'offline')) as PresenceKey;
+                const meta = PRESENCE_META[pKey] ?? PRESENCE_META.offline;
+                const isOnline = pKey !== 'offline';
+                const prevIsOnline = idx > 0 ? (sortedWorkspaceMembers[idx - 1].presence ?? (sortedWorkspaceMembers[idx - 1].online ? 'active' : 'offline')) !== 'offline' : null;
+                const showOnlineLabel = idx === 0 && isOnline;
+                const showOfflineLabel = !isOnline && (idx === 0 || prevIsOnline === true);
+                return (
+                  <div key={member.id ?? idx}>
+                    {showOnlineLabel && (
+                      <p style={{ margin: '4px 0 2px 8px', fontSize: '10px', fontWeight: 950, color: 'var(--matrix-green)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                        온라인
+                      </p>
+                    )}
+                    {showOfflineLabel && (
+                      <p style={{ margin: `${idx > 0 ? '8px' : '4px'} 0 2px 8px`, fontSize: '10px', fontWeight: 950, color: 'var(--muted)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                        오프라인
+                      </p>
+                    )}
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: '10px',
+                      padding: '7px 10px', borderRadius: '10px',
+                      background: 'transparent',
+                    }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(32, 227, 255, 0.06)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      {/* Avatar with presence-colored status dot */}
+                      <div style={{ position: 'relative', flexShrink: 0 }}>
+                        <div style={{
+                          width: '30px', height: '30px', borderRadius: '50%',
+                          background: 'linear-gradient(135deg, var(--neon-cyan), #8b7cf6)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: '11px', fontWeight: 950, color: '#021014',
+                        }}>
+                          {member.initials}
+                        </div>
+                        <span style={{
+                          position: 'absolute', bottom: '-1px', right: '-1px',
+                          width: '9px', height: '9px', borderRadius: '50%',
+                          background: meta.color,
+                          border: '2px solid #050B14',
+                        }} />
+                      </div>
+                      {/* Name + role (left), status label (top-right) */}
+                      <div style={{ minWidth: 0, flex: 1, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '6px' }}>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <p style={{ margin: 0, fontSize: '12px', fontWeight: 950, color: 'var(--white)', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {member.name}
+                          </p>
+                          <p style={{ margin: '1px 0 0', fontSize: '10px', fontWeight: 800, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {member.role}
+                          </p>
+                        </div>
+                        <span style={{ fontSize: '10px', fontWeight: 850, color: meta.color, flexShrink: 0, lineHeight: 1.2, paddingTop: '1px' }}>
+                          {meta.label}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+
+      {/* Profile status drop-up — rendered in a portal to escape overflow-hidden ancestors */}
+      {createPortal(
+        <AnimatePresence initial={false}>
+          {profileMenuOpen && profileMenuPos && (
+            <motion.div
+              ref={profilePopupRef}
+              className="codedock-scrollbar-hidden"
+              style={{
+                position: 'fixed',
+                bottom: profileMenuPos.bottom,
+                left: profileMenuPos.left,
+                width: profileMenuPos.width,
+                maxHeight: profileMenuPos.maxHeight,
+                overflowY: 'auto',
+                overscrollBehavior: 'contain',
+                background: 'rgba(5, 11, 20, 0.98)',
+                border: '1px solid rgba(32, 227, 255, 0.22)',
+                boxShadow: '0 20px 56px rgba(0, 0, 0, 0.48), 0 0 30px rgba(32, 227, 255, 0.12)',
+                backdropFilter: 'blur(18px) saturate(180%)',
+                borderRadius: '16px',
+                padding: '12px',
+                zIndex: 9999,
+              }}
+              initial={{ opacity: 0, y: 10, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.98 }}
+              transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+            >
+              <div className="mb-3 px-1">
+                <p className="m-0 tracking-tight" style={{ color: 'var(--white)', fontSize: '13px', fontWeight: 950 }}>내 상태</p>
+                <p className="m-0 mt-1 tracking-tight" style={{ color: 'var(--muted)', fontSize: '11px', fontWeight: 800 }}>팀원에게 표시되는 상태를 바꿉니다</p>
+              </div>
+
+              <div className="grid gap-1.5">
+                {presenceOptions.map((option) => {
+                  const selected = option.id === userPresence;
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => setUserPresence(option.id)}
+                      className="flex w-full items-center gap-3 rounded-xl border-0 px-3 py-2.5 text-left tracking-tight"
+                      style={{
+                        background: selected ? 'rgba(32, 227, 255, 0.12)' : 'transparent',
+                        border: selected ? '1px solid rgba(32, 227, 255, 0.20)' : '1px solid transparent',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <span className="h-2.5 w-2.5 flex-shrink-0 rounded-full" style={{ background: option.color }} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate" style={{ color: 'var(--white)', fontSize: '12px', fontWeight: 950 }}>{option.label}</span>
+                        <span className="block truncate" style={{ color: 'var(--muted)', fontSize: '10px', fontWeight: 800 }}>{option.description}</span>
+                      </span>
+                      {selected && <Check size={14} style={{ color: 'var(--neon-cyan)', flexShrink: 0 }} />}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="my-3" style={{ borderTop: '1px solid rgba(32, 227, 255, 0.14)' }} />
+
+              <div className="mb-2 px-1">
+                <p className="m-0 tracking-tight" style={{ color: 'var(--white)', fontSize: '13px', fontWeight: 950 }}>알림 설정</p>
+              </div>
+
+              <div className="grid gap-1.5">
+                {notificationOptions.map((option) => {
+                  const selected = option.id === notificationMode;
+                  const Icon = option.icon;
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => setNotificationMode(option.id)}
+                      className="flex w-full items-center gap-3 rounded-xl border-0 px-3 py-2.5 text-left tracking-tight"
+                      style={{
+                        background: selected ? 'rgba(57, 255, 136, 0.10)' : 'transparent',
+                        border: selected ? '1px solid rgba(57, 255, 136, 0.18)' : '1px solid transparent',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <Icon size={15} style={{ color: selected ? 'var(--matrix-green)' : 'var(--muted)', flexShrink: 0 }} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate" style={{ color: 'var(--white)', fontSize: '12px', fontWeight: 950 }}>{option.label}</span>
+                        <span className="block truncate" style={{ color: 'var(--muted)', fontSize: '10px', fontWeight: 800 }}>{option.description}</span>
+                      </span>
+                      {selected && <Check size={14} style={{ color: 'var(--matrix-green)', flexShrink: 0 }} />}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="my-3" style={{ borderTop: '1px solid rgba(32, 227, 255, 0.14)' }} />
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setProfileMenuOpen(false); navigate('/profile'); }}
+                  className="flex items-center justify-center gap-2 rounded-xl border-0 px-3 py-2.5 tracking-tight"
+                  style={{ background: 'rgba(234, 247, 255, 0.07)', border: '1px solid rgba(32, 227, 255, 0.14)', color: 'var(--white)', cursor: 'pointer', fontSize: '12px', fontWeight: 900 }}
+                >
+                  <UserRound size={14} />
+                  프로필
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setProfileMenuOpen(false); navigate('/settings'); }}
+                  className="flex items-center justify-center gap-2 rounded-xl border-0 px-3 py-2.5 tracking-tight"
+                  style={{ background: 'rgba(234, 247, 255, 0.07)', border: '1px solid rgba(32, 227, 255, 0.14)', color: 'var(--white)', cursor: 'pointer', fontSize: '12px', fontWeight: 900 }}
+                >
+                  <Settings size={14} />
+                  설정
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 }

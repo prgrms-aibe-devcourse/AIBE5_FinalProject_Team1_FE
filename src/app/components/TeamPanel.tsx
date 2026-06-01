@@ -14,9 +14,12 @@ import {
   type LucideIcon
 } from "lucide-react";
 import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 interface TeamPanelProps {
+  workspaceId: string;
+  currentUserId: string;
+  currentUserOnline: boolean;   // true when presence is not 'offline'
   onInvite: () => void;
   onOpenChannel?: (channelId: string) => void;
 }
@@ -113,7 +116,7 @@ const roomPreviewMessages = [
   { author: "김준우", text: "리뷰 룸에서 rate limit 기준만 확정할게요.", time: "11:28" }
 ];
 
-const initialTeamMembers: TeamMember[] = [
+const ALL_MEMBERS: TeamMember[] = [
   {
     id: "jaejun",
     initials: "JJ",
@@ -166,7 +169,7 @@ const initialTeamMembers: TeamMember[] = [
     github: "kimjinhyun",
     score: 74,
     online: false,
-    statusColor: "#8B7CF6",
+    statusColor: "#8B94A7",
     commits: 98,
     prs: 18,
     reviews: 31
@@ -180,20 +183,55 @@ const initialTeamMembers: TeamMember[] = [
     github: "ahnhyun",
     score: 79,
     online: false,
-    statusColor: "#8B7CF6",
+    statusColor: "#8B94A7",
     commits: 45,
     prs: 12,
     reviews: 87
   }
 ];
 
-export function TeamPanel({ onInvite, onOpenChannel }: TeamPanelProps) {
-  const [members, setMembers] = useState<TeamMember[]>(initialTeamMembers);
+const WORKSPACE_TEAMS_KEY = "codedock-workspace-teams-v1";
+
+function loadAllTeams(): Record<string, TeamMember[]> {
+  try { return JSON.parse(localStorage.getItem(WORKSPACE_TEAMS_KEY) ?? "{}"); }
+  catch { return {}; }
+}
+
+function saveAllTeams(all: Record<string, TeamMember[]>) {
+  localStorage.setItem(WORKSPACE_TEAMS_KEY, JSON.stringify(all));
+}
+
+// Idempotent: seeds only when the key is completely absent (first-ever load)
+function ensureSeeded() {
+  if (localStorage.getItem(WORKSPACE_TEAMS_KEY) !== null) return;
+  const [jaejun, jinpil, junwoo, jinhyun, hyun] = ALL_MEMBERS;
+  saveAllTeams({
+    "workspace-1": [junwoo, jaejun, jinpil, jinhyun],   // exclude 안현
+    "workspace-2": [junwoo, jaejun, jinhyun, hyun],      // exclude 김진필
+    "workspace-3": [junwoo, jinpil, jinhyun, hyun],      // exclude 김재준
+  });
+}
+
+export function TeamPanel({ workspaceId, currentUserId, currentUserOnline, onInvite, onOpenChannel }: TeamPanelProps) {
+  ensureSeeded();   // no-op after first run
+
+  const [members, setMembers] = useState<TeamMember[]>(() => {
+    const all = loadAllTeams();
+    return all[workspaceId] ?? [ALL_MEMBERS[2]];  // fallback: 김준우 only
+  });
   const [activeRoomId, setActiveRoomId] = useState(teamRooms[1].id);
   const [notice, setNotice] = useState("팀원 역할 수정 및 삭제가 가능합니다.");
   const [confirmTarget, setConfirmTarget] = useState<TeamMember | null>(null);
+
+  useEffect(() => {
+    const all = loadAllTeams();
+    setMembers(all[workspaceId] ?? [ALL_MEMBERS[2]]);
+  }, [workspaceId]);
   const activeRoom = teamRooms.find((room) => room.id === activeRoomId) ?? teamRooms[0];
-  const onlineCount = members.filter((member) => member.online).length;
+  // Override the current user's stored `online` field with the live presence prop
+  const onlineCount = members.filter((member) =>
+    member.id === currentUserId ? currentUserOnline : member.online
+  ).length;
   const activityItems = useMemo(() => {
     const commits = members.reduce((sum, member) => sum + member.commits, 0);
     const prs = members.reduce((sum, member) => sum + member.prs, 0);
@@ -206,6 +244,11 @@ export function TeamPanel({ onInvite, onOpenChannel }: TeamPanelProps) {
     ];
   }, [members]);
 
+  const persistMembers = (next: TeamMember[]) => {
+    const all = loadAllTeams();
+    saveAllTeams({ ...all, [workspaceId]: next });
+  };
+
   const handleOpenRoom = (room: TeamRoom) => {
     setActiveRoomId(room.id);
     setNotice(`${room.name} 채팅방으로 이동합니다.`);
@@ -213,10 +256,10 @@ export function TeamPanel({ onInvite, onOpenChannel }: TeamPanelProps) {
   };
 
   const handleRoleChange = (memberId: string, nextRole: string) => {
-    const target = members.find((member) => member.id === memberId);
-    setMembers((prev) =>
-      prev.map((member) => (member.id === memberId ? { ...member, role: nextRole } : member))
-    );
+    const target = members.find((m) => m.id === memberId);
+    const next = members.map((m) => m.id === memberId ? { ...m, role: nextRole } : m);
+    setMembers(next);
+    persistMembers(next);
     setNotice(`${target?.name ?? "팀원"} 역할을 ${nextRole}(으)로 변경했습니다.`);
   };
 
@@ -230,7 +273,9 @@ export function TeamPanel({ onInvite, onOpenChannel }: TeamPanelProps) {
 
   const handleConfirmDelete = () => {
     if (!confirmTarget) return;
-    setMembers((prev) => prev.filter((member) => member.id !== confirmTarget.id));
+    const next = members.filter((m) => m.id !== confirmTarget.id);
+    setMembers(next);
+    persistMembers(next);
     setNotice(`${confirmTarget.name} 팀원을 추방했습니다.`);
     setConfirmTarget(null);
   };
