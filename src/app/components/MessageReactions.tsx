@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { SmilePlus } from "lucide-react";
 
 export interface MessageReaction {
@@ -46,6 +47,51 @@ interface MessageReactionsProps {
 
 export function MessageReactions({ reactions = [], onToggle }: MessageReactionsProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerPos, setPickerPos] = useState<{ top: number; left: number } | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const pickerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!pickerOpen) {
+      setPickerPos(null);
+      return;
+    }
+
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      // Place above the button — natural for reactions at the bottom of messages
+      // 116px = 2 rows × (36px + 6px gap) + 16px padding + 8px gap
+      setPickerPos({ top: rect.top - 116, left: rect.left });
+    }
+
+    // Lock the nearest scrollable ancestor so the chat doesn't scroll while picker is open
+    let scrollParent: HTMLElement | null = null;
+    let el: HTMLElement | null = buttonRef.current?.parentElement ?? null;
+    while (el) {
+      const style = window.getComputedStyle(el);
+      if (style.overflowY === "auto" || style.overflowY === "scroll") {
+        scrollParent = el;
+        break;
+      }
+      el = el.parentElement;
+    }
+    const prevOverflow = scrollParent?.style.overflowY ?? "";
+    if (scrollParent) scrollParent.style.overflowY = "hidden";
+
+    const handleOutside = (e: MouseEvent) => {
+      if (
+        pickerRef.current && !pickerRef.current.contains(e.target as Node) &&
+        buttonRef.current && !buttonRef.current.contains(e.target as Node)
+      ) {
+        setPickerOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleOutside);
+      if (scrollParent) scrollParent.style.overflowY = prevOverflow;
+    };
+  }, [pickerOpen]);
 
   const handleSelect = (emoji: string) => {
     onToggle(emoji);
@@ -79,6 +125,7 @@ export function MessageReactions({ reactions = [], onToggle }: MessageReactionsP
       ))}
 
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => setPickerOpen((open) => !open)}
         className="flex h-7 w-7 items-center justify-center rounded-full border-0 transition-all"
@@ -94,14 +141,23 @@ export function MessageReactions({ reactions = [], onToggle }: MessageReactionsP
         <SmilePlus size={14} />
       </button>
 
-      {pickerOpen && (
+      {pickerOpen && pickerPos && createPortal(
         <div
-          className="absolute left-0 top-9 z-20 grid grid-cols-4 gap-1.5 rounded-xl p-2"
+          ref={pickerRef}
           style={{
+            position: "fixed",
+            top: pickerPos.top,
+            left: pickerPos.left,
+            zIndex: 9999,
             background: "rgba(5, 11, 20, 0.94)",
             border: "1px solid rgba(32, 227, 255, 0.22)",
             boxShadow: "0 18px 42px rgba(0, 0, 0, 0.36)",
-            backdropFilter: "blur(12px)"
+            backdropFilter: "blur(12px)",
+            borderRadius: "12px",
+            padding: "8px",
+            display: "grid",
+            gridTemplateColumns: "repeat(4, 1fr)",
+            gap: "6px",
           }}
         >
           {quickReactionEmojis.map((emoji) => (
@@ -114,7 +170,7 @@ export function MessageReactions({ reactions = [], onToggle }: MessageReactionsP
                 background: "rgba(32, 227, 255, 0.08)",
                 border: "1px solid rgba(32, 227, 255, 0.12)",
                 cursor: "pointer",
-                fontSize: "18px"
+                fontSize: "18px",
               }}
               aria-label={`${emoji} 반응 추가`}
               title={`${emoji} 반응`}
@@ -122,7 +178,8 @@ export function MessageReactions({ reactions = [], onToggle }: MessageReactionsP
               {emoji}
             </button>
           ))}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
