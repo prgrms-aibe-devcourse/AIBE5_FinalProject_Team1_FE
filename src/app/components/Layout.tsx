@@ -16,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import { useTheme } from "../contexts/ThemeContext";
+import { clearAuthenticated } from "../auth";
 
 const navItems = [
   { path: "/workspace", label: "Dashboard" },
@@ -38,6 +39,7 @@ export function Layout() {
 
   const isActive = (path: string) => location.pathname === path;
   const handleLogout = () => {
+    clearAuthenticated();
     navigate("/login");
   };
 
