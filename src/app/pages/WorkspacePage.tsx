@@ -55,7 +55,7 @@ const MOCK_GITHUB_REPOS = [
 
 const SUGGESTED_TEAM_MEMBERS: TeamInviteDraft[] = [
   { id: 1, name: "김재준", email: "jaejun@codedock.dev", role: "Tech Lead" },
-  { id: 2, name: "김진아", email: "jinah@codedock.dev", role: "Backend Developer" },
+  { id: 2, name: "김진필", email: "jinah@codedock.dev", role: "Backend Developer" },
   { id: 3, name: "김진현", email: "jinhyun@codedock.dev", role: "DevOps Engineer" },
   { id: 4, name: "안현", email: "hyun@codedock.dev", role: "QA Engineer" },
 ];
