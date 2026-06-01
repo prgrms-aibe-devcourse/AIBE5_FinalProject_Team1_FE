@@ -146,6 +146,10 @@
     @apply border-border outline-ring/50;
   }
 
+  html {
+    background-color: #050B14; /* --void: always dark, prevents white overscroll flash */
+  }
+
   body {
     @apply bg-background text-foreground;
     font-family: var(--codedock-font-family);

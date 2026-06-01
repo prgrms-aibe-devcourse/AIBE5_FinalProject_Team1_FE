@@ -101,11 +101,12 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
   const channelLabel = repoName ?? '일반';
   const [hoveredMessageId, setHoveredMessageId] = useState<number | null>(null);
   const [messageText, setMessageText] = useState("");
-  const [attachmentPickerOpen, setAttachmentPickerOpen] = useState(false);
-  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
+  type ActivePanel = 'attachment' | 'emoji' | 'link' | null;
+  const [activePanel, setActivePanel] = useState<ActivePanel>(null);
+  const togglePanel = (panel: Exclude<ActivePanel, null>) =>
+    setActivePanel((prev) => (prev === panel ? null : panel));
   const [activeAttachmentType, setActiveAttachmentType] = useState<MessageAttachmentType>("pr");
   const [selectedAttachments, setSelectedAttachments] = useState<MessageAttachment[]>([]);
-  const [linkComposerOpen, setLinkComposerOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
   const [linkTitle, setLinkTitle] = useState("");
   const [responderTyping, setResponderTyping] = useState(false);
@@ -207,12 +208,12 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
     setSelectedAttachments((prev) => [...prev, attachment]);
     setLinkUrl("");
     setLinkTitle("");
-    setLinkComposerOpen(false);
+    setActivePanel(null);
   };
 
   const handleEmojiSelect = (emoji: string) => {
     setMessageText((prev) => `${prev}${emoji}`);
-    setEmojiPickerOpen(false);
+    setActivePanel(null);
   };
 
   const getThreadReactionKey = (threadId: number) => `channel:${channelStorageId}:thread:${threadId}`;
@@ -263,9 +264,7 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
     setThreads((prev) => [...prev, nextThread]);
     setMessageText("");
     setSelectedAttachments([]);
-    setAttachmentPickerOpen(false);
-    setEmojiPickerOpen(false);
-    setLinkComposerOpen(false);
+    setActivePanel(null);
     setLinkUrl("");
     setLinkTitle("");
     triggerResponderTyping();
@@ -529,7 +528,7 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
           </div>
         )}
 
-        {attachmentPickerOpen && (
+        {activePanel === 'attachment' && (
           <div className="mb-3 rounded-xl px-4 py-3" style={{
             background: 'rgba(5, 11, 20, 0.78)',
             border: '1px solid rgba(32, 227, 255, 0.18)',
@@ -597,7 +596,7 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
           </div>
         )}
 
-        {linkComposerOpen && (
+        {activePanel === 'link' && (
           <div className="mb-3 rounded-xl px-4 py-3" style={{
             background: 'rgba(5, 11, 20, 0.78)',
             border: '1px solid rgba(32, 227, 255, 0.18)',
@@ -672,7 +671,7 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
           </div>
         )}
 
-        {emojiPickerOpen && (
+        {activePanel === 'emoji' && (
           <div className="mb-3">
             <EmojiPicker onSelect={handleEmojiSelect} />
           </div>
@@ -709,12 +708,12 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
           />
           <div className="flex shrink-0 items-center gap-1">
             <button
-              onClick={() => setAttachmentPickerOpen((open) => !open)}
+              onClick={() => togglePanel('attachment')}
               className="w-9 h-9 rounded-lg border-0 flex items-center justify-center transition-all cursor-pointer"
               style={{
-                background: attachmentPickerOpen ? 'rgba(32, 227, 255, 0.15)' : 'rgba(32, 227, 255, 0.08)',
-                border: `1px solid ${attachmentPickerOpen ? 'rgba(32, 227, 255, 0.3)' : 'rgba(32, 227, 255, 0.14)'}`,
-                color: attachmentPickerOpen ? 'var(--neon-cyan)' : 'var(--muted)'
+                background: activePanel === 'attachment' ? 'rgba(32, 227, 255, 0.15)' : 'rgba(32, 227, 255, 0.08)',
+                border: `1px solid ${activePanel === 'attachment' ? 'rgba(32, 227, 255, 0.3)' : 'rgba(32, 227, 255, 0.14)'}`,
+                color: activePanel === 'attachment' ? 'var(--neon-cyan)' : 'var(--muted)'
               }}
               title="목록 첨부"
             >
@@ -745,24 +744,24 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
               <ImageIcon size={18} />
             </button>
             <button
-              onClick={() => setLinkComposerOpen((open) => !open)}
+              onClick={() => togglePanel('link')}
               className="w-9 h-9 rounded-lg border-0 flex items-center justify-center transition-all cursor-pointer"
               style={{
-                background: linkComposerOpen ? 'rgba(32, 227, 255, 0.15)' : 'rgba(32, 227, 255, 0.08)',
-                border: `1px solid ${linkComposerOpen ? 'rgba(32, 227, 255, 0.3)' : 'rgba(32, 227, 255, 0.14)'}`,
-                color: linkComposerOpen ? 'var(--neon-cyan)' : 'var(--muted)'
+                background: activePanel === 'link' ? 'rgba(32, 227, 255, 0.15)' : 'rgba(32, 227, 255, 0.08)',
+                border: `1px solid ${activePanel === 'link' ? 'rgba(32, 227, 255, 0.3)' : 'rgba(32, 227, 255, 0.14)'}`,
+                color: activePanel === 'link' ? 'var(--neon-cyan)' : 'var(--muted)'
               }}
               title="링크 첨부"
             >
               <Link2 size={18} />
             </button>
             <button
-              onClick={() => setEmojiPickerOpen((open) => !open)}
+              onClick={() => togglePanel('emoji')}
               className="w-9 h-9 rounded-lg border-0 flex items-center justify-center transition-all cursor-pointer"
               style={{
-                background: emojiPickerOpen ? 'rgba(32, 227, 255, 0.15)' : 'rgba(32, 227, 255, 0.08)',
-                border: `1px solid ${emojiPickerOpen ? 'rgba(32, 227, 255, 0.3)' : 'rgba(32, 227, 255, 0.14)'}`,
-                color: emojiPickerOpen ? 'var(--neon-cyan)' : 'var(--muted)'
+                background: activePanel === 'emoji' ? 'rgba(32, 227, 255, 0.15)' : 'rgba(32, 227, 255, 0.08)',
+                border: `1px solid ${activePanel === 'emoji' ? 'rgba(32, 227, 255, 0.3)' : 'rgba(32, 227, 255, 0.14)'}`,
+                color: activePanel === 'emoji' ? 'var(--neon-cyan)' : 'var(--muted)'
               }}
               title="이모티콘"
             >

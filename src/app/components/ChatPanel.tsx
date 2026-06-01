@@ -102,7 +102,10 @@ const issuePriorityConfig = {
 export function ChatPanel({ channelId = "general", title, messages, reactions, replyCounts = {}, onSendMessage, onSharePR, showAISummary = true, onMergePR, onReviewPR, onViewIssue, onOpenThread, onToggleReaction, isRepository = false }: ChatPanelProps) {
   const [message, setMessage] = useState('');
   const [codeBlockText, setCodeBlockText] = useState('');
-  const [showCodeBlock, setShowCodeBlock] = useState(false);
+  type ActivePanel = 'code' | 'attachment' | 'emoji' | 'link' | null;
+  const [activePanel, setActivePanel] = useState<ActivePanel>(null);
+  const togglePanel = (panel: Exclude<ActivePanel, null>) =>
+    setActivePanel((prev) => (prev === panel ? null : panel));
   const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'completed'>('all');
   const [hoveredMessageId, setHoveredMessageId] = useState<number | null>(null);
   const [bookmarkedMessageIds, setBookmarkedMessageIds] = useState<Record<number, boolean>>({});
@@ -111,11 +114,8 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
   const [selectedPRForShare, setSelectedPRForShare] = useState<any>(null);
   const [shareMessage, setShareMessage] = useState('');
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
-  const [attachmentPickerOpen, setAttachmentPickerOpen] = useState(false);
-  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [activeAttachmentType, setActiveAttachmentType] = useState<MessageAttachmentType>("pr");
   const [selectedAttachments, setSelectedAttachments] = useState<MessageAttachment[]>([]);
-  const [linkComposerOpen, setLinkComposerOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
   const [linkTitle, setLinkTitle] = useState("");
   const [responderTyping, setResponderTyping] = useState(false);
@@ -159,11 +159,8 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
       onSendMessage(outgoingMessage, outgoingAttachments);
       setMessage('');
       setCodeBlockText('');
-      setShowCodeBlock(false);
+      setActivePanel(null);
       setSelectedAttachments([]);
-      setAttachmentPickerOpen(false);
-      setEmojiPickerOpen(false);
-      setLinkComposerOpen(false);
       setLinkUrl("");
       setLinkTitle("");
       triggerResponderTyping();
@@ -261,12 +258,12 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
     setSelectedAttachments((prev) => [...prev, attachment]);
     setLinkUrl("");
     setLinkTitle("");
-    setLinkComposerOpen(false);
+    setActivePanel(null);
   };
 
   const handleEmojiSelect = (emoji: string) => {
     setMessage((prev) => `${prev}${emoji}`);
-    setEmojiPickerOpen(false);
+    setActivePanel(null);
   };
 
   const handleMentionClick = (user?: string) => {
@@ -1106,7 +1103,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
       <div className="px-6 py-4" style={{
         borderTop: '1px solid rgba(32, 227, 255, 0.14)'
       }}>
-        {showCodeBlock && (
+        {activePanel === 'code' && (
           <div className="mb-3 px-4 py-3 rounded-xl" style={{
             background: 'rgba(32, 227, 255, 0.08)',
             border: '1px solid rgba(32, 227, 255, 0.22)'
@@ -1167,7 +1164,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
           </div>
         )}
 
-        {attachmentPickerOpen && (
+        {activePanel === 'attachment' && (
           <div className="mb-3 rounded-xl px-4 py-3" style={{
             background: 'rgba(5, 11, 20, 0.78)',
             border: '1px solid rgba(32, 227, 255, 0.18)',
@@ -1247,7 +1244,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
           </div>
         )}
 
-        {linkComposerOpen && (
+        {activePanel === 'link' && (
           <div className="mb-3 rounded-xl px-4 py-3" style={{
             background: 'rgba(5, 11, 20, 0.78)',
             border: '1px solid rgba(32, 227, 255, 0.18)',
@@ -1334,7 +1331,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
           </div>
         )}
 
-        {emojiPickerOpen && (
+        {activePanel === 'emoji' && (
           <div className="mb-3">
             <EmojiPicker onSelect={handleEmojiSelect} />
           </div>
@@ -1377,12 +1374,12 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
 
           <div className="flex shrink-0 flex-wrap justify-end gap-1">
             <button
-              onClick={() => setShowCodeBlock(!showCodeBlock)}
+              onClick={() => togglePanel('code')}
               className="w-9 h-9 rounded-lg border-0 flex items-center justify-center"
               style={{
-                background: showCodeBlock ? 'rgba(32, 227, 255, 0.15)' : 'rgba(5, 11, 20, 0.6)',
-                border: `1px solid ${showCodeBlock ? 'rgba(32, 227, 255, 0.3)' : 'rgba(32, 227, 255, 0.14)'}`,
-                color: showCodeBlock ? 'var(--neon-cyan)' : 'var(--muted)',
+                background: activePanel === 'code' ? 'rgba(32, 227, 255, 0.15)' : 'rgba(5, 11, 20, 0.6)',
+                border: `1px solid ${activePanel === 'code' ? 'rgba(32, 227, 255, 0.3)' : 'rgba(32, 227, 255, 0.14)'}`,
+                color: activePanel === 'code' ? 'var(--neon-cyan)' : 'var(--muted)',
                 cursor: 'pointer'
               }}
               title="코드 블록"
@@ -1391,12 +1388,12 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
               <Code size={18} />
             </button>
             <button
-              onClick={() => setAttachmentPickerOpen((open) => !open)}
+              onClick={() => togglePanel('attachment')}
               className="w-9 h-9 rounded-lg border-0 flex items-center justify-center"
               style={{
-                background: attachmentPickerOpen ? 'rgba(32, 227, 255, 0.15)' : 'rgba(5, 11, 20, 0.6)',
-                border: `1px solid ${attachmentPickerOpen ? 'rgba(32, 227, 255, 0.3)' : 'rgba(32, 227, 255, 0.14)'}`,
-                color: attachmentPickerOpen ? 'var(--neon-cyan)' : 'var(--muted)',
+                background: activePanel === 'attachment' ? 'rgba(32, 227, 255, 0.15)' : 'rgba(5, 11, 20, 0.6)',
+                border: `1px solid ${activePanel === 'attachment' ? 'rgba(32, 227, 255, 0.3)' : 'rgba(32, 227, 255, 0.14)'}`,
+                color: activePanel === 'attachment' ? 'var(--neon-cyan)' : 'var(--muted)',
                 cursor: 'pointer'
               }}
               title="목록 첨부"
@@ -1433,12 +1430,12 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
               <ImageIcon size={18} />
             </button>
             <button
-              onClick={() => setLinkComposerOpen((open) => !open)}
+              onClick={() => togglePanel('link')}
               className="w-9 h-9 rounded-lg border-0 flex items-center justify-center"
               style={{
-                background: linkComposerOpen ? 'rgba(32, 227, 255, 0.15)' : 'rgba(5, 11, 20, 0.6)',
-                border: `1px solid ${linkComposerOpen ? 'rgba(32, 227, 255, 0.3)' : 'rgba(32, 227, 255, 0.14)'}`,
-                color: linkComposerOpen ? 'var(--neon-cyan)' : 'var(--muted)',
+                background: activePanel === 'link' ? 'rgba(32, 227, 255, 0.15)' : 'rgba(5, 11, 20, 0.6)',
+                border: `1px solid ${activePanel === 'link' ? 'rgba(32, 227, 255, 0.3)' : 'rgba(32, 227, 255, 0.14)'}`,
+                color: activePanel === 'link' ? 'var(--neon-cyan)' : 'var(--muted)',
                 cursor: 'pointer'
               }}
               title="링크 첨부"
@@ -1461,12 +1458,12 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
               <AtSign size={18} />
             </button>
             <button
-              onClick={() => setEmojiPickerOpen((open) => !open)}
+              onClick={() => togglePanel('emoji')}
               className="w-9 h-9 rounded-lg border-0 flex items-center justify-center"
               style={{
-                background: emojiPickerOpen ? 'rgba(32, 227, 255, 0.15)' : 'rgba(5, 11, 20, 0.6)',
-                border: `1px solid ${emojiPickerOpen ? 'rgba(32, 227, 255, 0.3)' : 'rgba(32, 227, 255, 0.14)'}`,
-                color: emojiPickerOpen ? 'var(--neon-cyan)' : 'var(--muted)',
+                background: activePanel === 'emoji' ? 'rgba(32, 227, 255, 0.15)' : 'rgba(5, 11, 20, 0.6)',
+                border: `1px solid ${activePanel === 'emoji' ? 'rgba(32, 227, 255, 0.3)' : 'rgba(32, 227, 255, 0.14)'}`,
+                color: activePanel === 'emoji' ? 'var(--neon-cyan)' : 'var(--muted)',
                 cursor: 'pointer'
               }}
               title="이모티콘"
