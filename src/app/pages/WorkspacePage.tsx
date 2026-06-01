@@ -33,6 +33,13 @@ type Invite = {
   expiresTime: string;
 };
 
+type TeamInviteDraft = {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+};
+
 const MOCK_GITHUB_REPOS = [
   { id: 1,  name: "secure-flow-api",       owner: "my_github",    relation: "owner",        isPrivate: true,  language: "TypeScript" },
   { id: 2,  name: "auth-middleware",        owner: "my_github",    relation: "owner",        isPrivate: true,  language: "TypeScript" },
@@ -44,6 +51,24 @@ const MOCK_GITHUB_REPOS = [
   { id: 8,  name: "backend-api-gateway",    owner: "AIBE5-Team1", relation: "collaborator", isPrivate: true,  language: "Java"       },
   { id: 9,  name: "mobile-app",             owner: "some-org",    relation: "collaborator", isPrivate: false, language: "Kotlin"     },
   { id: 10, name: "data-pipeline",          owner: "some-org",    relation: "collaborator", isPrivate: true,  language: "Python"     },
+];
+
+const SUGGESTED_TEAM_MEMBERS: TeamInviteDraft[] = [
+  { id: 1, name: "김재준", email: "jaejun@codedock.dev", role: "Tech Lead" },
+  { id: 2, name: "김진아", email: "jinah@codedock.dev", role: "Backend Developer" },
+  { id: 3, name: "김진현", email: "jinhyun@codedock.dev", role: "DevOps Engineer" },
+  { id: 4, name: "안현", email: "hyun@codedock.dev", role: "QA Engineer" },
+];
+
+const TEAM_ROLE_OPTIONS = [
+  "Tech Lead",
+  "Backend Developer",
+  "Frontend Developer",
+  "DevOps Engineer",
+  "QA Engineer",
+  "Product Manager",
+  "Designer",
+  "Viewer",
 ];
 
 function AutoScrollContainer({ children, itemCount }: { children: React.ReactNode; itemCount: number }) {
@@ -267,12 +292,15 @@ function CreateTeamModal({
   onCreate,
 }: {
   onClose: () => void;
-  onCreate: (name: string, repoIds: number[]) => void;
+  onCreate: (name: string, repoIds: number[], invitedMembers: TeamInviteDraft[]) => void;
 }) {
-  const [step, setStep] = useState<1 | 2>(1);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [name, setName] = useState("");
   const [selectedRepos, setSelectedRepos] = useState<number[]>([]);
   const [repoSearch, setRepoSearch] = useState("");
+  const [selectedMembers, setSelectedMembers] = useState<TeamInviteDraft[]>([]);
+  const [memberEmail, setMemberEmail] = useState("");
+  const [memberRole, setMemberRole] = useState(TEAM_ROLE_OPTIONS[0]);
 
   const canProceed = name.trim().length > 0;
 
@@ -286,8 +314,42 @@ function CreateTeamModal({
     );
   };
 
+  const toggleSuggestedMember = (member: TeamInviteDraft) => {
+    setSelectedMembers((prev) =>
+      prev.some((item) => item.email === member.email)
+        ? prev.filter((item) => item.email !== member.email)
+        : [...prev, member]
+    );
+  };
+
+  const handleAddMemberByEmail = () => {
+    const email = memberEmail.trim();
+    if (!email || !email.includes("@") || selectedMembers.some((member) => member.email === email)) return;
+
+    setSelectedMembers((prev) => [
+      ...prev,
+      {
+        id: Date.now(),
+        name: email.split("@")[0],
+        email,
+        role: memberRole,
+      },
+    ]);
+    setMemberEmail("");
+  };
+
+  const handleRemoveMember = (email: string) => {
+    setSelectedMembers((prev) => prev.filter((member) => member.email !== email));
+  };
+
+  const handleChangeMemberRole = (email: string, role: string) => {
+    setSelectedMembers((prev) =>
+      prev.map((member) => (member.email === email ? { ...member, role } : member))
+    );
+  };
+
   const handleFinish = () => {
-    onCreate(name.trim(), selectedRepos);
+    onCreate(name.trim(), selectedRepos, selectedMembers);
     onClose();
   };
 
@@ -315,7 +377,7 @@ function CreateTeamModal({
               팀 생성하기
             </h2>
             <div className="flex items-center gap-2 mt-2">
-              {([1, 2] as const).map((s) => (
+              {([1, 2, 3] as const).map((s) => (
                 <div key={s} className="flex items-center gap-1.5">
                   <div
                     style={{
@@ -335,9 +397,9 @@ function CreateTeamModal({
                     {s}
                   </div>
                   <span style={{ fontSize: "12px", fontWeight: 800, color: step === s ? "var(--white)" : "var(--muted)" }}>
-                    {s === 1 ? "팀 이름" : "리포지토리"}
+                    {s === 1 ? "팀 이름" : s === 2 ? "리포지토리" : "팀원 추가"}
                   </span>
-                  {s < 2 && (
+                  {s < 3 && (
                     <div
                       style={{
                         width: "20px",
@@ -432,22 +494,40 @@ function CreateTeamModal({
               <span style={{ fontWeight: 700 }}>(선택 사항 · {selectedRepos.length}개 선택됨)</span>
             </p>
 
-            <input
-              autoFocus
-              value={repoSearch}
-              onChange={(e) => setRepoSearch(e.target.value)}
-              placeholder="리포지토리 검색..."
-              className="w-full rounded-xl px-4 py-2.5 outline-none tracking-tight mb-3"
-              style={{
-                background: "rgba(255,255,255,0.05)",
-                border: "1.5px solid rgba(32, 227, 255, 0.18)",
-                color: "var(--white)",
-                fontSize: "13px",
-                fontWeight: 700,
-              }}
-              onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(32, 227, 255, 0.5)")}
-              onBlur={(e) => (e.currentTarget.style.borderColor = "rgba(32, 227, 255, 0.18)")}
-            />
+            <div className="relative mb-3">
+              <input
+                autoFocus
+                value={repoSearch}
+                onChange={(e) => setRepoSearch(e.target.value)}
+                placeholder="리포지토리 검색..."
+                className="w-full rounded-xl py-2.5 pl-4 pr-11 outline-none tracking-tight"
+                style={{
+                  background: "rgba(255,255,255,0.05)",
+                  border: "1.5px solid rgba(32, 227, 255, 0.18)",
+                  color: "var(--white)",
+                  fontSize: "13px",
+                  fontWeight: 700,
+                }}
+                onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(32, 227, 255, 0.5)")}
+                onBlur={(e) => (e.currentTarget.style.borderColor = "rgba(32, 227, 255, 0.18)")}
+              />
+              {repoSearch.length > 0 && (
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => setRepoSearch("")}
+                  className="absolute right-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full border-0"
+                  style={{
+                    background: "rgba(255,255,255,0.08)",
+                    color: "var(--muted)",
+                    cursor: "pointer",
+                  }}
+                  aria-label="검색어 지우기"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
 
             <div className="grid gap-1.5 overflow-y-auto" style={{ maxHeight: "260px" }}>
               {filteredRepos.map((repo) => {
@@ -537,6 +617,191 @@ function CreateTeamModal({
                 이전
               </button>
               <button
+                onClick={() => setStep(3)}
+                className="flex-1 rounded-xl border-0 py-3 tracking-tight transition-all"
+                style={{
+                  background: "linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))",
+                  color: "#021014",
+                  fontSize: "14px",
+                  fontWeight: 900,
+                  cursor: "pointer",
+                  boxShadow: "0 4px 14px rgba(32, 227, 255, 0.28)",
+                }}
+              >
+                {selectedRepos.length > 0 ? `다음 (${selectedRepos.length}개 연결)` : "다음"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div className="px-7 pb-7">
+            <div className="mb-5 rounded-2xl px-4 py-3" style={{ background: "rgba(32, 227, 255, 0.08)", border: "1px solid rgba(32, 227, 255, 0.18)" }}>
+              <p className="m-0 tracking-tight" style={{ color: "var(--white)", fontSize: "14px", fontWeight: 950 }}>
+                팀원을 초대하세요
+              </p>
+              <p className="m-0 mt-1 tracking-tight" style={{ color: "var(--muted)", fontSize: "12px", fontWeight: 750, lineHeight: 1.5 }}>
+                팀 생성 후 초대 메일을 발송합니다. 지금 건너뛰고 나중에 팀 관리에서 추가할 수도 있습니다.
+              </p>
+            </div>
+
+            <div className="mb-4 grid grid-cols-[1fr_150px_auto] gap-2">
+              <input
+                value={memberEmail}
+                onChange={(e) => setMemberEmail(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleAddMemberByEmail();
+                  }
+                }}
+                autoFocus
+                placeholder="teammate@company.com"
+                className="min-w-0 rounded-xl px-4 py-3 outline-none tracking-tight"
+                style={{
+                  background: "rgba(255,255,255,0.05)",
+                  border: "1.5px solid rgba(32, 227, 255, 0.20)",
+                  color: "var(--white)",
+                  fontSize: "13px",
+                  fontWeight: 800,
+                }}
+              />
+              <select
+                value={memberRole}
+                onChange={(e) => setMemberRole(e.target.value)}
+                className="rounded-xl px-3 py-3 outline-none tracking-tight"
+                style={{
+                  background: "rgba(255,255,255,0.05)",
+                  border: "1.5px solid rgba(32, 227, 255, 0.20)",
+                  color: "var(--white)",
+                  fontSize: "12px",
+                  fontWeight: 850,
+                }}
+              >
+                {TEAM_ROLE_OPTIONS.map((role) => (
+                  <option key={role} value={role} style={{ background: "#121827", color: "#EAF7FF" }}>
+                    {role}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={handleAddMemberByEmail}
+                className="rounded-xl border-0 px-4 py-3 tracking-tight"
+                style={{
+                  background: "rgba(32, 227, 255, 0.12)",
+                  border: "1px solid rgba(32, 227, 255, 0.24)",
+                  color: "var(--neon-cyan)",
+                  cursor: "pointer",
+                  fontSize: "13px",
+                  fontWeight: 950,
+                }}
+              >
+                추가
+              </button>
+            </div>
+
+            <p className="m-0 mb-2 tracking-tight" style={{ color: "var(--muted)", fontSize: "12px", fontWeight: 900 }}>
+              추천 팀원
+            </p>
+            <div className="mb-4 grid gap-2 overflow-y-auto pr-1" style={{ maxHeight: "248px" }}>
+              {SUGGESTED_TEAM_MEMBERS.map((member) => {
+                const selected = selectedMembers.some((item) => item.email === member.email);
+                return (
+                  <button
+                    key={member.email}
+                    type="button"
+                    onClick={() => toggleSuggestedMember(member)}
+                    className="flex w-full items-center gap-3 rounded-xl border-0 px-4 py-3 text-left transition-all"
+                    style={{
+                      background: selected ? "rgba(57, 255, 136, 0.10)" : "rgba(255,255,255,0.03)",
+                      border: selected ? "1px solid rgba(57, 255, 136, 0.30)" : "1px solid rgba(255,255,255,0.07)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full" style={{ background: "linear-gradient(135deg, var(--neon-cyan), var(--matrix-green))", color: "#021014", fontSize: "12px", fontWeight: 950 }}>
+                      {member.name.slice(0, 1)}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate" style={{ color: "var(--white)", fontSize: "13px", fontWeight: 950 }}>{member.name}</span>
+                      <span className="block truncate" style={{ color: "var(--muted)", fontSize: "11px", fontWeight: 750 }}>{member.email} · {member.role}</span>
+                    </span>
+                    <span style={{ color: selected ? "var(--matrix-green)" : "var(--muted)", fontSize: "12px", fontWeight: 950 }}>
+                      {selected ? "선택됨" : "초대"}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {selectedMembers.length > 0 && (
+              <div className="mb-5 grid gap-2 overflow-y-auto pr-1" style={{ maxHeight: "228px" }}>
+                {selectedMembers.map((member) => (
+                  <div
+                    key={member.email}
+                    className="grid items-center gap-3 rounded-xl px-4 py-3 tracking-tight"
+                    style={{
+                      background: "rgba(234, 247, 255, 0.08)",
+                      border: "1px solid rgba(32, 227, 255, 0.16)",
+                      gridTemplateColumns: "minmax(0, 1fr) 190px auto",
+                    }}
+                  >
+                    <div className="min-w-0">
+                      <p className="m-0 truncate" style={{ color: "var(--white)", fontSize: "13px", fontWeight: 950 }}>
+                        {member.name}
+                      </p>
+                      <p className="m-0 truncate" style={{ color: "var(--muted)", fontSize: "11px", fontWeight: 750 }}>
+                        {member.email}
+                      </p>
+                    </div>
+                    <select
+                      value={member.role}
+                      onChange={(e) => handleChangeMemberRole(member.email, e.target.value)}
+                      className="rounded-xl px-3 py-2 outline-none tracking-tight"
+                      style={{
+                        background: "rgba(255,255,255,0.06)",
+                        border: "1px solid rgba(32, 227, 255, 0.20)",
+                        color: "var(--white)",
+                        fontSize: "12px",
+                        fontWeight: 850,
+                      }}
+                    >
+                      {TEAM_ROLE_OPTIONS.map((role) => (
+                        <option key={role} value={role} style={{ background: "#121827", color: "#EAF7FF" }}>
+                          {role}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveMember(member.email)}
+                      className="h-9 w-9 rounded-xl border-0"
+                      style={{
+                        background: "rgba(255, 107, 107, 0.12)",
+                        border: "1px solid rgba(255, 107, 107, 0.24)",
+                        color: "#FF6B6B",
+                        cursor: "pointer",
+                        fontSize: "14px",
+                        fontWeight: 950,
+                      }}
+                      aria-label={`${member.name} 제거`}
+                    >
+                      x
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex gap-3 mt-5">
+              <button
+                onClick={() => setStep(2)}
+                className="flex-1 rounded-xl border-0 py-3 tracking-tight"
+                style={{ background: "rgba(255,255,255,0.06)", color: "var(--muted)", fontSize: "14px", fontWeight: 900, cursor: "pointer" }}
+              >
+                이전
+              </button>
+              <button
                 onClick={handleFinish}
                 className="flex-1 rounded-xl border-0 py-3 tracking-tight transition-all"
                 style={{
@@ -548,7 +813,7 @@ function CreateTeamModal({
                   boxShadow: "0 4px 14px rgba(32, 227, 255, 0.28)",
                 }}
               >
-                {selectedRepos.length > 0 ? `팀 만들기 (${selectedRepos.length}개 연결)` : "팀 만들기"}
+                {selectedMembers.length > 0 ? `팀 만들기 (${selectedMembers.length}명 초대)` : "팀 만들기"}
               </button>
             </div>
           </div>
@@ -726,10 +991,10 @@ export function WorkspacePage() {
     });
   }, []);
 
-  const handleCreateTeam = (name: string, repoIds: number[]) => {
+  const handleCreateTeam = (name: string, repoIds: number[], invitedMembers: TeamInviteDraft[]) => {
     setOrgs((prev) => [
       ...prev,
-      { id: Date.now(), name, openPRs: 0, highRisk: 0, activeIssues: 0, memberCount: 1, repoCount: repoIds.length, myRole: "소유자" },
+      { id: Date.now(), name, openPRs: 0, highRisk: 0, activeIssues: 0, memberCount: invitedMembers.length + 1, repoCount: repoIds.length, myRole: "소유자" },
     ]);
   };
 
