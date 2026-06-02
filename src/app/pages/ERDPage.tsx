@@ -167,7 +167,7 @@ const maxDiagramZoom = 1.8;
 const defaultDiagramZoom = 1;
 const diagramZoomStep = 0.1;
 const defaultRepositoryName = "codedock-backend";
-const erdDocumentsStorageKey = "codedock-erd-documents";
+const erdDocumentsStorageKey = "codedock-erd-documents-v2";
 const minWorldCanvasWidth = 7200;
 const minWorldCanvasHeight = 5000;
 const worldCanvasExtraWidth = 4600;
@@ -178,6 +178,15 @@ const diagramFrameOffsetY = 420;
 const minDiagramRenderWidth = 480;
 const maxDiagramRenderWidth = 840;
 const diagramRenderScale = 0.42;
+const mermaidThemeColors = {
+  background: "#050B14",
+  panel: "#132338",
+  panelAlt: "#0F1D30",
+  canvas: "#07101D",
+  text: "#EAF7FF",
+  cyan: "#20E3FF",
+  green: "#39FF88"
+};
 const mermaidConfig = {
   startOnLoad: false,
   suppressErrorRendering: true,
@@ -191,19 +200,19 @@ const mermaidConfig = {
     entityPadding: 15
   },
   themeVariables: {
-    background: "#050B14",
-    mainBkg: "#132338",
-    primaryColor: "#132338",
-    primaryBorderColor: "var(--neon-cyan)",
-    primaryTextColor: "#EAF7FF",
-    secondaryColor: "#0F1D30",
-    tertiaryColor: "#07101D",
-    lineColor: "var(--matrix-green)",
-    textColor: "#EAF7FF",
-    nodeBorder: "var(--neon-cyan)",
-    nodeTextColor: "#EAF7FF",
-    edgeLabelBackground: "#07101D",
-    erEdgeLabelBackground: "#07101D",
+    background: mermaidThemeColors.background,
+    mainBkg: mermaidThemeColors.panel,
+    primaryColor: mermaidThemeColors.panel,
+    primaryBorderColor: mermaidThemeColors.cyan,
+    primaryTextColor: mermaidThemeColors.text,
+    secondaryColor: mermaidThemeColors.panelAlt,
+    tertiaryColor: mermaidThemeColors.canvas,
+    lineColor: mermaidThemeColors.green,
+    textColor: mermaidThemeColors.text,
+    nodeBorder: mermaidThemeColors.cyan,
+    nodeTextColor: mermaidThemeColors.text,
+    edgeLabelBackground: mermaidThemeColors.canvas,
+    erEdgeLabelBackground: mermaidThemeColors.canvas,
     attributeBackgroundColorOdd: "#101F34",
     attributeBackgroundColorEven: "#0B1829",
     fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace"
@@ -242,8 +251,14 @@ function normalizeEntityName(name: string) {
 function toMermaidRenderableCode(code: string) {
   return code
     .split(/\r?\n/)
-    .map((line) => line.replace(/\s+(nullable|optional)\b/gi, ""))
+    .map((line) => line
+      .replace(/\s+(nullable|optional)\b/gi, "")
+      .replace(/^(\s*)([A-Za-z_][\w]*)\([^)]*\)(\s+)/, "$1$2$3"))
     .join("\n");
+}
+
+function isErdCode(code: string) {
+  return code.trimStart().startsWith("erDiagram");
 }
 
 function parseErdCode(code: string) {
@@ -572,6 +587,13 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
 
     updateViewportSize();
 
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", updateViewportSize);
+      return () => {
+        window.removeEventListener("resize", updateViewportSize);
+      };
+    }
+
     const resizeObserver = new ResizeObserver(updateViewportSize);
     resizeObserver.observe(viewport);
 
@@ -684,6 +706,15 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
       return;
     }
 
+    const renderableCode = toMermaidRenderableCode(debouncedErdCode);
+
+    if (!isErdCode(renderableCode)) {
+      setMermaidSvg("");
+      setMermaidError("ERD 탭에서는 erDiagram 코드만 렌더링할 수 있습니다.");
+      cleanupMermaidRenderArtifacts();
+      return;
+    }
+
     let cancelled = false;
     const renderId = `codedock-erd-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const renderContainer = document.createElement("div");
@@ -705,7 +736,8 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
 
     const renderDiagram = async () => {
       try {
-        const result = await mermaid.render(renderId, toMermaidRenderableCode(debouncedErdCode), renderContainer);
+        await mermaid.parse(renderableCode);
+        const result = await mermaid.render(renderId, renderableCode, renderContainer);
         if (!cancelled) {
           setMermaidSvg(result.svg);
           setMermaidError("");

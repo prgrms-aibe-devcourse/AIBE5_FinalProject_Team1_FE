@@ -29,6 +29,7 @@ export function Layout() {
   const { profile } = useProfile();
 
   const isActive = (path: string) => location.pathname === path;
+  const hideFooter = location.pathname === "/chat";
   const handleLogout = () => {
     clearAuthenticated();
     navigate("/login");
@@ -255,7 +256,7 @@ export function Layout() {
         <Outlet />
       </main>
 
-      <Footer />
+      {!hideFooter && <Footer />}
     </div>
   );
 }

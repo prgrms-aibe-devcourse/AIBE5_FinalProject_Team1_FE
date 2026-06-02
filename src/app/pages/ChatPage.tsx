@@ -6,10 +6,11 @@ import { IssuePanel } from "../components/IssuePanel";
 import { ThreadPanel } from "../components/ThreadPanel";
 import { ChannelPanel } from "../components/ChannelPanel";
 import { OverviewPanel } from "../components/OverviewPanel";
+import { ErrorBoundary } from "../components/ErrorBoundary";
 import { APISpecPage } from "./APISpecPage";
 import { ERDPage } from "./ERDPage";
 import { DocsPage } from "./DocsPage";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { AnimatePresence, motion } from "motion/react";
 import type { MessageAttachment } from "../components/messageAttachments";
@@ -648,7 +649,7 @@ export function ChatPage() {
         : `${sidebarColumn} minmax(0, 1fr)`;
   const pageShellClassName = isMainExpanded
     ? "fixed inset-0 z-[80] mx-auto max-w-none p-4"
-    : "w-full max-w-[2000px] mx-auto px-[clamp(14px,2vw,24px)] py-8 pb-20";
+    : "w-full max-w-[2000px] mx-auto px-[clamp(14px,2vw,24px)] py-4 pb-4";
   const pageShellStyle = isMainExpanded
     ? {
         background:
@@ -657,7 +658,7 @@ export function ChatPage() {
     : undefined;
   const chatGridClassName = isMainExpanded
     ? "grid h-full min-h-0 gap-4 overflow-hidden"
-    : "grid h-[calc(100svh-160px)] min-h-[560px] gap-[clamp(16px,1.8vw,24px)] overflow-hidden";
+    : "grid h-[calc(100svh-128px)] min-h-0 gap-[clamp(16px,1.8vw,24px)] overflow-hidden";
   const selectedChannelMeta = ALL_SIDEBAR_CHANNELS.find((channel) => channel.id === selectedChannel);
   const selectedCustomChannel = customChannels.find(ch => ch.id === selectedChannel);
   const selectedChannelTitle = selectedChannel === 'pull-requests'
@@ -863,9 +864,9 @@ export function ChatPage() {
   };
 
   const handleAddCustomChannel = () => {
-    setAddChannelStep('select');
     setNewChannelName('');
     setNewRepoChannelUrl('');
+    setAddChannelStep((prev) => (prev ? null : 'select'));
   };
 
   const handleSelectChannelType = (type: 'chat' | 'repo') => {
@@ -952,6 +953,13 @@ export function ChatPage() {
     }));
   };
 
+  const handleSelectSidebarChannel = (channelId: string) => {
+    setSelectedPR(null);
+    setSelectedIssue(null);
+    setSelectedThread(null);
+    setSelectedChannel(channelId);
+  };
+
   const renderSidebarChannel = (channel: SidebarChannel, nested = false) => {
     const Icon = channel.icon;
     const isActive = selectedChannel === channel.id;
@@ -959,7 +967,7 @@ export function ChatPage() {
     return (
       <motion.button
         key={channel.id}
-        onClick={() => setSelectedChannel(channel.id)}
+        onClick={() => handleSelectSidebarChannel(channel.id)}
         className={`relative isolate flex w-full items-center gap-3 rounded-full border-0 text-left tracking-tight transition-colors ${nested ? 'pl-8 pr-3 py-2.5' : 'px-4 py-3'}`}
         style={{
           background: 'transparent',
@@ -1555,8 +1563,8 @@ export function ChatPage() {
           )}
 
           {visibleRepositories.length > 0 ? (
-            <div className="flex flex-1 flex-col min-h-0">
-            <div className="grid min-w-0 flex-1 content-start gap-2 overflow-y-auto pr-1">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="codedock-scrollbar-hidden flex min-w-0 flex-1 flex-col gap-2 overflow-y-auto pr-1">
               {renderSidebarChannel({ id: 'overview', label: '통합 개요', icon: Home })}
 
               <div className="my-1" style={{ borderTop: '1px solid rgba(var(--codedock-primary-rgb), 0.14)' }} />
@@ -1776,6 +1784,10 @@ export function ChatPage() {
                 )}
               </AnimatePresence>
 
+              <div
+                className="grid min-h-[44px] max-h-[164px] gap-1 overflow-y-auto pr-1"
+                style={{ scrollbarWidth: 'none' }}
+              >
               {renderSidebarChannel({ id: 'general', label: '일반', icon: Hash, badge: getChannelBadge('general') })}
 
               {customChannels.map((ch) => {
@@ -1882,7 +1894,21 @@ export function ChatPage() {
                   </div>
                 );
               })}
+              </div>
 
+              <div
+                aria-hidden="true"
+                className="mx-3 my-2 h-px"
+                style={{
+                  background:
+                    'linear-gradient(90deg, transparent, rgba(var(--codedock-primary-rgb), 0.22), rgba(234, 247, 255, 0.08), transparent)'
+                }}
+              />
+
+              <div
+                className="grid min-h-0 flex-1 content-start gap-2 overflow-y-auto pr-1"
+                style={{ scrollbarWidth: 'none' }}
+              >
               {visibleRepositories.map((repo) => {
                 const repoChannelId = REPO_CHANNEL_IDS[repo.id] ?? repo.id;
                 const isExpanded = expandedRepoSubmenus[repo.id] ?? repo.id === firstVisibleRepositoryId;
@@ -2087,6 +2113,7 @@ export function ChatPage() {
               <div className="my-1" style={{ borderTop: '1px solid rgba(var(--codedock-primary-rgb), 0.14)' }}></div>
 
               {renderSidebarGroup('documentation', '문서', DOCUMENTATION_CHANNELS)}
+              </div>
             </div>
 
             <div className="mt-auto grid gap-2 pt-4">
@@ -2150,11 +2177,17 @@ export function ChatPage() {
                 onSelectRepository={setSelectedRepository}
               />
             ) : selectedChannel === 'api-spec' ? (
-              <APISpecPage embedded />
+              <EmbeddedPanelBoundary key="api-spec">
+                <APISpecPage embedded />
+              </EmbeddedPanelBoundary>
             ) : selectedChannel === 'erd' ? (
-              <ERDPage embedded repositoryId={selectedRepository} repositoryName={selectedRepositoryName} />
+              <EmbeddedPanelBoundary key={`erd-${selectedRepository}`}>
+                <ERDPage embedded repositoryId={selectedRepository} repositoryName={selectedRepositoryName} />
+              </EmbeddedPanelBoundary>
             ) : selectedChannel === 'docs' ? (
-              <DocsPage embedded />
+              <EmbeddedPanelBoundary key="docs">
+                <DocsPage embedded />
+              </EmbeddedPanelBoundary>
             ) : selectedChannel === 'general' || customChannels.some(ch => ch.id === selectedChannel) ? (
               <ChannelPanel
                 channelId={selectedChannel}
@@ -2375,5 +2408,16 @@ export function ChatPage() {
         document.body
       )}
     </div>
+  );
+}
+
+function EmbeddedPanelBoundary({ children }: { children: ReactNode }) {
+  return (
+    <ErrorBoundary
+      fallbackTitle="탭 화면을 불러오지 못했습니다"
+      fallbackMessage="API 명세, ERD, 문서 화면 렌더링 중 오류가 발생했습니다. 다른 채널로 이동한 뒤 다시 열어주세요."
+    >
+      {children}
+    </ErrorBoundary>
   );
 }

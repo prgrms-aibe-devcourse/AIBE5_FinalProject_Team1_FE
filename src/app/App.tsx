@@ -1,3 +1,4 @@
+import { type ReactNode } from "react";
 import { BrowserRouter, Navigate, Routes, Route } from "react-router";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
@@ -6,6 +7,7 @@ import { Layout } from "./components/Layout";
 import { AuthLayout } from "./components/AuthLayout";
 import { PublicLayout } from "./components/PublicLayout";
 import { LanguageDomSync } from "./components/LanguageDomSync";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { HomePage } from "./pages/HomePage";
 import { WorkspacePage } from "./pages/WorkspacePage";
 import { ProjectPage } from "./pages/ProjectPage";
@@ -54,14 +56,25 @@ export default function App() {
               <Route path="/project" element={<ProjectPage />} />
               <Route path="/issues" element={<IssueBoardPage />} />
               <Route path="/chat" element={<ChatPage />} />
-              <Route path="/api-spec" element={<APISpecPage />} />
-              <Route path="/erd" element={<ERDPage />} />
-              <Route path="/docs" element={<DocsPage />} />
+              <Route path="/api-spec" element={<PageBoundary><APISpecPage /></PageBoundary>} />
+              <Route path="/erd" element={<PageBoundary><ERDPage /></PageBoundary>} />
+              <Route path="/docs" element={<PageBoundary><DocsPage /></PageBoundary>} />
             </Route>
           </Routes>
         </BrowserRouter>
         </ProfileProvider>
       </LanguageProvider>
     </ThemeProvider>
+  );
+}
+
+function PageBoundary({ children }: { children: ReactNode }) {
+  return (
+    <ErrorBoundary
+      fallbackTitle="페이지를 불러오지 못했습니다"
+      fallbackMessage="화면 전환 중 렌더링 오류가 발생했습니다. 다른 메뉴로 이동한 뒤 다시 열어주세요."
+    >
+      {children}
+    </ErrorBoundary>
   );
 }
