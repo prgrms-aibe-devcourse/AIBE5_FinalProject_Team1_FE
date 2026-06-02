@@ -619,11 +619,14 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
               What
             </h3>
             <div style={{ borderTop: "1px solid rgba(234, 247, 255, 0.16)" }} />
-            <ul className="m-0 mt-4 grid gap-2 pl-5" style={{ color: "var(--white)", fontSize: 15, fontWeight: 820, lineHeight: 1.58 }}>
+            <div className="mt-4 grid gap-2">
               {originalWhatItems.map((item) => (
-                <li key={item}>{renderInlineCode(item)}</li>
+                <div key={item} className="flex gap-2 tracking-tight" style={{ color: "var(--white)", fontSize: 15, fontWeight: 820, lineHeight: 1.58 }}>
+                  <span style={{ flexShrink: 0, color: "var(--neon-cyan)", fontWeight: 950 }}>-</span>
+                  <span>{renderInlineCode(item)}</span>
+                </div>
               ))}
-            </ul>
+            </div>
           </section>
 
           <section className="mb-7">
@@ -695,9 +698,10 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
         </h3>
         <div className="grid gap-3">
           {cautionItems.map((item) => (
-            <p key={item} className="m-0 tracking-tight" style={{ color: "var(--white)", fontSize: 15, fontWeight: 850 }}>
-              {item}
-            </p>
+            <div key={item} className="flex gap-2 m-0 tracking-tight" style={{ color: "var(--white)", fontSize: 15, fontWeight: 850 }}>
+              <span style={{ flexShrink: 0, color: "#FF6B6B", fontWeight: 950 }}>-</span>
+              <span>{item}</span>
+            </div>
           ))}
         </div>
       </section>
@@ -711,9 +715,10 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
         </h3>
         <div className="grid gap-3">
           {positiveItems.map((item) => (
-            <p key={item} className="m-0 tracking-tight" style={{ color: "var(--white)", fontSize: 15, fontWeight: 850 }}>
-              {item}
-            </p>
+            <div key={item} className="flex gap-2 m-0 tracking-tight" style={{ color: "var(--white)", fontSize: 15, fontWeight: 850 }}>
+              <span style={{ flexShrink: 0, color: "var(--matrix-green)", fontWeight: 950 }}>-</span>
+              <span>{item}</span>
+            </div>
           ))}
         </div>
       </section>

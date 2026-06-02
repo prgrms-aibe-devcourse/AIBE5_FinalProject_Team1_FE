@@ -533,6 +533,7 @@ export function ChatPage() {
   const profileButtonRef = useRef<HTMLButtonElement>(null);
   const profilePopupRef = useRef<HTMLDivElement>(null);
   const sidebarRef = useRef<HTMLElement>(null);
+  const isCreatingChannelRef = useRef(false);
 
   useEffect(() => {
     if (!showRepoDropdown) return;
@@ -847,6 +848,7 @@ export function ChatPage() {
     if (selectedRepository === repositoryId) {
       const nextVisible = nextRepositories.filter(r => !r.workspaceId || r.workspaceId === selectedWorkspace);
       setSelectedRepository(nextVisible[0]?.id ?? nextRepositories[0]?.id ?? "");
+      setSelectedChannel('general');
     }
     if (nextRepositories.length === 0) {
       setRepositoriesImported(false);
@@ -870,17 +872,22 @@ export function ChatPage() {
   };
 
   const handleSubmitAddChannel = () => {
+    if (isCreatingChannelRef.current) return;
+    isCreatingChannelRef.current = true;
     const label = newChannelName.trim() || `새 채널 ${customChannels.length + 1}`;
     const id = `custom-${Date.now()}`;
     setCustomChannels(prev => [...prev, { id, label }]);
     setSelectedChannel(id);
     setAddChannelStep(null);
     setNewChannelName('');
+    setTimeout(() => { isCreatingChannelRef.current = false; }, 500);
   };
 
   const handleSubmitAddRepoChannel = () => {
+    if (isCreatingChannelRef.current) return;
     const repoName = parseRepoNameFromUrl(newRepoChannelUrl);
     if (!repoName) return;
+    isCreatingChannelRef.current = true;
     const nextRepository: RepositoryItem = {
       id: `repo-${Date.now()}`,
       name: repoName,
@@ -897,6 +904,7 @@ export function ChatPage() {
     setSelectedChannel(nextRepository.id);
     setAddChannelStep(null);
     setNewRepoChannelUrl('');
+    setTimeout(() => { isCreatingChannelRef.current = false; }, 500);
   };
 
   const handleCancelAddChannel = () => {
@@ -1466,9 +1474,9 @@ export function ChatPage() {
                       border: '1px solid rgba(32, 227, 255, 0.3)',
                       boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5)'
                     }}
-                    initial={{ opacity: 0, y: -8, height: 0 }}
-                    animate={{ opacity: 1, y: 0, height: 'auto' }}
-                    exit={{ opacity: 0, y: -8, height: 0 }}
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
                     transition={{ type: 'spring', stiffness: 360, damping: 32 }}
                   >
                     {DEFAULT_WORKSPACES.map((ws) => (
@@ -1546,7 +1554,7 @@ export function ChatPage() {
           )}
 
           {visibleRepositories.length > 0 ? (
-            <div className="flex flex-1 flex-col overflow-hidden">
+            <div className="flex flex-1 flex-col min-h-0">
             <div className="grid min-w-0 flex-1 content-start gap-2 overflow-y-auto pr-1">
               {renderSidebarChannel({ id: 'overview', label: '통합 개요', icon: Home })}
 
@@ -1565,19 +1573,19 @@ export function ChatPage() {
                   <Plus size={13} />
                 </button>
               </div>
-              <AnimatePresence initial={false}>
+              <AnimatePresence mode="popLayout" initial={false}>
                 {addChannelStep === 'select' && (
                   <motion.div
                     key="select"
-                    className="mx-1 overflow-hidden rounded-xl px-3 py-3"
+                    className="mx-1 rounded-xl px-3 py-3"
                     style={{
                       background: 'rgba(5, 11, 20, 0.58)',
                       border: '1px solid rgba(32, 227, 255, 0.18)',
                       boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.06)'
                     }}
-                    initial={{ opacity: 0, y: -8, height: 0 }}
-                    animate={{ opacity: 1, y: 0, height: 'auto' }}
-                    exit={{ opacity: 0, y: -8, height: 0 }}
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
                     transition={{ type: 'spring', stiffness: 360, damping: 32 }}
                   >
                     <p style={{ fontSize: '11px', fontWeight: 900, color: 'var(--muted)', margin: '0 0 10px 0' }}>채널 유형 선택</p>
@@ -1635,15 +1643,15 @@ export function ChatPage() {
                 {addChannelStep === 'chat' && (
                   <motion.div
                     key="chat"
-                    className="mx-1 overflow-hidden rounded-xl px-3 py-3"
+                    className="mx-1 rounded-xl px-3 py-3"
                     style={{
                       background: 'rgba(5, 11, 20, 0.58)',
                       border: '1px solid rgba(32, 227, 255, 0.18)',
                       boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.06)'
                     }}
-                    initial={{ opacity: 0, y: -8, height: 0 }}
-                    animate={{ opacity: 1, y: 0, height: 'auto' }}
-                    exit={{ opacity: 0, y: -8, height: 0 }}
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
                     transition={{ type: 'spring', stiffness: 360, damping: 32 }}
                   >
                     <p style={{ fontSize: '11px', fontWeight: 900, color: 'var(--muted)', margin: '0 0 8px 0' }}>채널 이름</p>
@@ -1651,7 +1659,6 @@ export function ChatPage() {
                       value={newChannelName}
                       onChange={e => setNewChannelName(e.target.value)}
                       onKeyDown={e => {
-                        if (e.key === 'Enter') { e.preventDefault(); handleSubmitAddChannel(); }
                         if (e.key === 'Escape') { e.preventDefault(); handleCancelAddChannel(); }
                       }}
                       autoFocus
@@ -1701,15 +1708,15 @@ export function ChatPage() {
                 {addChannelStep === 'repo' && (
                   <motion.div
                     key="repo"
-                    className="mx-1 overflow-hidden rounded-xl px-3 py-3"
+                    className="mx-1 rounded-xl px-3 py-3"
                     style={{
                       background: 'rgba(5, 11, 20, 0.58)',
                       border: '1px solid rgba(57, 255, 136, 0.18)',
                       boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.06)'
                     }}
-                    initial={{ opacity: 0, y: -8, height: 0 }}
-                    animate={{ opacity: 1, y: 0, height: 'auto' }}
-                    exit={{ opacity: 0, y: -8, height: 0 }}
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
                     transition={{ type: 'spring', stiffness: 360, damping: 32 }}
                   >
                     <p style={{ fontSize: '11px', fontWeight: 900, color: 'var(--muted)', margin: '0 0 4px 0' }}>레포 채널</p>
@@ -1718,7 +1725,6 @@ export function ChatPage() {
                       value={newRepoChannelUrl}
                       onChange={e => setNewRepoChannelUrl(e.target.value)}
                       onKeyDown={e => {
-                        if (e.key === 'Enter') { e.preventDefault(); handleSubmitAddRepoChannel(); }
                         if (e.key === 'Escape') { e.preventDefault(); handleCancelAddChannel(); }
                       }}
                       autoFocus

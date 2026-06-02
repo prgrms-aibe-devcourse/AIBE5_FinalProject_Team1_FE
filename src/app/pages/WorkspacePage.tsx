@@ -238,18 +238,6 @@ function DraggableTeamCard({
             >
               {org.name}
             </h3>
-            <span
-              className="px-2 py-0.5 rounded-md tracking-tight"
-              style={{
-                fontSize: "12px",
-                fontWeight: 800,
-                background: "rgba(32, 227, 255, 0.12)",
-                color: "var(--neon-cyan)",
-                border: "1px solid rgba(32, 227, 255, 0.25)",
-              }}
-            >
-              {org.myRole}
-            </span>
           </div>
           <div className="flex flex-wrap gap-4">
             <span className="tracking-tight" style={{ fontSize: "14px", fontWeight: 800, color: "var(--muted)" }}>
