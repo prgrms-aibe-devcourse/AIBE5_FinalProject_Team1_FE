@@ -1466,9 +1466,9 @@ export function ChatPage() {
                       border: '1px solid rgba(32, 227, 255, 0.3)',
                       boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5)'
                     }}
-                    initial={{ opacity: 0, y: -8, height: 0 }}
-                    animate={{ opacity: 1, y: 0, height: 'auto' }}
-                    exit={{ opacity: 0, y: -8, height: 0 }}
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
                     transition={{ type: 'spring', stiffness: 360, damping: 32 }}
                   >
                     {DEFAULT_WORKSPACES.map((ws) => (
@@ -1565,19 +1565,19 @@ export function ChatPage() {
                   <Plus size={13} />
                 </button>
               </div>
-              <AnimatePresence initial={false}>
+              <AnimatePresence mode="popLayout" initial={false}>
                 {addChannelStep === 'select' && (
                   <motion.div
                     key="select"
-                    className="mx-1 overflow-hidden rounded-xl px-3 py-3"
+                    className="mx-1 rounded-xl px-3 py-3"
                     style={{
                       background: 'rgba(5, 11, 20, 0.58)',
                       border: '1px solid rgba(32, 227, 255, 0.18)',
                       boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.06)'
                     }}
-                    initial={{ opacity: 0, y: -8, height: 0 }}
-                    animate={{ opacity: 1, y: 0, height: 'auto' }}
-                    exit={{ opacity: 0, y: -8, height: 0 }}
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
                     transition={{ type: 'spring', stiffness: 360, damping: 32 }}
                   >
                     <p style={{ fontSize: '11px', fontWeight: 900, color: 'var(--muted)', margin: '0 0 10px 0' }}>채널 유형 선택</p>
@@ -1635,15 +1635,15 @@ export function ChatPage() {
                 {addChannelStep === 'chat' && (
                   <motion.div
                     key="chat"
-                    className="mx-1 overflow-hidden rounded-xl px-3 py-3"
+                    className="mx-1 rounded-xl px-3 py-3"
                     style={{
                       background: 'rgba(5, 11, 20, 0.58)',
                       border: '1px solid rgba(32, 227, 255, 0.18)',
                       boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.06)'
                     }}
-                    initial={{ opacity: 0, y: -8, height: 0 }}
-                    animate={{ opacity: 1, y: 0, height: 'auto' }}
-                    exit={{ opacity: 0, y: -8, height: 0 }}
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
                     transition={{ type: 'spring', stiffness: 360, damping: 32 }}
                   >
                     <p style={{ fontSize: '11px', fontWeight: 900, color: 'var(--muted)', margin: '0 0 8px 0' }}>채널 이름</p>
@@ -1701,15 +1701,15 @@ export function ChatPage() {
                 {addChannelStep === 'repo' && (
                   <motion.div
                     key="repo"
-                    className="mx-1 overflow-hidden rounded-xl px-3 py-3"
+                    className="mx-1 rounded-xl px-3 py-3"
                     style={{
                       background: 'rgba(5, 11, 20, 0.58)',
                       border: '1px solid rgba(57, 255, 136, 0.18)',
                       boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.06)'
                     }}
-                    initial={{ opacity: 0, y: -8, height: 0 }}
-                    animate={{ opacity: 1, y: 0, height: 'auto' }}
-                    exit={{ opacity: 0, y: -8, height: 0 }}
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
                     transition={{ type: 'spring', stiffness: 360, damping: 32 }}
                   >
                     <p style={{ fontSize: '11px', fontWeight: 900, color: 'var(--muted)', margin: '0 0 4px 0' }}>레포 채널</p>
