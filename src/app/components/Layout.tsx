@@ -18,11 +18,6 @@ import {
 import { useTheme } from "../contexts/ThemeContext";
 import { clearAuthenticated } from "../auth";
 
-const navItems = [
-  { path: "/workspace", label: "Dashboard" },
-  { path: "/prs", label: "PRs" },
-  { path: "/chat", label: "Workspace" },
-];
 
 const currentUser = {
   name: "김준우",
@@ -111,35 +106,6 @@ export function Layout() {
             <CodeDockWordmark accentColor={colors.primaryHex} />
           </Link>
 
-          <nav
-            className={
-              remoteNav
-                ? "fixed left-1/2 top-4 hidden max-w-[calc(100vw-32px)] -translate-x-1/2 items-center gap-1 overflow-x-auto rounded-full px-3 py-2 transition-all duration-300 lg:flex"
-                : "absolute left-1/2 hidden -translate-x-1/2 items-center gap-2 transition-all duration-300 lg:flex"
-            }
-            style={
-              remoteNav
-                ? {
-                    background: `
-                      linear-gradient(135deg, ${colors.primary}, 0.13), rgba(234, 247, 255, 0.045)),
-                      rgba(5, 11, 20, 0.72)
-                    `,
-                    border: `1px solid ${colors.primary}, 0.24)`,
-                    boxShadow: `
-                      0 18px 55px rgba(0, 0, 0, 0.42),
-                      0 0 38px ${colors.primary}, 0.12),
-                      inset 0 1px 0 rgba(255, 255, 255, 0.13)
-                    `,
-                    backdropFilter: "blur(22px) saturate(190%)",
-                    WebkitBackdropFilter: "blur(22px) saturate(190%)",
-                  }
-                : undefined
-            }
-          >
-            {navItems.map((item) => (
-              <HeaderLink key={item.path} item={item} active={isActive(item.path)} />
-            ))}
-          </nav>
 
           <div
             className="flex items-center gap-3 transition-all duration-300"
@@ -290,14 +256,6 @@ export function Layout() {
             >
               로그아웃
             </button>
-            {navItems.map((item) => (
-              <HeaderLink
-                key={item.path}
-                item={item}
-                active={isActive(item.path)}
-                onClick={() => setMobileMenuOpen(false)}
-              />
-            ))}
           </nav>
         )}
       </header>
