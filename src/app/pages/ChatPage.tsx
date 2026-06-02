@@ -1546,7 +1546,7 @@ export function ChatPage() {
           )}
 
           {visibleRepositories.length > 0 ? (
-            <div className="flex flex-1 flex-col overflow-hidden">
+            <div className="flex flex-1 flex-col min-h-0">
             <div className="grid min-w-0 flex-1 content-start gap-2 overflow-y-auto pr-1">
               {renderSidebarChannel({ id: 'overview', label: '통합 개요', icon: Home })}
 
