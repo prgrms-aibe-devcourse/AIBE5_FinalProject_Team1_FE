@@ -287,8 +287,8 @@ function DraggableTeamCard({
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onSettingsClick(org); }}
-          className="grid h-7 w-7 place-items-center rounded-lg border-0 self-start flex-shrink-0"
-          style={{ background: "transparent", cursor: "pointer", opacity: 0.4, color: "var(--muted)", transition: "opacity 0.15s, color 0.15s" }}
+          className="grid place-items-center rounded-lg border-0 self-start flex-shrink-0"
+          style={{ background: "transparent", cursor: "pointer", opacity: 0.4, color: "var(--muted)", transition: "opacity 0.15s, color 0.15s", padding: "4px", margin: "-4px" }}
           onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.opacity = "1"; (e.currentTarget as HTMLButtonElement).style.color = "var(--neon-cyan)"; }}
           onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.opacity = "0.4"; (e.currentTarget as HTMLButtonElement).style.color = "var(--muted)"; }}
           title="팀 설정"

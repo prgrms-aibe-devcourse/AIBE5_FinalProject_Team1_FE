@@ -484,6 +484,60 @@ function draftToStored(draft: InviteDraft): StoredMember {
   };
 }
 
+// Small self-contained component so it can use useState without hooks-in-callback rules
+function KickDisabledButton() {
+  const [tooltipPos, setTooltipPos] = useState<{ top: number; left: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+
+  const handleEnter = () => {
+    if (btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      setTooltipPos({ top: r.top + r.height / 2, left: r.right + 8 });
+    }
+  };
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        onClick={e => e.preventDefault()}
+        onMouseEnter={handleEnter}
+        onMouseLeave={() => setTooltipPos(null)}
+        style={{
+          background: "transparent", border: "none",
+          color: "rgba(139,148,167,0.35)",
+          padding: "4px", borderRadius: "6px",
+          display: "flex", alignItems: "center", flexShrink: 0,
+          cursor: "not-allowed",
+        }}
+      >
+        <UserMinus size={14} />
+      </button>
+      {tooltipPos && createPortal(
+        <span style={{
+          position: "fixed",
+          top: tooltipPos.top,
+          left: tooltipPos.left,
+          transform: "translateY(-50%)",
+          background: "rgba(8,16,32,0.97)",
+          border: "1px solid rgba(139,148,167,0.25)",
+          borderRadius: "6px",
+          padding: "5px 9px",
+          fontSize: "11px", fontWeight: 800,
+          color: "var(--muted)",
+          whiteSpace: "nowrap",
+          pointerEvents: "none",
+          zIndex: 9999,
+          boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
+        }}>
+          관리자만 팀원을 내보낼 수 있습니다
+        </span>,
+        document.body
+      )}
+    </>
+  );
+}
+
 // ─── Tab: 팀원 관리 ──────────────────────────────────────────────────────────
 function MembersTab({ org, isAdmin, isOwner, onUpdate }: {
   org: Org; isAdmin: boolean; isOwner: boolean;
@@ -609,7 +663,7 @@ function MembersTab({ org, isAdmin, isOwner, onUpdate }: {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <SectionHeader icon={Users} label="팀원 목록" />
         {/* 팀원 초대 button — admin only */}
-        <button
+        {isAdmin && <button
           onClick={() => setShowInviteModal(true)}
           style={{
             display: "flex", alignItems: "center", gap: "6px",
@@ -624,7 +678,7 @@ function MembersTab({ org, isAdmin, isOwner, onUpdate }: {
         >
           <UserPlus size={13} />
           팀원 초대
-        </button>
+        </button>}
       </div>
 
       {sortedMembers.length === 0 ? (
@@ -640,8 +694,8 @@ function MembersTab({ org, isAdmin, isOwner, onUpdate }: {
         }}>
           {sortedMembers.map(member => {
             const isProtected = !!member.protected; // 소유자
-            const canModify = !isProtected;
-            const canKick = !isProtected;
+            const canModify = isAdmin && !isProtected;
+            const canKick = isAdmin && !isProtected;
             const isConfirmingKick = confirmKickId === member.id;
             const currentPermission = member.permissionRole ?? "편집 가능";
 
@@ -683,22 +737,35 @@ function MembersTab({ org, isAdmin, isOwner, onUpdate }: {
                       {member.role} · {member.email}
                     </p>
                   </div>
-                  {/* Permission role — 소유자 shows badge, others show custom dropdown */}
+                  {/* Permission role — 소유자 shows badge; admins get dropdown; non-admins get static badge */}
                   {isProtected ? (
                     <span style={{
                       fontSize: "11px", fontWeight: 900, color: "#FFD166",
                       background: "rgba(255,209,102,0.12)", border: "1px solid rgba(255,209,102,0.25)",
                       borderRadius: "6px", padding: "4px 10px", flexShrink: 0,
                     }}>소유자</span>
-                  ) : (
+                  ) : isAdmin ? (
                     <PermissionDropdown
                       value={currentPermission}
                       onChange={(newRole) => handlePermissionChange(member.id, newRole)}
-                      disabled={!canModify}
+                      disabled={false}
                     />
+                  ) : (
+                    (() => {
+                      const meta = ({ "관리자": { color: "#20E3FF", bg: "rgba(32,227,255,0.10)" }, "편집 가능": { color: "#39FF88", bg: "rgba(57,255,136,0.10)" }, "보기 가능": { color: "#8B94A7", bg: "rgba(139,148,167,0.10)" } } as Record<string, { color: string; bg: string }>)[currentPermission] ?? { color: "#8B94A7", bg: "rgba(139,148,167,0.10)" };
+                      return (
+                        <span style={{
+                          fontSize: "11px", fontWeight: 900, color: meta.color,
+                          background: meta.bg, border: `1px solid ${meta.color}33`,
+                          borderRadius: "8px", padding: "5px 10px", flexShrink: 0,
+                        }}>{currentPermission}</span>
+                      );
+                    })()
                   )}
                   {/* Kick button */}
-                  {canKick && (
+                  {isProtected ? (
+                    <div style={{ width: "22px", flexShrink: 0 }} />
+                  ) : isAdmin ? (
                     <button
                       onClick={() => setConfirmKickId(isConfirmingKick ? null : member.id)}
                       title="추방"
@@ -714,8 +781,9 @@ function MembersTab({ org, isAdmin, isOwner, onUpdate }: {
                     >
                       <UserMinus size={14} />
                     </button>
+                  ) : (
+                    <KickDisabledButton />
                   )}
-                  {!canKick && <div style={{ width: "22px", flexShrink: 0 }} />}
                 </div>
                 {/* Kick confirmation row */}
                 {isConfirmingKick && (
@@ -836,7 +904,7 @@ function MembersTab({ org, isAdmin, isOwner, onUpdate }: {
     </div>
   );
 
-  return <AdminGate isAdmin={isAdmin}>{content}</AdminGate>;
+  return content;
 }
 
 // ─── Tab: 리포지토리 관리 ─────────────────────────────────────────────────────
@@ -1290,28 +1358,22 @@ function PermissionDropdown({ value, onChange, disabled }: {
         style={{
           display: "flex", alignItems: "center", gap: "6px",
           padding: "5px 8px 5px 10px", borderRadius: "8px",
-          border: `1px solid ${open ? meta.color + "55" : "rgba(255,255,255,0.12)"}`,
-          background: open ? meta.bg : "rgba(255,255,255,0.05)",
+          border: `1px solid ${meta.color}${open ? "66" : "33"}`,
+          background: open ? meta.bg.replace(/[\d.]+\)$/, "0.18)") : meta.bg,
           cursor: disabled ? "not-allowed" : "pointer",
           opacity: disabled ? 0.4 : 1,
           transition: "all 0.15s", flexShrink: 0, outline: "none",
         }}
-        onMouseEnter={e => { if (!disabled && !open) (e.currentTarget.style.background = "rgba(255,255,255,0.08)"); }}
-        onMouseLeave={e => { if (!disabled && !open) (e.currentTarget.style.background = "rgba(255,255,255,0.05)"); }}
+        onMouseEnter={e => { if (!disabled && !open) e.currentTarget.style.background = meta.bg.replace(/[\d.]+\)$/, "0.16)"); }}
+        onMouseLeave={e => { if (!disabled && !open) e.currentTarget.style.background = meta.bg; }}
       >
-        {/* Role colour dot */}
-        <span style={{
-          width: "6px", height: "6px", borderRadius: "50%",
-          background: meta.color, flexShrink: 0,
-          boxShadow: `0 0 5px ${meta.color}88`,
-        }} />
-        <span style={{ fontSize: "11px", fontWeight: 900, color: "var(--white)", whiteSpace: "nowrap" }}>
+        <span style={{ fontSize: "11px", fontWeight: 900, color: meta.color, whiteSpace: "nowrap" }}>
           {value}
         </span>
         <ChevronDown
           size={11}
           style={{
-            color: "var(--muted)", flexShrink: 0,
+            color: meta.color + "99", flexShrink: 0,
             transform: open ? "rotate(180deg)" : "rotate(0deg)",
             transition: "transform 0.2s",
           }}
@@ -1389,8 +1451,8 @@ function SectionHeader({
         {label}
       </span>
       {note && (
-        <span style={{ fontSize: "11px", fontWeight: 800, color: "var(--muted)", marginLeft: "4px" }}>
-          — {note}
+        <span style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", fontWeight: 800, color: "var(--muted)", marginLeft: "-4px" }}>
+          <span>—</span><span>{note}</span>
         </span>
       )}
     </div>
