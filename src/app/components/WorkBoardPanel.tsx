@@ -433,8 +433,8 @@ function WorkBoardContent({ repositoryName, onViewIssue }: WorkBoardPanelProps) 
   }, [storageKey]);
 
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="w-full px-8 py-10 pb-20">
+    <div className="h-full overflow-x-auto overflow-y-auto">
+      <div className="px-8 py-10 pb-20" style={{ minWidth: '900px' }}>
         <div className="mb-8">
           <h1
             className="m-0 mb-2 leading-[0.9] tracking-[-0.08em]"

@@ -1,4 +1,4 @@
-import { Send, Sparkles, Code, AtSign, Smile, GitPullRequest, FileText, Plus, Minus, MessageSquare, Bookmark, Share2, MoreVertical, X, CheckCircle, Clock, AlertCircle, ExternalLink, GitMerge, Hash, Paperclip, FileUp, Image as ImageIcon, Link2, CircleDot, CircleCheck, CircleMinus } from "lucide-react";
+import { Send, Sparkles, Code, AtSign, Smile, GitPullRequest, FileText, Plus, Minus, MessageSquare, Bookmark, Share2, Reply, MoreVertical, X, CheckCircle, Clock, AlertCircle, ExternalLink, GitMerge, Hash, Paperclip, FileUp, Image as ImageIcon, Link2, CircleDot, CircleCheck, CircleMinus } from "lucide-react";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { createFileMessageAttachment, createLinkMessageAttachment, createLinkMessageAttachmentFromText, messageAttachmentGroups, messageAttachmentTypeLabels, type MessageAttachment, type MessageAttachmentType } from "./messageAttachments";
 import { EmojiPicker } from "./EmojiPicker";
@@ -71,6 +71,7 @@ interface ChatPanelProps {
   onReviewPR?: (prData: any) => void;
   onViewIssue?: (issueData: any) => void;
   onOpenThread?: (message: any) => void;
+  selectedThreadId?: number | string;
   onToggleReaction?: (reactionKey: string, emoji: string) => void;
   isRepository?: boolean;
 }
@@ -118,7 +119,7 @@ function getUserInitial(user?: string) {
   return trimmed ? trimmed.charAt(0).toUpperCase() : "?";
 }
 
-export function ChatPanel({ channelId = "general", title, messages, reactions, replyCounts = {}, onSendMessage, onSharePR, showAISummary = true, onMergePR, onReviewPR, onViewIssue, onOpenThread, onToggleReaction, isRepository = false }: ChatPanelProps) {
+export function ChatPanel({ channelId = "general", title, messages, reactions, replyCounts = {}, onSendMessage, onSharePR, showAISummary = true, onMergePR, onReviewPR, onViewIssue, onOpenThread, selectedThreadId, onToggleReaction, isRepository = false }: ChatPanelProps) {
   const [message, setMessage] = useState('');
   const [codeBlockText, setCodeBlockText] = useState('');
   type ActivePanel = 'code' | 'attachment' | 'emoji' | 'link' | null;
@@ -130,6 +131,8 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
   const [bookmarkedMessageIds, setBookmarkedMessageIds] = useState<Record<number, boolean>>({});
   const [hoveredBtn, setHoveredBtn] = useState<string | null>(null);
   const [emojiPickerMsgId, setEmojiPickerMsgId] = useState<number | null>(null);
+  const [hoveredToolBtn, setHoveredToolBtn] = useState<string | null>(null);
+  const [emojiPickerPos, setEmojiPickerPos] = useState<{ top: number; right: number } | null>(null);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
   const [selectedPRForShare, setSelectedPRForShare] = useState<any>(null);
@@ -342,7 +345,17 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
             style={btnStyle('이모지', emojiPickerMsgId === msg.id)}
             onMouseEnter={() => setHoveredBtn(bk('이모지'))}
             onMouseLeave={() => setHoveredBtn(null)}
-            onClick={(e) => { e.stopPropagation(); setEmojiPickerMsgId(prev => prev === msg.id ? null : msg.id); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (emojiPickerMsgId === msg.id) {
+                setEmojiPickerMsgId(null);
+                setEmojiPickerPos(null);
+              } else {
+                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                setEmojiPickerPos({ top: rect.bottom + 6, right: window.innerWidth - rect.right });
+                setEmojiPickerMsgId(msg.id);
+              }
+            }}
             title="이모지"
           ><Smile size={14} /></button>
 
@@ -360,9 +373,9 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
             style={btnStyle('답장')}
             onMouseEnter={() => setHoveredBtn(bk('답장'))}
             onMouseLeave={() => setHoveredBtn(null)}
-            onClick={(e) => { e.stopPropagation(); isPR ? handleShareClick(msg) : handleShareMessage(msg); }}
+            onClick={(e) => { e.stopPropagation(); handleShareMessage(msg); }}
             title="답장"
-          ><Share2 size={14} /></button>
+          ><Reply size={14} /></button>
 
           <button
             className="w-7 h-7 rounded flex items-center justify-center"
@@ -384,19 +397,17 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
           }}>{currentLabel}</span>
         )}
 
-        {emojiPickerMsgId === msg.id && (
-          <div className="absolute right-0 top-10 z-30">
-            <EmojiPicker onSelect={(emoji) => {
-              handleReactionToggle(msg.id, emoji);
-              setEmojiPickerMsgId(null);
-            }} />
-          </div>
-        )}
       </div>
     );
   };
 
   const getMessageReactionKey = (messageId: number) => `chat:${channelId}:message:${messageId}`;
+
+  const getReplyCount = (msg: Message): number => {
+    if (msg.type === 'pr') return (replyCounts[`pr-${msg.id}`] ?? replyCounts[msg.id] ?? (msg as any).replies ?? 0) as number;
+    if (msg.type === 'issue') return (replyCounts[`issue-${msg.id}`] ?? replyCounts[msg.id] ?? (msg as any).replies ?? 0) as number;
+    return (replyCounts[msg.id] ?? (msg as any).replies ?? 0) as number;
+  };
 
   const handleReactionToggle = (messageId: number, emoji: string) => {
     const reactionKey = getMessageReactionKey(messageId);
@@ -436,6 +447,18 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
 
   return (
     <div className="flex flex-col h-full min-h-0 relative overflow-hidden">
+      {emojiPickerMsgId !== null && emojiPickerPos && (
+        <div
+          style={{ position: 'fixed', top: emojiPickerPos.top, right: emojiPickerPos.right, zIndex: 9999 }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <EmojiPicker onSelect={(emoji) => {
+            handleReactionToggle(emojiPickerMsgId, emoji);
+            setEmojiPickerMsgId(null);
+            setEmojiPickerPos(null);
+          }} />
+        </div>
+      )}
       <div className="flex items-center justify-between px-6 py-4" style={{
         borderBottom: '1px solid rgba(32, 227, 255, 0.14)'
       }}>
@@ -505,7 +528,10 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
               className="flex w-full flex-col gap-2 relative group"
               style={{
                 alignSelf: 'stretch',
-                width: '100%'
+                width: '100%',
+                borderRadius: '12px',
+                outline: selectedThreadId === msg.id ? '2px solid rgba(32, 227, 255, 0.5)' : 'none',
+                outlineOffset: '4px',
               }}
               onMouseEnter={() => setHoveredMessageId(msg.id)}
               onMouseLeave={() => setHoveredMessageId(null)}
@@ -1007,35 +1033,35 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                   {(hoveredMessageId === msg.id || emojiPickerMsgId === msg.id) && renderHoverMenu(msg)}
                 </div>
               )}
+              <button
+                type="button"
+                onClick={() => onOpenThread?.(msg)}
+                className="mt-2 inline-flex w-fit items-center gap-1.5 rounded-full border-0 px-3 py-1.5 tracking-tight transition-all"
+                style={{
+                  background: 'rgba(32, 227, 255, 0.08)',
+                  border: '1px solid rgba(32, 227, 255, 0.18)',
+                  color: 'var(--neon-cyan)',
+                  cursor: 'pointer',
+                  fontSize: '11px',
+                  fontWeight: 900
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(32, 227, 255, 0.16)'; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(32, 227, 255, 0.08)'; }}
+              >
+                <MessageSquare size={13} />
+                답글 {getReplyCount(msg)}개
+              </button>
               <MessageReactions
                 reactions={reactionMap[getMessageReactionKey(msg.id)]}
                 onToggle={(emoji) => handleReactionToggle(msg.id, emoji)}
               />
-              {((replyCounts[msg.id] ?? (msg as any).replies ?? 0) > 0) && (
-                <button
-                  type="button"
-                  onClick={() => onOpenThread?.(msg)}
-                  className="mt-1 inline-flex w-fit items-center gap-1.5 rounded-full border-0 px-3 py-1.5 tracking-tight"
-                  style={{
-                    background: 'rgba(32, 227, 255, 0.08)',
-                    border: '1px solid rgba(32, 227, 255, 0.18)',
-                    color: 'var(--neon-cyan)',
-                    cursor: 'pointer',
-                    fontSize: '11px',
-                    fontWeight: 900
-                  }}
-                >
-                  <MessageSquare size={13} />
-                  답글 {replyCounts[msg.id] ?? (msg as any).replies ?? 0}개
-                </button>
-              )}
             </div>
             );
           })}
         </div>
       </div>
 
-      <div className="px-6 py-4" style={{
+      <div className="px-6 pt-1 pb-3" style={{
         borderTop: '1px solid rgba(32, 227, 255, 0.14)'
       }}>
         {(codeBlockText.trim() || selectedAttachments.length > 0) && (
@@ -1347,159 +1373,82 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
           </div>
         )}
 
-        <div className="flex items-end gap-2">
-          <div className="relative min-w-0 flex-1">
-            <textarea
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="메시지를 입력하세요... (Shift+Enter로 줄바꿈)"
-              className="w-full min-w-0 rounded-xl border-0 px-4 py-3 tracking-tight resize-none"
-              rows={1}
-              style={{
-                background: 'rgba(5, 11, 20, 0.6)',
-                border: '1px solid rgba(32, 227, 255, 0.14)',
-                color: 'var(--white)',
-                fontSize: '14px',
-                fontWeight: 700,
-                minHeight: '44px',
-                maxHeight: '120px'
-              }}
-            />
-          </div>
-
-          <div className="flex shrink-0 flex-wrap justify-end gap-1">
-            <button
-              onClick={() => togglePanel('code')}
-              className="relative w-9 h-9 rounded-lg border-0 flex items-center justify-center"
-              style={{
-                background: activePanel === 'code' ? 'rgba(32, 227, 255, 0.15)' : 'rgba(5, 11, 20, 0.6)',
-                border: `1px solid ${activePanel === 'code' ? 'rgba(32, 227, 255, 0.3)' : 'rgba(32, 227, 255, 0.14)'}`,
-                color: activePanel === 'code' ? 'var(--neon-cyan)' : 'var(--muted)',
-                cursor: 'pointer'
-              }}
-              title="코드 블록"
-              aria-label="코드 블록"
-            >
-              <Code size={18} />
-              {codeBlockText.trim() && (
-                <span
-                  className="absolute top-1 right-1 h-2 w-2 rounded-full"
-                  style={{ background: 'var(--neon-cyan)', boxShadow: '0 0 4px var(--neon-cyan)' }}
-                />
-              )}
-            </button>
-            <button
-              onClick={() => togglePanel('attachment')}
-              className="w-9 h-9 rounded-lg border-0 flex items-center justify-center"
-              style={{
-                background: activePanel === 'attachment' ? 'rgba(32, 227, 255, 0.15)' : 'rgba(5, 11, 20, 0.6)',
-                border: `1px solid ${activePanel === 'attachment' ? 'rgba(32, 227, 255, 0.3)' : 'rgba(32, 227, 255, 0.14)'}`,
-                color: activePanel === 'attachment' ? 'var(--neon-cyan)' : 'var(--muted)',
-                cursor: 'pointer'
-              }}
-              title="목록 첨부"
-              aria-label="PR, ERD, Issue, API 명세, Docs 첨부"
-            >
-              <Paperclip size={18} />
-            </button>
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="w-9 h-9 rounded-lg border-0 flex items-center justify-center"
-              style={{
-                background: 'rgba(5, 11, 20, 0.6)',
-                border: '1px solid rgba(32, 227, 255, 0.14)',
-                color: 'var(--muted)',
-                cursor: 'pointer'
-              }}
-              title="파일 첨부"
-              aria-label="파일 첨부"
-            >
-              <FileUp size={18} />
-            </button>
-            <button
-              onClick={() => imageInputRef.current?.click()}
-              className="w-9 h-9 rounded-lg border-0 flex items-center justify-center"
-              style={{
-                background: 'rgba(5, 11, 20, 0.6)',
-                border: '1px solid rgba(32, 227, 255, 0.14)',
-                color: 'var(--muted)',
-                cursor: 'pointer'
-              }}
-              title="사진 첨부"
-              aria-label="사진 첨부"
-            >
-              <ImageIcon size={18} />
-            </button>
-            <button
-              onClick={() => togglePanel('link')}
-              className="w-9 h-9 rounded-lg border-0 flex items-center justify-center"
-              style={{
-                background: activePanel === 'link' ? 'rgba(32, 227, 255, 0.15)' : 'rgba(5, 11, 20, 0.6)',
-                border: `1px solid ${activePanel === 'link' ? 'rgba(32, 227, 255, 0.3)' : 'rgba(32, 227, 255, 0.14)'}`,
-                color: activePanel === 'link' ? 'var(--neon-cyan)' : 'var(--muted)',
-                cursor: 'pointer'
-              }}
-              title="링크 첨부"
-              aria-label="링크 첨부"
-            >
-              <Link2 size={18} />
-            </button>
-            <button
-              onClick={() => handleMentionClick()}
-              className="w-9 h-9 rounded-lg border-0 flex items-center justify-center"
-              style={{
-                background: 'rgba(5, 11, 20, 0.6)',
-                border: '1px solid rgba(32, 227, 255, 0.14)',
-                color: 'var(--muted)',
-                cursor: 'pointer'
-              }}
-              title="멘션"
-              aria-label="멘션"
-            >
-              <AtSign size={18} />
-            </button>
-            <button
-              onClick={() => togglePanel('emoji')}
-              className="w-9 h-9 rounded-lg border-0 flex items-center justify-center"
-              style={{
-                background: activePanel === 'emoji' ? 'rgba(32, 227, 255, 0.15)' : 'rgba(5, 11, 20, 0.6)',
-                border: `1px solid ${activePanel === 'emoji' ? 'rgba(32, 227, 255, 0.3)' : 'rgba(32, 227, 255, 0.14)'}`,
-                color: activePanel === 'emoji' ? 'var(--neon-cyan)' : 'var(--muted)',
-                cursor: 'pointer'
-              }}
-              title="이모티콘"
-              aria-label="이모티콘 선택"
-            >
-              <Smile size={18} />
-            </button>
-          </div>
-
-          <button
-            onClick={handleSend}
-            disabled={!canSend}
-            className="flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border-0 px-4"
-            style={{
-              background: 'linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))',
-              color: '#021014',
-              fontWeight: 950,
-              cursor: canSend ? 'pointer' : 'not-allowed',
-              opacity: canSend ? 1 : 0.48
+        <div className="relative flex items-end gap-2 px-4 py-2 rounded-xl" style={{
+          background: 'rgba(5, 11, 20, 0.6)',
+          border: '1px solid rgba(32, 227, 255, 0.14)'
+        }}>
+          <textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            onKeyPress={handleKeyPress}
+            onInput={(e) => {
+              const el = e.currentTarget;
+              el.style.height = 'auto';
+              el.style.height = `${Math.min(el.scrollHeight, 96)}px`;
             }}
-            aria-label="메시지 전송"
-            title="메시지 전송"
-          >
-            <Send size={18} />
-          </button>
+            placeholder="메시지를 입력하세요..."
+            className="min-w-0 flex-1 bg-transparent border-0 outline-none tracking-tight resize-none"
+            rows={1}
+            style={{
+              color: 'var(--white)',
+              fontSize: '14px',
+              fontWeight: 700,
+              minHeight: '28px',
+              maxHeight: '96px',
+              overflowY: 'auto'
+            }}
+          />
+          <div className="flex shrink-0 items-center gap-1">
+            {[
+              { label: '코드 블록', icon: <><Code size={18} />{codeBlockText.trim() && <span className="absolute top-1 right-1 h-2 w-2 rounded-full" style={{ background: 'var(--neon-cyan)', boxShadow: '0 0 4px var(--neon-cyan)' }} />}</>, onClick: () => togglePanel('code'), active: activePanel === 'code' },
+              { label: '목록 첨부', icon: <Paperclip size={18} />, onClick: () => togglePanel('attachment'), active: activePanel === 'attachment' },
+              { label: '파일 첨부', icon: <FileUp size={18} />, onClick: () => fileInputRef.current?.click(), active: false },
+              { label: '이모지', icon: <Smile size={18} />, onClick: () => togglePanel('emoji'), active: activePanel === 'emoji' },
+            ].map(({ label, icon, onClick, active }) => (
+              <div key={label} className="relative">
+                {hoveredToolBtn === label && (
+                  <span className="absolute -top-7 left-1/2 -translate-x-1/2 rounded px-2 py-0.5 tracking-tight pointer-events-none z-10" style={{
+                    background: 'rgba(11, 22, 40, 0.95)', border: '1px solid rgba(32, 227, 255, 0.2)',
+                    color: 'var(--neon-cyan)', fontSize: '10px', fontWeight: 900, whiteSpace: 'nowrap'
+                  }}>{label}</span>
+                )}
+                <button
+                  onClick={onClick}
+                  onMouseEnter={() => setHoveredToolBtn(label)}
+                  onMouseLeave={() => setHoveredToolBtn(null)}
+                  className="relative w-9 h-9 rounded-lg border-0 flex items-center justify-center transition-all cursor-pointer"
+                  style={{
+                    background: active || hoveredToolBtn === label ? 'rgba(32, 227, 255, 0.15)' : 'rgba(32, 227, 255, 0.08)',
+                    border: `1px solid ${active || hoveredToolBtn === label ? 'rgba(32, 227, 255, 0.3)' : 'rgba(32, 227, 255, 0.14)'}`,
+                    color: active || hoveredToolBtn === label ? 'var(--neon-cyan)' : 'var(--muted)'
+                  }}
+                >{icon}</button>
+              </div>
+            ))}
+          </div>
+          <div className="relative">
+            {hoveredToolBtn === '전송' && (
+              <span className="absolute -top-7 left-1/2 -translate-x-1/2 rounded px-2 py-0.5 tracking-tight pointer-events-none z-10" style={{
+                background: 'rgba(11, 22, 40, 0.95)', border: '1px solid rgba(32, 227, 255, 0.2)',
+                color: 'var(--neon-cyan)', fontSize: '10px', fontWeight: 900, whiteSpace: 'nowrap'
+              }}>전송</span>
+            )}
+            <button
+              onClick={handleSend}
+              disabled={!canSend}
+              onMouseEnter={() => setHoveredToolBtn('전송')}
+              onMouseLeave={() => setHoveredToolBtn(null)}
+              className="w-9 h-9 rounded-lg border-0 flex items-center justify-center transition-all cursor-pointer"
+              style={{
+                background: 'linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))',
+                color: '#021014',
+                cursor: canSend ? 'pointer' : 'not-allowed',
+                opacity: canSend ? 1 : 0.48
+              }}
+            ><Send size={18} /></button>
+          </div>
         </div>
 
-        <p className="m-0 mt-2 tracking-tight" style={{
-          fontSize: '11px',
-          fontWeight: 700,
-          color: 'var(--muted)'
-        }}>
-          Enter로 전송, Shift+Enter로 줄바꿈
-        </p>
       </div>
 
       {/* PR 공유 모달 */}

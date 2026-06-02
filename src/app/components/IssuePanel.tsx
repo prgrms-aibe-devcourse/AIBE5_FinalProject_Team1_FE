@@ -558,38 +558,39 @@ export function IssuePanel({ issueData, onClose, externalThreadMessages, onAddTh
 
               {/* 입력창 */}
               <div
-                className="flex-shrink-0 px-4 py-3"
+                className="flex-shrink-0 px-4 py-1"
                 style={{ background: "rgba(8, 17, 31, 0.96)", borderTop: "1px solid rgba(32, 227, 255, 0.14)" }}
               >
-                <textarea
-                  value={threadDraft}
-                  onChange={(e) => setThreadDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); handleThreadSubmit(); }
-                  }}
-                  placeholder="이슈 스레드에 댓글 남기기..."
-                  className="block w-full resize-none rounded-xl px-3 py-2 outline-none tracking-tight"
-                  rows={3}
-                  style={{ background: "rgba(11, 22, 40, 0.86)", border: "1px solid rgba(32, 227, 255, 0.18)", color: "var(--white)", fontFamily: "inherit", fontSize: 12, fontWeight: 800, lineHeight: 1.55 }}
-                />
-                <div className="mt-2 flex items-center justify-between gap-2">
-                  <span className="tracking-tight" style={{ color: "var(--muted)", fontSize: 9, fontWeight: 750 }}>Enter 전송</span>
+                <div className="flex items-end gap-2">
+                  <textarea
+                    value={threadDraft}
+                    onChange={(e) => setThreadDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); handleThreadSubmit(); }
+                    }}
+                    onInput={(e) => {
+                      const el = e.currentTarget;
+                      el.style.height = 'auto';
+                      el.style.height = `${Math.min(el.scrollHeight, 96)}px`;
+                    }}
+                    placeholder="이슈 스레드에 댓글 남기기..."
+                    className="min-w-0 flex-1 resize-none rounded-xl px-3 outline-none tracking-tight"
+                    rows={1}
+                    style={{ background: "rgba(11, 22, 40, 0.86)", border: "1px solid rgba(32, 227, 255, 0.18)", color: "var(--white)", fontFamily: "inherit", fontSize: 12, fontWeight: 800, lineHeight: 1.55, minHeight: "36px", maxHeight: "96px", overflowY: "auto", paddingTop: "9px", paddingBottom: "9px" }}
+                  />
                   <button
                     type="button"
                     onClick={handleThreadSubmit}
                     disabled={!threadDraft.trim()}
-                    className="inline-flex items-center gap-2 rounded-xl border-0 px-3 py-2 tracking-tight"
+                    className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border-0"
                     style={{
                       background: "linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))",
                       color: "#021014",
                       cursor: threadDraft.trim() ? "pointer" : "not-allowed",
                       opacity: threadDraft.trim() ? 1 : 0.48,
-                      fontSize: 12,
-                      fontWeight: 950
                     }}
                   >
-                    <Send size={13} />
-                    보내기
+                    <Send size={14} />
                   </button>
                 </div>
               </div>

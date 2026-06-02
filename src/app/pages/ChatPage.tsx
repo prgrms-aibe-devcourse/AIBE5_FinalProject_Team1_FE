@@ -560,6 +560,13 @@ export function ChatPage() {
   const [threadReplyCounts, setThreadReplyCounts] = useState<Record<number | string, number>>(() =>
     getSavedJson(CHAT_THREAD_REPLY_COUNTS_KEY, {})
   );
+  const mergedReplyCounts = useMemo(() => {
+    const counts: Record<number | string, number> = { ...threadReplyCounts };
+    Object.entries(threadReplies).forEach(([key, replies]) => {
+      counts[key] = (replies as any[]).length;
+    });
+    return counts;
+  }, [threadReplyCounts, threadReplies]);
   const [messageReactions, setMessageReactions] = useState<Record<string, MessageReaction[]>>(() =>
     getSavedJson(CHAT_REACTIONS_KEY, {})
   );
@@ -776,6 +783,10 @@ export function ChatPage() {
   useEffect(() => {
     saveJson(CHAT_THREAD_REPLY_COUNTS_KEY, threadReplyCounts);
   }, [threadReplyCounts]);
+
+  useEffect(() => {
+    setSelectedThread(null);
+  }, [selectedChannel]);
 
   useEffect(() => {
     saveJson(CHAT_REACTIONS_KEY, messageReactions);
@@ -2142,8 +2153,9 @@ export function ChatPage() {
                 channelId={selectedChannel}
                 repoName={customChannels.find(ch => ch.id === selectedChannel)?.label}
                 reactions={messageReactions}
-                replyCounts={threadReplyCounts}
+                replyCounts={mergedReplyCounts}
                 onOpenThread={handleOpenThread}
+                selectedThreadId={selectedThread?.id}
                 onOpenInvite={() => setTeamInviteOpen(true)}
                 onToggleReaction={handleToggleReaction}
               />
@@ -2153,8 +2165,9 @@ export function ChatPage() {
                 repoId={selectedRepository}
                 repoName={currentRepo?.name}
                 reactions={messageReactions}
-                replyCounts={threadReplyCounts}
+                replyCounts={mergedReplyCounts}
                 onOpenThread={handleOpenThread}
+                selectedThreadId={selectedThread?.id}
                 onOpenInvite={() => setTeamInviteOpen(true)}
                 onToggleReaction={handleToggleReaction}
               />
@@ -2164,8 +2177,9 @@ export function ChatPage() {
                 repoId={selectedChannel}
                 repoName={repositories.find(r => r.id === selectedChannel)?.name}
                 reactions={messageReactions}
-                replyCounts={threadReplyCounts}
+                replyCounts={mergedReplyCounts}
                 onOpenThread={handleOpenThread}
+                selectedThreadId={selectedThread?.id}
                 onOpenInvite={() => setTeamInviteOpen(true)}
                 onToggleReaction={handleToggleReaction}
               />
@@ -2192,7 +2206,7 @@ export function ChatPage() {
                 title={selectedChannelTitle}
                 messages={currentMessages}
                 reactions={messageReactions}
-                replyCounts={threadReplyCounts}
+                replyCounts={mergedReplyCounts}
                 onSendMessage={handleSendMessage}
                 onSharePR={handleSharePR}
                 showAISummary={false}
@@ -2200,6 +2214,7 @@ export function ChatPage() {
                 onReviewPR={handleReviewPR}
                 onViewIssue={handleViewIssue}
                 onOpenThread={handleOpenThread}
+                selectedThreadId={selectedThread?.id}
                 onToggleReaction={handleToggleReaction}
                 isRepository={isRepository}
               />

@@ -42,6 +42,7 @@ function getDisplayUserName(user?: string) {
 export function ThreadPanel({ originalMessage, replies, displayReplyCount, reactionScope, reactions, onClose, onSendReply, onToggleReaction }: ThreadPanelProps) {
   const [replyText, setReplyText] = useState('');
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
+  const [hoveredToolBtn, setHoveredToolBtn] = useState<string | null>(null);
   const [responderTyping, setResponderTyping] = useState(false);
   const [localMessageReactions, setLocalMessageReactions] = useState<Record<string, MessageReaction[]>>({});
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -308,11 +309,11 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
         </div>
       </div>
 
-      <div className="px-6 py-4" style={{
+      <div className="px-6 pt-1 pb-3" style={{
         borderTop: '1px solid rgba(32, 227, 255, 0.14)'
       }}>
         {emojiPickerOpen && (
-          <div className="mb-3">
+          <div className="mb-2">
             <EmojiPicker onSelect={handleEmojiSelect} />
           </div>
         )}
@@ -320,59 +321,77 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
         <TypingIndicatorBar label={typingLabel} />
 
         <div className="flex items-end gap-2">
-          <div className="relative min-w-0 flex-1">
-            <textarea
-              value={replyText}
-              onChange={(e) => setReplyText(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="답글 남기기..."
-              className="w-full min-w-0 px-4 py-3 rounded-xl border-0 tracking-tight resize-none"
-              rows={3}
-              style={{
-                background: 'rgba(5, 11, 20, 0.6)',
-                border: '1px solid rgba(32, 227, 255, 0.14)',
-                color: 'var(--white)',
-                fontSize: '14px',
-                fontWeight: 700
-              }}
-            />
+          <textarea
+            value={replyText}
+            onChange={(e) => setReplyText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onInput={(e) => {
+              const el = e.currentTarget;
+              el.style.height = 'auto';
+              el.style.height = `${Math.min(el.scrollHeight, 96)}px`;
+            }}
+            placeholder="답글 남기기..."
+            className="min-w-0 flex-1 px-4 rounded-xl border-0 tracking-tight resize-none"
+            rows={1}
+            style={{
+              background: 'rgba(5, 11, 20, 0.6)',
+              border: '1px solid rgba(32, 227, 255, 0.14)',
+              color: 'var(--white)',
+              fontSize: '14px',
+              fontWeight: 700,
+              height: '44px',
+              maxHeight: '96px',
+              overflowY: 'auto',
+              paddingTop: '12px',
+              paddingBottom: '12px',
+            }}
+          />
+          <div className="flex shrink-0 items-center gap-2">
+            <div className="relative">
+              {hoveredToolBtn === '이모지' && (
+                <span className="absolute -top-7 left-1/2 -translate-x-1/2 rounded px-2 py-0.5 tracking-tight pointer-events-none z-10" style={{
+                  background: 'rgba(11, 22, 40, 0.95)', border: '1px solid rgba(32, 227, 255, 0.2)',
+                  color: 'var(--neon-cyan)', fontSize: '10px', fontWeight: 900, whiteSpace: 'nowrap'
+                }}>이모지</span>
+              )}
+              <button
+                onClick={() => setEmojiPickerOpen((open) => !open)}
+                onMouseEnter={() => setHoveredToolBtn('이모지')}
+                onMouseLeave={() => setHoveredToolBtn(null)}
+                className="flex h-11 w-11 items-center justify-center rounded-xl border-0"
+                style={{
+                  background: emojiPickerOpen || hoveredToolBtn === '이모지' ? 'rgba(32, 227, 255, 0.15)' : 'rgba(5, 11, 20, 0.6)',
+                  border: `1px solid ${emojiPickerOpen || hoveredToolBtn === '이모지' ? 'rgba(32, 227, 255, 0.3)' : 'rgba(32, 227, 255, 0.14)'}`,
+                  color: emojiPickerOpen || hoveredToolBtn === '이모지' ? 'var(--neon-cyan)' : 'var(--muted)',
+                  cursor: 'pointer'
+                }}
+              >
+                <Smile size={18} />
+              </button>
+            </div>
+            <div className="relative">
+              {hoveredToolBtn === '전송' && (
+                <span className="absolute -top-7 left-1/2 -translate-x-1/2 rounded px-2 py-0.5 tracking-tight pointer-events-none z-10" style={{
+                  background: 'rgba(11, 22, 40, 0.95)', border: '1px solid rgba(32, 227, 255, 0.2)',
+                  color: 'var(--neon-cyan)', fontSize: '10px', fontWeight: 900, whiteSpace: 'nowrap'
+                }}>전송</span>
+              )}
+              <button
+                onClick={handleSend}
+                onMouseEnter={() => setHoveredToolBtn('전송')}
+                onMouseLeave={() => setHoveredToolBtn(null)}
+                className="flex h-11 w-11 items-center justify-center rounded-xl border-0"
+                style={{
+                  background: 'linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))',
+                  color: '#021014',
+                  cursor: 'pointer'
+                }}
+              >
+                <Send size={18} />
+              </button>
+            </div>
           </div>
-            <button
-            onClick={() => setEmojiPickerOpen((open) => !open)}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border-0"
-            style={{
-              background: emojiPickerOpen ? 'rgba(32, 227, 255, 0.15)' : 'rgba(5, 11, 20, 0.6)',
-              border: `1px solid ${emojiPickerOpen ? 'rgba(32, 227, 255, 0.3)' : 'rgba(32, 227, 255, 0.14)'}`,
-              color: emojiPickerOpen ? 'var(--neon-cyan)' : 'var(--muted)',
-              cursor: 'pointer'
-            }}
-            title="이모티콘"
-            aria-label="이모티콘 선택"
-          >
-            <Smile size={18} />
-          </button>
-          <button
-            onClick={handleSend}
-            className="flex h-11 shrink-0 items-center gap-2 rounded-xl border-0 px-4"
-            style={{
-              background: 'linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))',
-              color: '#021014',
-              fontWeight: 950,
-              cursor: 'pointer'
-            }}
-            aria-label="답글 전송"
-            title="답글 전송"
-          >
-            <Send size={18} />
-          </button>
         </div>
-        <p className="m-0 mt-2 tracking-tight" style={{
-          fontSize: '11px',
-          fontWeight: 700,
-          color: 'var(--muted)'
-        }}>
-          Enter로 전송, Shift+Enter로 줄바꿈
-        </p>
       </div>
     </div>
   );
