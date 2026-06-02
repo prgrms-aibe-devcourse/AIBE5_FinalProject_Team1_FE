@@ -31,9 +31,9 @@ export interface LinkPreviewInfo {
 export const messageAttachmentTypeLabels: Record<MessageAttachmentType, string> = {
   pr: "PR",
   erd: "ERD",
-  issue: "Issue",
-  api: "API 명세",
-  docs: "Docs",
+  issue: "이슈",
+  api: "API",
+  docs: "문서",
   file: "파일",
   image: "사진",
   link: "링크"
@@ -121,20 +121,26 @@ export const messageAttachmentGroups: MessageAttachmentGroup[] = [
     label: "PR",
     description: "리뷰할 변경 사항을 공유합니다.",
     items: [
-      {
-        id: "pr-142",
-        type: "pr",
-        title: "PR #142 JWT 인증 흐름 추가",
-        detail: "보안 변경 포함 · 위험도 보통",
-        meta: "리뷰 대기"
-      },
-      {
-        id: "pr-141",
-        type: "pr",
-        title: "PR #141 WebSocket 메모리 누수 수정",
-        detail: "성능 수정 · 테스트 통과",
-        meta: "승인됨"
-      }
+      { id: "pr-142", type: "pr", title: "PR #142 JWT 인증 흐름 추가", detail: "보안 변경 포함 · 위험도 보통", meta: "리뷰 대기" },
+      { id: "pr-141", type: "pr", title: "PR #141 WebSocket 메모리 누수 수정", detail: "성능 수정 · 테스트 통과", meta: "승인됨" }
+    ]
+  },
+  {
+    type: "issue",
+    label: "이슈",
+    description: "처리할 이슈를 대화에 연결합니다.",
+    items: [
+      { id: "issue-145", type: "issue", title: "Issue #145 요청 제한이 작동하지 않음", detail: "로그인 API 반복 요청 제한 확인 필요", meta: "높음" },
+      { id: "issue-152", type: "issue", title: "Issue #152 문서 목록 스크롤 오류", detail: "문서 관리 화면에서 목록 일부가 잘림", meta: "보통" }
+    ]
+  },
+  {
+    type: "api",
+    label: "API",
+    description: "엔드포인트와 요청 형식을 공유합니다.",
+    items: [
+      { id: "api-user-delete", type: "api", title: "DELETE /api/users/me", detail: "회원 탈퇴 요청과 응답 형식", meta: "신규" },
+      { id: "api-workspace-update", type: "api", title: "PATCH /api/workspaces/{id}", detail: "팀 이름 수정 요청과 권한 조건", meta: "수정됨" }
     ]
   },
   {
@@ -142,83 +148,17 @@ export const messageAttachmentGroups: MessageAttachmentGroup[] = [
     label: "ERD",
     description: "데이터 구조와 관계도를 공유합니다.",
     items: [
-      {
-        id: "erd-auth",
-        type: "erd",
-        title: "사용자와 팀 권한 ERD",
-        detail: "사용자, 팀, 초대, 권한 관계",
-        meta: "업데이트됨"
-      },
-      {
-        id: "erd-workspace",
-        type: "erd",
-        title: "워크스페이스와 저장소 관계도",
-        detail: "워크스페이스, 저장소, PR, 이슈 연결",
-        meta: "검토 필요"
-      }
-    ]
-  },
-  {
-    type: "issue",
-    label: "Issue",
-    description: "처리할 이슈를 대화에 연결합니다.",
-    items: [
-      {
-        id: "issue-145",
-        type: "issue",
-        title: "Issue #145 요청 제한이 작동하지 않음",
-        detail: "로그인 API 반복 요청 제한 확인 필요",
-        meta: "높음"
-      },
-      {
-        id: "issue-152",
-        type: "issue",
-        title: "Issue #152 문서 목록 스크롤 오류",
-        detail: "문서 관리 화면에서 목록 일부가 잘림",
-        meta: "보통"
-      }
-    ]
-  },
-  {
-    type: "api",
-    label: "API 명세",
-    description: "엔드포인트와 요청 형식을 공유합니다.",
-    items: [
-      {
-        id: "api-user-delete",
-        type: "api",
-        title: "DELETE /api/users/me",
-        detail: "회원 탈퇴 요청과 응답 형식",
-        meta: "신규"
-      },
-      {
-        id: "api-workspace-update",
-        type: "api",
-        title: "PATCH /api/workspaces/{id}",
-        detail: "팀 이름 수정 요청과 권한 조건",
-        meta: "수정됨"
-      }
+      { id: "erd-auth", type: "erd", title: "사용자와 팀 권한 ERD", detail: "사용자, 팀, 초대, 권한 관계", meta: "업데이트됨" },
+      { id: "erd-workspace", type: "erd", title: "워크스페이스와 저장소 관계도", detail: "워크스페이스, 저장소, PR, 이슈 연결", meta: "검토 필요" }
     ]
   },
   {
     type: "docs",
-    label: "Docs",
+    label: "문서",
     description: "문서 초안과 결정 사항을 공유합니다.",
     items: [
-      {
-        id: "docs-auth-review",
-        type: "docs",
-        title: "인증 미들웨어 리뷰 문서",
-        detail: "JWT 검증, 예외 응답, 요청 제한 정리",
-        meta: "초안"
-      },
-      {
-        id: "docs-api-v2",
-        type: "docs",
-        title: "API 명세 v2 초안",
-        detail: "사용자, 팀, 문서, 댓글 API 반영",
-        meta: "검토 중"
-      }
+      { id: "docs-auth-review", type: "docs", title: "인증 미들웨어 리뷰 문서", detail: "JWT 검증, 예외 응답, 요청 제한 정리", meta: "초안" },
+      { id: "docs-api-v2", type: "docs", title: "API 명세 v2 초안", detail: "사용자, 팀, 문서, 댓글 API 반영", meta: "검토 중" }
     ]
   }
 ];

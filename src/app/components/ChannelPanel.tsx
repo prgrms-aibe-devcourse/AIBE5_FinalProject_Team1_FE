@@ -1,4 +1,4 @@
-import { Hash, MessageSquare, Send, Bookmark, Reply, AtSign, X, Paperclip, Smile, UserPlus, FileUp, Image as ImageIcon, Link2 } from "lucide-react";
+import { Hash, MessageSquare, Send, Bookmark, Reply, AtSign, X, Paperclip, Smile, UserPlus, FileUp, Code } from "lucide-react";
 import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import { createFileMessageAttachment, createLinkMessageAttachment, createLinkMessageAttachmentFromText, messageAttachmentGroups, messageAttachmentTypeLabels, type MessageAttachment, type MessageAttachmentType } from "./messageAttachments";
 import { EmojiPicker } from "./EmojiPicker";
@@ -25,6 +25,7 @@ interface ChannelPanelProps {
   reactions?: Record<string, MessageReaction[]>;
   replyCounts?: Record<number, number>;
   onOpenThread?: (message: any) => void;
+  selectedThreadId?: number | string;
   onOpenInvite?: () => void;
   onToggleReaction?: (reactionKey: string, emoji: string) => void;
 }
@@ -105,7 +106,7 @@ function getDisplayUserName(user?: string) {
   return isSelfUser(trimmed) ? currentUserDisplayName : trimmed;
 }
 
-export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCounts = {}, onOpenThread, onOpenInvite, onToggleReaction }: ChannelPanelProps) {
+export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCounts = {}, onOpenThread, selectedThreadId, onOpenInvite, onToggleReaction }: ChannelPanelProps) {
   const channelStorageId = channelId ?? repoId ?? "general";
   const channelStorageKey = `${CHANNEL_THREADS_KEY_PREFIX}:${channelStorageId}`;
   const [threads, setThreads] = useState<Thread[]>(() =>
@@ -115,7 +116,8 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
   const channelLabel = repoName ?? '일반';
   const [hoveredMessageId, setHoveredMessageId] = useState<number | null>(null);
   const [messageText, setMessageText] = useState("");
-  type ActivePanel = 'attachment' | 'emoji' | 'link' | null;
+  const [codeBlockText, setCodeBlockText] = useState("");
+  type ActivePanel = 'code' | 'attachment' | 'emoji' | 'link' | null;
   const [activePanel, setActivePanel] = useState<ActivePanel>(null);
   const togglePanel = (panel: Exclude<ActivePanel, null>) =>
     setActivePanel((prev) => (prev === panel ? null : panel));
@@ -127,6 +129,7 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
   const [localThreadReactions, setLocalThreadReactions] = useState<Record<string, MessageReaction[]>>({});
   const [bookmarkedThreadIds, setBookmarkedThreadIds] = useState<Record<number, boolean>>({});
   const [hoveredBtn, setHoveredBtn] = useState<string | null>(null);
+  const [hoveredToolBtn, setHoveredToolBtn] = useState<string | null>(null);
   const [emojiPickerMsgId, setEmojiPickerMsgId] = useState<number | null>(null);
   const [emojiPickerPos, setEmojiPickerPos] = useState<{ top: number; right: number } | null>(null);
   const [replyTo, setReplyTo] = useState<Thread | null>(null);
@@ -188,7 +191,7 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
     ? createLinkMessageAttachment(linkUrl, linkTitle)
     : null;
 
-  const canSendMessage = messageText.trim().length > 0 || selectedAttachments.length > 0;
+  const canSendMessage = messageText.trim().length > 0 || codeBlockText.trim().length > 0 || selectedAttachments.length > 0;
   const composerTyping = messageText.trim().length > 0;
   const typingLabel = responderTyping
     ? composerTyping
@@ -349,8 +352,12 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
 
   const handleSendMessage = () => {
     const trimmedMessage = messageText.trim();
+    const trimmedCode = codeBlockText.trim();
     if (!canSendMessage) return;
-    const detectedLinkAttachment = createLinkMessageAttachmentFromText(trimmedMessage);
+    const outgoingMessage = trimmedCode
+      ? `${trimmedMessage}${trimmedMessage ? "\n\n" : ""}\`\`\`\n${trimmedCode}\n\`\`\``
+      : trimmedMessage;
+    const detectedLinkAttachment = createLinkMessageAttachmentFromText(outgoingMessage);
     const outgoingAttachments = detectedLinkAttachment && !selectedAttachments.some((a) => a.url === detectedLinkAttachment.url)
       ? [...selectedAttachments, detectedLinkAttachment]
       : selectedAttachments;
@@ -359,7 +366,7 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
       id: Date.now(),
       user: currentUserDisplayName,
       avatar: currentUserAvatar,
-      message: trimmedMessage || `${outgoingAttachments.length}개 항목을 공유합니다.`,
+      message: outgoingMessage || `${outgoingAttachments.length}개 항목을 공유합니다.`,
       time: '방금',
       replies: 0,
       attachments: outgoingAttachments,
@@ -368,6 +375,7 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
 
     setThreads((prev) => [...prev, nextThread]);
     setMessageText("");
+    setCodeBlockText("");
     setSelectedAttachments([]);
     setActivePanel(null);
     setLinkUrl("");
@@ -446,9 +454,11 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
               style={{
                 width: '100%',
                 background: isOwnThread ? 'rgba(32, 227, 255, 0.075)' : 'rgba(5, 11, 20, 0.54)',
-                border: isOwnThread ? '1px solid rgba(32, 227, 255, 0.18)' : '1px solid rgba(32, 227, 255, 0.14)',
+                border: selectedThreadId === thread.id
+                  ? '2px solid rgba(32, 227, 255, 0.6)'
+                  : isOwnThread ? '1px solid rgba(32, 227, 255, 0.18)' : '1px solid rgba(32, 227, 255, 0.14)',
                 borderRadius: '12px',
-                boxShadow: 'none'
+                boxShadow: selectedThreadId === thread.id ? '0 0 12px rgba(32, 227, 255, 0.15)' : 'none'
               }}
               onMouseEnter={() => setHoveredMessageId(thread.id)}
               onMouseLeave={() => setHoveredMessageId(null)}
@@ -610,6 +620,25 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
                 <X size={12} />
               </button>
             ))}
+          </div>
+        )}
+
+        {activePanel === 'code' && (
+          <div className="mb-3 px-4 py-3 rounded-xl" style={{
+            background: 'rgba(32, 227, 255, 0.08)',
+            border: '1px solid rgba(32, 227, 255, 0.22)'
+          }}>
+            <p className="m-0 mb-2 tracking-tight" style={{ fontSize: '12px', fontWeight: 900, color: 'var(--neon-cyan)' }}>
+              코드 블록 모드
+            </p>
+            <textarea
+              placeholder="코드를 입력하세요..."
+              value={codeBlockText}
+              onChange={(e) => setCodeBlockText(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border-0 font-mono tracking-tight resize-none"
+              rows={4}
+              style={{ background: 'rgba(5, 11, 20, 0.6)', border: '1px solid rgba(32, 227, 255, 0.14)', color: 'var(--white)', fontSize: '13px', fontWeight: 700 }}
+            />
           </div>
         )}
 
@@ -806,7 +835,7 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
           </div>
         )}
 
-        <div className="relative flex items-center gap-2 px-4 py-3 rounded-xl" style={{
+        <div className="relative flex items-end gap-2 px-4 py-2 rounded-xl" style={{
           background: 'rgba(5, 11, 20, 0.6)',
           border: '1px solid rgba(32, 227, 255, 0.14)'
         }}>
@@ -817,89 +846,65 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
               onInput={(e) => {
                 const el = e.currentTarget;
                 el.style.height = 'auto';
-                el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+                el.style.height = `${Math.min(el.scrollHeight, 96)}px`;
               }}
               placeholder={`#${channelLabel}에 메시지 보내기`}
               className="min-w-0 flex-1 bg-transparent border-0 outline-none tracking-tight resize-none"
               rows={1}
-              style={{ color: 'var(--white)', fontSize: '14px', fontWeight: 700, minHeight: '28px', maxHeight: '120px', overflowY: 'auto' }}
+              style={{ color: 'var(--white)', fontSize: '14px', fontWeight: 700, minHeight: '28px', maxHeight: '96px', overflowY: 'auto' }}
             />
             <div className="flex shrink-0 items-center gap-1">
+            {[
+              { label: '코드 블록', icon: <Code size={18} />, onClick: () => togglePanel('code'), active: activePanel === 'code' },
+              { label: '목록 첨부', icon: <Paperclip size={18} />, onClick: () => togglePanel('attachment'), active: activePanel === 'attachment' },
+              { label: '파일 첨부', icon: <FileUp size={18} />, onClick: () => fileInputRef.current?.click(), active: false },
+              { label: '이모지', icon: <Smile size={18} />, onClick: () => togglePanel('emoji'), active: activePanel === 'emoji' },
+            ].map(({ label, icon, onClick, active }) => (
+              <div key={label} className="relative">
+                {hoveredToolBtn === label && (
+                  <span className="absolute -top-7 left-1/2 -translate-x-1/2 rounded px-2 py-0.5 tracking-tight pointer-events-none z-10" style={{
+                    background: 'rgba(11, 22, 40, 0.95)', border: '1px solid rgba(32, 227, 255, 0.2)',
+                    color: 'var(--neon-cyan)', fontSize: '10px', fontWeight: 900, whiteSpace: 'nowrap'
+                  }}>{label}</span>
+                )}
+                <button
+                  onClick={onClick}
+                  onMouseEnter={() => setHoveredToolBtn(label)}
+                  onMouseLeave={() => setHoveredToolBtn(null)}
+                  className="w-9 h-9 rounded-lg border-0 flex items-center justify-center transition-all cursor-pointer"
+                  style={{
+                    background: active || hoveredToolBtn === label ? 'rgba(32, 227, 255, 0.15)' : 'rgba(32, 227, 255, 0.08)',
+                    border: `1px solid ${active || hoveredToolBtn === label ? 'rgba(32, 227, 255, 0.3)' : 'rgba(32, 227, 255, 0.14)'}`,
+                    color: active || hoveredToolBtn === label ? 'var(--neon-cyan)' : 'var(--muted)'
+                  }}
+                >{icon}</button>
+              </div>
+            ))}
+          </div>
+          <div className="relative">
+            {hoveredToolBtn === '전송' && (
+              <span className="absolute -top-7 left-1/2 -translate-x-1/2 rounded px-2 py-0.5 tracking-tight pointer-events-none z-10" style={{
+                background: 'rgba(11, 22, 40, 0.95)', border: '1px solid rgba(32, 227, 255, 0.2)',
+                color: 'var(--neon-cyan)', fontSize: '10px', fontWeight: 900, whiteSpace: 'nowrap'
+              }}>전송</span>
+            )}
             <button
-              onClick={() => togglePanel('attachment')}
-              className="w-9 h-9 rounded-lg border-0 flex items-center justify-center transition-all cursor-pointer"
+              onClick={handleSendMessage}
+              disabled={!canSendMessage}
+              onMouseEnter={() => setHoveredToolBtn('전송')}
+              onMouseLeave={() => setHoveredToolBtn(null)}
+              className="w-9 h-9 rounded-lg border-0 flex items-center justify-center transition-all"
               style={{
-                background: activePanel === 'attachment' ? 'rgba(32, 227, 255, 0.15)' : 'rgba(32, 227, 255, 0.08)',
-                border: `1px solid ${activePanel === 'attachment' ? 'rgba(32, 227, 255, 0.3)' : 'rgba(32, 227, 255, 0.14)'}`,
-                color: activePanel === 'attachment' ? 'var(--neon-cyan)' : 'var(--muted)'
+                background: 'linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))',
+                color: '#021014',
+                cursor: canSendMessage ? 'pointer' : 'not-allowed',
+                opacity: canSendMessage ? 1 : 0.48
               }}
-              title="목록 첨부"
+              aria-label="메시지 전송"
             >
-              <Paperclip size={18} />
-            </button>
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="w-9 h-9 rounded-lg border-0 flex items-center justify-center transition-all cursor-pointer"
-              style={{
-                background: 'rgba(32, 227, 255, 0.08)',
-                border: '1px solid rgba(32, 227, 255, 0.14)',
-                color: 'var(--muted)'
-              }}
-              title="파일 첨부"
-            >
-              <FileUp size={18} />
-            </button>
-            <button
-              onClick={() => imageInputRef.current?.click()}
-              className="w-9 h-9 rounded-lg border-0 flex items-center justify-center transition-all cursor-pointer"
-              style={{
-                background: 'rgba(32, 227, 255, 0.08)',
-                border: '1px solid rgba(32, 227, 255, 0.14)',
-                color: 'var(--muted)'
-              }}
-              title="사진 첨부"
-            >
-              <ImageIcon size={18} />
-            </button>
-            <button
-              onClick={() => togglePanel('link')}
-              className="w-9 h-9 rounded-lg border-0 flex items-center justify-center transition-all cursor-pointer"
-              style={{
-                background: activePanel === 'link' ? 'rgba(32, 227, 255, 0.15)' : 'rgba(32, 227, 255, 0.08)',
-                border: `1px solid ${activePanel === 'link' ? 'rgba(32, 227, 255, 0.3)' : 'rgba(32, 227, 255, 0.14)'}`,
-                color: activePanel === 'link' ? 'var(--neon-cyan)' : 'var(--muted)'
-              }}
-              title="링크 첨부"
-            >
-              <Link2 size={18} />
-            </button>
-            <button
-              onClick={() => togglePanel('emoji')}
-              className="w-9 h-9 rounded-lg border-0 flex items-center justify-center transition-all cursor-pointer"
-              style={{
-                background: activePanel === 'emoji' ? 'rgba(32, 227, 255, 0.15)' : 'rgba(32, 227, 255, 0.08)',
-                border: `1px solid ${activePanel === 'emoji' ? 'rgba(32, 227, 255, 0.3)' : 'rgba(32, 227, 255, 0.14)'}`,
-                color: activePanel === 'emoji' ? 'var(--neon-cyan)' : 'var(--muted)'
-              }}
-              title="이모티콘"
-            >
-              <Smile size={18} />
+              <Send size={18} />
             </button>
           </div>
-          <button
-            onClick={handleSendMessage}
-            disabled={!canSendMessage}
-            className="w-9 h-9 rounded-lg border-0 flex items-center justify-center transition-all"
-            style={{
-              background: 'linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))',
-              color: '#021014',
-              cursor: canSendMessage ? 'pointer' : 'not-allowed',
-              opacity: canSendMessage ? 1 : 0.48
-            }}
-            aria-label="메시지 전송"
-          >
-            <Send size={18} />
-          </button>
         </div>
       </div>
     </div>

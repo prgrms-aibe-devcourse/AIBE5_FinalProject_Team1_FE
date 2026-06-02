@@ -2151,6 +2151,7 @@ export function ChatPage() {
                 reactions={messageReactions}
                 replyCounts={mergedReplyCounts}
                 onOpenThread={handleOpenThread}
+                selectedThreadId={selectedThread?.id}
                 onOpenInvite={() => setTeamInviteOpen(true)}
                 onToggleReaction={handleToggleReaction}
               />
@@ -2162,6 +2163,7 @@ export function ChatPage() {
                 reactions={messageReactions}
                 replyCounts={mergedReplyCounts}
                 onOpenThread={handleOpenThread}
+                selectedThreadId={selectedThread?.id}
                 onOpenInvite={() => setTeamInviteOpen(true)}
                 onToggleReaction={handleToggleReaction}
               />
@@ -2173,6 +2175,7 @@ export function ChatPage() {
                 reactions={messageReactions}
                 replyCounts={mergedReplyCounts}
                 onOpenThread={handleOpenThread}
+                selectedThreadId={selectedThread?.id}
                 onOpenInvite={() => setTeamInviteOpen(true)}
                 onToggleReaction={handleToggleReaction}
               />
@@ -2207,6 +2210,7 @@ export function ChatPage() {
                 onReviewPR={handleReviewPR}
                 onViewIssue={handleViewIssue}
                 onOpenThread={handleOpenThread}
+                selectedThreadId={selectedThread?.id}
                 onToggleReaction={handleToggleReaction}
                 isRepository={isRepository}
               />

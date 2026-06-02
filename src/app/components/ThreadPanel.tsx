@@ -42,6 +42,7 @@ function getDisplayUserName(user?: string) {
 export function ThreadPanel({ originalMessage, replies, displayReplyCount, reactionScope, reactions, onClose, onSendReply, onToggleReaction }: ThreadPanelProps) {
   const [replyText, setReplyText] = useState('');
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
+  const [hoveredToolBtn, setHoveredToolBtn] = useState<string | null>(null);
   const [responderTyping, setResponderTyping] = useState(false);
   const [localMessageReactions, setLocalMessageReactions] = useState<Record<string, MessageReaction[]>>({});
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -345,33 +346,51 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
               paddingBottom: '12px',
             }}
           />
-          <button
-            onClick={() => setEmojiPickerOpen((open) => !open)}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border-0"
-            style={{
-              background: emojiPickerOpen ? 'rgba(32, 227, 255, 0.15)' : 'rgba(5, 11, 20, 0.6)',
-              border: `1px solid ${emojiPickerOpen ? 'rgba(32, 227, 255, 0.3)' : 'rgba(32, 227, 255, 0.14)'}`,
-              color: emojiPickerOpen ? 'var(--neon-cyan)' : 'var(--muted)',
-              cursor: 'pointer'
-            }}
-            title="이모티콘"
-            aria-label="이모티콘 선택"
-          >
-            <Smile size={18} />
-          </button>
-          <button
-            onClick={handleSend}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border-0"
-            style={{
-              background: 'linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))',
-              color: '#021014',
-              cursor: 'pointer'
-            }}
-            aria-label="답글 전송"
-            title="답글 전송"
-          >
-            <Send size={18} />
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <div className="relative">
+              {hoveredToolBtn === '이모지' && (
+                <span className="absolute -top-7 left-1/2 -translate-x-1/2 rounded px-2 py-0.5 tracking-tight pointer-events-none z-10" style={{
+                  background: 'rgba(11, 22, 40, 0.95)', border: '1px solid rgba(32, 227, 255, 0.2)',
+                  color: 'var(--neon-cyan)', fontSize: '10px', fontWeight: 900, whiteSpace: 'nowrap'
+                }}>이모지</span>
+              )}
+              <button
+                onClick={() => setEmojiPickerOpen((open) => !open)}
+                onMouseEnter={() => setHoveredToolBtn('이모지')}
+                onMouseLeave={() => setHoveredToolBtn(null)}
+                className="flex h-11 w-11 items-center justify-center rounded-xl border-0"
+                style={{
+                  background: emojiPickerOpen || hoveredToolBtn === '이모지' ? 'rgba(32, 227, 255, 0.15)' : 'rgba(5, 11, 20, 0.6)',
+                  border: `1px solid ${emojiPickerOpen || hoveredToolBtn === '이모지' ? 'rgba(32, 227, 255, 0.3)' : 'rgba(32, 227, 255, 0.14)'}`,
+                  color: emojiPickerOpen || hoveredToolBtn === '이모지' ? 'var(--neon-cyan)' : 'var(--muted)',
+                  cursor: 'pointer'
+                }}
+              >
+                <Smile size={18} />
+              </button>
+            </div>
+            <div className="relative">
+              {hoveredToolBtn === '전송' && (
+                <span className="absolute -top-7 left-1/2 -translate-x-1/2 rounded px-2 py-0.5 tracking-tight pointer-events-none z-10" style={{
+                  background: 'rgba(11, 22, 40, 0.95)', border: '1px solid rgba(32, 227, 255, 0.2)',
+                  color: 'var(--neon-cyan)', fontSize: '10px', fontWeight: 900, whiteSpace: 'nowrap'
+                }}>전송</span>
+              )}
+              <button
+                onClick={handleSend}
+                onMouseEnter={() => setHoveredToolBtn('전송')}
+                onMouseLeave={() => setHoveredToolBtn(null)}
+                className="flex h-11 w-11 items-center justify-center rounded-xl border-0"
+                style={{
+                  background: 'linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))',
+                  color: '#021014',
+                  cursor: 'pointer'
+                }}
+              >
+                <Send size={18} />
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
