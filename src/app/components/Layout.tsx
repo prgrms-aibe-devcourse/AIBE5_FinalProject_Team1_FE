@@ -369,7 +369,7 @@ function AccountMenu({ variant, onLogout, tabIndex }: AccountMenuProps) {
         <DropdownMenuSeparator style={{ background: `${colors.primary}, 0.14)` }} />
         <AccountMenuLink to="/profile" icon={UserRound} label="프로필 보기" />
         <AccountMenuLink to="/settings" icon={Settings} label="계정 설정" />
-        <AccountMenuLink to="/chat" icon={UsersRound} label="내 워크스페이스 설정" />
+        <AccountMenuLink to="/workspace-settings" icon={UsersRound} label="내 워크스페이스 설정" />
         <DropdownMenuSeparator style={{ background: `${colors.primary}, 0.14)` }} />
         <DropdownMenuItem
           onSelect={onLogout}

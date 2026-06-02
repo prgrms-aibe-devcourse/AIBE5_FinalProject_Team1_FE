@@ -21,6 +21,7 @@ import { SignupPage } from "./pages/SignupPage";
 import { AccountRecoveryPage } from "./pages/AccountRecoveryPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { WorkspaceSettingsPage } from "./pages/WorkspaceSettingsPage";
 import { LegalPage } from "./pages/LegalPage";
 import { isAuthenticated } from "./auth";
 
@@ -50,6 +51,7 @@ export default function App() {
             <Route element={<Layout />}>
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/workspace-settings" element={<WorkspaceSettingsPage />} />
               <Route path="/workspace" element={<WorkspacePage />} />
               <Route path="/project" element={<ProjectPage />} />
               <Route path="/prs" element={<PRListPage />} />
