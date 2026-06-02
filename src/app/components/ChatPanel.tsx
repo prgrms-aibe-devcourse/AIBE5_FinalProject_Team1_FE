@@ -55,6 +55,7 @@ interface Message {
   issueBody?: string;
   issueHistory?: IssueHistoryEvent[];
   attachments?: MessageAttachment[];
+  replyTo?: { user: string; text: string };
 }
 
 interface ChatPanelProps {
@@ -63,7 +64,7 @@ interface ChatPanelProps {
   messages: Message[];
   reactions?: Record<string, MessageReaction[]>;
   replyCounts?: Record<number, number>;
-  onSendMessage?: (message: string, attachments?: MessageAttachment[]) => void;
+  onSendMessage?: (message: string, attachments?: MessageAttachment[], replyTo?: { user: string; text: string }) => void;
   onSharePR?: (prData: any, message: string, channelIds: string[]) => void;
   showAISummary?: boolean;
   onMergePR?: (messageId: number) => void;
@@ -129,6 +130,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
   const [bookmarkedMessageIds, setBookmarkedMessageIds] = useState<Record<number, boolean>>({});
   const [hoveredBtn, setHoveredBtn] = useState<string | null>(null);
   const [emojiPickerMsgId, setEmojiPickerMsgId] = useState<number | null>(null);
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
   const [selectedPRForShare, setSelectedPRForShare] = useState<any>(null);
   const [shareMessage, setShareMessage] = useState('');
@@ -175,13 +177,17 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
       : trimmedMessage;
 
     if ((outgoingMessage || outgoingAttachments.length > 0) && onSendMessage) {
-      onSendMessage(outgoingMessage, outgoingAttachments);
+      const replyToPayload = replyTo
+        ? { user: replyTo.user, text: replyTo.text || replyTo.prTitle || replyTo.issueTitle || replyTo.code || '' }
+        : undefined;
+      onSendMessage(outgoingMessage, outgoingAttachments, replyToPayload);
       setMessage('');
       setCodeBlockText('');
       setActivePanel(null);
       setSelectedAttachments([]);
       setLinkUrl("");
       setLinkTitle("");
+      setReplyTo(null);
       triggerResponderTyping();
     }
   };
@@ -295,10 +301,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
   };
 
   const handleShareMessage = (msg: Message) => {
-    setMessage((prev) => {
-      const sharedText = msg.text || msg.prTitle || msg.issueTitle || msg.code || "";
-      return `${prev}${prev ? "\n" : ""}> ${sharedText}`;
-    });
+    setReplyTo(msg);
   };
 
   const renderHoverMenu = (msg: Message) => {
@@ -946,6 +949,22 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                 </div>
               ) : (
                 <div className="relative">
+                  {msg.replyTo && (
+                    <div className="mb-1 flex items-start gap-2 rounded-lg px-3 py-2" style={{
+                      background: 'rgba(32, 227, 255, 0.05)',
+                      border: '1px solid rgba(32, 227, 255, 0.14)',
+                      borderLeft: '3px solid var(--neon-cyan)',
+                    }}>
+                      <div className="min-w-0 flex-1">
+                        <span className="tracking-tight" style={{ color: 'var(--neon-cyan)', fontSize: '11px', fontWeight: 900 }}>
+                          @{msg.replyTo.user}
+                        </span>
+                        <p className="m-0 mt-0.5 truncate tracking-tight" style={{ color: 'var(--muted)', fontSize: '12px', fontWeight: 700 }}>
+                          {msg.replyTo.text}
+                        </p>
+                      </div>
+                    </div>
+                  )}
                   <div className="px-4 py-3" style={{
                     background: msg.type === 'system'
                       ? 'rgba(32, 227, 255, 0.08)'
@@ -1301,6 +1320,32 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
         />
 
         <TypingIndicatorBar label={typingLabel} />
+
+        {replyTo && (
+          <div className="mb-2 flex items-start gap-2 rounded-xl px-3 py-2" style={{
+            background: 'rgba(32, 227, 255, 0.06)',
+            border: '1px solid rgba(32, 227, 255, 0.18)',
+            borderLeft: '3px solid var(--neon-cyan)',
+          }}>
+            <div className="min-w-0 flex-1">
+              <span className="tracking-tight" style={{ color: 'var(--neon-cyan)', fontSize: '11px', fontWeight: 900 }}>
+                @{replyTo.user}에게 답장
+              </span>
+              <p className="m-0 mt-0.5 truncate tracking-tight" style={{ color: 'var(--muted)', fontSize: '12px', fontWeight: 700 }}>
+                {replyTo.text || replyTo.prTitle || replyTo.issueTitle || replyTo.code || ''}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setReplyTo(null)}
+              className="flex-shrink-0 rounded border-0 flex items-center justify-center"
+              style={{ background: 'transparent', color: 'var(--muted)', cursor: 'pointer', padding: '2px' }}
+              aria-label="답장 취소"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
 
         <div className="flex items-end gap-2">
           <div className="relative min-w-0 flex-1">

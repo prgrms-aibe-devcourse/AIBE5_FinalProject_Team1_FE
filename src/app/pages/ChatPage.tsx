@@ -1337,7 +1337,7 @@ export function ChatPage() {
     });
   };
 
-  const handleSendMessage = (text: string, attachments: MessageAttachment[] = []) => {
+  const handleSendMessage = (text: string, attachments: MessageAttachment[] = [], replyTo?: { user: string; text: string }) => {
     const trimmedText = text.trim();
     if (!trimmedText && attachments.length === 0) return;
 
@@ -1346,7 +1346,8 @@ export function ChatPage() {
       user: CURRENT_USER_NAME,
       text: trimmedText || `${attachments.length}개 항목을 공유합니다.`,
       time: '방금',
-      attachments
+      attachments,
+      replyTo
     };
 
     setMessages((prev) => ({
