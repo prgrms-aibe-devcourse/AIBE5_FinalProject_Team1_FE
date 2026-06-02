@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation, useNavigate } from "react-router";
-import { Github, LogOut, Menu, Settings, UserRound, UsersRound, X } from "lucide-react";
+import { LogOut, Menu, Settings, UserRound, UsersRound, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { CodeDockWordmark } from "./CodeDockWordmark";
@@ -225,12 +225,7 @@ export function Layout() {
               onClick={() => setMobileMenuOpen(false)}
             />
             <HeaderLink
-              item={{ path: "/profile?section=github", label: "GitHub 연동 관리" }}
-              active={false}
-              onClick={() => setMobileMenuOpen(false)}
-            />
-            <HeaderLink
-              item={{ path: "/chat", label: "워크스페이스 / 팀 관리" }}
+              item={{ path: "/chat", label: "내 워크스페이스 설정" }}
               active={isActive("/chat")}
               onClick={() => setMobileMenuOpen(false)}
             />
@@ -374,8 +369,7 @@ function AccountMenu({ variant, onLogout, tabIndex }: AccountMenuProps) {
         <DropdownMenuSeparator style={{ background: `${colors.primary}, 0.14)` }} />
         <AccountMenuLink to="/profile" icon={UserRound} label="프로필 보기" />
         <AccountMenuLink to="/settings" icon={Settings} label="계정 설정" />
-        <AccountMenuLink to="/profile?section=github" icon={Github} label="GitHub 연동 관리" />
-        <AccountMenuLink to="/chat" icon={UsersRound} label="워크스페이스 / 팀 관리" />
+        <AccountMenuLink to="/chat" icon={UsersRound} label="내 워크스페이스 설정" />
         <DropdownMenuSeparator style={{ background: `${colors.primary}, 0.14)` }} />
         <DropdownMenuItem
           onSelect={onLogout}
