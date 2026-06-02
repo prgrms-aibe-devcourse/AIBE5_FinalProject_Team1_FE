@@ -1399,7 +1399,7 @@ export function ChatPage() {
         prevThread
           ? {
               ...prevThread,
-              replies: (threadReplyCounts[prevThread.id] ?? prevThread.replies ?? 0) + 1,
+              replies: (prevThread.replies ?? 0) + 1,
               lastReply: newReply.user
             }
           : prevThread
