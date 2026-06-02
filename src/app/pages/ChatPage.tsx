@@ -37,7 +37,6 @@ const PRESENCE_META: Record<PresenceKey, { label: string; color: string }> = {
   busy:    { label: '방해금지', color: '#FF6B6B' },
   offline: { label: '오프라인', color: '#8B94A7' },
 };
-const CURRENT_USER_NAME = "김재준";
 
 type SidebarGroupId = 'documentation';
 type UserPresence = 'active' | 'away' | 'busy' | 'offline';
@@ -1362,7 +1361,7 @@ export function ChatPage() {
 
     const nextMessage = {
       id: Date.now(),
-      user: CURRENT_USER_NAME,
+      user: myProfile.name,
       text: trimmedText || `${attachments.length}개 항목을 공유합니다.`,
       time: '방금',
       attachments,
@@ -1380,7 +1379,7 @@ export function ChatPage() {
       const key = getThreadKey(selectedThread);
       const newReply = {
         id: Date.now(),
-        user: CURRENT_USER_NAME,
+        user: myProfile.name,
         text: text,
         time: '방금'
       };

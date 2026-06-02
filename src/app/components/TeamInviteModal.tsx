@@ -5,9 +5,10 @@ import { AnimatePresence, motion } from "motion/react";
 interface TeamInviteModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onInvite?: (members: InviteDraft[]) => void;
 }
 
-interface InviteDraft {
+export interface InviteDraft {
   id: number;
   name: string;
   email: string;
@@ -32,7 +33,7 @@ const ROLE_OPTIONS = [
   "Viewer",
 ];
 
-export function TeamInviteModal({ isOpen, onClose }: TeamInviteModalProps) {
+export function TeamInviteModal({ isOpen, onClose, onInvite }: TeamInviteModalProps) {
   const [emailInput, setEmailInput] = useState("");
   const [roleInput, setRoleInput] = useState(ROLE_OPTIONS[0]);
   const [invited, setInvited] = useState<InviteDraft[]>([]);
@@ -291,7 +292,12 @@ export function TeamInviteModal({ isOpen, onClose }: TeamInviteModalProps) {
                 </button>
                 <button
                   type="button"
-                  onClick={onClose}
+                  onClick={() => {
+                    if (invited.length > 0) {
+                      onInvite?.(invited);
+                    }
+                    onClose();
+                  }}
                   className="flex-1 rounded-xl border-0 py-3 tracking-tight transition-all"
                   style={{
                     background: invited.length > 0

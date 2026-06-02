@@ -203,6 +203,7 @@ function ensureSeeded() {
     "workspace-1": [junwoo, jaejun, jinpil, jinhyun],   // exclude 안현
     "workspace-2": [junwoo, jaejun, jinhyun, hyun],      // exclude 김진필
     "workspace-3": [junwoo, jinpil, jinhyun, hyun],      // exclude 김재준
+    "workspace-4": [jaejun, jinpil, hyun, jinhyun],      // exclude 김준우
   });
 }
 
