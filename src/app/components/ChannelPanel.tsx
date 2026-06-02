@@ -1,4 +1,4 @@
-import { Hash, MessageSquare, Send, Bookmark, Share2, AtSign, X, Paperclip, Smile, UserPlus, FileUp, Image as ImageIcon, Link2 } from "lucide-react";
+import { Hash, MessageSquare, Send, Bookmark, Reply, AtSign, X, Paperclip, Smile, UserPlus, FileUp, Image as ImageIcon, Link2 } from "lucide-react";
 import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import { createFileMessageAttachment, createLinkMessageAttachment, createLinkMessageAttachmentFromText, messageAttachmentGroups, messageAttachmentTypeLabels, type MessageAttachment, type MessageAttachmentType } from "./messageAttachments";
 import { EmojiPicker } from "./EmojiPicker";
@@ -128,6 +128,7 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
   const [bookmarkedThreadIds, setBookmarkedThreadIds] = useState<Record<number, boolean>>({});
   const [hoveredBtn, setHoveredBtn] = useState<string | null>(null);
   const [emojiPickerMsgId, setEmojiPickerMsgId] = useState<number | null>(null);
+  const [emojiPickerPos, setEmojiPickerPos] = useState<{ top: number; right: number } | null>(null);
   const [replyTo, setReplyTo] = useState<Thread | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const skipThreadSaveRef = useRef(false);
@@ -294,7 +295,17 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
             style={btnStyle('이모지', emojiPickerMsgId === thread.id)}
             onMouseEnter={() => setHoveredBtn(bk('이모지'))}
             onMouseLeave={() => setHoveredBtn(null)}
-            onClick={(e) => { e.stopPropagation(); setEmojiPickerMsgId(prev => prev === thread.id ? null : thread.id); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (emojiPickerMsgId === thread.id) {
+                setEmojiPickerMsgId(null);
+                setEmojiPickerPos(null);
+              } else {
+                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                setEmojiPickerPos({ top: rect.bottom + 6, right: window.innerWidth - rect.right });
+                setEmojiPickerMsgId(thread.id);
+              }
+            }}
           ><Smile size={14} /></button>
 
           <button className="w-7 h-7 rounded flex items-center justify-center"
@@ -309,7 +320,7 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
             onMouseEnter={() => setHoveredBtn(bk('답장'))}
             onMouseLeave={() => setHoveredBtn(null)}
             onClick={(e) => { e.stopPropagation(); handleShareThread(thread); }}
-          ><Share2 size={14} /></button>
+          ><Reply size={14} /></button>
 
           <button className="w-7 h-7 rounded flex items-center justify-center"
             style={btnStyle('멘션')}
@@ -332,14 +343,6 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
           }}>{currentLabel}</span>
         )}
 
-        {emojiPickerMsgId === thread.id && (
-          <div className="absolute right-0 top-10 z-30">
-            <EmojiPicker onSelect={(emoji) => {
-              handleReactionToggle(thread.id, emoji);
-              setEmojiPickerMsgId(null);
-            }} />
-          </div>
-        )}
       </div>
     );
   };
@@ -384,6 +387,18 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      {emojiPickerMsgId !== null && emojiPickerPos && (
+        <div
+          style={{ position: 'fixed', top: emojiPickerPos.top, right: emojiPickerPos.right, zIndex: 9999 }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <EmojiPicker onSelect={(emoji) => {
+            handleReactionToggle(emojiPickerMsgId, emoji);
+            setEmojiPickerMsgId(null);
+            setEmojiPickerPos(null);
+          }} />
+        </div>
+      )}
       {/* Header */}
       <div className="px-6 py-4 flex items-center justify-between" style={{
         borderBottom: '1px solid rgba(32, 227, 255, 0.14)'
@@ -510,7 +525,7 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
                         ))}
                       </div>
                     )}
-                    {displayedReplyCount > 0 && (
+                    {(
                       <div className="flex items-center gap-3">
                         <button
                           onClick={(e) => {
@@ -522,6 +537,10 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
                             background: 'rgba(32, 227, 255, 0.08)',
                             border: '1px solid rgba(32, 227, 255, 0.2)'
                           }}
+                          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(32, 227, 255, 0.16)'; }}
+                          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(32, 227, 255, 0.08)'; }}
+                          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(32, 227, 255, 0.16)'; }}
+                          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(32, 227, 255, 0.08)'; }}
                         >
                           <MessageSquare size={14} style={{ color: 'var(--neon-cyan)' }} />
                           <span className="tracking-tight" style={{

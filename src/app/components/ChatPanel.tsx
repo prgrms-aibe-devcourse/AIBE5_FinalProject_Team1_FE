@@ -1,4 +1,4 @@
-import { Send, Sparkles, Code, AtSign, Smile, GitPullRequest, FileText, Plus, Minus, MessageSquare, Bookmark, Share2, MoreVertical, X, CheckCircle, Clock, AlertCircle, ExternalLink, GitMerge, Hash, Paperclip, FileUp, Image as ImageIcon, Link2, CircleDot, CircleCheck, CircleMinus } from "lucide-react";
+import { Send, Sparkles, Code, AtSign, Smile, GitPullRequest, FileText, Plus, Minus, MessageSquare, Bookmark, Share2, Reply, MoreVertical, X, CheckCircle, Clock, AlertCircle, ExternalLink, GitMerge, Hash, Paperclip, FileUp, Image as ImageIcon, Link2, CircleDot, CircleCheck, CircleMinus } from "lucide-react";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { createFileMessageAttachment, createLinkMessageAttachment, createLinkMessageAttachmentFromText, messageAttachmentGroups, messageAttachmentTypeLabels, type MessageAttachment, type MessageAttachmentType } from "./messageAttachments";
 import { EmojiPicker } from "./EmojiPicker";
@@ -130,6 +130,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
   const [bookmarkedMessageIds, setBookmarkedMessageIds] = useState<Record<number, boolean>>({});
   const [hoveredBtn, setHoveredBtn] = useState<string | null>(null);
   const [emojiPickerMsgId, setEmojiPickerMsgId] = useState<number | null>(null);
+  const [emojiPickerPos, setEmojiPickerPos] = useState<{ top: number; right: number } | null>(null);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
   const [selectedPRForShare, setSelectedPRForShare] = useState<any>(null);
@@ -342,7 +343,17 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
             style={btnStyle('이모지', emojiPickerMsgId === msg.id)}
             onMouseEnter={() => setHoveredBtn(bk('이모지'))}
             onMouseLeave={() => setHoveredBtn(null)}
-            onClick={(e) => { e.stopPropagation(); setEmojiPickerMsgId(prev => prev === msg.id ? null : msg.id); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (emojiPickerMsgId === msg.id) {
+                setEmojiPickerMsgId(null);
+                setEmojiPickerPos(null);
+              } else {
+                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                setEmojiPickerPos({ top: rect.bottom + 6, right: window.innerWidth - rect.right });
+                setEmojiPickerMsgId(msg.id);
+              }
+            }}
             title="이모지"
           ><Smile size={14} /></button>
 
@@ -362,7 +373,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
             onMouseLeave={() => setHoveredBtn(null)}
             onClick={(e) => { e.stopPropagation(); handleShareMessage(msg); }}
             title="답장"
-          ><Share2 size={14} /></button>
+          ><Reply size={14} /></button>
 
           <button
             className="w-7 h-7 rounded flex items-center justify-center"
@@ -384,19 +395,17 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
           }}>{currentLabel}</span>
         )}
 
-        {emojiPickerMsgId === msg.id && (
-          <div className="absolute right-0 top-10 z-30">
-            <EmojiPicker onSelect={(emoji) => {
-              handleReactionToggle(msg.id, emoji);
-              setEmojiPickerMsgId(null);
-            }} />
-          </div>
-        )}
       </div>
     );
   };
 
   const getMessageReactionKey = (messageId: number) => `chat:${channelId}:message:${messageId}`;
+
+  const getReplyCount = (msg: Message): number => {
+    if (msg.type === 'pr') return (replyCounts[`pr-${msg.id}`] ?? replyCounts[msg.id] ?? (msg as any).replies ?? 0) as number;
+    if (msg.type === 'issue') return (replyCounts[`issue-${msg.id}`] ?? replyCounts[msg.id] ?? (msg as any).replies ?? 0) as number;
+    return (replyCounts[msg.id] ?? (msg as any).replies ?? 0) as number;
+  };
 
   const handleReactionToggle = (messageId: number, emoji: string) => {
     const reactionKey = getMessageReactionKey(messageId);
@@ -436,6 +445,18 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
 
   return (
     <div className="flex flex-col h-full min-h-0 relative overflow-hidden">
+      {emojiPickerMsgId !== null && emojiPickerPos && (
+        <div
+          style={{ position: 'fixed', top: emojiPickerPos.top, right: emojiPickerPos.right, zIndex: 9999 }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <EmojiPicker onSelect={(emoji) => {
+            handleReactionToggle(emojiPickerMsgId, emoji);
+            setEmojiPickerMsgId(null);
+            setEmojiPickerPos(null);
+          }} />
+        </div>
+      )}
       <div className="flex items-center justify-between px-6 py-4" style={{
         borderBottom: '1px solid rgba(32, 227, 255, 0.14)'
       }}>
@@ -1007,28 +1028,28 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                   {(hoveredMessageId === msg.id || emojiPickerMsgId === msg.id) && renderHoverMenu(msg)}
                 </div>
               )}
+              <button
+                type="button"
+                onClick={() => onOpenThread?.(msg)}
+                className="mt-2 inline-flex w-fit items-center gap-1.5 rounded-full border-0 px-3 py-1.5 tracking-tight transition-all"
+                style={{
+                  background: 'rgba(32, 227, 255, 0.08)',
+                  border: '1px solid rgba(32, 227, 255, 0.18)',
+                  color: 'var(--neon-cyan)',
+                  cursor: 'pointer',
+                  fontSize: '11px',
+                  fontWeight: 900
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(32, 227, 255, 0.16)'; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(32, 227, 255, 0.08)'; }}
+              >
+                <MessageSquare size={13} />
+                답글 {getReplyCount(msg)}개
+              </button>
               <MessageReactions
                 reactions={reactionMap[getMessageReactionKey(msg.id)]}
                 onToggle={(emoji) => handleReactionToggle(msg.id, emoji)}
               />
-              {((replyCounts[msg.id] ?? (msg as any).replies ?? 0) > 0) && (
-                <button
-                  type="button"
-                  onClick={() => onOpenThread?.(msg)}
-                  className="mt-1 inline-flex w-fit items-center gap-1.5 rounded-full border-0 px-3 py-1.5 tracking-tight"
-                  style={{
-                    background: 'rgba(32, 227, 255, 0.08)',
-                    border: '1px solid rgba(32, 227, 255, 0.18)',
-                    color: 'var(--neon-cyan)',
-                    cursor: 'pointer',
-                    fontSize: '11px',
-                    fontWeight: 900
-                  }}
-                >
-                  <MessageSquare size={13} />
-                  답글 {replyCounts[msg.id] ?? (msg as any).replies ?? 0}개
-                </button>
-              )}
             </div>
             );
           })}
@@ -1468,8 +1489,8 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                 color: activePanel === 'emoji' ? 'var(--neon-cyan)' : 'var(--muted)',
                 cursor: 'pointer'
               }}
-              title="이모티콘"
-              aria-label="이모티콘 선택"
+              title="이모지"
+              aria-label="이모지 선택"
             >
               <Smile size={18} />
             </button>

@@ -1,14 +1,13 @@
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { SmilePlus } from "lucide-react";
+import { EmojiPicker } from "./EmojiPicker";
 
 export interface MessageReaction {
   emoji: string;
   count: number;
   reacted?: boolean;
 }
-
-const quickReactionEmojis = ["👍", "✅", "🔥", "🎉", "👀", "💡", "🙏", "😂"];
 
 export function toggleMessageReaction(
   reactions: MessageReaction[] | undefined,
@@ -136,6 +135,8 @@ export function MessageReactions({ reactions = [], onToggle }: MessageReactionsP
           color: pickerOpen ? "var(--neon-cyan)" : "var(--muted)",
           cursor: "pointer"
         }}
+        onMouseEnter={(e) => { if (!pickerOpen) { (e.currentTarget as HTMLElement).style.color = 'var(--neon-cyan)'; (e.currentTarget as HTMLElement).style.borderColor = 'rgba(32, 227, 255, 0.34)'; } }}
+        onMouseLeave={(e) => { if (!pickerOpen) { (e.currentTarget as HTMLElement).style.color = 'var(--muted)'; (e.currentTarget as HTMLElement).style.borderColor = 'rgba(32, 227, 255, 0.14)'; } }}
         aria-label="이모티콘 반응 추가"
         title="반응 추가"
       >
@@ -150,35 +151,9 @@ export function MessageReactions({ reactions = [], onToggle }: MessageReactionsP
             top: pickerPos.top,
             left: pickerPos.left,
             zIndex: 9999,
-            background: "rgba(5, 11, 20, 0.94)",
-            border: "1px solid rgba(32, 227, 255, 0.22)",
-            boxShadow: "0 18px 42px rgba(0, 0, 0, 0.36)",
-            backdropFilter: "blur(12px)",
-            borderRadius: "12px",
-            padding: "8px",
-            display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
-            gap: "6px",
           }}
         >
-          {quickReactionEmojis.map((emoji) => (
-            <button
-              key={emoji}
-              type="button"
-              onClick={() => handleSelect(emoji)}
-              className="flex h-9 w-9 items-center justify-center rounded-lg border-0 transition-all"
-              style={{
-                background: "rgba(32, 227, 255, 0.08)",
-                border: "1px solid rgba(32, 227, 255, 0.12)",
-                cursor: "pointer",
-                fontSize: "18px",
-              }}
-              aria-label={`${emoji} 반응 추가`}
-              title={`${emoji} 반응`}
-            >
-              {emoji}
-            </button>
-          ))}
+          <EmojiPicker onSelect={handleSelect} />
         </div>,
         document.body
       )}
