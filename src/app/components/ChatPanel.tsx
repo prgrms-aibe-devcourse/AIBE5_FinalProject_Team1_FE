@@ -127,7 +127,8 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
   const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'completed'>('all');
   const [hoveredMessageId, setHoveredMessageId] = useState<number | null>(null);
   const [bookmarkedMessageIds, setBookmarkedMessageIds] = useState<Record<number, boolean>>({});
-  const [openMessageMenuId, setOpenMessageMenuId] = useState<number | null>(null);
+  const [hoveredBtn, setHoveredBtn] = useState<string | null>(null);
+  const [emojiPickerMsgId, setEmojiPickerMsgId] = useState<number | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
   const [selectedPRForShare, setSelectedPRForShare] = useState<any>(null);
   const [shareMessage, setShareMessage] = useState('');
@@ -298,6 +299,98 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
       const sharedText = msg.text || msg.prTitle || msg.issueTitle || msg.code || "";
       return `${prev}${prev ? "\n" : ""}> ${sharedText}`;
     });
+  };
+
+  const renderHoverMenu = (msg: Message) => {
+    const isBookmarked = bookmarkedMessageIds[msg.id];
+    const isPR = msg.type === 'pr';
+    const bk = (label: string) => `${msg.id}:${label}`;
+    const isHvr = (label: string) => hoveredBtn === bk(label);
+    const currentLabel = hoveredBtn?.startsWith(`${msg.id}:`)
+      ? hoveredBtn.replace(`${msg.id}:`, '')
+      : null;
+
+    const btnStyle = (label: string, active = false): React.CSSProperties => ({
+      background: isHvr(label) ? 'rgba(32, 227, 255, 0.15)' : 'transparent',
+      color: (isHvr(label) || active) ? 'var(--neon-cyan)' : 'var(--muted)',
+      cursor: 'pointer',
+      border: 'none',
+      transition: 'all 0.15s',
+    });
+
+    return (
+      <div className="absolute top-2 right-2 z-10 flex flex-col items-end gap-1">
+        <div className="flex items-center gap-0.5 rounded-lg px-1.5 py-1" style={{
+          background: 'rgba(11, 22, 40, 0.95)',
+          border: '1px solid rgba(32, 227, 255, 0.3)',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)'
+        }}>
+          <button
+            className="w-7 h-7 rounded flex items-center justify-center"
+            style={btnStyle('댓글')}
+            onMouseEnter={() => setHoveredBtn(bk('댓글'))}
+            onMouseLeave={() => setHoveredBtn(null)}
+            onClick={() => onOpenThread?.(msg)}
+            title="댓글"
+          ><MessageSquare size={14} /></button>
+
+          <button
+            className="w-7 h-7 rounded flex items-center justify-center"
+            style={btnStyle('이모지', emojiPickerMsgId === msg.id)}
+            onMouseEnter={() => setHoveredBtn(bk('이모지'))}
+            onMouseLeave={() => setHoveredBtn(null)}
+            onClick={(e) => { e.stopPropagation(); setEmojiPickerMsgId(prev => prev === msg.id ? null : msg.id); }}
+            title="이모지"
+          ><Smile size={14} /></button>
+
+          <button
+            className="w-7 h-7 rounded flex items-center justify-center"
+            style={btnStyle('북마크', isBookmarked)}
+            onMouseEnter={() => setHoveredBtn(bk('북마크'))}
+            onMouseLeave={() => setHoveredBtn(null)}
+            onClick={(e) => { e.stopPropagation(); handleBookmarkToggle(msg.id); }}
+            title="북마크"
+          ><Bookmark size={14} /></button>
+
+          <button
+            className="w-7 h-7 rounded flex items-center justify-center"
+            style={btnStyle('답장')}
+            onMouseEnter={() => setHoveredBtn(bk('답장'))}
+            onMouseLeave={() => setHoveredBtn(null)}
+            onClick={(e) => { e.stopPropagation(); isPR ? handleShareClick(msg) : handleShareMessage(msg); }}
+            title="답장"
+          ><Share2 size={14} /></button>
+
+          <button
+            className="w-7 h-7 rounded flex items-center justify-center"
+            style={btnStyle('멘션')}
+            onMouseEnter={() => setHoveredBtn(bk('멘션'))}
+            onMouseLeave={() => setHoveredBtn(null)}
+            onClick={(e) => { e.stopPropagation(); handleMentionClick(msg.user); }}
+            title="멘션"
+          ><AtSign size={14} /></button>
+        </div>
+
+        {currentLabel && (
+          <span className="rounded px-2 py-0.5 tracking-tight" style={{
+            background: 'rgba(11, 22, 40, 0.95)',
+            border: '1px solid rgba(32, 227, 255, 0.2)',
+            color: 'var(--neon-cyan)',
+            fontSize: '10px',
+            fontWeight: 900,
+          }}>{currentLabel}</span>
+        )}
+
+        {emojiPickerMsgId === msg.id && (
+          <div className="absolute right-0 top-10 z-30">
+            <EmojiPicker onSelect={(emoji) => {
+              handleReactionToggle(msg.id, emoji);
+              setEmojiPickerMsgId(null);
+            }} />
+          </div>
+        )}
+      </div>
+    );
   };
 
   const getMessageReactionKey = (messageId: number) => `chat:${channelId}:message:${messageId}`;
@@ -671,84 +764,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                       </button>
                     </div>
                   </div>
-                  {hoveredMessageId === msg.id && (
-                    <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-lg" style={{
-                      background: 'rgba(11, 22, 40, 0.95)',
-                      border: '1px solid rgba(32, 227, 255, 0.3)',
-                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)'
-                    }}>
-                      <button
-                        onClick={() => onOpenThread?.(msg)}
-                        className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all hover:bg-[rgba(32,227,255,0.15)]"
-                        style={{
-                          background: 'transparent',
-                          color: 'var(--muted)',
-                          cursor: 'pointer'
-                        }}
-                        title="답글"
-                      >
-                        <MessageSquare size={14} />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleBookmarkToggle(msg.id);
-                        }}
-                        className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all hover:bg-[rgba(32,227,255,0.15)]" style={{
-                        background: 'transparent',
-                        color: bookmarkedMessageIds[msg.id] ? 'var(--neon-cyan)' : 'var(--muted)',
-                        cursor: 'pointer'
-                      }} title="북마크">
-                        <Bookmark size={14} />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleShareClick(msg);
-                        }}
-                        className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all hover:bg-[rgba(32,227,255,0.15)]"
-                        style={{
-                          background: 'transparent',
-                          color: 'var(--muted)',
-                          cursor: 'pointer'
-                        }}
-                        title="공유"
-                      >
-                        <Share2 size={14} />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setOpenMessageMenuId((currentId) => currentId === msg.id ? null : msg.id);
-                        }}
-                        className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all hover:bg-[rgba(32,227,255,0.15)]" style={{
-                        background: 'transparent',
-                        color: openMessageMenuId === msg.id ? 'var(--neon-cyan)' : 'var(--muted)',
-                        cursor: 'pointer'
-                      }} title="더보기">
-                        <MoreVertical size={14} />
-                      </button>
-                      {openMessageMenuId === msg.id && (
-                        <div className="absolute right-2 top-10 z-20 grid gap-1 rounded-lg p-2" style={{
-                          background: 'rgba(5, 11, 20, 0.96)',
-                          border: '1px solid rgba(32, 227, 255, 0.24)'
-                        }}>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleMentionClick(msg.user);
-                              setOpenMessageMenuId(null);
-                            }}
-                            className="rounded-md border-0 px-3 py-2 text-left tracking-tight"
-                            style={{ background: 'transparent', color: 'var(--white)', cursor: 'pointer', fontSize: '12px', fontWeight: 850 }}
-                          >
-                            Mention
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  {(hoveredMessageId === msg.id || emojiPickerMsgId === msg.id) && renderHoverMenu(msg)}
                 </div>
               ) : msg.type === 'issue' ? (
                 <div className="relative">
@@ -898,42 +914,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                       </button>
                     </div>
                   </div>
-                  {hoveredMessageId === msg.id && (
-                    <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-lg" style={{
-                      background: 'rgba(11, 22, 40, 0.95)',
-                      border: '1px solid rgba(32, 227, 255, 0.3)',
-                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)'
-                    }}>
-                      <button
-                        onClick={() => onOpenThread?.(msg)}
-                        className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all hover:bg-[rgba(32,227,255,0.15)]"
-                        style={{ background: 'transparent', color: 'var(--muted)', cursor: 'pointer' }}
-                        title="답글"
-                      >
-                        <MessageSquare size={14} />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleBookmarkToggle(msg.id);
-                        }}
-                        className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all hover:bg-[rgba(32,227,255,0.15)]" style={{
-                        background: 'transparent', color: bookmarkedMessageIds[msg.id] ? 'var(--neon-cyan)' : 'var(--muted)', cursor: 'pointer'
-                      }} title="북마크">
-                        <Bookmark size={14} />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setOpenMessageMenuId((currentId) => currentId === msg.id ? null : msg.id);
-                        }}
-                        className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all hover:bg-[rgba(32,227,255,0.15)]" style={{
-                        background: 'transparent', color: openMessageMenuId === msg.id ? 'var(--neon-cyan)' : 'var(--muted)', cursor: 'pointer'
-                      }} title="더보기">
-                        <MoreVertical size={14} />
-                      </button>
-                    </div>
-                  )}
+                  {(hoveredMessageId === msg.id || emojiPickerMsgId === msg.id) && renderHoverMenu(msg)}
                 </div>
               ) : msg.type === 'code' && msg.code ? (
                 <div className="relative">
@@ -961,62 +942,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                       {msg.code}
                     </pre>
                   </div>
-                  {hoveredMessageId === msg.id && (
-                    <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-lg" style={{
-                      background: 'rgba(11, 22, 40, 0.95)',
-                      border: '1px solid rgba(32, 227, 255, 0.3)',
-                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)'
-                    }}>
-                      <button
-                        onClick={() => onOpenThread?.(msg)}
-                        className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all hover:bg-[rgba(32,227,255,0.15)]"
-                        style={{
-                          background: 'transparent',
-                          color: 'var(--muted)',
-                          cursor: 'pointer'
-                        }}
-                        title="답글"
-                      >
-                        <MessageSquare size={14} />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleBookmarkToggle(msg.id);
-                        }}
-                        className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all" style={{
-                        background: 'transparent',
-                        color: bookmarkedMessageIds[msg.id] ? 'var(--neon-cyan)' : 'var(--muted)',
-                        cursor: 'pointer'
-                      }} title="북마크">
-                        <Bookmark size={14} />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleShareMessage(msg);
-                        }}
-                        className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all" style={{
-                        background: 'transparent',
-                        color: 'var(--muted)',
-                        cursor: 'pointer'
-                      }} title="공유">
-                        <Share2 size={14} />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setOpenMessageMenuId((currentId) => currentId === msg.id ? null : msg.id);
-                        }}
-                        className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all" style={{
-                        background: 'transparent',
-                        color: openMessageMenuId === msg.id ? 'var(--neon-cyan)' : 'var(--muted)',
-                        cursor: 'pointer'
-                      }} title="더보기">
-                        <MoreVertical size={14} />
-                      </button>
-                    </div>
-                  )}
+                  {(hoveredMessageId === msg.id || emojiPickerMsgId === msg.id) && renderHoverMenu(msg)}
                 </div>
               ) : (
                 <div className="relative">
@@ -1059,62 +985,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                       </div>
                     )}
                   </div>
-                  {hoveredMessageId === msg.id && (
-                    <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-lg" style={{
-                      background: 'rgba(11, 22, 40, 0.95)',
-                      border: '1px solid rgba(32, 227, 255, 0.3)',
-                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)'
-                    }}>
-                      <button
-                        onClick={() => onOpenThread?.(msg)}
-                        className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all hover:bg-[rgba(32,227,255,0.15)]"
-                        style={{
-                          background: 'transparent',
-                          color: 'var(--muted)',
-                          cursor: 'pointer'
-                        }}
-                        title="답글"
-                      >
-                        <MessageSquare size={14} />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleBookmarkToggle(msg.id);
-                        }}
-                        className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all" style={{
-                        background: 'transparent',
-                        color: bookmarkedMessageIds[msg.id] ? 'var(--neon-cyan)' : 'var(--muted)',
-                        cursor: 'pointer'
-                      }} title="북마크">
-                        <Bookmark size={14} />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleShareMessage(msg);
-                        }}
-                        className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all" style={{
-                        background: 'transparent',
-                        color: 'var(--muted)',
-                        cursor: 'pointer'
-                      }} title="공유">
-                        <Share2 size={14} />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setOpenMessageMenuId((currentId) => currentId === msg.id ? null : msg.id);
-                        }}
-                        className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all" style={{
-                        background: 'transparent',
-                        color: openMessageMenuId === msg.id ? 'var(--neon-cyan)' : 'var(--muted)',
-                        cursor: 'pointer'
-                      }} title="더보기">
-                        <MoreVertical size={14} />
-                      </button>
-                    </div>
-                  )}
+                  {(hoveredMessageId === msg.id || emojiPickerMsgId === msg.id) && renderHoverMenu(msg)}
                 </div>
               )}
               <MessageReactions
