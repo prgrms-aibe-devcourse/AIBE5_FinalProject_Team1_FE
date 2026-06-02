@@ -308,11 +308,11 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
         </div>
       </div>
 
-      <div className="px-6 py-4" style={{
+      <div className="px-6 pt-1 pb-3" style={{
         borderTop: '1px solid rgba(32, 227, 255, 0.14)'
       }}>
         {emojiPickerOpen && (
-          <div className="mb-3">
+          <div className="mb-2">
             <EmojiPicker onSelect={handleEmojiSelect} />
           </div>
         )}
@@ -320,24 +320,32 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
         <TypingIndicatorBar label={typingLabel} />
 
         <div className="flex items-end gap-2">
-          <div className="relative min-w-0 flex-1">
-            <textarea
-              value={replyText}
-              onChange={(e) => setReplyText(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="답글 남기기..."
-              className="w-full min-w-0 px-4 py-3 rounded-xl border-0 tracking-tight resize-none"
-              rows={3}
-              style={{
-                background: 'rgba(5, 11, 20, 0.6)',
-                border: '1px solid rgba(32, 227, 255, 0.14)',
-                color: 'var(--white)',
-                fontSize: '14px',
-                fontWeight: 700
-              }}
-            />
-          </div>
-            <button
+          <textarea
+            value={replyText}
+            onChange={(e) => setReplyText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onInput={(e) => {
+              const el = e.currentTarget;
+              el.style.height = 'auto';
+              el.style.height = `${Math.min(el.scrollHeight, 96)}px`;
+            }}
+            placeholder="답글 남기기..."
+            className="min-w-0 flex-1 px-4 rounded-xl border-0 tracking-tight resize-none"
+            rows={1}
+            style={{
+              background: 'rgba(5, 11, 20, 0.6)',
+              border: '1px solid rgba(32, 227, 255, 0.14)',
+              color: 'var(--white)',
+              fontSize: '14px',
+              fontWeight: 700,
+              height: '44px',
+              maxHeight: '96px',
+              overflowY: 'auto',
+              paddingTop: '12px',
+              paddingBottom: '12px',
+            }}
+          />
+          <button
             onClick={() => setEmojiPickerOpen((open) => !open)}
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border-0"
             style={{
@@ -353,11 +361,10 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
           </button>
           <button
             onClick={handleSend}
-            className="flex h-11 shrink-0 items-center gap-2 rounded-xl border-0 px-4"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border-0"
             style={{
               background: 'linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))',
               color: '#021014',
-              fontWeight: 950,
               cursor: 'pointer'
             }}
             aria-label="답글 전송"
@@ -366,13 +373,6 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
             <Send size={18} />
           </button>
         </div>
-        <p className="m-0 mt-2 tracking-tight" style={{
-          fontSize: '11px',
-          fontWeight: 700,
-          color: 'var(--muted)'
-        }}>
-          Enter로 전송, Shift+Enter로 줄바꿈
-        </p>
       </div>
     </div>
   );

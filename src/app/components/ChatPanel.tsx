@@ -1056,7 +1056,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
         </div>
       </div>
 
-      <div className="px-6 py-4" style={{
+      <div className="px-6 pt-1 pb-3" style={{
         borderTop: '1px solid rgba(32, 227, 255, 0.14)'
       }}>
         {(codeBlockText.trim() || selectedAttachments.length > 0) && (
@@ -1368,56 +1368,49 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
           </div>
         )}
 
-        <div className="flex items-end gap-2">
-          <div className="relative min-w-0 flex-1">
-            <textarea
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="메시지를 입력하세요... (Shift+Enter로 줄바꿈)"
-              className="w-full min-w-0 rounded-xl border-0 px-4 py-3 tracking-tight resize-none"
-              rows={1}
-              style={{
-                background: 'rgba(5, 11, 20, 0.6)',
-                border: '1px solid rgba(32, 227, 255, 0.14)',
-                color: 'var(--white)',
-                fontSize: '14px',
-                fontWeight: 700,
-                minHeight: '44px',
-                maxHeight: '120px'
-              }}
-            />
-          </div>
-
-          <div className="flex shrink-0 flex-wrap justify-end gap-1">
+        <div className="relative flex items-center gap-2 px-4 py-2 rounded-xl" style={{
+          background: 'rgba(5, 11, 20, 0.6)',
+          border: '1px solid rgba(32, 227, 255, 0.14)'
+        }}>
+          <textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            onKeyPress={handleKeyPress}
+            placeholder="메시지를 입력하세요..."
+            className="min-w-0 flex-1 bg-transparent border-0 outline-none tracking-tight resize-none"
+            rows={1}
+            style={{
+              color: 'var(--white)',
+              fontSize: '14px',
+              fontWeight: 700,
+              minHeight: '36px',
+              maxHeight: '120px'
+            }}
+          />
+          <div className="flex shrink-0 items-center gap-1">
             <button
               onClick={() => togglePanel('code')}
-              className="relative w-9 h-9 rounded-lg border-0 flex items-center justify-center"
+              className="relative w-9 h-9 rounded-lg border-0 flex items-center justify-center transition-all cursor-pointer"
               style={{
-                background: activePanel === 'code' ? 'rgba(32, 227, 255, 0.15)' : 'rgba(5, 11, 20, 0.6)',
+                background: activePanel === 'code' ? 'rgba(32, 227, 255, 0.15)' : 'rgba(32, 227, 255, 0.08)',
                 border: `1px solid ${activePanel === 'code' ? 'rgba(32, 227, 255, 0.3)' : 'rgba(32, 227, 255, 0.14)'}`,
-                color: activePanel === 'code' ? 'var(--neon-cyan)' : 'var(--muted)',
-                cursor: 'pointer'
+                color: activePanel === 'code' ? 'var(--neon-cyan)' : 'var(--muted)'
               }}
               title="코드 블록"
               aria-label="코드 블록"
             >
               <Code size={18} />
               {codeBlockText.trim() && (
-                <span
-                  className="absolute top-1 right-1 h-2 w-2 rounded-full"
-                  style={{ background: 'var(--neon-cyan)', boxShadow: '0 0 4px var(--neon-cyan)' }}
-                />
+                <span className="absolute top-1 right-1 h-2 w-2 rounded-full" style={{ background: 'var(--neon-cyan)', boxShadow: '0 0 4px var(--neon-cyan)' }} />
               )}
             </button>
             <button
               onClick={() => togglePanel('attachment')}
-              className="w-9 h-9 rounded-lg border-0 flex items-center justify-center"
+              className="w-9 h-9 rounded-lg border-0 flex items-center justify-center transition-all cursor-pointer"
               style={{
-                background: activePanel === 'attachment' ? 'rgba(32, 227, 255, 0.15)' : 'rgba(5, 11, 20, 0.6)',
+                background: activePanel === 'attachment' ? 'rgba(32, 227, 255, 0.15)' : 'rgba(32, 227, 255, 0.08)',
                 border: `1px solid ${activePanel === 'attachment' ? 'rgba(32, 227, 255, 0.3)' : 'rgba(32, 227, 255, 0.14)'}`,
-                color: activePanel === 'attachment' ? 'var(--neon-cyan)' : 'var(--muted)',
-                cursor: 'pointer'
+                color: activePanel === 'attachment' ? 'var(--neon-cyan)' : 'var(--muted)'
               }}
               title="목록 첨부"
               aria-label="PR, ERD, Issue, API 명세, Docs 첨부"
@@ -1426,13 +1419,8 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
             </button>
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="w-9 h-9 rounded-lg border-0 flex items-center justify-center"
-              style={{
-                background: 'rgba(5, 11, 20, 0.6)',
-                border: '1px solid rgba(32, 227, 255, 0.14)',
-                color: 'var(--muted)',
-                cursor: 'pointer'
-              }}
+              className="w-9 h-9 rounded-lg border-0 flex items-center justify-center transition-all cursor-pointer"
+              style={{ background: 'rgba(32, 227, 255, 0.08)', border: '1px solid rgba(32, 227, 255, 0.14)', color: 'var(--muted)' }}
               title="파일 첨부"
               aria-label="파일 첨부"
             >
@@ -1440,13 +1428,8 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
             </button>
             <button
               onClick={() => imageInputRef.current?.click()}
-              className="w-9 h-9 rounded-lg border-0 flex items-center justify-center"
-              style={{
-                background: 'rgba(5, 11, 20, 0.6)',
-                border: '1px solid rgba(32, 227, 255, 0.14)',
-                color: 'var(--muted)',
-                cursor: 'pointer'
-              }}
+              className="w-9 h-9 rounded-lg border-0 flex items-center justify-center transition-all cursor-pointer"
+              style={{ background: 'rgba(32, 227, 255, 0.08)', border: '1px solid rgba(32, 227, 255, 0.14)', color: 'var(--muted)' }}
               title="사진 첨부"
               aria-label="사진 첨부"
             >
@@ -1454,12 +1437,11 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
             </button>
             <button
               onClick={() => togglePanel('link')}
-              className="w-9 h-9 rounded-lg border-0 flex items-center justify-center"
+              className="w-9 h-9 rounded-lg border-0 flex items-center justify-center transition-all cursor-pointer"
               style={{
-                background: activePanel === 'link' ? 'rgba(32, 227, 255, 0.15)' : 'rgba(5, 11, 20, 0.6)',
+                background: activePanel === 'link' ? 'rgba(32, 227, 255, 0.15)' : 'rgba(32, 227, 255, 0.08)',
                 border: `1px solid ${activePanel === 'link' ? 'rgba(32, 227, 255, 0.3)' : 'rgba(32, 227, 255, 0.14)'}`,
-                color: activePanel === 'link' ? 'var(--neon-cyan)' : 'var(--muted)',
-                cursor: 'pointer'
+                color: activePanel === 'link' ? 'var(--neon-cyan)' : 'var(--muted)'
               }}
               title="링크 첨부"
               aria-label="링크 첨부"
@@ -1468,13 +1450,8 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
             </button>
             <button
               onClick={() => handleMentionClick()}
-              className="w-9 h-9 rounded-lg border-0 flex items-center justify-center"
-              style={{
-                background: 'rgba(5, 11, 20, 0.6)',
-                border: '1px solid rgba(32, 227, 255, 0.14)',
-                color: 'var(--muted)',
-                cursor: 'pointer'
-              }}
+              className="w-9 h-9 rounded-lg border-0 flex items-center justify-center transition-all cursor-pointer"
+              style={{ background: 'rgba(32, 227, 255, 0.08)', border: '1px solid rgba(32, 227, 255, 0.14)', color: 'var(--muted)' }}
               title="멘션"
               aria-label="멘션"
             >
@@ -1482,45 +1459,35 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
             </button>
             <button
               onClick={() => togglePanel('emoji')}
-              className="w-9 h-9 rounded-lg border-0 flex items-center justify-center"
+              className="w-9 h-9 rounded-lg border-0 flex items-center justify-center transition-all cursor-pointer"
               style={{
-                background: activePanel === 'emoji' ? 'rgba(32, 227, 255, 0.15)' : 'rgba(5, 11, 20, 0.6)',
+                background: activePanel === 'emoji' ? 'rgba(32, 227, 255, 0.15)' : 'rgba(32, 227, 255, 0.08)',
                 border: `1px solid ${activePanel === 'emoji' ? 'rgba(32, 227, 255, 0.3)' : 'rgba(32, 227, 255, 0.14)'}`,
-                color: activePanel === 'emoji' ? 'var(--neon-cyan)' : 'var(--muted)',
-                cursor: 'pointer'
+                color: activePanel === 'emoji' ? 'var(--neon-cyan)' : 'var(--muted)'
               }}
               title="이모지"
               aria-label="이모지 선택"
             >
               <Smile size={18} />
             </button>
+            <button
+              onClick={handleSend}
+              disabled={!canSend}
+              className="w-9 h-9 rounded-lg border-0 flex items-center justify-center transition-all cursor-pointer"
+              style={{
+                background: 'linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))',
+                color: '#021014',
+                cursor: canSend ? 'pointer' : 'not-allowed',
+                opacity: canSend ? 1 : 0.48
+              }}
+              aria-label="메시지 전송"
+              title="메시지 전송"
+            >
+              <Send size={18} />
+            </button>
           </div>
-
-          <button
-            onClick={handleSend}
-            disabled={!canSend}
-            className="flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border-0 px-4"
-            style={{
-              background: 'linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))',
-              color: '#021014',
-              fontWeight: 950,
-              cursor: canSend ? 'pointer' : 'not-allowed',
-              opacity: canSend ? 1 : 0.48
-            }}
-            aria-label="메시지 전송"
-            title="메시지 전송"
-          >
-            <Send size={18} />
-          </button>
         </div>
 
-        <p className="m-0 mt-2 tracking-tight" style={{
-          fontSize: '11px',
-          fontWeight: 700,
-          color: 'var(--muted)'
-        }}>
-          Enter로 전송, Shift+Enter로 줄바꿈
-        </p>
       </div>
 
       {/* PR 공유 모달 */}

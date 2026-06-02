@@ -1082,7 +1082,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
         </div>
 
         <div
-          className="px-4 py-3"
+          className="px-4 py-1"
           style={{
             background: "rgba(8, 17, 31, 0.96)",
             borderTop: "1px solid rgba(32, 227, 255, 0.14)"
@@ -1126,9 +1126,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
               </div>
             );
           })()}
-          <div
-            className="relative"
-          >
+          <div className="flex items-end gap-2">
             <textarea
               value={prThreadDraft}
               onChange={(event) => setPrThreadDraft(event.target.value)}
@@ -1138,9 +1136,14 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
                   handlePrThreadSubmit();
                 }
               }}
+              onInput={(e) => {
+                const el = e.currentTarget;
+                el.style.height = 'auto';
+                el.style.height = `${Math.min(el.scrollHeight, 96)}px`;
+              }}
               placeholder="PR 스레드에 댓글 남기기..."
-              className="block w-full resize-none rounded-xl px-3 py-2 outline-none tracking-tight"
-              rows={3}
+              className="min-w-0 flex-1 resize-none rounded-xl px-3 outline-none tracking-tight"
+              rows={1}
               style={{
                 background: "rgba(11, 22, 40, 0.86)",
                 border: "1px solid rgba(32, 227, 255, 0.18)",
@@ -1148,57 +1151,27 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
                 fontFamily: "inherit",
                 fontSize: 12,
                 fontWeight: 800,
-                lineHeight: 1.55
+                lineHeight: 1.55,
+                minHeight: "36px",
+                maxHeight: "96px",
+                overflowY: "auto",
+                paddingTop: "9px",
+                paddingBottom: "9px",
               }}
             />
-            {prThreadDraft.trim() && (
-              <span
-                aria-live="polite"
-                className="codedock-typing-indicator-badge is-active pointer-events-none absolute right-3 top-1 inline-flex max-w-[70%] items-center gap-1.5 truncate rounded-full px-2 py-0.5 tracking-tight"
-                style={{
-                  background: "rgba(11, 22, 40, 0.78)",
-                  border: "1px solid rgba(32, 227, 255, 0.16)",
-                  color: "var(--neon-cyan)",
-                  fontSize: 10,
-                  fontWeight: 900
-                }}
-              >
-                <span className="truncate">{currentUserDisplayName} 입력 중입니다</span>
-                <span className="flex shrink-0 items-center gap-0.5" aria-hidden="true">
-                  {[0, 1, 2].map((dot) => (
-                    <span
-                      key={dot}
-                      className="codedock-typing-indicator-dot block h-1 w-1 rounded-full"
-                      style={{
-                        background: "var(--neon-cyan)",
-                        animationDelay: `${dot * 0.15}s`
-                      }}
-                    />
-                  ))}
-                </span>
-              </span>
-            )}
-          </div>
-          <div className="mt-2 flex items-center justify-between gap-2">
-            <span className="tracking-tight" style={{ color: "var(--muted)", fontSize: 9, fontWeight: 750 }}>
-              PR 하나당 하나의 스레드 · Enter 전송
-            </span>
             <button
               type="button"
               onClick={handlePrThreadSubmit}
               disabled={!prThreadDraft.trim()}
-              className="inline-flex items-center gap-2 rounded-xl border-0 px-3 py-2 tracking-tight"
+              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border-0"
               style={{
                 background: "linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))",
                 color: "#021014",
                 cursor: prThreadDraft.trim() ? "pointer" : "not-allowed",
                 opacity: prThreadDraft.trim() ? 1 : 0.48,
-                fontSize: 12,
-                fontWeight: 950
               }}
             >
-              <Send size={13} />
-              보내기
+              <Send size={14} />
             </button>
           </div>
         </div>

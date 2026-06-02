@@ -580,7 +580,7 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
       </div>
 
       {/* Composer */}
-      <div className="px-6 py-4" style={{
+      <div className="px-6 pt-1 pb-3" style={{
         borderTop: '1px solid rgba(32, 227, 255, 0.14)'
       }}>
         {selectedAttachments.length > 0 && (
@@ -810,14 +810,19 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
           background: 'rgba(5, 11, 20, 0.6)',
           border: '1px solid rgba(32, 227, 255, 0.14)'
         }}>
-            <input
-              type="text"
+            <textarea
               value={messageText}
               onChange={(event) => setMessageText(event.target.value)}
               onKeyDown={handleMessageKeyDown}
+              onInput={(e) => {
+                const el = e.currentTarget;
+                el.style.height = 'auto';
+                el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+              }}
               placeholder={`#${channelLabel}에 메시지 보내기`}
-              className="min-w-0 flex-1 bg-transparent border-0 outline-none tracking-tight"
-              style={{ color: 'var(--white)', fontSize: '14px', fontWeight: 700 }}
+              className="min-w-0 flex-1 bg-transparent border-0 outline-none tracking-tight resize-none"
+              rows={1}
+              style={{ color: 'var(--white)', fontSize: '14px', fontWeight: 700, minHeight: '28px', maxHeight: '120px', overflowY: 'auto' }}
             />
             <div className="flex shrink-0 items-center gap-1">
             <button
