@@ -360,7 +360,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
             style={btnStyle('답장')}
             onMouseEnter={() => setHoveredBtn(bk('답장'))}
             onMouseLeave={() => setHoveredBtn(null)}
-            onClick={(e) => { e.stopPropagation(); isPR ? handleShareClick(msg) : handleShareMessage(msg); }}
+            onClick={(e) => { e.stopPropagation(); handleShareMessage(msg); }}
             title="답장"
           ><Share2 size={14} /></button>
 

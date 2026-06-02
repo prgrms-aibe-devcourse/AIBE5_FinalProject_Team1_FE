@@ -1,4 +1,4 @@
-import { Hash, MessageSquare, Send, Bookmark, Share2, MoreVertical, X, Paperclip, Smile, UserPlus, FileUp, Image as ImageIcon, Link2 } from "lucide-react";
+import { Hash, MessageSquare, Send, Bookmark, Share2, AtSign, X, Paperclip, Smile, UserPlus, FileUp, Image as ImageIcon, Link2 } from "lucide-react";
 import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import { createFileMessageAttachment, createLinkMessageAttachment, createLinkMessageAttachmentFromText, messageAttachmentGroups, messageAttachmentTypeLabels, type MessageAttachment, type MessageAttachmentType } from "./messageAttachments";
 import { EmojiPicker } from "./EmojiPicker";
@@ -15,6 +15,7 @@ interface Thread {
   replies: number;
   lastReply?: string;
   attachments?: MessageAttachment[];
+  replyTo?: { user: string; text: string };
 }
 
 interface ChannelPanelProps {
@@ -125,7 +126,9 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
   const [responderTyping, setResponderTyping] = useState(false);
   const [localThreadReactions, setLocalThreadReactions] = useState<Record<string, MessageReaction[]>>({});
   const [bookmarkedThreadIds, setBookmarkedThreadIds] = useState<Record<number, boolean>>({});
-  const [openThreadMenuId, setOpenThreadMenuId] = useState<number | null>(null);
+  const [hoveredBtn, setHoveredBtn] = useState<string | null>(null);
+  const [emojiPickerMsgId, setEmojiPickerMsgId] = useState<number | null>(null);
+  const [replyTo, setReplyTo] = useState<Thread | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const skipThreadSaveRef = useRef(false);
   const responderTypingTimerRef = useRef<number | null>(null);
@@ -254,7 +257,91 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
   };
 
   const handleShareThread = (thread: Thread) => {
-    setMessageText((prev) => `${prev}${prev ? "\n" : ""}> ${thread.message}`);
+    setReplyTo(thread);
+  };
+
+  const renderHoverMenu = (thread: Thread) => {
+    const isBookmarked = bookmarkedThreadIds[thread.id];
+    const bk = (label: string) => `${thread.id}:${label}`;
+    const isHvr = (label: string) => hoveredBtn === bk(label);
+    const currentLabel = hoveredBtn?.startsWith(`${thread.id}:`)
+      ? hoveredBtn.replace(`${thread.id}:`, '')
+      : null;
+
+    const btnStyle = (label: string, active = false): React.CSSProperties => ({
+      background: isHvr(label) ? 'rgba(32, 227, 255, 0.15)' : 'transparent',
+      color: (isHvr(label) || active) ? 'var(--neon-cyan)' : 'var(--muted)',
+      cursor: 'pointer',
+      border: 'none',
+      transition: 'all 0.15s',
+    });
+
+    return (
+      <div className="absolute top-2 right-2 z-10 flex flex-col items-end gap-1">
+        <div className="flex items-center gap-0.5 rounded-lg px-1.5 py-1" style={{
+          background: 'rgba(11, 22, 40, 0.95)',
+          border: '1px solid rgba(32, 227, 255, 0.3)',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)'
+        }}>
+          <button className="w-7 h-7 rounded flex items-center justify-center"
+            style={btnStyle('댓글')}
+            onMouseEnter={() => setHoveredBtn(bk('댓글'))}
+            onMouseLeave={() => setHoveredBtn(null)}
+            onClick={(e) => { e.stopPropagation(); onOpenThread?.(thread); }}
+          ><MessageSquare size={14} /></button>
+
+          <button className="w-7 h-7 rounded flex items-center justify-center"
+            style={btnStyle('이모지', emojiPickerMsgId === thread.id)}
+            onMouseEnter={() => setHoveredBtn(bk('이모지'))}
+            onMouseLeave={() => setHoveredBtn(null)}
+            onClick={(e) => { e.stopPropagation(); setEmojiPickerMsgId(prev => prev === thread.id ? null : thread.id); }}
+          ><Smile size={14} /></button>
+
+          <button className="w-7 h-7 rounded flex items-center justify-center"
+            style={btnStyle('북마크', isBookmarked)}
+            onMouseEnter={() => setHoveredBtn(bk('북마크'))}
+            onMouseLeave={() => setHoveredBtn(null)}
+            onClick={(e) => { e.stopPropagation(); handleBookmarkToggle(thread.id); }}
+          ><Bookmark size={14} /></button>
+
+          <button className="w-7 h-7 rounded flex items-center justify-center"
+            style={btnStyle('답장')}
+            onMouseEnter={() => setHoveredBtn(bk('답장'))}
+            onMouseLeave={() => setHoveredBtn(null)}
+            onClick={(e) => { e.stopPropagation(); handleShareThread(thread); }}
+          ><Share2 size={14} /></button>
+
+          <button className="w-7 h-7 rounded flex items-center justify-center"
+            style={btnStyle('멘션')}
+            onMouseEnter={() => setHoveredBtn(bk('멘션'))}
+            onMouseLeave={() => setHoveredBtn(null)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setMessageText((prev) => `${prev}${prev && !prev.endsWith(" ") ? " " : ""}@${thread.user} `);
+            }}
+          ><AtSign size={14} /></button>
+        </div>
+
+        {currentLabel && (
+          <span className="rounded px-2 py-0.5 tracking-tight" style={{
+            background: 'rgba(11, 22, 40, 0.95)',
+            border: '1px solid rgba(32, 227, 255, 0.2)',
+            color: 'var(--neon-cyan)',
+            fontSize: '10px',
+            fontWeight: 900,
+          }}>{currentLabel}</span>
+        )}
+
+        {emojiPickerMsgId === thread.id && (
+          <div className="absolute right-0 top-10 z-30">
+            <EmojiPicker onSelect={(emoji) => {
+              handleReactionToggle(thread.id, emoji);
+              setEmojiPickerMsgId(null);
+            }} />
+          </div>
+        )}
+      </div>
+    );
   };
 
   const handleSendMessage = () => {
@@ -272,7 +359,8 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
       message: trimmedMessage || `${outgoingAttachments.length}개 항목을 공유합니다.`,
       time: '방금',
       replies: 0,
-      attachments: outgoingAttachments
+      attachments: outgoingAttachments,
+      replyTo: replyTo ? { user: replyTo.user, text: replyTo.message } : undefined
     };
 
     setThreads((prev) => [...prev, nextThread]);
@@ -281,6 +369,7 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
     setActivePanel(null);
     setLinkUrl("");
     setLinkTitle("");
+    setReplyTo(null);
     triggerResponderTyping();
   };
 
@@ -386,6 +475,22 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
                         {thread.time}
                       </span>
                     </div>
+                    {thread.replyTo && (
+                      <div className="mb-2 flex items-start gap-2 rounded-lg px-3 py-2" style={{
+                        background: 'rgba(32, 227, 255, 0.05)',
+                        border: '1px solid rgba(32, 227, 255, 0.14)',
+                        borderLeft: '3px solid var(--neon-cyan)',
+                      }}>
+                        <div className="min-w-0 flex-1">
+                          <span className="tracking-tight" style={{ color: 'var(--neon-cyan)', fontSize: '11px', fontWeight: 900 }}>
+                            @{thread.replyTo.user}
+                          </span>
+                          <p className="m-0 mt-0.5 truncate tracking-tight" style={{ color: 'var(--muted)', fontSize: '12px', fontWeight: 700 }}>
+                            {thread.replyTo.text}
+                          </p>
+                        </div>
+                      </div>
+                    )}
                     <p className="m-0 mb-3 tracking-tight" style={{
                       fontSize: '14px',
                       fontWeight: 700,
@@ -448,74 +553,7 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
                 </div>
               </div>
 
-              {hoveredMessageId === thread.id && (
-                <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-lg" style={{
-                  background: 'rgba(11, 22, 40, 0.95)',
-                  border: '1px solid rgba(32, 227, 255, 0.3)',
-                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)'
-                }}>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onOpenThread?.(thread);
-                    }}
-                    className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all hover:bg-[rgba(32,227,255,0.15)]"
-                    style={{ background: 'transparent', color: 'var(--muted)', cursor: 'pointer' }}
-                    title="답글"
-                  >
-                    <MessageSquare size={14} />
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleBookmarkToggle(thread.id);
-                    }}
-                    className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all hover:bg-[rgba(32,227,255,0.15)]" style={{
-                    background: 'transparent', color: bookmarkedThreadIds[thread.id] ? 'var(--neon-cyan)' : 'var(--muted)', cursor: 'pointer'
-                  }} title="북마크">
-                    <Bookmark size={14} />
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleShareThread(thread);
-                    }}
-                    className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all hover:bg-[rgba(32,227,255,0.15)]" style={{
-                    background: 'transparent', color: 'var(--muted)', cursor: 'pointer'
-                  }} title="공유">
-                    <Share2 size={14} />
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setOpenThreadMenuId((currentId) => currentId === thread.id ? null : thread.id);
-                    }}
-                    className="w-7 h-7 rounded border-0 flex items-center justify-center transition-all hover:bg-[rgba(32,227,255,0.15)]" style={{
-                    background: 'transparent', color: openThreadMenuId === thread.id ? 'var(--neon-cyan)' : 'var(--muted)', cursor: 'pointer'
-                  }} title="더보기">
-                    <MoreVertical size={14} />
-                  </button>
-                  {openThreadMenuId === thread.id && (
-                    <div className="absolute right-2 top-10 z-20 grid gap-1 rounded-lg p-2" style={{
-                      background: 'rgba(5, 11, 20, 0.96)',
-                      border: '1px solid rgba(32, 227, 255, 0.24)'
-                    }}>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setMessageText((prev) => `${prev}${prev && !prev.endsWith(" ") ? " " : ""}@${thread.user} `);
-                          setOpenThreadMenuId(null);
-                        }}
-                        className="rounded-md border-0 px-3 py-2 text-left tracking-tight"
-                        style={{ background: 'transparent', color: 'var(--white)', cursor: 'pointer', fontSize: '12px', fontWeight: 850 }}
-                      >
-                        Mention
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
+              {(hoveredMessageId === thread.id || emojiPickerMsgId === thread.id) && renderHoverMenu(thread)}
             </div>
           );
           })}
@@ -722,6 +760,32 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
         />
 
         <TypingIndicatorBar label={typingLabel} />
+
+        {replyTo && (
+          <div className="mb-2 flex items-start gap-2 rounded-xl px-3 py-2" style={{
+            background: 'rgba(32, 227, 255, 0.06)',
+            border: '1px solid rgba(32, 227, 255, 0.18)',
+            borderLeft: '3px solid var(--neon-cyan)',
+          }}>
+            <div className="min-w-0 flex-1">
+              <span className="tracking-tight" style={{ color: 'var(--neon-cyan)', fontSize: '11px', fontWeight: 900 }}>
+                @{replyTo.user}에게 답장
+              </span>
+              <p className="m-0 mt-0.5 truncate tracking-tight" style={{ color: 'var(--muted)', fontSize: '12px', fontWeight: 700 }}>
+                {replyTo.message}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setReplyTo(null)}
+              className="flex-shrink-0 rounded border-0 flex items-center justify-center"
+              style={{ background: 'transparent', color: 'var(--muted)', cursor: 'pointer', padding: '2px' }}
+              aria-label="답장 취소"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
 
         <div className="relative flex items-center gap-2 px-4 py-3 rounded-xl" style={{
           background: 'rgba(5, 11, 20, 0.6)',
