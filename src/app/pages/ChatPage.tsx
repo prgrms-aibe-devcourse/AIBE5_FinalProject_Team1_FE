@@ -785,6 +785,10 @@ export function ChatPage() {
   }, [threadReplyCounts]);
 
   useEffect(() => {
+    setSelectedThread(null);
+  }, [selectedChannel]);
+
+  useEffect(() => {
     saveJson(CHAT_REACTIONS_KEY, messageReactions);
   }, [messageReactions]);
 
