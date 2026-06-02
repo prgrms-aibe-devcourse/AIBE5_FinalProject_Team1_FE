@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect, useLayoutEffect } from "react
 import { useNavigate } from "react-router";
 import { AlertCircle, AlertTriangle, ArrowRight, Check, GitFork, Plus, Settings2, Users, X } from "lucide-react";
 import { WorkspaceSettingsModal } from "../components/WorkspaceSettingsModal";
+import { ensureSeeded } from "../components/TeamPanel";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "../components/ui/hover-card";
 import { DndProvider, useDrag, useDrop, useDragLayer } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
@@ -996,6 +997,7 @@ export function WorkspacePage() {
 
   // Sync memberCount from localStorage on mount so it reflects actual stored data
   useEffect(() => {
+    ensureSeeded(); // writes seed data if localStorage has never been initialised
     try {
       const stored = localStorage.getItem("codedock-workspace-teams-v1");
       if (!stored) return;

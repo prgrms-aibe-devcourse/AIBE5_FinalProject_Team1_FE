@@ -429,7 +429,7 @@ function GeneralTab({ org, isAdmin, onUpdate, onColorChange }: {
 
       <div style={{ borderTop: "1px solid rgba(32,227,255,0.08)", paddingTop: "24px" }}>
         <SectionHeader icon={Palette} label="워크스페이스 색상" note="내 기기에만 저장됩니다" />
-        <div style={{ marginTop: "12px", display: "flex", gap: "10px", flexWrap: "wrap" }}>
+        <div style={{ marginTop: "12px", display: "flex", gap: "14px", flexWrap: "wrap" }}>
           {COLOR_SWATCHES.map((color) => {
             const active = selectedColor === color;
             return (

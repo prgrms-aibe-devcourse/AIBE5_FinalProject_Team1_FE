@@ -196,7 +196,7 @@ function saveAllTeams(all: Record<string, TeamMember[]>) {
 }
 
 // Idempotent: seeds only when the key is completely absent (first-ever load)
-function ensureSeeded() {
+export function ensureSeeded() {
   if (localStorage.getItem(WORKSPACE_TEAMS_KEY) !== null) return;
   const [jaejun, jinpil, junwoo, jinhyun, hyun] = ALL_MEMBERS;
   saveAllTeams({
