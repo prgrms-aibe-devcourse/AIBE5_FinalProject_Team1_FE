@@ -383,11 +383,16 @@ function GeneralTab({ org, isAdmin, onUpdate, onColorChange }: {
     () => loadColors()[String(org.id)] ?? DEFAULT_ACCENT
   );
 
+  useEffect(() => {
+    if (!nameSaved) return;
+    const timerId = setTimeout(() => setNameSaved(false), 1800);
+    return () => clearTimeout(timerId);
+  }, [nameSaved]);
+
   const saveName = (value: string) => {
     if (!value.trim()) return;
     onUpdate({ id: org.id, name: value.trim() });
     setNameSaved(true);
-    setTimeout(() => setNameSaved(false), 1800);
   };
 
   const handleColorSelect = (color: string) => {
@@ -600,7 +605,7 @@ function MembersTab({ org, isAdmin, isOwner, onUpdate }: {
   const sortedMembers = useMemo(() => sortMembers(members), [members]);
 
   const handleKickConfirmed = (memberId: string) => {
-    persist(members.filter(m => m.id !== memberId));
+    persist(membersRef.current.filter(m => m.id !== memberId));
     setConfirmKickId(null);
   };
 
@@ -1180,7 +1185,9 @@ function DangerTab({ org, isOwner, onDelete, onLeave }: {
   const deleteInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (showDeleteConfirm) setTimeout(() => deleteInputRef.current?.focus(), 50);
+    if (!showDeleteConfirm) return;
+    const timerId = setTimeout(() => deleteInputRef.current?.focus(), 50);
+    return () => clearTimeout(timerId);
   }, [showDeleteConfirm]);
 
   return (
