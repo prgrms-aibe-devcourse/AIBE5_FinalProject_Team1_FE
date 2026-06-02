@@ -533,6 +533,7 @@ export function ChatPage() {
   const profileButtonRef = useRef<HTMLButtonElement>(null);
   const profilePopupRef = useRef<HTMLDivElement>(null);
   const sidebarRef = useRef<HTMLElement>(null);
+  const isCreatingChannelRef = useRef(false);
 
   useEffect(() => {
     if (!showRepoDropdown) return;
@@ -847,6 +848,7 @@ export function ChatPage() {
     if (selectedRepository === repositoryId) {
       const nextVisible = nextRepositories.filter(r => !r.workspaceId || r.workspaceId === selectedWorkspace);
       setSelectedRepository(nextVisible[0]?.id ?? nextRepositories[0]?.id ?? "");
+      setSelectedChannel('general');
     }
     if (nextRepositories.length === 0) {
       setRepositoriesImported(false);
@@ -870,17 +872,22 @@ export function ChatPage() {
   };
 
   const handleSubmitAddChannel = () => {
+    if (isCreatingChannelRef.current) return;
+    isCreatingChannelRef.current = true;
     const label = newChannelName.trim() || `새 채널 ${customChannels.length + 1}`;
     const id = `custom-${Date.now()}`;
     setCustomChannels(prev => [...prev, { id, label }]);
     setSelectedChannel(id);
     setAddChannelStep(null);
     setNewChannelName('');
+    setTimeout(() => { isCreatingChannelRef.current = false; }, 500);
   };
 
   const handleSubmitAddRepoChannel = () => {
+    if (isCreatingChannelRef.current) return;
     const repoName = parseRepoNameFromUrl(newRepoChannelUrl);
     if (!repoName) return;
+    isCreatingChannelRef.current = true;
     const nextRepository: RepositoryItem = {
       id: `repo-${Date.now()}`,
       name: repoName,
@@ -897,6 +904,7 @@ export function ChatPage() {
     setSelectedChannel(nextRepository.id);
     setAddChannelStep(null);
     setNewRepoChannelUrl('');
+    setTimeout(() => { isCreatingChannelRef.current = false; }, 500);
   };
 
   const handleCancelAddChannel = () => {
@@ -1651,7 +1659,6 @@ export function ChatPage() {
                       value={newChannelName}
                       onChange={e => setNewChannelName(e.target.value)}
                       onKeyDown={e => {
-                        if (e.key === 'Enter') { e.preventDefault(); handleSubmitAddChannel(); }
                         if (e.key === 'Escape') { e.preventDefault(); handleCancelAddChannel(); }
                       }}
                       autoFocus
@@ -1718,7 +1725,6 @@ export function ChatPage() {
                       value={newRepoChannelUrl}
                       onChange={e => setNewRepoChannelUrl(e.target.value)}
                       onKeyDown={e => {
-                        if (e.key === 'Enter') { e.preventDefault(); handleSubmitAddRepoChannel(); }
                         if (e.key === 'Escape') { e.preventDefault(); handleCancelAddChannel(); }
                       }}
                       autoFocus
