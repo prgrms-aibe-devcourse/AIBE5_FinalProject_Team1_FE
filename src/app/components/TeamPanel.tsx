@@ -31,7 +31,6 @@ interface TeamMember {
   role: string;
   email: string;
   github: string;
-  score: number;
   online: boolean;
   statusColor: string;
   commits: number;
@@ -124,7 +123,6 @@ const ALL_MEMBERS: TeamMember[] = [
     role: "Tech Lead",
     email: "jaejun@codedock.dev",
     github: "kimjaejun",
-    score: 95,
     online: true,
     statusColor: "#39FF88",
     commits: 247,
@@ -139,7 +137,6 @@ const ALL_MEMBERS: TeamMember[] = [
     role: "Backend Developer",
     email: "jinpil@codedock.dev",
     github: "kimjinpil",
-    score: 88,
     online: true,
     statusColor: "#39FF88",
     commits: 189,
@@ -153,7 +150,6 @@ const ALL_MEMBERS: TeamMember[] = [
     role: "Frontend Developer",
     email: "junwoo@codedock.dev",
     github: "kimjunwoo",
-    score: 82,
     online: true,
     statusColor: "#39FF88",
     commits: 156,
@@ -167,7 +163,6 @@ const ALL_MEMBERS: TeamMember[] = [
     role: "DevOps Engineer",
     email: "jinhyun@codedock.dev",
     github: "kimjinhyun",
-    score: 74,
     online: false,
     statusColor: "#8B94A7",
     commits: 98,
@@ -181,7 +176,6 @@ const ALL_MEMBERS: TeamMember[] = [
     role: "QA Engineer",
     email: "hyun@codedock.dev",
     github: "ahnhyun",
-    score: 79,
     online: false,
     statusColor: "#8B94A7",
     commits: 45,
@@ -372,15 +366,6 @@ export function TeamPanel({ workspaceId, currentUserId, currentUserOnline, onInv
               </div>
 
               <div className="flex flex-shrink-0 items-center gap-1.5">
-                <span className="rounded-lg px-2.5 py-1 tracking-tight" style={{
-                  background: "rgba(234, 247, 255, 0.08)",
-                  border: "1px solid rgba(234, 247, 255, 0.10)",
-                  color: "var(--soft-mint)",
-                  fontSize: 11,
-                  fontWeight: 950
-                }}>
-                  Score: {member.score}
-                </span>
                 <button
                   type="button"
                   onClick={() => handleDeleteClick(member)}
