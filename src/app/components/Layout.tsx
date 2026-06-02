@@ -16,14 +16,9 @@ import {
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import { useTheme } from "../contexts/ThemeContext";
+import { useProfile, STATUS_OPTIONS } from "../contexts/ProfileContext";
 import { clearAuthenticated } from "../auth";
 
-
-const currentUser = {
-  name: "김준우",
-  email: "junwoo@codedock.dev",
-  workspace: "DevFlow Team",
-};
 
 export function Layout() {
   const location = useLocation();
@@ -31,6 +26,7 @@ export function Layout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [remoteNav, setRemoteNav] = useState(false);
   const { colors } = useTheme();
+  const { profile } = useProfile();
 
   const isActive = (path: string) => location.pathname === path;
   const handleLogout = () => {
@@ -131,16 +127,16 @@ export function Layout() {
                 backdropFilter: "blur(16px) saturate(180%)",
               }}
               aria-label="계정 정보 보기"
-              title={`${currentUser.name} - ${currentUser.email}`}
+              title={`${profile.name} - ${profile.email}`}
             >
               <AccountAvatar />
               <span className="grid min-w-0 leading-none">
-                <span className="max-w-[112px] truncate text-sm font-black tracking-tight">{currentUser.name}</span>
+                <span className="max-w-[112px] truncate text-sm font-black tracking-tight">{profile.name}</span>
                 <span
                   className="mt-1 max-w-[112px] truncate text-[11px] font-bold tracking-tight"
                   style={{ color: "rgba(234, 247, 255, 0.62)" }}
                 >
-                  {currentUser.workspace}
+                  {profile.workspace}
                 </span>
               </span>
             </Link>
@@ -154,7 +150,7 @@ export function Layout() {
                 color: colors.primaryHex,
               }}
               aria-label="계정 정보 보기"
-              title={`${currentUser.name} - ${currentUser.email}`}
+              title={`${profile.name} - ${profile.email}`}
             >
               <UserRound size={19} strokeWidth={2.4} />
             </Link>
@@ -195,10 +191,10 @@ export function Layout() {
             }}
             aria-label="계정 정보 보기"
             tabIndex={remoteNav ? 0 : -1}
-            title={`${currentUser.name} - ${currentUser.email}`}
+            title={`${profile.name} - ${profile.email}`}
           >
             <AccountAvatar />
-            <span className="max-w-[92px] truncate text-sm font-black tracking-tight">{currentUser.name}</span>
+            <span className="max-w-[92px] truncate text-sm font-black tracking-tight">{profile.name}</span>
           </Link>
           <LanguageToggleButton />
         </div>
@@ -217,9 +213,9 @@ export function Layout() {
             >
               <AccountAvatar />
               <span className="grid min-w-0 leading-none">
-                <span className="truncate text-sm font-black tracking-tight">{currentUser.name}</span>
+                <span className="truncate text-sm font-black tracking-tight">{profile.name}</span>
                 <span className="mt-1 truncate text-xs font-bold tracking-tight" style={{ color: "var(--muted)" }}>
-                  {currentUser.email}
+                  {profile.email}
                 </span>
               </span>
             </Link>
@@ -229,7 +225,7 @@ export function Layout() {
               onClick={() => setMobileMenuOpen(false)}
             />
             <HeaderLink
-              item={{ path: "/profile", label: "GitHub 연동 관리" }}
+              item={{ path: "/profile?section=github", label: "GitHub 연동 관리" }}
               active={false}
               onClick={() => setMobileMenuOpen(false)}
             />
@@ -277,6 +273,7 @@ interface AccountMenuProps {
 
 function AccountMenu({ variant, onLogout, tabIndex }: AccountMenuProps) {
   const { colors } = useTheme();
+  const { profile } = useProfile();
   const isFull = variant === "full";
   const isCompact = variant === "compact";
 
@@ -320,7 +317,7 @@ function AccountMenu({ variant, onLogout, tabIndex }: AccountMenuProps) {
                   }
           }
           aria-label="계정 메뉴 열기"
-          title={`${currentUser.name} - ${currentUser.email}`}
+          title={`${profile.name} - ${profile.email}`}
           tabIndex={tabIndex}
         >
           {variant === "icon" ? (
@@ -336,14 +333,14 @@ function AccountMenu({ variant, onLogout, tabIndex }: AccountMenuProps) {
                       : "max-w-[112px] truncate text-sm font-black tracking-tight"
                   }
                 >
-                  {currentUser.name}
+                  {profile.name}
                 </span>
                 {isFull && (
                   <span
                     className="mt-1 max-w-[112px] truncate text-[11px] font-bold tracking-tight"
                     style={{ color: "rgba(234, 247, 255, 0.62)" }}
                   >
-                    {currentUser.workspace}
+                    {profile.workspace}
                   </span>
                 )}
               </span>
@@ -369,15 +366,15 @@ function AccountMenu({ variant, onLogout, tabIndex }: AccountMenuProps) {
         }}
       >
         <DropdownMenuLabel className="px-3 py-2">
-          <span className="block truncate text-sm font-black tracking-tight">{currentUser.name}</span>
+          <span className="block truncate text-sm font-black tracking-tight">{profile.name}</span>
           <span className="mt-1 block truncate text-xs font-bold tracking-tight" style={{ color: "var(--muted)" }}>
-            {currentUser.email}
+            {profile.email}
           </span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator style={{ background: `${colors.primary}, 0.14)` }} />
         <AccountMenuLink to="/profile" icon={UserRound} label="프로필 보기" />
         <AccountMenuLink to="/settings" icon={Settings} label="계정 설정" />
-        <AccountMenuLink to="/profile" icon={Github} label="GitHub 연동 관리" />
+        <AccountMenuLink to="/profile?section=github" icon={Github} label="GitHub 연동 관리" />
         <AccountMenuLink to="/chat" icon={UsersRound} label="워크스페이스 / 팀 관리" />
         <DropdownMenuSeparator style={{ background: `${colors.primary}, 0.14)` }} />
         <DropdownMenuItem
@@ -426,17 +423,27 @@ function AccountMenuLink({ to, icon: Icon, label }: AccountMenuLinkProps) {
 
 function AccountAvatar() {
   const { colors } = useTheme();
+  const { profile } = useProfile();
+  const initial = profile.name.trim().slice(0, 1) || "C";
+  const status = STATUS_OPTIONS.find((option) => option.id === profile.status) ?? STATUS_OPTIONS[0];
 
   return (
-    <span
-      className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full text-sm font-black tracking-tight"
-      style={{
-        background: `linear-gradient(135deg, ${colors.primaryHex}, ${colors.secondary})`,
-        color: "#021014",
-        boxShadow: `0 0 18px ${colors.primary}, 0.24)`,
-      }}
-    >
-      김
+    <span className="relative inline-flex h-9 w-9 flex-shrink-0">
+      <span
+        className="grid h-9 w-9 place-items-center overflow-hidden rounded-full text-sm font-black tracking-tight"
+        style={{
+          background: `linear-gradient(135deg, ${colors.primaryHex}, ${colors.secondary})`,
+          color: "#021014",
+          boxShadow: `0 0 18px ${colors.primary}, 0.24)`,
+        }}
+      >
+        {profile.avatarUrl ? <img src={profile.avatarUrl} alt="" className="h-full w-full object-cover" /> : initial}
+      </span>
+      <span
+        className="absolute bottom-0 right-0 h-3 w-3 rounded-full"
+        style={{ background: status.color, border: "2px solid rgba(5,11,20,0.96)", boxShadow: `0 0 6px ${status.color}` }}
+        title={status.label}
+      />
     </span>
   );
 }

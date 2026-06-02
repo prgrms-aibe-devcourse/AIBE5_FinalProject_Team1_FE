@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Routes, Route } from "react-router";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
+import { ProfileProvider } from "./contexts/ProfileContext";
 import { Layout } from "./components/Layout";
 import { AuthLayout } from "./components/AuthLayout";
 import { PublicLayout } from "./components/PublicLayout";
@@ -17,8 +18,10 @@ import { ERDPage } from "./pages/ERDPage";
 import { DocsPage } from "./pages/DocsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { SignupPage } from "./pages/SignupPage";
+import { AccountRecoveryPage } from "./pages/AccountRecoveryPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { LegalPage } from "./pages/LegalPage";
 import { isAuthenticated } from "./auth";
 
 function HomeRoute() {
@@ -29,15 +32,20 @@ export default function App() {
   return (
     <ThemeProvider>
       <LanguageProvider>
+        <ProfileProvider>
         <BrowserRouter>
           <LanguageDomSync />
           <Routes>
             <Route element={<PublicLayout />}>
               <Route path="/" element={<HomeRoute />} />
+              <Route path="/terms" element={<LegalPage kind="terms" />} />
+              <Route path="/privacy" element={<LegalPage kind="privacy" />} />
             </Route>
             <Route element={<AuthLayout />}>
               <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
+              <Route path="/account-recovery" element={<AccountRecoveryPage />} />
+              <Route path="/forgot-password" element={<AccountRecoveryPage />} />
             </Route>
             <Route element={<Layout />}>
               <Route path="/profile" element={<ProfilePage />} />
@@ -54,6 +62,7 @@ export default function App() {
             </Route>
           </Routes>
         </BrowserRouter>
+        </ProfileProvider>
       </LanguageProvider>
     </ThemeProvider>
   );

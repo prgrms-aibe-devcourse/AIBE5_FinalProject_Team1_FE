@@ -1,7 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
 import {
-  ArrowRight,
   Eye,
   EyeOff,
   FileText,
@@ -94,6 +93,7 @@ export function LoginPage() {
   const [rememberMe, setRememberMe] = useState(true);
   const [message, setMessage] = useState("");
   const [isLoginButtonHovering, setIsLoginButtonHovering] = useState(false);
+  const [isGithubLoginHovering, setIsGithubLoginHovering] = useState(false);
   const [activeDemoIndex, setActiveDemoIndex] = useState(0);
   const [welcomeMessageIndex] = useState(() => Math.floor(Math.random() * loginWelcomeMessagesKo.length));
   const trimmedEmail = email.trim();
@@ -265,23 +265,7 @@ export function LoginPage() {
                   exit={{ opacity: 0, y: -8, height: 0, filter: "blur(8px)" }}
                   transition={{ duration: 0.42, ease: "easeOut" }}
                 >
-                  <h2
-                    className="m-0 leading-tight tracking-tight"
-                    style={{
-                      color: "var(--white)",
-                      fontSize: "clamp(30px, 4.4vw, 54px)",
-                      fontWeight: 950,
-                      textShadow: `0 0 22px ${colors.primary}, 0.18)`,
-                    }}
-                  >
-                    {loginCopy.welcomeTitle}
-                  </h2>
-                  <p
-                    className="m-0 mt-4 max-w-[500px] whitespace-pre-line text-sm font-bold leading-6 tracking-tight"
-                    style={{ color: "rgba(234, 247, 255, 0.70)" }}
-                  >
-                    {loginCopy.welcomeBody}
-                  </p>
+                  <LoginWelcomeCopy title={loginCopy.welcomeTitle} body={loginCopy.welcomeBody} />
                 </motion.div>
               )}
             </AnimatePresence>
@@ -647,6 +631,21 @@ export function LoginPage() {
                   />
                 </span>
               </motion.label>
+
+              <motion.div
+                className="flex justify-end"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.32, delay: 0.72, ease: "easeOut" }}
+              >
+                <Link
+                  to="/forgot-password"
+                  className="text-sm font-black tracking-tight no-underline transition-opacity hover:opacity-80"
+                  style={{ color: colors.primaryHex }}
+                >
+                  {loginCopy.forgot}
+                </Link>
+              </motion.div>
             </div>
 
             <AnimatePresence initial={false}>
@@ -710,6 +709,7 @@ export function LoginPage() {
                       </button>
                     </span>
                   </motion.span>
+
                 </motion.div>
               )}
             </AnimatePresence>
@@ -737,13 +737,6 @@ export function LoginPage() {
                         {loginCopy.remember}
                       </span>
                     </label>
-                    <Link
-                      to="/forgot-password"
-                      className="text-sm font-black tracking-tight no-underline"
-                      style={{ color: colors.primaryHex }}
-                    >
-                      {loginCopy.forgot}
-                    </Link>
                   </div>
 
                   <button
@@ -762,7 +755,6 @@ export function LoginPage() {
                     }}
                   >
                     <LoginSubmitLabel isHovering={isLoginButtonHovering} defaultLabel={loginCopy.submit} />
-                    <ArrowRight size={19} strokeWidth={2.5} />
                   </button>
                 </motion.div>
               )}
@@ -785,16 +777,31 @@ export function LoginPage() {
             <button
               type="button"
               onClick={handleGithubLogin}
+              onMouseEnter={() => setIsGithubLoginHovering(true)}
+              onMouseLeave={() => setIsGithubLoginHovering(false)}
+              onFocus={() => setIsGithubLoginHovering(true)}
+              onBlur={() => setIsGithubLoginHovering(false)}
               className="flex h-14 w-full items-center justify-center gap-3 rounded-2xl px-6 tracking-tight transition hover:scale-[1.01]"
               style={{
-                background: "rgba(234, 247, 255, 0.055)",
-                border: `1px solid ${colors.primary}, 0.22)`,
+                background: isGithubLoginHovering ? "rgba(234, 247, 255, 0.085)" : "rgba(234, 247, 255, 0.055)",
+                border: `1px solid ${colors.primary}, ${isGithubLoginHovering ? "0.36" : "0.22"})`,
+                boxShadow: isGithubLoginHovering ? `0 0 24px ${colors.primary}, 0.16)` : "0 0 0 rgba(0, 0, 0, 0)",
                 color: "var(--white)",
                 fontSize: "15px",
                 fontWeight: 900,
               }}
             >
-              <Github size={20} strokeWidth={2.2} />
+              <motion.span
+                className="grid place-items-center"
+                animate={
+                  isGithubLoginHovering
+                    ? { rotate: [0, -8, 7, 0], y: [0, -2, 0], scale: [1, 1.08, 1] }
+                    : { rotate: 0, y: 0, scale: 1 }
+                }
+                transition={{ duration: 0.42, ease: "easeOut" }}
+              >
+                <Github size={20} strokeWidth={2.2} />
+              </motion.span>
               {loginCopy.github}
             </button>
 
@@ -830,7 +837,74 @@ interface LoginChatPromptProps {
   typingDelay?: number;
 }
 
+function LoginWelcomeCopy({ title, body }: { title: string; body: string }) {
+  const { colors } = useTheme();
+  const [visibleTitleCount, setVisibleTitleCount] = useState(0);
+  const titleCharacters = Array.from(title);
+  const visibleTitle = titleCharacters.slice(0, visibleTitleCount).join("");
+  const bodyLines = body.split("\n");
+
+  useEffect(() => {
+    setVisibleTitleCount(0);
+  }, [title]);
+
+  useEffect(() => {
+    if (visibleTitleCount >= titleCharacters.length) {
+      return;
+    }
+
+    const titleTimer = window.setTimeout(() => {
+      setVisibleTitleCount((count) => Math.min(titleCharacters.length, count + 1));
+    }, visibleTitleCount === 0 ? 130 : 34);
+
+    return () => window.clearTimeout(titleTimer);
+  }, [titleCharacters.length, visibleTitleCount]);
+
+  const isTitleComplete = visibleTitleCount >= titleCharacters.length;
+
+  return (
+    <>
+      <h2
+        className="m-0 inline-flex min-h-[1.08em] items-center leading-tight tracking-tight"
+        style={{
+          color: "var(--white)",
+          fontSize: "clamp(30px, 4.4vw, 54px)",
+          fontWeight: 950,
+          textShadow: `0 0 22px ${colors.primary}, 0.18)`,
+        }}
+      >
+        <span>{visibleTitle}</span>
+        <motion.span
+          className="ml-2 inline-block h-[0.86em] w-[0.08em] rounded-full"
+          style={{ background: colors.primaryHex, boxShadow: `0 0 14px ${colors.primary}, 0.46)` }}
+          animate={{ opacity: [0.24, 1, 0.24] }}
+          transition={{ duration: 0.68, repeat: Infinity, ease: "easeInOut" }}
+        />
+      </h2>
+
+      <div className="mt-4 grid max-w-[500px] gap-1.5">
+        <AnimatePresence>
+          {isTitleComplete &&
+            bodyLines.map((line, index) => (
+              <motion.p
+                key={`${line}-${index}`}
+                className="m-0 text-sm font-bold leading-6 tracking-tight"
+                initial={{ opacity: 0, y: 8, filter: "blur(4px)" }}
+                animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                transition={{ duration: 0.34, delay: index * 0.11, ease: "easeOut" }}
+                style={{ color: "rgba(234, 247, 255, 0.70)" }}
+              >
+                {line}
+              </motion.p>
+            ))}
+        </AnimatePresence>
+      </div>
+    </>
+  );
+}
+
 function LoginSubmitLabel({ isHovering, defaultLabel }: { isHovering: boolean; defaultLabel: string }) {
+  // Do not localize: brand/developer easter-egg hover microcopy must stay in English.
   const targetText = "Hello CodeDock!";
   const [visibleCount, setVisibleCount] = useState(0);
   const visibleText = targetText.slice(0, visibleCount);

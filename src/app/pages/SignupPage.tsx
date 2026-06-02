@@ -53,6 +53,7 @@ export function SignupPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [isSignupButtonHovering, setIsSignupButtonHovering] = useState(false);
+  const [isGithubSignupHovering, setIsGithubSignupHovering] = useState(false);
   const [isNameComposing, setIsNameComposing] = useState(false);
   const [signupStep, setSignupStep] = useState<SignupStep>("account");
   const [signupFinalStage, setSignupFinalStage] = useState(0);
@@ -756,6 +757,8 @@ export function SignupPage() {
                         <input
                           type="checkbox"
                           checked={agreeTerms}
+                          required
+                          aria-label="서비스 이용약관과 개인정보 처리방침 필수 동의"
                           onChange={(event) => {
                             setMessage("");
                             setAgreeTerms(event.target.checked);
@@ -764,6 +767,7 @@ export function SignupPage() {
                           style={{ accentColor: colors.primaryHex }}
                         />
                         <span className="text-sm font-bold leading-6 tracking-tight" style={{ color: "var(--muted)" }}>
+                          <span className="mr-1 font-black" style={{ color: colors.primaryHex }}>[필수]</span>
                           <Link to="/terms" className="font-black no-underline" style={{ color: colors.primaryHex }}>
                             서비스 이용약관
                           </Link>
@@ -817,6 +821,10 @@ export function SignupPage() {
                           <button
                             type="button"
                             onClick={handleGithubSignup}
+                            onMouseEnter={() => setIsGithubSignupHovering(true)}
+                            onMouseLeave={() => setIsGithubSignupHovering(false)}
+                            onFocus={() => setIsGithubSignupHovering(true)}
+                            onBlur={() => setIsGithubSignupHovering(false)}
                             disabled={isGithubConnecting || isGithubConnected}
                             className="flex h-11 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-2xl border-0 px-3 text-[13px] font-black tracking-tight transition sm:px-4 sm:text-sm enabled:hover:scale-[1.02] disabled:cursor-default"
                             style={{
@@ -825,9 +833,26 @@ export function SignupPage() {
                                 : isGithubConnecting
                                   ? "rgba(234, 247, 255, 0.08)"
                                   : `linear-gradient(135deg, ${colors.primaryHex}, ${colors.secondary})`,
+                              boxShadow:
+                                isGithubSignupHovering && !isGithubConnecting && !isGithubConnected
+                                  ? `0 0 24px ${colors.primary}, 0.22)`
+                                  : isGithubConnected
+                                    ? "0 0 18px rgba(57,255,136,0.10)"
+                                    : "none",
                               color: isGithubConnected ? "#B7FFE3" : isGithubConnecting ? "rgba(234,247,255,0.62)" : "#021014",
                             }}
                           >
+                            <motion.span
+                              className="grid place-items-center"
+                              animate={
+                                isGithubSignupHovering && !isGithubConnecting && !isGithubConnected
+                                  ? { rotate: [0, -8, 7, 0], y: [0, -2, 0], scale: [1, 1.08, 1] }
+                                  : { rotate: 0, y: 0, scale: 1 }
+                              }
+                              transition={{ duration: 0.42, ease: "easeOut" }}
+                            >
+                              {isGithubConnected ? <Check size={15} strokeWidth={3} /> : <Github size={15} strokeWidth={2.3} />}
+                            </motion.span>
                             {isGithubConnected ? "연동 완료" : isGithubConnecting ? "연동 중..." : "GitHub 연동하기"}
                           </button>
                         </div>
@@ -910,6 +935,7 @@ export function SignupPage() {
                         }}
                       >
                         <AnimatePresence mode="wait" initial={false}>
+                          {/* Do not localize: brand/developer easter-egg hover microcopy must stay in English. */}
                           <motion.span
                             key={isSignupButtonHovering ? "signup-happy" : "signup-default"}
                             className="inline-block min-w-[120px] text-center"
