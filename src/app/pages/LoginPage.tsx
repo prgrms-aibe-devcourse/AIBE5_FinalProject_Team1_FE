@@ -202,9 +202,9 @@ export function LoginPage() {
   };
 
   return (
-    <section className="w-[min(1180px,calc(100vw-32px))] mx-auto py-10 md:py-14 pb-20">
+    <section className="w-[min(1360px,calc(100vw-32px))] mx-auto py-10 md:py-14 pb-20">
       <div
-        className="relative grid gap-8 lg:grid-cols-[0.95fr_1.05fr] items-stretch overflow-hidden rounded-[34px] p-4 md:p-6"
+        className="relative grid gap-8 lg:grid-cols-2 items-stretch overflow-hidden rounded-[34px] p-4 md:p-6"
         style={{
           background: "rgba(11, 22, 40, 0.78)",
           border: `1px solid ${colors.primary}, 0.22)`,
@@ -225,7 +225,7 @@ export function LoginPage() {
 
         <motion.div
           initial={{ opacity: 0, x: -18 }}
-          animate={{ opacity: 1, x: 0, minHeight: shouldShowWelcome ? 440 : 360 }}
+          animate={{ opacity: 1, x: 0, minHeight: shouldShowWelcome ? 480 : 420 }}
           transition={{ duration: 0.55, ease: "easeOut" }}
           className="relative flex self-start flex-col justify-between overflow-hidden rounded-[28px] p-6 md:p-8"
           style={{
@@ -293,7 +293,7 @@ export function LoginPage() {
                     <span className="h-2.5 w-2.5 rounded-full bg-[var(--matrix-green)]" />
                   </div>
                   <div
-                    className="rounded-full px-3 py-1.5 text-xs font-black tracking-tight"
+                    className="rounded-full px-3 py-1.5 text-sm font-black tracking-tight"
                     style={{
                       background: "rgba(var(--codedock-secondary-rgb),0.10)",
                       border: "1px solid rgba(var(--codedock-secondary-rgb),0.22)",
@@ -305,7 +305,7 @@ export function LoginPage() {
                 </div>
 
                 <div
-                  className="mt-4 overflow-hidden rounded-[22px] p-3"
+                  className="mt-4 overflow-hidden rounded-[22px] p-4"
                   data-mini-workspace-preview
                   style={{
                     background: "rgba(3, 8, 16, 0.72)",
@@ -314,26 +314,33 @@ export function LoginPage() {
                   }}
                 >
                   <div
-                    className="mb-3 flex min-h-[50px] items-center justify-between gap-3 rounded-2xl px-3 py-2.5"
+                    className="mb-3 flex min-h-[58px] items-center justify-between gap-3 rounded-2xl px-3 py-3"
                     style={{
                       background: "rgba(234, 247, 255, 0.045)",
                       border: `1px solid ${colors.primary}, 0.10)`,
                     }}
                   >
-                    <div className="flex min-w-max items-center gap-2">
+                    <div className="flex flex-shrink-0 items-center gap-1.5">
                       <CoffeeLogo
                         className="h-7 w-7 flex-shrink-0"
                         style={{ filter: `drop-shadow(0 0 8px ${colors.primary}, 0.22))` }}
                       />
-                      <CodeDockWordmark accentColor={colors.primaryHex} className="text-xs" />
+                      <CodeDockWordmark accentColor={colors.primaryHex} className="text-sm" />
                     </div>
-                    <div className="hidden min-w-max flex-nowrap items-center justify-end gap-1.5 sm:flex">
+                    <div className="hidden min-w-0 flex-1 flex-nowrap items-center justify-end gap-0.5 sm:flex">
                       {loginTabDemos.map((demo, index) => (
                         <span
                           key={demo.name}
-                          className="inline-flex min-h-7 items-center whitespace-nowrap rounded-full px-2 py-1 text-xs font-black leading-[1.5] tracking-tight"
+                          className="inline-flex min-h-8 flex-shrink-0 items-center whitespace-nowrap rounded-full px-2 py-1 text-sm font-black leading-[1.5] tracking-tight transition-all duration-300"
                           style={{
-                            background: activeDemoIndex === index ? toneAlpha(demo.tone, 12) : "transparent",
+                            background: activeDemoIndex === index
+                              ? `linear-gradient(135deg, ${toneAlpha(demo.tone, 18)}, rgba(234,247,255,0.06)), rgba(5, 11, 20, 0.42)`
+                              : "transparent",
+                            border: activeDemoIndex === index ? `1px solid ${toneAlpha(demo.tone, 34)}` : "1px solid transparent",
+                            boxShadow: activeDemoIndex === index
+                              ? `0 0 18px ${toneAlpha(demo.tone, 13)}, inset 0 1px 0 rgba(255,255,255,0.16)`
+                              : "none",
+                            backdropFilter: activeDemoIndex === index ? "blur(14px) saturate(180%)" : "none",
                             color: activeDemoIndex === index ? demo.tone : "rgba(234,247,255,0.42)",
                           }}
                         >
@@ -343,7 +350,7 @@ export function LoginPage() {
                     </div>
                   </div>
 
-                  <div className="grid min-h-[285px] grid-cols-[54px_minmax(0,1fr)] gap-3">
+                  <div className="grid min-h-[330px] grid-cols-[58px_minmax(0,1fr)] gap-3">
                     <aside
                       className="grid content-start gap-2 rounded-2xl p-2"
                       style={{
@@ -357,7 +364,7 @@ export function LoginPage() {
                           type="button"
                           aria-label={`${demo.name} 데모 보기`}
                           onClick={() => setActiveDemoIndex(index)}
-                          className="grid h-10 w-10 place-items-center rounded-xl border-0 transition hover:scale-105"
+                          className="grid h-11 w-11 place-items-center rounded-xl border-0 transition hover:scale-105"
                           style={{
                             background: activeDemoIndex === index ? toneAlpha(demo.tone, 14) : "rgba(5, 11, 20, 0.35)",
                             color: activeDemoIndex === index ? demo.tone : "rgba(234,247,255,0.48)",
@@ -384,7 +391,7 @@ export function LoginPage() {
                       >
                         <div className="mb-4 flex items-start justify-between gap-3">
                           <div>
-                            <p className="m-0 text-xs font-black leading-[1.5] tracking-tight" style={{ color: activeDemo.tone }}>
+                            <p className="m-0 text-sm font-black leading-[1.5] tracking-tight" style={{ color: activeDemo.tone }}>
                               {activeDemo.name}
                             </p>
                             <h3 className="m-0 mt-1 text-base font-black leading-[1.45] tracking-tight" style={{ color: "var(--white)" }}>
@@ -408,7 +415,7 @@ export function LoginPage() {
                               {activeDemo.metrics.map((metric) => (
                                 <div
                                   key={metric}
-                                  className="rounded-xl px-2 py-3 text-center text-xs font-black tracking-tight"
+                                  className="rounded-xl px-2 py-3 text-center text-sm font-black tracking-tight"
                                   style={{
                                     background: "rgba(5, 11, 20, 0.44)",
                                     border: `1px solid ${toneAlpha(activeDemo.tone, 18)}`,
@@ -426,7 +433,7 @@ export function LoginPage() {
                               ).map((item, index) => (
                                 <div
                                   key={item}
-                                  className="flex items-center justify-between rounded-xl px-3 py-2 text-xs font-black tracking-tight"
+                                  className="flex items-center justify-between rounded-xl px-3 py-2.5 text-sm font-black tracking-tight"
                                   style={{
                                     background: "rgba(234, 247, 255, 0.055)",
                                     border: `1px solid ${colors.primary}, 0.10)`,
@@ -454,7 +461,7 @@ export function LoginPage() {
                                   border: `1px solid ${index === 0 ? "#FF8FA355" : toneAlpha(activeDemo.tone, 18)}`,
                                 }}
                               >
-                                <div className="flex items-center justify-between gap-2 text-xs font-black tracking-tight">
+                                <div className="flex items-center justify-between gap-2 text-sm font-black tracking-tight">
                                   <span style={{ color: "#DFFAFF" }}>{file}</span>
                                   <span style={{ color: index === 0 ? "#FF8FA3" : activeDemo.tone }}>
                                     {index === 0 ? (isEnglish ? "review" : "검토") : (isEnglish ? "ok" : "정상")}
@@ -480,10 +487,10 @@ export function LoginPage() {
                                   border: `1px solid ${toneAlpha(activeDemo.tone, 20)}`,
                                 }}
                               >
-                                <p className="m-0 text-xs font-black tracking-tight" style={{ color: activeDemo.tone }}>
+                                <p className="m-0 text-sm font-black tracking-tight" style={{ color: activeDemo.tone }}>
                                   {endpoint}
                                 </p>
-                                <p className="m-0 mt-1 text-xs font-bold tracking-tight" style={{ color: "rgba(234,247,255,0.62)" }}>
+                                <p className="m-0 mt-1 text-sm font-bold tracking-tight" style={{ color: "rgba(234,247,255,0.62)" }}>
                                   {isEnglish ? "response" : "응답"} {index === 1 ? "200 / 401" : "200 / 404"}
                                 </p>
                               </div>
@@ -509,7 +516,7 @@ export function LoginPage() {
                             ].map((node) => (
                               <div
                                 key={node.label}
-                                className="absolute rounded-2xl px-4 py-3 text-xs font-black tracking-tight"
+                                className="absolute rounded-2xl px-4 py-3 text-sm font-black tracking-tight"
                                 style={{
                                   left: node.left,
                                   top: node.top,
@@ -539,14 +546,14 @@ export function LoginPage() {
                             ].map((item, index) => (
                               <div
                                 key={item.text}
-                                className={`rounded-2xl px-3.5 py-2.5 text-xs font-bold leading-[1.6] tracking-tight ${index === 1 ? "ml-8" : "mr-5"}`}
+                                className={`rounded-2xl px-4 py-3 text-sm font-bold leading-[1.6] tracking-tight ${index === 1 ? "ml-8" : "mr-5"}`}
                                 style={{
                                   background: index === 1 ? "rgba(234, 247, 255, 0.06)" : toneAlpha(item.tone, 9),
                                   border: `1px solid ${toneAlpha(item.tone, 20)}`,
                                   color: "#DFFAFF",
                                 }}
                               >
-                                <span className="mb-0.5 block text-xs font-black leading-[1.5]" style={{ color: item.tone }}>
+                                <span className="mb-0.5 block text-sm font-black leading-[1.5]" style={{ color: item.tone }}>
                                   {item.speaker}
                                 </span>
                                 <span className="block whitespace-normal break-keep leading-[1.6]">{item.text}</span>
