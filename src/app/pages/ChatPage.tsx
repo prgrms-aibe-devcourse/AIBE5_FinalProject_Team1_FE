@@ -533,7 +533,6 @@ export function ChatPage() {
   const profileButtonRef = useRef<HTMLButtonElement>(null);
   const profilePopupRef = useRef<HTMLDivElement>(null);
   const sidebarRef = useRef<HTMLElement>(null);
-  const [profileMenuPos] = useState<{ bottom: number; left: number; width: number; maxHeight: number } | null>(null);
 
   useEffect(() => {
     if (!showRepoDropdown) return;
@@ -2347,126 +2346,6 @@ export function ChatPage() {
                   </div>
                 );
               })}
-            </motion.div>
-          )}
-        </AnimatePresence>,
-        document.body
-      )}
-
-      {/* Profile status drop-up — rendered in a portal to escape overflow-hidden ancestors */}
-      {createPortal(
-        <AnimatePresence initial={false}>
-          {profileMenuOpen && profileMenuPos && (
-            <motion.div
-              ref={profilePopupRef}
-              className="codedock-scrollbar-hidden"
-              style={{
-                position: 'fixed',
-                bottom: profileMenuPos.bottom,
-                left: profileMenuPos.left,
-                width: profileMenuPos.width,
-                maxHeight: profileMenuPos.maxHeight,
-                overflowY: 'auto',
-                overscrollBehavior: 'contain',
-                background: 'rgba(5, 11, 20, 0.98)',
-                border: '1px solid rgba(32, 227, 255, 0.22)',
-                boxShadow: '0 20px 56px rgba(0, 0, 0, 0.48), 0 0 30px rgba(32, 227, 255, 0.12)',
-                backdropFilter: 'blur(18px) saturate(180%)',
-                borderRadius: '16px',
-                padding: '12px',
-                zIndex: 9999,
-              }}
-              initial={{ opacity: 0, y: 10, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 10, scale: 0.98 }}
-              transition={{ type: 'spring', stiffness: 420, damping: 34 }}
-            >
-              <div className="mb-3 px-1">
-                <p className="m-0 tracking-tight" style={{ color: 'var(--white)', fontSize: '13px', fontWeight: 950 }}>내 상태</p>
-                <p className="m-0 mt-1 tracking-tight" style={{ color: 'var(--muted)', fontSize: '11px', fontWeight: 800 }}>팀원에게 표시되는 상태를 바꿉니다</p>
-              </div>
-
-              <div className="grid gap-1.5">
-                {presenceOptions.map((option) => {
-                  const selected = option.id === userPresence;
-                  return (
-                    <button
-                      key={option.id}
-                      type="button"
-                      onClick={() => setUserPresence(option.id)}
-                      className="flex w-full items-center gap-3 rounded-xl border-0 px-3 py-2.5 text-left tracking-tight"
-                      style={{
-                        background: selected ? 'rgba(32, 227, 255, 0.12)' : 'transparent',
-                        border: selected ? '1px solid rgba(32, 227, 255, 0.20)' : '1px solid transparent',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <span className="h-2.5 w-2.5 flex-shrink-0 rounded-full" style={{ background: option.color }} />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate" style={{ color: 'var(--white)', fontSize: '12px', fontWeight: 950 }}>{option.label}</span>
-                        <span className="block truncate" style={{ color: 'var(--muted)', fontSize: '10px', fontWeight: 800 }}>{option.description}</span>
-                      </span>
-                      {selected && <Check size={14} style={{ color: 'var(--neon-cyan)', flexShrink: 0 }} />}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="my-3" style={{ borderTop: '1px solid rgba(32, 227, 255, 0.14)' }} />
-
-              <div className="mb-2 px-1">
-                <p className="m-0 tracking-tight" style={{ color: 'var(--white)', fontSize: '13px', fontWeight: 950 }}>알림 설정</p>
-              </div>
-
-              <div className="grid gap-1.5">
-                {notificationOptions.map((option) => {
-                  const selected = option.id === notificationMode;
-                  const Icon = option.icon;
-                  return (
-                    <button
-                      key={option.id}
-                      type="button"
-                      onClick={() => setNotificationMode(option.id)}
-                      className="flex w-full items-center gap-3 rounded-xl border-0 px-3 py-2.5 text-left tracking-tight"
-                      style={{
-                        background: selected ? 'rgba(57, 255, 136, 0.10)' : 'transparent',
-                        border: selected ? '1px solid rgba(57, 255, 136, 0.18)' : '1px solid transparent',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <Icon size={15} style={{ color: selected ? 'var(--matrix-green)' : 'var(--muted)', flexShrink: 0 }} />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate" style={{ color: 'var(--white)', fontSize: '12px', fontWeight: 950 }}>{option.label}</span>
-                        <span className="block truncate" style={{ color: 'var(--muted)', fontSize: '10px', fontWeight: 800 }}>{option.description}</span>
-                      </span>
-                      {selected && <Check size={14} style={{ color: 'var(--matrix-green)', flexShrink: 0 }} />}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="my-3" style={{ borderTop: '1px solid rgba(32, 227, 255, 0.14)' }} />
-
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => { setProfileMenuOpen(false); navigate('/profile'); }}
-                  className="flex items-center justify-center gap-2 rounded-xl border-0 px-3 py-2.5 tracking-tight"
-                  style={{ background: 'rgba(234, 247, 255, 0.07)', border: '1px solid rgba(32, 227, 255, 0.14)', color: 'var(--white)', cursor: 'pointer', fontSize: '12px', fontWeight: 900 }}
-                >
-                  <UserRound size={14} />
-                  프로필
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setProfileMenuOpen(false); navigate('/settings'); }}
-                  className="flex items-center justify-center gap-2 rounded-xl border-0 px-3 py-2.5 tracking-tight"
-                  style={{ background: 'rgba(234, 247, 255, 0.07)', border: '1px solid rgba(32, 227, 255, 0.14)', color: 'var(--white)', cursor: 'pointer', fontSize: '12px', fontWeight: 900 }}
-                >
-                  <Settings size={14} />
-                  설정
-                </button>
-              </div>
             </motion.div>
           )}
         </AnimatePresence>,
