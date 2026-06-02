@@ -46,8 +46,20 @@ function loadReposForWorkspace(workspaceId: string): WorkspaceRepo[] {
 }
 
 function loadRepoUrls(): Record<string, string> {
-  try { return JSON.parse(localStorage.getItem(REPO_URLS_KEY) ?? "{}"); }
-  catch { return {}; }
+  try {
+    const stored: Record<string, string> = JSON.parse(localStorage.getItem(REPO_URLS_KEY) ?? "{}");
+    // Pre-populate URLs for fallback repos that were never explicitly saved
+    const seeded = { ...stored };
+    let changed = false;
+    for (const repo of FALLBACK_REPOS) {
+      if (!seeded[repo.id]) {
+        seeded[repo.id] = `https://github.com/codedock-team/${repo.id}`;
+        changed = true;
+      }
+    }
+    if (changed) localStorage.setItem(REPO_URLS_KEY, JSON.stringify(seeded));
+    return seeded;
+  } catch { return {}; }
 }
 
 function saveRepoUrl(repoId: string, url: string) {
@@ -113,6 +125,10 @@ type StoredMember = {
   online: boolean;
   statusColor: string;
   protected?: boolean;    // true = 소유자 (immutable)
+  github?: string;
+  commits?: number;
+  prs?: number;
+  reviews?: number;
 };
 
 function loadAllTeams(): Record<string, StoredMember[]> {
@@ -358,7 +374,7 @@ export function WorkspaceSettingsModal({
                 <MembersTab org={org} isAdmin={isAdmin} isOwner={isOwner} onUpdate={onUpdate} />
               )}
               {activeTab === "리포지토리 관리" && (
-                <ReposTab org={org} isAdmin={isAdmin} />
+                <ReposTab org={org} isAdmin={isAdmin} onUpdate={onUpdate} />
               )}
               {activeTab === "위험" && (
                 <DangerTab org={org} isOwner={isOwner} onDelete={onDelete} onLeave={onLeave} />
@@ -468,12 +484,12 @@ function GeneralTab({ org, isAdmin, onUpdate, onColorChange }: {
 
 // ─── Invite draft → StoredMember conversion ──────────────────────────────────
 const MEMBER_POOL: Record<string, StoredMember> = {
-  "jaejun@codedock.dev":  { id: "jaejun",  initials: "JJ", name: "김재준", role: "Tech Lead",          permissionRole: "편집 가능", email: "jaejun@codedock.dev",  online: true,  statusColor: "#39FF88" },
-  "jinah@codedock.dev":   { id: "jinah",   initials: "JA", name: "김진아", role: "Backend Developer",  permissionRole: "편집 가능", email: "jinah@codedock.dev",   online: true,  statusColor: "#39FF88" },
-  "jinpil@codedock.dev":  { id: "jinpil",  initials: "JP", name: "김진필", role: "Backend Developer",  permissionRole: "편집 가능", email: "jinpil@codedock.dev",  online: true,  statusColor: "#39FF88" },
-  "junwoo@codedock.dev":  { id: "junwoo",  initials: "JW", name: "김준우", role: "Frontend Developer", permissionRole: "편집 가능", email: "junwoo@codedock.dev",  online: true,  statusColor: "#39FF88" },
-  "jinhyun@codedock.dev": { id: "jinhyun", initials: "JH", name: "김진현", role: "DevOps Engineer",    permissionRole: "편집 가능", email: "jinhyun@codedock.dev", online: false, statusColor: "#8B94A7" },
-  "hyun@codedock.dev":    { id: "hyun",    initials: "AH", name: "안현",   role: "QA Engineer",        permissionRole: "편집 가능", email: "hyun@codedock.dev",    online: false, statusColor: "#8B94A7" },
+  "jaejun@codedock.dev":  { id: "jaejun",  initials: "JJ", name: "김재준", role: "Tech Lead",          permissionRole: "편집 가능", email: "jaejun@codedock.dev",  online: true,  statusColor: "#39FF88", github: "kimjaejun",  commits: 247, prs: 42, reviews: 68 },
+  "jinah@codedock.dev":   { id: "jinah",   initials: "JA", name: "김진아", role: "Backend Developer",  permissionRole: "편집 가능", email: "jinah@codedock.dev",   online: true,  statusColor: "#39FF88", github: "kimjinah",   commits: 0,   prs: 0,  reviews: 0  },
+  "jinpil@codedock.dev":  { id: "jinpil",  initials: "JP", name: "김진필", role: "Backend Developer",  permissionRole: "편집 가능", email: "jinpil@codedock.dev",  online: true,  statusColor: "#39FF88", github: "kimjinpil",  commits: 189, prs: 35, reviews: 52 },
+  "junwoo@codedock.dev":  { id: "junwoo",  initials: "JW", name: "김준우", role: "Frontend Developer", permissionRole: "편집 가능", email: "junwoo@codedock.dev",  online: true,  statusColor: "#39FF88", github: "kimjunwoo",  commits: 156, prs: 28, reviews: 45 },
+  "jinhyun@codedock.dev": { id: "jinhyun", initials: "JH", name: "김진현", role: "DevOps Engineer",    permissionRole: "편집 가능", email: "jinhyun@codedock.dev", online: false, statusColor: "#8B94A7", github: "kimjinhyun", commits: 98,  prs: 18, reviews: 31 },
+  "hyun@codedock.dev":    { id: "hyun",    initials: "AH", name: "안현",   role: "QA Engineer",        permissionRole: "편집 가능", email: "hyun@codedock.dev",    online: false, statusColor: "#8B94A7", github: "ahnhyun",    commits: 45,  prs: 12, reviews: 87 },
 };
 
 function draftToStored(draft: InviteDraft): StoredMember {
@@ -486,6 +502,10 @@ function draftToStored(draft: InviteDraft): StoredMember {
     email: draft.email,
     online: false,
     statusColor: "#8B94A7",
+    github: draft.email.split("@")[0],
+    commits: 0,
+    prs: 0,
+    reviews: 0,
   };
 }
 
@@ -913,7 +933,7 @@ function MembersTab({ org, isAdmin, isOwner, onUpdate }: {
 }
 
 // ─── Tab: 리포지토리 관리 ─────────────────────────────────────────────────────
-function ReposTab({ org, isAdmin }: { org: Org; isAdmin: boolean }) {
+function ReposTab({ org, isAdmin, onUpdate }: { org: Org; isAdmin: boolean; onUpdate: (u: Partial<Org> & { id: number }) => void }) {
   const wsKey = org.workspaceId ?? String(org.id);
 
   const [repos, setRepos] = useState<WorkspaceRepo[]>(() => loadReposForWorkspace(wsKey));
@@ -972,11 +992,18 @@ function ReposTab({ org, isAdmin }: { org: Org; isAdmin: boolean }) {
     const cleanUrl = `https://github.com/${owner}/${repoName}`;
     const repoId = `${owner}-${repoName}-${wsKey}`;
 
+    if (Object.values(repoUrls).includes(cleanUrl)) {
+      setUrlError("이미 추가된 리포지토리입니다");
+      return;
+    }
+
     const newRepo: WorkspaceRepo = { id: repoId, name: repoName, workspaceId: wsKey };
     addRepoToStorage(newRepo);
     saveRepoUrl(repoId, cleanUrl);
 
-    setRepos(prev => [...prev, newRepo]);
+    const nextRepos = [...repos, newRepo];
+    setRepos(nextRepos);
+    onUpdate({ id: org.id, repoCount: nextRepos.length });
     setRepoUrls(prev => ({ ...prev, [repoId]: cleanUrl }));
     setRepoUrl("");
     setUrlError("");
