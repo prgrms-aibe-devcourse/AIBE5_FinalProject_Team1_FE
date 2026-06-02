@@ -117,11 +117,11 @@ const ALL_SIDEBAR_CHANNELS = [
 ];
 
 const myProfile = {
-  id: "junwoo",
-  name: "김준우",
-  role: "Frontend Developer",
-  email: "junwoo@codedock.dev",
-  initials: "JW"
+  id: "jaejun",
+  name: "김재준",
+  role: "Tech Lead",
+  email: "jaejun@codedock.dev",
+  initials: "JJ"
 };
 
 const presenceOptions: Array<{ id: UserPresence; label: string; description: string; color: string }> = [
@@ -722,7 +722,7 @@ export function ChatPage() {
   }, [selectedWorkspace, memberListOpen, userPresence]);
 
   // Dynamically compute online count per workspace from localStorage team data.
-  // Current user (김준우, id "junwoo") counts as online when presence is not "offline".
+  // Current user (김재준, id "jaejun") counts as online when presence is not "offline".
   const workspaceOnlineCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     try {

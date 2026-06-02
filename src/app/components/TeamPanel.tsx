@@ -200,9 +200,9 @@ export function ensureSeeded() {
   if (localStorage.getItem(WORKSPACE_TEAMS_KEY) !== null) return;
   const [jaejun, jinpil, junwoo, jinhyun, hyun] = ALL_MEMBERS;
   saveAllTeams({
-    "workspace-1": [junwoo, jaejun, jinpil, jinhyun],   // exclude 안현
-    "workspace-2": [junwoo, jaejun, jinhyun, hyun],      // exclude 김진필
-    "workspace-3": [junwoo, jinpil, jinhyun, hyun],      // exclude 김재준
+    "workspace-1": [jaejun, jinpil, jinhyun, hyun],       // exclude 김준우
+    "workspace-2": [jaejun, junwoo, jinhyun, hyun],      // exclude 김진필
+    "workspace-3": [jaejun, jinpil, junwoo, hyun],       // exclude 김진현
     "workspace-4": [jaejun, jinpil, hyun, jinhyun],      // exclude 김준우
   });
 }
@@ -212,7 +212,7 @@ export function TeamPanel({ workspaceId, currentUserId, currentUserOnline, onInv
 
   const [members, setMembers] = useState<TeamMember[]>(() => {
     const all = loadAllTeams();
-    return all[workspaceId] ?? [ALL_MEMBERS[2]];  // fallback: 김준우 only
+    return all[workspaceId] ?? [ALL_MEMBERS[0]];  // fallback: 김재준 only
   });
   const [activeRoomId, setActiveRoomId] = useState(teamRooms[1].id);
   const [notice, setNotice] = useState("팀원 역할 수정 및 삭제가 가능합니다.");
@@ -220,7 +220,7 @@ export function TeamPanel({ workspaceId, currentUserId, currentUserOnline, onInv
 
   useEffect(() => {
     const all = loadAllTeams();
-    setMembers(all[workspaceId] ?? [ALL_MEMBERS[2]]);
+    setMembers(all[workspaceId] ?? [ALL_MEMBERS[0]]);
   }, [workspaceId]);
   const activeRoom = teamRooms.find((room) => room.id === activeRoomId) ?? teamRooms[0];
   // Override the current user's stored `online` field with the live presence prop

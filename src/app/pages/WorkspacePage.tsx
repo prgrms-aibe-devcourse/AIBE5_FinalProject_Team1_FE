@@ -1073,7 +1073,7 @@ export function WorkspacePage() {
       "hyun@codedock.dev":    { id: "hyun",    initials: "AH", name: "안현",    role: "QA Engineer",        email: "hyun@codedock.dev",    github: "ahnhyun",    score: 79, online: false, statusColor: "#8B94A7", commits: 45,  prs: 12, reviews: 87 },
     };
 
-    const creator = memberPool["junwoo@codedock.dev"];
+    const creator = memberPool["jaejun@codedock.dev"];
     const invitedAsFull = invitedMembers.map((draft) =>
       memberPool[draft.email] ?? {
         id: `invited-${draft.id}`,
