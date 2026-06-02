@@ -1014,62 +1014,78 @@ function DeveloperRoleField({
         개발자 유형
       </span>
 
-      <div className="flex flex-wrap gap-2">
-        {DEVELOPER_ROLES.map((role) => {
-          const active = trimmed === role;
-          return (
-            <button
-              key={role}
-              type="button"
-              disabled={disabled}
-              aria-pressed={active}
-              onClick={() => onChange(role)}
-              className="rounded-full border-0 px-4 py-2 text-sm font-black transition"
-              style={{
-                background: active
-                  ? `linear-gradient(135deg, ${colors.primaryHex}, ${colors.secondary})`
-                  : "rgba(234,247,255,0.06)",
-                border: active ? "1px solid transparent" : `1px solid ${colors.primary}, 0.16)`,
-                color: active ? "#021014" : "var(--muted)",
-                cursor: disabled ? "default" : "pointer",
-                opacity: disabled && !active ? 0.55 : 1,
-              }}
+      {disabled ? (
+        <div className="flex flex-wrap gap-2">
+          {trimmed ? (
+            <span
+              className="rounded-full px-4 py-2 text-sm font-black"
+              style={{ background: `linear-gradient(135deg, ${colors.primaryHex}, ${colors.secondary})`, color: "#021014" }}
             >
-              {role}
-            </button>
-          );
-        })}
-      </div>
+              {trimmed}
+            </span>
+          ) : (
+            <span className="text-sm font-bold" style={{ color: "var(--muted)" }}>
+              선택 안 함
+            </span>
+          )}
+        </div>
+      ) : (
+        <>
+          <div className="flex flex-wrap gap-2">
+            {DEVELOPER_ROLES.map((role) => {
+              const active = trimmed === role;
+              return (
+                <button
+                  key={role}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => onChange(role)}
+                  className="rounded-full border-0 px-4 py-2 text-sm font-black transition"
+                  style={{
+                    background: active
+                      ? `linear-gradient(135deg, ${colors.primaryHex}, ${colors.secondary})`
+                      : "rgba(234,247,255,0.06)",
+                    border: active ? "1px solid transparent" : `1px solid ${colors.primary}, 0.16)`,
+                    color: active ? "#021014" : "var(--muted)",
+                    cursor: "pointer",
+                  }}
+                >
+                  {role}
+                </button>
+              );
+            })}
+          </div>
 
-      <span className="relative block">
-        <Code2
-          className="absolute left-4 top-1/2 -translate-y-1/2"
-          size={19}
-          style={{ color: isCustom ? colors.primaryHex : "var(--muted)" }}
-        />
-        <input
-          type="text"
-          value={value}
-          disabled={disabled}
-          onChange={(event) => onChange(event.target.value)}
-          placeholder="직접 입력 (예: 플랫폼 엔지니어)"
-          className="codedock-auth-input h-14 w-full rounded-2xl px-12 py-3 outline-none"
-          style={{
-            background: disabled ? "rgba(5, 11, 20, 0.34)" : "rgba(5, 11, 20, 0.62)",
-            border: isCustom ? `1px solid ${colors.primary}, 0.34)` : "1px solid rgba(32, 227, 255, 0.16)",
-            color: "var(--white)",
-            fontSize: "15px",
-            fontWeight: 800,
-            cursor: disabled ? "default" : "text",
-          }}
-        />
-      </span>
+          <span className="relative block">
+            <Code2
+              className="absolute left-4 top-1/2 -translate-y-1/2"
+              size={19}
+              style={{ color: isCustom ? colors.primaryHex : "var(--muted)" }}
+            />
+            <input
+              type="text"
+              value={value}
+              onChange={(event) => onChange(event.target.value)}
+              placeholder="직접 입력 (예: 플랫폼 엔지니어)"
+              className="codedock-auth-input h-14 w-full rounded-2xl px-12 py-3 outline-none"
+              style={{
+                background: "rgba(5, 11, 20, 0.62)",
+                border: isCustom ? `1px solid ${colors.primary}, 0.34)` : "1px solid rgba(32, 227, 255, 0.16)",
+                color: "var(--white)",
+                fontSize: "15px",
+                fontWeight: 800,
+                cursor: "text",
+              }}
+            />
+          </span>
 
-      <span className="text-xs font-bold leading-[1.5]" style={{ color: "var(--muted)" }}>
-        {isCustom
-          ? `직접 입력한 유형으로 저장됩니다 · ${trimmed}`
-          : "위 칩에서 선택하거나, 칸에 원하는 유형을 직접 입력할 수 있어요."}
-      </span>
+          <span className="text-xs font-bold leading-[1.5]" style={{ color: "var(--muted)" }}>
+            {isCustom
+              ? `직접 입력한 유형으로 저장됩니다 · ${trimmed}`
+              : "위 칩에서 선택하거나, 칸에 원하는 유형을 직접 입력할 수 있어요."}
+          </span>
+        </>
+      )}
     </div>
   );
 }
