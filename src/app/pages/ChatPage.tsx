@@ -37,7 +37,6 @@ const PRESENCE_META: Record<PresenceKey, { label: string; color: string }> = {
   busy:    { label: '방해금지', color: '#FF6B6B' },
   offline: { label: '오프라인', color: '#8B94A7' },
 };
-const CURRENT_USER_NAME = "김재준";
 
 type SidebarGroupId = 'documentation';
 type UserPresence = 'active' | 'away' | 'busy' | 'offline';
@@ -118,11 +117,11 @@ const ALL_SIDEBAR_CHANNELS = [
 ];
 
 const myProfile = {
-  id: "junwoo",
-  name: "김준우",
-  role: "Frontend Developer",
-  email: "junwoo@codedock.dev",
-  initials: "JW"
+  id: "jaejun",
+  name: "김재준",
+  role: "Tech Lead",
+  email: "jaejun@codedock.dev",
+  initials: "JJ"
 };
 
 const presenceOptions: Array<{ id: UserPresence; label: string; description: string; color: string }> = [
@@ -723,7 +722,7 @@ export function ChatPage() {
   }, [selectedWorkspace, memberListOpen, userPresence]);
 
   // Dynamically compute online count per workspace from localStorage team data.
-  // Current user (김준우, id "junwoo") counts as online when presence is not "offline".
+  // Current user (김재준, id "jaejun") counts as online when presence is not "offline".
   const workspaceOnlineCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     try {
@@ -1362,7 +1361,7 @@ export function ChatPage() {
 
     const nextMessage = {
       id: Date.now(),
-      user: CURRENT_USER_NAME,
+      user: myProfile.name,
       text: trimmedText || `${attachments.length}개 항목을 공유합니다.`,
       time: '방금',
       attachments,
@@ -1380,7 +1379,7 @@ export function ChatPage() {
       const key = getThreadKey(selectedThread);
       const newReply = {
         id: Date.now(),
-        user: CURRENT_USER_NAME,
+        user: myProfile.name,
         text: text,
         time: '방금'
       };
@@ -1400,7 +1399,7 @@ export function ChatPage() {
         prevThread
           ? {
               ...prevThread,
-              replies: (threadReplyCounts[prevThread.id] ?? prevThread.replies ?? 0) + 1,
+              replies: (prevThread.replies ?? 0) + 1,
               lastReply: newReply.user
             }
           : prevThread

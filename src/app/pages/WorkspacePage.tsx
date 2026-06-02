@@ -1,21 +1,33 @@
 import { useState, useRef, useCallback, useEffect, useLayoutEffect } from "react";
 import { useNavigate } from "react-router";
-import { AlertCircle, AlertTriangle, ArrowRight, Check, GitFork, Plus, Users, X } from "lucide-react";
+import { AlertCircle, AlertTriangle, ArrowRight, Check, GitFork, Plus, Settings2, Users, X } from "lucide-react";
+import { WorkspaceSettingsModal } from "../components/WorkspaceSettingsModal";
+import { ensureSeeded } from "../components/TeamPanel";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "../components/ui/hover-card";
 import { DndProvider, useDrag, useDrop, useDragLayer } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 
 const DRAG_TYPE = "TEAM_CARD";
+const WORKSPACE_COLORS_KEY = "codedock-workspace-colors-v1";
+const DEFAULT_ACCENT = "#8B94A7"; // default grey
 
-type Org = {
+function hexToRgb(hex: string): string {
+  const m = /^#([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (!m) return "139,148,167";
+  return `${parseInt(m[1], 16)},${parseInt(m[2], 16)},${parseInt(m[3], 16)}`;
+}
+
+export type Org = {
   id: number;
   name: string;
+  description?: string;
   openPRs: number;
   highRisk: number;
   activeIssues: number;
   memberCount: number;
   repoCount: number;
-  myRole: string;
+  myRole: string;  // "소유자" | "관리자" | "편집 가능" | "보기 가능"
+  workspaceId?: string; // localStorage key for team members
 };
 
 type Invite = {
@@ -184,10 +196,14 @@ function DraggableTeamCard({
   org,
   index,
   moveOrg,
+  onSettingsClick,
+  accentColor,
 }: {
   org: Org;
   index: number;
   moveOrg: (from: number, to: number) => void;
+  onSettingsClick: (org: Org) => void;
+  accentColor: string;
 }) {
   const navigate = useNavigate();
   const cardRef = useRef<HTMLDivElement>(null);
@@ -216,15 +232,17 @@ function DraggableTeamCard({
 
   drop(dragPreview(cardRef));
 
+  const rgb = hexToRgb(accentColor);
+
   return (
     <div
       ref={cardRef}
       onClick={() => navigate("/chat")}
       className="px-6 py-6 rounded-3xl transition-all hover:scale-[1.01]"
       style={{
-        background: "rgba(234, 247, 255, 0.055)",
-        border: "1px solid rgba(32, 227, 255, 0.14)",
-        boxShadow: "0 14px 36px rgba(0, 0, 0, 0.22)",
+        background: `linear-gradient(135deg, rgba(${rgb},0.13) 0%, rgba(11,22,40,0.90) 55%, rgba(8,16,32,0.85) 100%)`,
+        border: `1px solid rgba(${rgb},0.30)`,
+        boxShadow: `0 14px 36px rgba(0,0,0,0.22), 0 0 24px rgba(${rgb},0.07)`,
         opacity: isDragging ? 0.4 : 1,
         cursor: "pointer",
       }}
@@ -266,6 +284,18 @@ function DraggableTeamCard({
             </span>
           </div>
         </div>
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onSettingsClick(org); }}
+          className="grid place-items-center rounded-lg border-0 self-start flex-shrink-0"
+          style={{ background: "transparent", cursor: "pointer", opacity: 0.4, color: "var(--muted)", transition: "opacity 0.15s, color 0.15s", padding: "4px", margin: "-4px" }}
+          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.opacity = "1"; (e.currentTarget as HTMLButtonElement).style.color = "var(--neon-cyan)"; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.opacity = "0.4"; (e.currentTarget as HTMLButtonElement).style.color = "var(--muted)"; }}
+          title="팀 설정"
+          aria-label="팀 설정 열기"
+        >
+          <Settings2 size={24} />
+        </button>
         <div className="flex flex-col items-center justify-between flex-shrink-0 self-stretch">
           <ArrowRight size={24} style={{ color: "var(--neon-cyan)" }} />
           <DotHandle dragRef={drag} />
@@ -957,10 +987,42 @@ export function WorkspacePage() {
   const teamSectionRef = useRef<HTMLDivElement>(null);
 
   const [orgs, setOrgs] = useState<Org[]>([
-    { id: 1, name: "SecureFlow Workspace", openPRs: 7, highRisk: 2, activeIssues: 12, memberCount: 5, repoCount: 3, myRole: "소유자" },
-    { id: 2, name: "AI Chat Platform", openPRs: 3, highRisk: 0, activeIssues: 8, memberCount: 8, repoCount: 2, myRole: "편집 가능" },
-    { id: 3, name: "Dashboard UI Kit", openPRs: 5, highRisk: 1, activeIssues: 6, memberCount: 3, repoCount: 1, myRole: "보기 가능" },
+    { id: 1, name: "SecureFlow Workspace", openPRs: 7, highRisk: 2, activeIssues: 12, memberCount: 5, repoCount: 3, myRole: "소유자", workspaceId: "workspace-1" },
+    { id: 2, name: "AI Chat Platform", openPRs: 3, highRisk: 0, activeIssues: 8, memberCount: 8, repoCount: 2, myRole: "관리자", workspaceId: "workspace-2" },
+    { id: 3, name: "Dashboard UI Kit", openPRs: 5, highRisk: 1, activeIssues: 6, memberCount: 3, repoCount: 1, myRole: "편집 가능", workspaceId: "workspace-3" },
+    { id: 4, name: "Mobile App Beta", openPRs: 2, highRisk: 0, activeIssues: 3, memberCount: 6, repoCount: 2, myRole: "보기 가능", workspaceId: "workspace-4" },
   ]);
+
+  const [settingsOrg, setSettingsOrg] = useState<Org | null>(null);
+
+  // Sync memberCount from localStorage on mount so it reflects actual stored data
+  useEffect(() => {
+    ensureSeeded(); // writes seed data if localStorage has never been initialised
+    try {
+      const stored = localStorage.getItem("codedock-workspace-teams-v1");
+      if (!stored) return;
+      const all: Record<string, unknown[]> = JSON.parse(stored);
+      setOrgs((prev) =>
+        prev.map((o) => {
+          const key = o.workspaceId ?? String(o.id);
+          const members = all[key];
+          if (!Array.isArray(members)) return o;
+          return { ...o, memberCount: members.length };
+        })
+      );
+    } catch { /* ignore */ }
+  }, []);
+
+  const [orgColors, setOrgColors] = useState<Record<string, string>>(() => {
+    try { return JSON.parse(localStorage.getItem(WORKSPACE_COLORS_KEY) ?? "{}"); }
+    catch { return {}; }
+  });
+
+  const handleColorChange = (orgId: number, color: string) => {
+    const all = { ...orgColors, [String(orgId)]: color };
+    setOrgColors(all);
+    localStorage.setItem(WORKSPACE_COLORS_KEY, JSON.stringify(all));
+  };
 
   const [invites, setInvites] = useState<Invite[]>([
     { id: 1, teamName: "Backend Infra Team", inviterName: "김재준", role: "편집 가능", time: "3일 전", memberCount: 8, repoCount: 4, openPRs: 5, highRisk: 1, activeIssues: 9, expiresInDays: 1, expiresTime: "23시 59분" },
@@ -979,11 +1041,27 @@ export function WorkspacePage() {
     });
   }, []);
 
+  const handleUpdateOrg = (updated: Partial<Org> & { id: number }) => {
+    setOrgs((prev) => prev.map((o) => (o.id === updated.id ? { ...o, ...updated } : o)));
+    // Keep the open settings modal in sync so it doesn't show stale data
+    setSettingsOrg((prev) => (prev && prev.id === updated.id ? { ...prev, ...updated } : prev));
+  };
+
+  const handleDeleteOrg = (orgId: number) => {
+    setOrgs((prev) => prev.filter((o) => o.id !== orgId));
+    setSettingsOrg(null);
+  };
+
+  const handleLeaveOrg = (orgId: number) => {
+    setOrgs((prev) => prev.filter((o) => o.id !== orgId));
+    setSettingsOrg(null);
+  };
+
   const handleCreateTeam = (name: string, repoIds: number[], invitedMembers: TeamInviteDraft[]) => {
     const newId = Date.now();   // capture once so org ID and storage key match
     setOrgs((prev) => [
       ...prev,
-      { id: newId, name, openPRs: 0, highRisk: 0, activeIssues: 0, memberCount: invitedMembers.length + 1, repoCount: repoIds.length, myRole: "소유자" },
+      { id: newId, name, openPRs: 0, highRisk: 0, activeIssues: 0, memberCount: invitedMembers.length + 1, repoCount: repoIds.length, myRole: "소유자", workspaceId: String(newId) },
     ]);
 
     // Persist workspace team to localStorage
@@ -995,7 +1073,7 @@ export function WorkspacePage() {
       "hyun@codedock.dev":    { id: "hyun",    initials: "AH", name: "안현",    role: "QA Engineer",        email: "hyun@codedock.dev",    github: "ahnhyun",    score: 79, online: false, statusColor: "#8B94A7", commits: 45,  prs: 12, reviews: 87 },
     };
 
-    const creator = memberPool["junwoo@codedock.dev"];
+    const creator = memberPool["jaejun@codedock.dev"];
     const invitedAsFull = invitedMembers.map((draft) =>
       memberPool[draft.email] ?? {
         id: `invited-${draft.id}`,
@@ -1018,10 +1096,11 @@ export function WorkspacePage() {
   };
 
   const handleAcceptInvite = (invite: Invite) => {
+    const newId = Date.now();
     setInvites((prev) => prev.filter((i) => i.id !== invite.id));
     setOrgs((prev) => [
       ...prev,
-      { id: Date.now(), name: invite.teamName, openPRs: invite.openPRs, highRisk: invite.highRisk, activeIssues: invite.activeIssues, memberCount: invite.memberCount, repoCount: invite.repoCount, myRole: invite.role },
+      { id: newId, name: invite.teamName, openPRs: invite.openPRs, highRisk: invite.highRisk, activeIssues: invite.activeIssues, memberCount: invite.memberCount, repoCount: invite.repoCount, myRole: invite.role, workspaceId: String(newId) },
     ]);
   };
 
@@ -1173,7 +1252,11 @@ export function WorkspacePage() {
           ) : (
             <AutoScrollContainer itemCount={orgs.length}>
               {orgs.map((org, index) => (
-                <DraggableTeamCard key={org.id} org={org} index={index} moveOrg={moveOrg} />
+                <DraggableTeamCard
+                  key={org.id} org={org} index={index} moveOrg={moveOrg}
+                  onSettingsClick={setSettingsOrg}
+                  accentColor={orgColors[String(org.id)] ?? DEFAULT_ACCENT}
+                />
               ))}
             </AutoScrollContainer>
           )}
@@ -1270,6 +1353,16 @@ export function WorkspacePage() {
           onClose={() => setShowInvitesModal(false)}
           onAccept={handleAcceptInvite}
           onReject={handleRejectInvite}
+        />
+      )}
+      {settingsOrg && (
+        <WorkspaceSettingsModal
+          org={settingsOrg}
+          onClose={() => setSettingsOrg(null)}
+          onUpdate={handleUpdateOrg}
+          onDelete={handleDeleteOrg}
+          onLeave={handleLeaveOrg}
+          onColorChange={handleColorChange}
         />
       )}
     </DndProvider>
