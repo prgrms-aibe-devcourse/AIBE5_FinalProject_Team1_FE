@@ -1,9 +1,8 @@
 import { useState, useRef, useCallback, useEffect, useLayoutEffect } from "react";
 import { useNavigate } from "react-router";
-import { AlertCircle, AlertTriangle, ArrowRight, Check, GitFork, Plus, Settings2, Users, X } from "lucide-react";
+import { ArrowRight, AtSign, Check, CircleDot, CornerDownRight, GitFork, GitPullRequest, MessageSquare, Plus, Settings2, Users, X } from "lucide-react";
 import { WorkspaceSettingsModal } from "../components/WorkspaceSettingsModal";
 import { ensureSeeded } from "../components/TeamPanel";
-import { HoverCard, HoverCardContent, HoverCardTrigger } from "../components/ui/hover-card";
 import { DndProvider, useDrag, useDrop, useDragLayer } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 
@@ -21,9 +20,10 @@ export type Org = {
   id: number;
   name: string;
   description?: string;
-  openPRs: number;
-  highRisk: number;
-  activeIssues: number;
+  myPendingReviews: number;
+  myOpenPRs: number;
+  myReviewedPRs: number;
+  myOpenIssues: number;
   memberCount: number;
   repoCount: number;
   myRole: string;  // "소유자" | "관리자" | "편집 가능" | "보기 가능"
@@ -38,9 +38,10 @@ type Invite = {
   time: string;
   memberCount: number;
   repoCount: number;
-  openPRs: number;
-  highRisk: number;
-  activeIssues: number;
+  myPendingReviews: number;
+  myOpenPRs: number;
+  myReviewedPRs: number;
+  myOpenIssues: number;
   expiresInDays: number;
   expiresTime: string;
 };
@@ -259,14 +260,16 @@ function DraggableTeamCard({
           </div>
           <div className="flex flex-wrap gap-4">
             <span className="tracking-tight" style={{ fontSize: "14px", fontWeight: 800, color: "var(--muted)" }}>
-              진행 중인 PR: <span style={{ color: "var(--neon-cyan)" }}>{org.openPRs}</span>
+              내 리뷰 대기: <span style={{ color: "var(--neon-cyan)" }}>{org.myPendingReviews}</span>
             </span>
             <span className="tracking-tight" style={{ fontSize: "14px", fontWeight: 800, color: "var(--muted)" }}>
-              높은 위험:{" "}
-              <span style={{ color: org.highRisk > 0 ? "#FF6B6B" : "var(--matrix-green)" }}>{org.highRisk}</span>
+              내 오픈 PR: <span style={{ color: "var(--matrix-green)" }}>{org.myOpenPRs}</span>
             </span>
             <span className="tracking-tight" style={{ fontSize: "14px", fontWeight: 800, color: "var(--muted)" }}>
-              이슈: <span style={{ color: "var(--soft-mint)" }}>{org.activeIssues}</span>
+              리뷰받은 PR: <span style={{ color: "#FFD93D" }}>{org.myReviewedPRs}</span>
+            </span>
+            <span className="tracking-tight" style={{ fontSize: "14px", fontWeight: 800, color: "var(--muted)" }}>
+              미해결 이슈: <span style={{ color: org.myOpenIssues > 0 ? "#FF6B6B" : "var(--matrix-green)" }}>{org.myOpenIssues}</span>
             </span>
             <span
               className="flex items-center gap-1 tracking-tight"
@@ -987,10 +990,10 @@ export function WorkspacePage() {
   const teamSectionRef = useRef<HTMLDivElement>(null);
 
   const [orgs, setOrgs] = useState<Org[]>([
-    { id: 1, name: "SecureFlow Workspace", openPRs: 7, highRisk: 2, activeIssues: 12, memberCount: 5, repoCount: 3, myRole: "소유자", workspaceId: "workspace-1" },
-    { id: 2, name: "AI Chat Platform", openPRs: 3, highRisk: 0, activeIssues: 8, memberCount: 8, repoCount: 2, myRole: "관리자", workspaceId: "workspace-2" },
-    { id: 3, name: "Dashboard UI Kit", openPRs: 5, highRisk: 1, activeIssues: 6, memberCount: 3, repoCount: 1, myRole: "편집 가능", workspaceId: "workspace-3" },
-    { id: 4, name: "Mobile App Beta", openPRs: 2, highRisk: 0, activeIssues: 3, memberCount: 6, repoCount: 2, myRole: "보기 가능", workspaceId: "workspace-4" },
+    { id: 1, name: "SecureFlow Workspace", myPendingReviews: 4, myOpenPRs: 2, myReviewedPRs: 1, myOpenIssues: 5, memberCount: 5, repoCount: 3, myRole: "소유자", workspaceId: "workspace-1" },
+    { id: 2, name: "AI Chat Platform", myPendingReviews: 2, myOpenPRs: 1, myReviewedPRs: 1, myOpenIssues: 1, memberCount: 8, repoCount: 2, myRole: "관리자", workspaceId: "workspace-2" },
+    { id: 3, name: "Dashboard UI Kit", myPendingReviews: 1, myOpenPRs: 1, myReviewedPRs: 0, myOpenIssues: 0, memberCount: 3, repoCount: 1, myRole: "편집 가능", workspaceId: "workspace-3" },
+    { id: 4, name: "Mobile App Beta", myPendingReviews: 1, myOpenPRs: 0, myReviewedPRs: 0, myOpenIssues: 0, memberCount: 6, repoCount: 2, myRole: "보기 가능", workspaceId: "workspace-4" },
   ]);
 
   const [settingsOrg, setSettingsOrg] = useState<Org | null>(null);
@@ -1025,8 +1028,8 @@ export function WorkspacePage() {
   };
 
   const [invites, setInvites] = useState<Invite[]>([
-    { id: 1, teamName: "Backend Infra Team", inviterName: "김재준", role: "편집 가능", time: "3일 전", memberCount: 8, repoCount: 4, openPRs: 5, highRisk: 1, activeIssues: 9, expiresInDays: 1, expiresTime: "23시 59분" },
-    { id: 2, teamName: "Design System Squad", inviterName: "안현", role: "보기 가능", time: "1주 전", memberCount: 3, repoCount: 2, openPRs: 2, highRisk: 0, activeIssues: 4, expiresInDays: 6, expiresTime: "09시 00분" },
+    { id: 1, teamName: "Backend Infra Team", inviterName: "김재준", role: "편집 가능", time: "3일 전", memberCount: 8, repoCount: 4, myPendingReviews: 3, myOpenPRs: 2, myReviewedPRs: 1, myOpenIssues: 4, expiresInDays: 1, expiresTime: "23시 59분" },
+    { id: 2, teamName: "Design System Squad", inviterName: "안현", role: "보기 가능", time: "1주 전", memberCount: 3, repoCount: 2, myPendingReviews: 1, myOpenPRs: 0, myReviewedPRs: 1, myOpenIssues: 2, expiresInDays: 6, expiresTime: "09시 00분" },
   ]);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -1061,7 +1064,7 @@ export function WorkspacePage() {
     const newId = Date.now();   // capture once so org ID and storage key match
     setOrgs((prev) => [
       ...prev,
-      { id: newId, name, openPRs: 0, highRisk: 0, activeIssues: 0, memberCount: invitedMembers.length + 1, repoCount: repoIds.length, myRole: "소유자", workspaceId: String(newId) },
+      { id: newId, name, myPendingReviews: 0, myOpenPRs: 0, myReviewedPRs: 0, myOpenIssues: 0, memberCount: invitedMembers.length + 1, repoCount: repoIds.length, myRole: "소유자", workspaceId: String(newId) },
     ]);
 
     // Persist workspace team to localStorage
@@ -1100,7 +1103,7 @@ export function WorkspacePage() {
     setInvites((prev) => prev.filter((i) => i.id !== invite.id));
     setOrgs((prev) => [
       ...prev,
-      { id: newId, name: invite.teamName, openPRs: invite.openPRs, highRisk: invite.highRisk, activeIssues: invite.activeIssues, memberCount: invite.memberCount, repoCount: invite.repoCount, myRole: invite.role, workspaceId: String(newId) },
+      { id: newId, name: invite.teamName, myPendingReviews: invite.myPendingReviews, myOpenPRs: invite.myOpenPRs, myReviewedPRs: invite.myReviewedPRs, myOpenIssues: invite.myOpenIssues, memberCount: invite.memberCount, repoCount: invite.repoCount, myRole: invite.role, workspaceId: String(newId) },
     ]);
   };
 
@@ -1108,28 +1111,24 @@ export function WorkspacePage() {
     setInvites((prev) => prev.filter((i) => i.id !== id));
   };
 
-  const recentActivity = [
-    { type: "pr", user: "김진필", action: "PR 열림", target: "#234: 인증 미들웨어 추가", time: "10분 전", risk: "high", message: "인증 로직 변경으로 인한 보안 취약점 가능성 감지" },
-    { type: "comment", user: "김준우", action: "댓글 작성", target: "PR #233", time: "25분 전", risk: "low" },
-    { type: "merge", user: "김진현", action: "병합", target: "PR #232: CORS 문제 수정", time: "1시간 전", risk: "medium" },
-    { type: "issue", user: "안현", action: "이슈 생성", target: "#145: 요청 제한이 작동하지 않음", time: "2시간 전", risk: "high", message: "요청 제한(Rate Limit) 미작동 — API 남용 위험" },
+  type KeyEventType = "pr_opened" | "issue_opened" | "review" | "mention" | "reply";
+
+  const keyEvents: { type: KeyEventType; user: string; workspace: string; channel: string; content: string; time: string }[] = [
+    { type: "pr_opened",    user: "김진필", workspace: "SecureFlow Workspace", channel: "backend",  content: "PR #234: 인증 미들웨어 추가 — 보안 변경 포함",         time: "10분 전" },
+    { type: "review",       user: "김준우", workspace: "SecureFlow Workspace", channel: "frontend", content: "PR #231 승인 — LGTM, 배포 가능합니다.",                 time: "25분 전" },
+    { type: "issue_opened", user: "안현",   workspace: "AI Chat Platform",     channel: "general",  content: "Issue #145: 요청 제한이 작동하지 않음",                 time: "1시간 전" },
+    { type: "mention",      user: "김재준", workspace: "SecureFlow Workspace", channel: "backend",  content: "@김준우 이 부분 리뷰 부탁드려요, 인증 흐름 변경됐어요.", time: "2시간 전" },
+    { type: "reply",        user: "김진현", workspace: "Dashboard UI Kit",     channel: "general",  content: "맞아요, 그 방식으로 처리하면 됩니다.",                   time: "3시간 전" },
+    { type: "review",       user: "김진필", workspace: "AI Chat Platform",     channel: "backend",  content: "PR #230 변경 요청 — 에러 처리 로직 수정 필요합니다.",   time: "5시간 전" },
   ];
 
-  const getRiskColor = (risk: string) => {
-    switch (risk) {
-      case "high": return "#FF6B6B";
-      case "medium": return "#FFD93D";
-      case "low": return "#6BCF7F";
-      default: return "var(--muted)";
-    }
-  };
-
-  const getRiskLabel = (risk: string) => {
-    switch (risk) {
-      case "high": return "높음";
-      case "medium": return "보통";
-      case "low": return "낮음";
-      default: return "미분석";
+  const getEventMeta = (type: KeyEventType) => {
+    switch (type) {
+      case "pr_opened":    return { label: "PR 올라옴",   icon: GitPullRequest, color: "var(--neon-cyan)" };
+      case "issue_opened": return { label: "이슈 올라옴", icon: CircleDot,      color: "#FFD93D" };
+      case "review":       return { label: "리뷰 받음",   icon: MessageSquare,  color: "var(--matrix-green)" };
+      case "mention":      return { label: "멘션됨",      icon: AtSign,         color: "#C084FC" };
+      case "reply":        return { label: "답장 받음",   icon: CornerDownRight, color: "var(--soft-mint)" };
     }
   };
 
@@ -1144,37 +1143,25 @@ export function WorkspacePage() {
             대시보드
           </h1>
           <p className="m-0 tracking-tight" style={{ fontSize: "18px", fontWeight: 700, color: "var(--muted)" }}>
-            PR, 이슈, 위험 신호를 한눈에 확인합니다
+            내 리뷰, PR, 이슈를 한눈에 확인합니다
           </p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-5 mb-9">
+        <div className="grid md:grid-cols-4 gap-5 mb-9">
           {[
-            {
-              label: "전체 팀",
-              value: String(orgs.length),
-              color: "var(--neon-cyan)",
-              onClick: () => {
-                if (teamSectionRef.current) {
-                  const top = teamSectionRef.current.getBoundingClientRect().top + window.scrollY - 25;
-                  window.scrollTo({ top, behavior: "smooth" });
-                }
-              },
-            },
-            { label: "리뷰 대기 PR", value: "15", color: "var(--matrix-green)", onClick: () => navigate("/prs") },
-            { label: "위험도 높은 PR", value: "3", color: "#FF6B6B", onClick: () => navigate("/prs") },
+            { label: "내 리뷰 대기", value: "8", color: "var(--neon-cyan)" },
+            { label: "내 오픈 PR", value: "4", color: "var(--matrix-green)" },
+            { label: "리뷰받은 PR", value: "2", color: "#FFD93D" },
+            { label: "미해결 이슈", value: "6", color: "#FF6B6B" },
           ].map((stat) => (
-            <button
+            <div
               key={stat.label}
-              onClick={stat.onClick}
-              className="px-6 py-6 rounded-3xl text-left transition-all hover:scale-[1.02] hover:brightness-110 active:scale-[0.98]"
+              className="px-6 py-6 rounded-3xl"
               style={{
                 background: "rgba(11, 22, 40, 0.82)",
                 border: "1px solid rgba(32, 227, 255, 0.16)",
                 boxShadow: "0 20px 60px rgba(0, 0, 0, 0.32)",
                 backdropFilter: "blur(16px)",
-                cursor: "pointer",
-                width: "100%",
               }}
             >
               <p className="m-0 mb-3 tracking-tight" style={{ color: "var(--muted)", fontSize: "14px", fontWeight: 900 }}>
@@ -1183,7 +1170,7 @@ export function WorkspacePage() {
               <p className="m-0 tracking-[-0.06em]" style={{ fontSize: "48px", fontWeight: 950, color: stat.color }}>
                 {stat.value}
               </p>
-            </button>
+            </div>
           ))}
         </div>
 
@@ -1272,74 +1259,43 @@ export function WorkspacePage() {
           }}
         >
           <h2 className="m-0 mb-6 leading-none tracking-[-0.075em]" style={{ fontSize: "clamp(28px, 4vw, 44px)", fontWeight: 950 }}>
-            최근 활동
+            주요 이벤트
           </h2>
           <div className="grid gap-3">
-            {recentActivity.map((activity, idx) => (
-              <div
-                key={idx}
-                className="px-5 py-4 rounded-2xl"
-                style={{ background: "rgba(5, 11, 20, 0.42)", border: "1px solid rgba(32, 227, 255, 0.10)" }}
-              >
-                <div className="flex items-start gap-3">
-                  <span className="grid h-5 w-5 flex-shrink-0 place-items-center" style={{ marginTop: "2px" }}>
-                    {activity.risk === "high" && (
-                      <HoverCard openDelay={200} closeDelay={100}>
-                        <HoverCardTrigger asChild>
-                          <AlertCircle size={20} style={{ color: getRiskColor(activity.risk), cursor: "pointer", flexShrink: 0 }} />
-                        </HoverCardTrigger>
-                        <HoverCardContent
-                          side="top"
-                          sideOffset={10}
-                          align="start"
-                          className="w-fit max-w-[460px] rounded-2xl p-0 border-0 shadow-[0_8px_32px_rgba(255,107,107,0.18)]"
-                          style={{
-                            background: "rgba(5, 11, 20, 0.95)",
-                            border: `1px solid ${getRiskColor(activity.risk)}44`,
-                          }}
-                        >
-                          <div className="flex items-start gap-3 pl-4 pr-[18px] py-4">
-                            <AlertTriangle
-                              size={18}
-                              style={{ color: getRiskColor(activity.risk), flexShrink: 0, marginTop: "2px" }}
-                            />
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1.5">
-                                <span
-                                  className="px-2 py-0.5 rounded text-xs font-black tracking-tight"
-                                  style={{
-                                    background: `${getRiskColor(activity.risk)}33`,
-                                    color: getRiskColor(activity.risk),
-                                  }}
-                                >
-                                  {getRiskLabel(activity.risk)}
-                                </span>
-                              </div>
-                              <p
-                                className="m-0 tracking-tight"
-                                style={{ fontSize: "14px", fontWeight: 800, color: "var(--white)" }}
-                              >
-                                {(activity as any).message ?? "위험 신호 감지됨"}
-                              </p>
-                            </div>
-                          </div>
-                        </HoverCardContent>
-                      </HoverCard>
-                    )}
-                  </span>
-                  <div className="flex-1">
-                    <p className="m-0 mb-1 tracking-tight" style={{ fontSize: "15px", fontWeight: 900, color: "var(--white)" }}>
-                      <span style={{ color: "var(--matrix-green)" }}>{activity.user}</span>{" "}
-                      {activity.action}{" "}
-                      <span style={{ color: "var(--neon-cyan)" }}>{activity.target}</span>
-                    </p>
-                    <p className="m-0 tracking-tight" style={{ fontSize: "13px", fontWeight: 700, color: "var(--muted)" }}>
-                      {activity.time}
-                    </p>
+            {keyEvents.map((event, idx) => {
+              const { label, icon: Icon, color } = getEventMeta(event.type);
+              return (
+                <div
+                  key={idx}
+                  className="px-5 py-4 rounded-2xl"
+                  style={{ background: "rgba(5, 11, 20, 0.42)", border: "1px solid rgba(32, 227, 255, 0.10)" }}
+                >
+                  <div className="flex items-start gap-3">
+                    <span className="flex-shrink-0 mt-0.5">
+                      <Icon size={18} style={{ color }} />
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className="tracking-tight" style={{ fontSize: "15px", fontWeight: 900, color: "var(--white)" }}>
+                          <span style={{ color: "var(--matrix-green)" }}>{event.user}</span>
+                          {"  "}
+                          <span style={{ color, fontSize: "13px", fontWeight: 800 }}>{label}</span>
+                        </span>
+                        <span className="tracking-tight" style={{ fontSize: "12px", fontWeight: 700, color: "var(--muted)" }}>
+                          {event.workspace} · #{event.channel}
+                        </span>
+                      </div>
+                      <p className="m-0 tracking-tight truncate" style={{ fontSize: "13px", fontWeight: 700, color: "rgba(255,255,255,0.55)" }}>
+                        {event.content}
+                      </p>
+                    </div>
+                    <span className="flex-shrink-0 tracking-tight" style={{ fontSize: "12px", fontWeight: 700, color: "var(--muted)", whiteSpace: "nowrap" }}>
+                      {event.time}
+                    </span>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
       </div>

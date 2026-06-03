@@ -1,4 +1,3 @@
-import { Link } from "react-router";
 import { GitPullRequest, AlertTriangle, CheckCircle2, Clock } from "lucide-react";
 
 interface ProjectPageProps {
@@ -136,22 +135,13 @@ export function ProjectPage({ embedded = false }: ProjectPageProps) {
           }}>
             리뷰 대기 PR
           </h2>
-          <Link to="/prs" className={`no-underline tracking-tight ${embedded ? 'rounded-lg px-3 py-1.5' : 'rounded-xl px-4 py-2'}`} style={{
-            fontSize: embedded ? '12px' : '14px',
-            fontWeight: 900,
-            color: 'var(--neon-cyan)',
-            border: '1px solid rgba(32, 227, 255, 0.22)'
-          }}>
-            전체 보기
-          </Link>
         </div>
 
         <div className={embedded ? "grid gap-3" : "grid gap-4"}>
           {pendingPRs.map((pr) => (
-            <Link
+            <div
               key={pr.id}
-              to={`/pr/${pr.id}`}
-              className={`no-underline block transition-all ${embedded ? 'rounded-2xl px-4 py-4 hover:bg-white/[0.02]' : 'rounded-3xl px-6 py-5 hover:scale-[1.01]'}`}
+              className={`transition-all ${embedded ? 'rounded-2xl px-4 py-4' : 'rounded-3xl px-6 py-5'}`}
               style={{
                 background: 'rgba(234, 247, 255, 0.055)',
                 border: '1px solid rgba(32, 227, 255, 0.14)',
@@ -199,7 +189,7 @@ export function ProjectPage({ embedded = false }: ProjectPageProps) {
                   {pr.time}
                 </span>
               </div>
-            </Link>
+            </div>
           ))}
         </div>
       </section>
