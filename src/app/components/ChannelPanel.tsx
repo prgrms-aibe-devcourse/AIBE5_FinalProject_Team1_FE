@@ -549,8 +549,6 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
                           }}
                           onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(32, 227, 255, 0.16)'; }}
                           onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(32, 227, 255, 0.08)'; }}
-                          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(32, 227, 255, 0.16)'; }}
-                          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(32, 227, 255, 0.08)'; }}
                         >
                           <MessageSquare size={14} style={{ color: 'var(--neon-cyan)' }} />
                           <span className="tracking-tight" style={{
