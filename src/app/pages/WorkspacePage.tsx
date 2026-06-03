@@ -21,9 +21,10 @@ export type Org = {
   id: number;
   name: string;
   description?: string;
-  openPRs: number;
-  highRisk: number;
-  activeIssues: number;
+  myPendingReviews: number;
+  myOpenPRs: number;
+  myReviewedPRs: number;
+  myOpenIssues: number;
   memberCount: number;
   repoCount: number;
   myRole: string;  // "소유자" | "관리자" | "편집 가능" | "보기 가능"
@@ -38,9 +39,10 @@ type Invite = {
   time: string;
   memberCount: number;
   repoCount: number;
-  openPRs: number;
-  highRisk: number;
-  activeIssues: number;
+  myPendingReviews: number;
+  myOpenPRs: number;
+  myReviewedPRs: number;
+  myOpenIssues: number;
   expiresInDays: number;
   expiresTime: string;
 };
@@ -259,14 +261,16 @@ function DraggableTeamCard({
           </div>
           <div className="flex flex-wrap gap-4">
             <span className="tracking-tight" style={{ fontSize: "14px", fontWeight: 800, color: "var(--muted)" }}>
-              진행 중인 PR: <span style={{ color: "var(--neon-cyan)" }}>{org.openPRs}</span>
+              내 리뷰 대기: <span style={{ color: "var(--neon-cyan)" }}>{org.myPendingReviews}</span>
             </span>
             <span className="tracking-tight" style={{ fontSize: "14px", fontWeight: 800, color: "var(--muted)" }}>
-              높은 위험:{" "}
-              <span style={{ color: org.highRisk > 0 ? "#FF6B6B" : "var(--matrix-green)" }}>{org.highRisk}</span>
+              내 오픈 PR: <span style={{ color: "var(--matrix-green)" }}>{org.myOpenPRs}</span>
             </span>
             <span className="tracking-tight" style={{ fontSize: "14px", fontWeight: 800, color: "var(--muted)" }}>
-              이슈: <span style={{ color: "var(--soft-mint)" }}>{org.activeIssues}</span>
+              리뷰받은 PR: <span style={{ color: "#FFD93D" }}>{org.myReviewedPRs}</span>
+            </span>
+            <span className="tracking-tight" style={{ fontSize: "14px", fontWeight: 800, color: "var(--muted)" }}>
+              미해결 이슈: <span style={{ color: org.myOpenIssues > 0 ? "#FF6B6B" : "var(--matrix-green)" }}>{org.myOpenIssues}</span>
             </span>
             <span
               className="flex items-center gap-1 tracking-tight"
@@ -987,10 +991,10 @@ export function WorkspacePage() {
   const teamSectionRef = useRef<HTMLDivElement>(null);
 
   const [orgs, setOrgs] = useState<Org[]>([
-    { id: 1, name: "SecureFlow Workspace", openPRs: 7, highRisk: 2, activeIssues: 12, memberCount: 5, repoCount: 3, myRole: "소유자", workspaceId: "workspace-1" },
-    { id: 2, name: "AI Chat Platform", openPRs: 3, highRisk: 0, activeIssues: 8, memberCount: 8, repoCount: 2, myRole: "관리자", workspaceId: "workspace-2" },
-    { id: 3, name: "Dashboard UI Kit", openPRs: 5, highRisk: 1, activeIssues: 6, memberCount: 3, repoCount: 1, myRole: "편집 가능", workspaceId: "workspace-3" },
-    { id: 4, name: "Mobile App Beta", openPRs: 2, highRisk: 0, activeIssues: 3, memberCount: 6, repoCount: 2, myRole: "보기 가능", workspaceId: "workspace-4" },
+    { id: 1, name: "SecureFlow Workspace", myPendingReviews: 4, myOpenPRs: 2, myReviewedPRs: 1, myOpenIssues: 5, memberCount: 5, repoCount: 3, myRole: "소유자", workspaceId: "workspace-1" },
+    { id: 2, name: "AI Chat Platform", myPendingReviews: 2, myOpenPRs: 1, myReviewedPRs: 1, myOpenIssues: 1, memberCount: 8, repoCount: 2, myRole: "관리자", workspaceId: "workspace-2" },
+    { id: 3, name: "Dashboard UI Kit", myPendingReviews: 1, myOpenPRs: 1, myReviewedPRs: 0, myOpenIssues: 0, memberCount: 3, repoCount: 1, myRole: "편집 가능", workspaceId: "workspace-3" },
+    { id: 4, name: "Mobile App Beta", myPendingReviews: 1, myOpenPRs: 0, myReviewedPRs: 0, myOpenIssues: 0, memberCount: 6, repoCount: 2, myRole: "보기 가능", workspaceId: "workspace-4" },
   ]);
 
   const [settingsOrg, setSettingsOrg] = useState<Org | null>(null);
@@ -1025,8 +1029,8 @@ export function WorkspacePage() {
   };
 
   const [invites, setInvites] = useState<Invite[]>([
-    { id: 1, teamName: "Backend Infra Team", inviterName: "김재준", role: "편집 가능", time: "3일 전", memberCount: 8, repoCount: 4, openPRs: 5, highRisk: 1, activeIssues: 9, expiresInDays: 1, expiresTime: "23시 59분" },
-    { id: 2, teamName: "Design System Squad", inviterName: "안현", role: "보기 가능", time: "1주 전", memberCount: 3, repoCount: 2, openPRs: 2, highRisk: 0, activeIssues: 4, expiresInDays: 6, expiresTime: "09시 00분" },
+    { id: 1, teamName: "Backend Infra Team", inviterName: "김재준", role: "편집 가능", time: "3일 전", memberCount: 8, repoCount: 4, myPendingReviews: 3, myOpenPRs: 2, myReviewedPRs: 1, myOpenIssues: 4, expiresInDays: 1, expiresTime: "23시 59분" },
+    { id: 2, teamName: "Design System Squad", inviterName: "안현", role: "보기 가능", time: "1주 전", memberCount: 3, repoCount: 2, myPendingReviews: 1, myOpenPRs: 0, myReviewedPRs: 1, myOpenIssues: 2, expiresInDays: 6, expiresTime: "09시 00분" },
   ]);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -1061,7 +1065,7 @@ export function WorkspacePage() {
     const newId = Date.now();   // capture once so org ID and storage key match
     setOrgs((prev) => [
       ...prev,
-      { id: newId, name, openPRs: 0, highRisk: 0, activeIssues: 0, memberCount: invitedMembers.length + 1, repoCount: repoIds.length, myRole: "소유자", workspaceId: String(newId) },
+      { id: newId, name, myPendingReviews: 0, myOpenPRs: 0, myReviewedPRs: 0, myOpenIssues: 0, memberCount: invitedMembers.length + 1, repoCount: repoIds.length, myRole: "소유자", workspaceId: String(newId) },
     ]);
 
     // Persist workspace team to localStorage
@@ -1100,7 +1104,7 @@ export function WorkspacePage() {
     setInvites((prev) => prev.filter((i) => i.id !== invite.id));
     setOrgs((prev) => [
       ...prev,
-      { id: newId, name: invite.teamName, openPRs: invite.openPRs, highRisk: invite.highRisk, activeIssues: invite.activeIssues, memberCount: invite.memberCount, repoCount: invite.repoCount, myRole: invite.role, workspaceId: String(newId) },
+      { id: newId, name: invite.teamName, myPendingReviews: invite.myPendingReviews, myOpenPRs: invite.myOpenPRs, myReviewedPRs: invite.myReviewedPRs, myOpenIssues: invite.myOpenIssues, memberCount: invite.memberCount, repoCount: invite.repoCount, myRole: invite.role, workspaceId: String(newId) },
     ]);
   };
 
