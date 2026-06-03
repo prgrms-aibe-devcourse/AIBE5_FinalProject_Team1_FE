@@ -1144,25 +1144,16 @@ export function WorkspacePage() {
             대시보드
           </h1>
           <p className="m-0 tracking-tight" style={{ fontSize: "18px", fontWeight: 700, color: "var(--muted)" }}>
-            PR, 이슈, 위험 신호를 한눈에 확인합니다
+            내 리뷰, PR, 이슈를 한눈에 확인합니다
           </p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-5 mb-9">
+        <div className="grid md:grid-cols-4 gap-5 mb-9">
           {[
-            {
-              label: "전체 팀",
-              value: String(orgs.length),
-              color: "var(--neon-cyan)",
-              onClick: () => {
-                if (teamSectionRef.current) {
-                  const top = teamSectionRef.current.getBoundingClientRect().top + window.scrollY - 25;
-                  window.scrollTo({ top, behavior: "smooth" });
-                }
-              },
-            },
-            { label: "리뷰 대기 PR", value: "15", color: "var(--matrix-green)", onClick: () => navigate("/prs") },
-            { label: "위험도 높은 PR", value: "3", color: "#FF6B6B", onClick: () => navigate("/prs") },
+            { label: "내 리뷰 대기", value: "8", color: "var(--neon-cyan)", onClick: () => navigate("/prs") },
+            { label: "내 오픈 PR", value: "4", color: "var(--matrix-green)", onClick: () => navigate("/prs") },
+            { label: "리뷰받은 PR", value: "2", color: "#FFD93D", onClick: () => navigate("/prs") },
+            { label: "미해결 이슈", value: "6", color: "#FF6B6B", onClick: () => navigate("/prs") },
           ].map((stat) => (
             <button
               key={stat.label}
