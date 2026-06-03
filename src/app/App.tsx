@@ -9,8 +9,6 @@ import { LanguageDomSync } from "./components/LanguageDomSync";
 import { HomePage } from "./pages/HomePage";
 import { WorkspacePage } from "./pages/WorkspacePage";
 import { ProjectPage } from "./pages/ProjectPage";
-import { PRListPage } from "./pages/PRListPage";
-import { PRReviewRoomPage } from "./pages/PRReviewRoomPage";
 import { IssueBoardPage } from "./pages/IssueBoardPage";
 import { ChatPage } from "./pages/ChatPage";
 import { APISpecPage } from "./pages/APISpecPage";
@@ -54,8 +52,6 @@ export default function App() {
               <Route path="/workspace-settings" element={<WorkspaceSettingsPage />} />
               <Route path="/workspace" element={<WorkspacePage />} />
               <Route path="/project" element={<ProjectPage />} />
-              <Route path="/prs" element={<PRListPage />} />
-              <Route path="/pr/:id" element={<PRReviewRoomPage />} />
               <Route path="/issues" element={<IssueBoardPage />} />
               <Route path="/chat" element={<ChatPage />} />
               <Route path="/api-spec" element={<APISpecPage />} />

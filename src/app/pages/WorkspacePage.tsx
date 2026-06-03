@@ -1149,22 +1149,19 @@ export function WorkspacePage() {
 
         <div className="grid md:grid-cols-4 gap-5 mb-9">
           {[
-            { label: "내 리뷰 대기", value: "8", color: "var(--neon-cyan)", onClick: () => navigate("/prs") },
-            { label: "내 오픈 PR", value: "4", color: "var(--matrix-green)", onClick: () => navigate("/prs") },
-            { label: "리뷰받은 PR", value: "2", color: "#FFD93D", onClick: () => navigate("/prs") },
-            { label: "미해결 이슈", value: "6", color: "#FF6B6B", onClick: () => navigate("/prs") },
+            { label: "내 리뷰 대기", value: "8", color: "var(--neon-cyan)" },
+            { label: "내 오픈 PR", value: "4", color: "var(--matrix-green)" },
+            { label: "리뷰받은 PR", value: "2", color: "#FFD93D" },
+            { label: "미해결 이슈", value: "6", color: "#FF6B6B" },
           ].map((stat) => (
-            <button
+            <div
               key={stat.label}
-              onClick={stat.onClick}
-              className="px-6 py-6 rounded-3xl text-left transition-all hover:scale-[1.02] hover:brightness-110 active:scale-[0.98]"
+              className="px-6 py-6 rounded-3xl"
               style={{
                 background: "rgba(11, 22, 40, 0.82)",
                 border: "1px solid rgba(32, 227, 255, 0.16)",
                 boxShadow: "0 20px 60px rgba(0, 0, 0, 0.32)",
                 backdropFilter: "blur(16px)",
-                cursor: "pointer",
-                width: "100%",
               }}
             >
               <p className="m-0 mb-3 tracking-tight" style={{ color: "var(--muted)", fontSize: "14px", fontWeight: 900 }}>
@@ -1173,7 +1170,7 @@ export function WorkspacePage() {
               <p className="m-0 tracking-[-0.06em]" style={{ fontSize: "48px", fontWeight: 950, color: stat.color }}>
                 {stat.value}
               </p>
-            </button>
+            </div>
           ))}
         </div>
 
