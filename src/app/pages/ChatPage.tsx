@@ -32,7 +32,7 @@ const ROLE_PRIVILEGE_ORDER = [
 const PRESENCE_ORDER = ['active', 'away', 'busy', 'offline'] as const;
 type PresenceKey = typeof PRESENCE_ORDER[number];
 const PRESENCE_META: Record<PresenceKey, { label: string; color: string }> = {
-  active:  { label: '활동중',  color: '#39FF88' },
+  active:  { label: '활동중',  color: 'var(--matrix-green)' },
   away:    { label: '자리비움', color: '#FFD166' },
   busy:    { label: '방해금지', color: '#FF6B6B' },
   offline: { label: '오프라인', color: '#8B94A7' },
@@ -125,7 +125,7 @@ const myProfile = {
 };
 
 const presenceOptions: Array<{ id: UserPresence; label: string; description: string; color: string }> = [
-  { id: 'active', label: '활동중', description: '바로 응답 가능', color: '#39FF88' },
+  { id: 'active', label: '활동중', description: '바로 응답 가능', color: 'var(--matrix-green)' },
   { id: 'away', label: '자리비움', description: '잠시 후 확인', color: '#FFD166' },
   { id: 'busy', label: '방해금지', description: '멘션만 확인', color: '#FF6B6B' },
   { id: 'offline', label: '오프라인', description: '상태 숨김', color: '#8B94A7' }
@@ -635,27 +635,29 @@ export function ChatPage() {
 
   const currentMessages = messages[selectedChannel] || [];
   const isRepository = ['pull-requests', 'ai-review'].includes(selectedChannel);
+  const sidebarColumn = "clamp(280px, 21vw, 340px)";
+  const threadColumn = "clamp(320px, 26vw, 400px)";
   const gridTemplateColumns = selectedPR || selectedIssue
     ? 'minmax(0, 1fr)'
     : isMainExpanded
       ? selectedThread
-        ? '320px minmax(0, 1fr) 380px'
-        : '320px minmax(0, 1fr)'
+        ? `${sidebarColumn} minmax(0, 1fr) ${threadColumn}`
+        : `${sidebarColumn} minmax(0, 1fr)`
       : selectedThread
-        ? '320px 1fr 380px'
-        : '320px 1fr';
+        ? `${sidebarColumn} minmax(0, 1fr) ${threadColumn}`
+        : `${sidebarColumn} minmax(0, 1fr)`;
   const pageShellClassName = isMainExpanded
     ? "fixed inset-0 z-[80] mx-auto max-w-none p-4"
-    : "w-full max-w-[2000px] mx-auto px-4 py-8 pb-20";
+    : "w-full max-w-[2000px] mx-auto px-[clamp(14px,2vw,24px)] py-8 pb-20";
   const pageShellStyle = isMainExpanded
     ? {
         background:
-          'radial-gradient(circle at 18% 10%, rgba(32, 227, 255, 0.16), transparent 28%), radial-gradient(circle at 82% 0%, rgba(57, 255, 136, 0.08), transparent 30%), #050b14'
+          'radial-gradient(circle at 18% 10%, rgba(var(--codedock-primary-rgb), 0.16), transparent 28%), radial-gradient(circle at 82% 0%, rgba(var(--codedock-secondary-rgb), 0.08), transparent 30%), #050b14'
       }
     : undefined;
   const chatGridClassName = isMainExpanded
     ? "grid h-full min-h-0 gap-4 overflow-hidden"
-    : "grid h-[calc(100vh-160px)] min-h-0 gap-6 overflow-hidden";
+    : "grid h-[calc(100svh-160px)] min-h-[560px] gap-[clamp(16px,1.8vw,24px)] overflow-hidden";
   const selectedChannelMeta = ALL_SIDEBAR_CHANNELS.find((channel) => channel.id === selectedChannel);
   const selectedCustomChannel = customChannels.find(ch => ch.id === selectedChannel);
   const selectedChannelTitle = selectedChannel === 'pull-requests'
@@ -972,12 +974,12 @@ export function ChatPage() {
             className="absolute inset-0 rounded-full"
             style={{
               background: `
-                linear-gradient(135deg, rgba(32, 227, 255, 0.18), rgba(234, 247, 255, 0.045)),
+                linear-gradient(135deg, rgba(var(--codedock-primary-rgb), 0.18), rgba(234, 247, 255, 0.045)),
                 rgba(11, 22, 40, 0.52)
               `,
-              border: '1px solid rgba(32, 227, 255, 0.30)',
+              border: '1px solid rgba(var(--codedock-primary-rgb), 0.30)',
               boxShadow: `
-                0 0 24px rgba(32, 227, 255, 0.12),
+                0 0 24px rgba(var(--codedock-primary-rgb), 0.12),
                 inset 0 1px 0 rgba(255, 255, 255, 0.12),
                 inset 0 0 18px rgba(255, 255, 255, 0.035)
               `,
@@ -1001,10 +1003,10 @@ export function ChatPage() {
         </span>
         {channel.badge && (
           <span className="relative z-10 flex-shrink-0 rounded-full px-2 py-0.5 tracking-tight" style={{
-            background: isActive ? 'rgba(32, 227, 255, 0.22)' : 'rgba(234, 247, 255, 0.08)',
-            border: '1px solid rgba(32, 227, 255, 0.18)',
+            background: isActive ? 'rgba(var(--codedock-primary-rgb), 0.22)' : 'rgba(234, 247, 255, 0.08)',
+            border: '1px solid rgba(var(--codedock-primary-rgb), 0.18)',
             color: isActive ? 'var(--neon-cyan)' : 'var(--muted)',
-            fontSize: '10px',
+            fontSize: "var(--krds-body-xsmall)",
             fontWeight: 950
           }}>
             {channel.badge}
@@ -1025,8 +1027,8 @@ export function ChatPage() {
           onClick={() => toggleSidebarGroup(group)}
           className="w-full rounded-lg border-0 px-3 py-2.5 text-left transition-colors flex items-center gap-2"
           style={{
-            background: hasActiveChild ? 'rgba(32, 227, 255, 0.10)' : 'rgba(234, 247, 255, 0.035)',
-            border: hasActiveChild ? '1px solid rgba(32, 227, 255, 0.22)' : '1px solid rgba(32, 227, 255, 0.08)',
+            background: hasActiveChild ? 'rgba(var(--codedock-primary-rgb), 0.10)' : 'rgba(234, 247, 255, 0.035)',
+            border: hasActiveChild ? '1px solid rgba(var(--codedock-primary-rgb), 0.22)' : '1px solid rgba(var(--codedock-primary-rgb), 0.08)',
             cursor: 'pointer'
           }}
           whileHover={{ x: 2 }}
@@ -1040,7 +1042,7 @@ export function ChatPage() {
             <ChevronRight size={15} style={{ color: hasActiveChild ? 'var(--neon-cyan)' : 'var(--muted)', flexShrink: 0 }} />
           )}
           <span className="min-w-0 flex-1 truncate tracking-tight" style={{
-            fontSize: '12px',
+            fontSize: "var(--krds-body-xsmall)",
             fontWeight: 950,
             color: hasActiveChild ? 'var(--white)' : 'var(--muted)'
           }}>
@@ -1048,7 +1050,7 @@ export function ChatPage() {
           </span>
           <span className="tracking-tight" style={{
             color: hasActiveChild ? 'var(--neon-cyan)' : 'var(--muted)',
-            fontSize: '11px',
+            fontSize: "var(--krds-body-xsmall)",
             fontWeight: 900
           }}>
             {channels.length}
@@ -1080,10 +1082,10 @@ export function ChatPage() {
         className="flex w-full items-center gap-3 rounded-2xl border-0 px-3 py-3 text-left tracking-tight transition-all"
         style={{
           background: profileMenuOpen
-            ? 'linear-gradient(135deg, rgba(32, 227, 255, 0.16), rgba(57, 255, 136, 0.08)), rgba(11, 22, 40, 0.88)'
+            ? 'linear-gradient(135deg, rgba(var(--codedock-primary-rgb), 0.16), rgba(var(--codedock-secondary-rgb), 0.08)), rgba(11, 22, 40, 0.88)'
             : 'rgba(5, 11, 20, 0.72)',
-          border: profileMenuOpen ? '1px solid rgba(32, 227, 255, 0.34)' : '1px solid rgba(32, 227, 255, 0.18)',
-          boxShadow: profileMenuOpen ? '0 0 28px rgba(32, 227, 255, 0.14)' : 'inset 0 1px 0 rgba(255, 255, 255, 0.06)',
+          border: profileMenuOpen ? '1px solid rgba(var(--codedock-primary-rgb), 0.34)' : '1px solid rgba(var(--codedock-primary-rgb), 0.18)',
+          boxShadow: profileMenuOpen ? '0 0 28px rgba(var(--codedock-primary-rgb), 0.14)' : 'inset 0 1px 0 rgba(255, 255, 255, 0.06)',
           cursor: 'pointer'
         }}
         aria-expanded={profileMenuOpen}
@@ -1107,14 +1109,14 @@ export function ChatPage() {
           </span>
           <span className="mt-0.5 flex min-w-0 items-center gap-1.5">
             <Clock3 size={11} style={{ color: currentPresence.color, flexShrink: 0 }} />
-            <span className="truncate" style={{ color: 'var(--muted)', fontSize: '11px', fontWeight: 850 }}>
+            <span className="truncate" style={{ color: 'var(--muted)', fontSize: "var(--krds-body-xsmall)", fontWeight: 850 }}>
               {currentPresence.label}
             </span>
           </span>
         </span>
         <span className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full" style={{
-          background: notificationMode === 'muted' ? 'rgba(255, 107, 107, 0.10)' : 'rgba(32, 227, 255, 0.10)',
-          border: notificationMode === 'muted' ? '1px solid rgba(255, 107, 107, 0.22)' : '1px solid rgba(32, 227, 255, 0.16)'
+          background: notificationMode === 'muted' ? 'rgba(255, 107, 107, 0.10)' : 'rgba(var(--codedock-primary-rgb), 0.10)',
+          border: notificationMode === 'muted' ? '1px solid rgba(255, 107, 107, 0.22)' : '1px solid rgba(var(--codedock-primary-rgb), 0.16)'
         }}>
           <CurrentNotificationIcon size={14} style={{ color: notificationMode === 'muted' ? '#FF8FA3' : 'var(--neon-cyan)' }} />
         </span>
@@ -1129,8 +1131,8 @@ export function ChatPage() {
               overflowY: 'auto',
               overscrollBehavior: 'contain',
               background: 'rgba(5, 11, 20, 0.98)',
-              border: '1px solid rgba(32, 227, 255, 0.22)',
-              boxShadow: '0 20px 56px rgba(0, 0, 0, 0.48), 0 0 30px rgba(32, 227, 255, 0.12)',
+              border: '1px solid rgba(var(--codedock-primary-rgb), 0.22)',
+              boxShadow: '0 20px 56px rgba(0, 0, 0, 0.48), 0 0 30px rgba(var(--codedock-primary-rgb), 0.12)',
               backdropFilter: 'blur(18px) saturate(180%)',
               borderRadius: '16px',
               padding: '12px',
@@ -1143,7 +1145,7 @@ export function ChatPage() {
           >
             <div className="mb-3 px-1">
               <p className="m-0 tracking-tight" style={{ color: 'var(--white)', fontSize: '13px', fontWeight: 950 }}>내 상태</p>
-              <p className="m-0 mt-1 tracking-tight" style={{ color: 'var(--muted)', fontSize: '11px', fontWeight: 800 }}>팀원에게 표시되는 상태를 바꿉니다</p>
+              <p className="m-0 mt-1 tracking-tight" style={{ color: 'var(--muted)', fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>팀원에게 표시되는 상태를 바꿉니다</p>
             </div>
 
             <div className="grid gap-1.5">
@@ -1156,15 +1158,15 @@ export function ChatPage() {
                     onClick={() => setUserPresence(option.id)}
                     className="flex w-full items-center gap-3 rounded-xl border-0 px-3 py-2.5 text-left tracking-tight"
                     style={{
-                      background: selected ? 'rgba(32, 227, 255, 0.12)' : 'transparent',
-                      border: selected ? '1px solid rgba(32, 227, 255, 0.20)' : '1px solid transparent',
+                      background: selected ? 'rgba(var(--codedock-primary-rgb), 0.12)' : 'transparent',
+                      border: selected ? '1px solid rgba(var(--codedock-primary-rgb), 0.20)' : '1px solid transparent',
                       cursor: 'pointer'
                     }}
                   >
                     <span className="h-2.5 w-2.5 flex-shrink-0 rounded-full" style={{ background: option.color }} />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate" style={{ color: 'var(--white)', fontSize: '12px', fontWeight: 950 }}>{option.label}</span>
-                      <span className="block truncate" style={{ color: 'var(--muted)', fontSize: '10px', fontWeight: 800 }}>{option.description}</span>
+                      <span className="block truncate" style={{ color: 'var(--white)', fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}>{option.label}</span>
+                      <span className="block truncate" style={{ color: 'var(--muted)', fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>{option.description}</span>
                     </span>
                     {selected && <Check size={14} style={{ color: 'var(--neon-cyan)', flexShrink: 0 }} />}
                   </button>
@@ -1172,7 +1174,7 @@ export function ChatPage() {
               })}
             </div>
 
-            <div className="my-3" style={{ borderTop: '1px solid rgba(32, 227, 255, 0.14)' }} />
+            <div className="my-3" style={{ borderTop: '1px solid rgba(var(--codedock-primary-rgb), 0.14)' }} />
 
             <div className="mb-2 px-1">
               <p className="m-0 tracking-tight" style={{ color: 'var(--white)', fontSize: '13px', fontWeight: 950 }}>알림 설정</p>
@@ -1189,15 +1191,15 @@ export function ChatPage() {
                     onClick={() => setNotificationMode(option.id)}
                     className="flex w-full items-center gap-3 rounded-xl border-0 px-3 py-2.5 text-left tracking-tight"
                     style={{
-                      background: selected ? 'rgba(57, 255, 136, 0.10)' : 'transparent',
-                      border: selected ? '1px solid rgba(57, 255, 136, 0.18)' : '1px solid transparent',
+                      background: selected ? 'rgba(var(--codedock-secondary-rgb), 0.10)' : 'transparent',
+                      border: selected ? '1px solid rgba(var(--codedock-secondary-rgb), 0.18)' : '1px solid transparent',
                       cursor: 'pointer'
                     }}
                   >
                     <Icon size={15} style={{ color: selected ? 'var(--matrix-green)' : 'var(--muted)', flexShrink: 0 }} />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate" style={{ color: 'var(--white)', fontSize: '12px', fontWeight: 950 }}>{option.label}</span>
-                      <span className="block truncate" style={{ color: 'var(--muted)', fontSize: '10px', fontWeight: 800 }}>{option.description}</span>
+                      <span className="block truncate" style={{ color: 'var(--white)', fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}>{option.label}</span>
+                      <span className="block truncate" style={{ color: 'var(--muted)', fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>{option.description}</span>
                     </span>
                     {selected && <Check size={14} style={{ color: 'var(--matrix-green)', flexShrink: 0 }} />}
                   </button>
@@ -1205,14 +1207,14 @@ export function ChatPage() {
               })}
             </div>
 
-            <div className="my-3" style={{ borderTop: '1px solid rgba(32, 227, 255, 0.14)' }} />
+            <div className="my-3" style={{ borderTop: '1px solid rgba(var(--codedock-primary-rgb), 0.14)' }} />
 
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => { setProfileMenuOpen(false); navigate('/profile'); }}
                 className="flex items-center justify-center gap-2 rounded-xl border-0 px-3 py-2.5 tracking-tight"
-                style={{ background: 'rgba(234, 247, 255, 0.07)', border: '1px solid rgba(32, 227, 255, 0.14)', color: 'var(--white)', cursor: 'pointer', fontSize: '12px', fontWeight: 900 }}
+                style={{ background: 'rgba(234, 247, 255, 0.07)', border: '1px solid rgba(var(--codedock-primary-rgb), 0.14)', color: 'var(--white)', cursor: 'pointer', fontSize: "var(--krds-body-xsmall)", fontWeight: 900 }}
               >
                 <UserRound size={14} />
                 프로필
@@ -1221,7 +1223,7 @@ export function ChatPage() {
                 type="button"
                 onClick={() => { setProfileMenuOpen(false); navigate('/settings'); }}
                 className="flex items-center justify-center gap-2 rounded-xl border-0 px-3 py-2.5 tracking-tight"
-                style={{ background: 'rgba(234, 247, 255, 0.07)', border: '1px solid rgba(32, 227, 255, 0.14)', color: 'var(--white)', cursor: 'pointer', fontSize: '12px', fontWeight: 900 }}
+                style={{ background: 'rgba(234, 247, 255, 0.07)', border: '1px solid rgba(var(--codedock-primary-rgb), 0.14)', color: 'var(--white)', cursor: 'pointer', fontSize: "var(--krds-body-xsmall)", fontWeight: 900 }}
               >
                 <Settings size={14} />
                 설정
@@ -1431,9 +1433,9 @@ export function ChatPage() {
         gridTemplateColumns
       }}>
         {!selectedPR && !selectedIssue && (
-          <section ref={sidebarRef} className="min-h-0 overflow-y-auto px-6 py-6 rounded-[30px] flex flex-col" style={{
+          <section ref={sidebarRef} className="codedock-scrollbar-hidden codedock-scroll-lock-boundary min-h-0 min-w-0 overflow-y-auto rounded-[30px] px-[clamp(16px,1.4vw,24px)] py-[clamp(16px,1.4vw,24px)] flex flex-col" style={{
             background: 'rgba(11, 22, 40, 0.82)',
-            border: '1px solid rgba(32, 227, 255, 0.16)',
+            border: '1px solid rgba(var(--codedock-primary-rgb), 0.16)',
             boxShadow: '0 20px 60px rgba(0, 0, 0, 0.32)',
             backdropFilter: 'blur(16px)'
           }}>
@@ -1443,8 +1445,8 @@ export function ChatPage() {
                 onClick={() => { setProfileMenuOpen(false); setShowRepoDropdown(!showRepoDropdown); }}
                 className="w-full px-4 py-3 rounded-lg border-0 flex items-center justify-between gap-2 transition-all"
                 style={{
-                  background: 'rgba(32, 227, 255, 0.12)',
-                  border: '1px solid rgba(32, 227, 255, 0.3)',
+                  background: 'rgba(var(--codedock-primary-rgb), 0.12)',
+                  border: '1px solid rgba(var(--codedock-primary-rgb), 0.3)',
                   cursor: 'pointer'
                 }}
               >
@@ -1455,7 +1457,7 @@ export function ChatPage() {
                     <LayoutGrid size={14} style={{ color: '#021014' }} />
                   </div>
                   <div className="flex flex-col items-start min-w-0">
-                    <span className="tracking-tight" style={{ fontSize: '10px', fontWeight: 900, color: 'var(--muted)', lineHeight: 1 }}>워크스페이스</span>
+                    <span className="tracking-tight" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 900, color: 'var(--muted)', lineHeight: 1 }}>워크스페이스</span>
                     <span className="tracking-tight truncate" style={{ fontSize: '14px', fontWeight: 900, color: 'var(--white)' }}>
                       {currentWorkspace.name}
                     </span>
@@ -1470,7 +1472,7 @@ export function ChatPage() {
                     className="absolute top-full left-0 right-0 mt-2 rounded-lg overflow-hidden z-10"
                     style={{
                       background: 'rgba(5, 11, 20, 0.95)',
-                      border: '1px solid rgba(32, 227, 255, 0.3)',
+                      border: '1px solid rgba(var(--codedock-primary-rgb), 0.3)',
                       boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5)'
                     }}
                     initial={{ opacity: 0, y: -6 }}
@@ -1491,8 +1493,8 @@ export function ChatPage() {
                         }}
                         className="w-full border-0 px-3 py-3 text-left transition-colors"
                         style={{
-                          background: selectedWorkspace === ws.id ? 'rgba(32, 227, 255, 0.15)' : 'transparent',
-                          borderBottom: '1px solid rgba(32, 227, 255, 0.1)',
+                          background: selectedWorkspace === ws.id ? 'rgba(var(--codedock-primary-rgb), 0.15)' : 'transparent',
+                          borderBottom: '1px solid rgba(var(--codedock-primary-rgb), 0.1)',
                           cursor: 'pointer'
                         }}
                       >
@@ -1506,16 +1508,16 @@ export function ChatPage() {
                               {ws.name}
                             </span>
                             <span className="flex-shrink-0 rounded px-1.5 py-0.5 tracking-tight" style={{
-                              fontSize: '10px',
+                              fontSize: "var(--krds-body-xsmall)",
                               fontWeight: 900,
-                              background: 'rgba(32, 227, 255, 0.12)',
+                              background: 'rgba(var(--codedock-primary-rgb), 0.12)',
                               color: 'var(--neon-cyan)',
-                              border: '1px solid rgba(32, 227, 255, 0.22)'
+                              border: '1px solid rgba(var(--codedock-primary-rgb), 0.22)'
                             }}>
                               {ws.myRole}
                             </span>
                           </div>
-                          <span className="tracking-tight" style={{ fontSize: '11px', fontWeight: 800, color: 'var(--muted)' }}>
+                          <span className="tracking-tight" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 800, color: 'var(--muted)' }}>
                             {workspaceOnlineCounts[ws.id] ?? ws.membersOnline}명 접속 중
                           </span>
                         </div>
@@ -1531,11 +1533,11 @@ export function ChatPage() {
             <div className="mt-3 mb-2 flex items-center gap-2 px-2">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full" style={{ background: currentWorkspace.connected ? 'var(--matrix-green)' : 'var(--muted)' }} />
-                <span className="tracking-tight" style={{ fontSize: '11px', fontWeight: 800, color: currentWorkspace.connected ? 'var(--matrix-green)' : 'var(--muted)' }}>
+                <span className="tracking-tight" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 800, color: currentWorkspace.connected ? 'var(--matrix-green)' : 'var(--muted)' }}>
                   {currentWorkspace.connected ? 'GitHub 연결됨' : '연결되지 않음'}
                 </span>
               </div>
-              <span className="tracking-tight" style={{ fontSize: '11px', fontWeight: 800, color: 'var(--muted)' }}>•</span>
+              <span className="tracking-tight" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 800, color: 'var(--muted)' }}>•</span>
               <button
                 ref={memberListButtonRef}
                 type="button"
@@ -1545,7 +1547,7 @@ export function ChatPage() {
                 title="팀원 목록 보기"
               >
                 <div className="w-2 h-2 rounded-full" style={{ background: 'var(--matrix-green)' }} />
-                <span className="tracking-tight" style={{ fontSize: '11px', fontWeight: 800, color: 'var(--muted)' }}>
+                <span className="tracking-tight" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 800, color: 'var(--muted)' }}>
                   {workspaceOnlineCounts[selectedWorkspace] ?? currentWorkspace.membersOnline}명 접속 중
                 </span>
               </button>
@@ -1557,10 +1559,10 @@ export function ChatPage() {
             <div className="grid min-w-0 flex-1 content-start gap-2 overflow-y-auto pr-1">
               {renderSidebarChannel({ id: 'overview', label: '통합 개요', icon: Home })}
 
-              <div className="my-1" style={{ borderTop: '1px solid rgba(32, 227, 255, 0.14)' }} />
+              <div className="my-1" style={{ borderTop: '1px solid rgba(var(--codedock-primary-rgb), 0.14)' }} />
 
               <div className="flex items-center justify-between px-3 pb-1 pt-2">
-                <p style={{ fontSize: '11px', fontWeight: 950, color: 'var(--muted)', margin: 0 }}>채널</p>
+                <p style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 950, color: 'var(--muted)', margin: 0 }}>채널</p>
                 <button
                   type="button"
                   onClick={handleAddCustomChannel}
@@ -1579,7 +1581,7 @@ export function ChatPage() {
                     className="mx-1 rounded-xl px-3 py-3"
                     style={{
                       background: 'rgba(5, 11, 20, 0.58)',
-                      border: '1px solid rgba(32, 227, 255, 0.18)',
+                      border: '1px solid rgba(var(--codedock-primary-rgb), 0.18)',
                       boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.06)'
                     }}
                     initial={{ opacity: 0, y: -6 }}
@@ -1587,22 +1589,22 @@ export function ChatPage() {
                     exit={{ opacity: 0, y: -6 }}
                     transition={{ type: 'spring', stiffness: 360, damping: 32 }}
                   >
-                    <p style={{ fontSize: '11px', fontWeight: 900, color: 'var(--muted)', margin: '0 0 10px 0' }}>채널 유형 선택</p>
+                    <p style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 900, color: 'var(--muted)', margin: '0 0 10px 0' }}>채널 유형 선택</p>
                     <div className="flex flex-col gap-2">
                       <button
                         type="button"
                         onClick={() => handleSelectChannelType('chat')}
                         className="flex items-center gap-3 rounded-xl border-0 px-3 py-2.5 text-left tracking-tight transition-all hover:scale-[1.01]"
                         style={{
-                          background: 'rgba(32, 227, 255, 0.08)',
-                          border: '1px solid rgba(32, 227, 255, 0.2)',
+                          background: 'rgba(var(--codedock-primary-rgb), 0.08)',
+                          border: '1px solid rgba(var(--codedock-primary-rgb), 0.2)',
                           cursor: 'pointer'
                         }}
                       >
                         <Hash size={14} style={{ color: 'var(--neon-cyan)', flexShrink: 0 }} />
                         <div>
-                          <p className="m-0 tracking-tight" style={{ fontSize: '12px', fontWeight: 900, color: 'var(--white)' }}>대화 채널</p>
-                          <p className="m-0 tracking-tight" style={{ fontSize: '11px', fontWeight: 800, color: 'var(--muted)' }}>팀 대화용 채널</p>
+                          <p className="m-0 tracking-tight" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 900, color: 'var(--white)' }}>대화 채널</p>
+                          <p className="m-0 tracking-tight" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 800, color: 'var(--muted)' }}>팀 대화용 채널</p>
                         </div>
                       </button>
                       <button
@@ -1610,15 +1612,15 @@ export function ChatPage() {
                         onClick={() => handleSelectChannelType('repo')}
                         className="flex items-center gap-3 rounded-xl border-0 px-3 py-2.5 text-left tracking-tight transition-all hover:scale-[1.01]"
                         style={{
-                          background: 'rgba(57, 255, 136, 0.08)',
-                          border: '1px solid rgba(57, 255, 136, 0.2)',
+                          background: 'rgba(var(--codedock-secondary-rgb), 0.08)',
+                          border: '1px solid rgba(var(--codedock-secondary-rgb), 0.2)',
                           cursor: 'pointer'
                         }}
                       >
                         <GitBranch size={14} style={{ color: 'var(--matrix-green)', flexShrink: 0 }} />
                         <div>
-                          <p className="m-0 tracking-tight" style={{ fontSize: '12px', fontWeight: 900, color: 'var(--white)' }}>레포 채널</p>
-                          <p className="m-0 tracking-tight" style={{ fontSize: '11px', fontWeight: 800, color: 'var(--muted)' }}>GitHub 저장소 연결</p>
+                          <p className="m-0 tracking-tight" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 900, color: 'var(--white)' }}>레포 채널</p>
+                          <p className="m-0 tracking-tight" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 800, color: 'var(--muted)' }}>GitHub 저장소 연결</p>
                         </div>
                       </button>
                     </div>
@@ -1628,10 +1630,10 @@ export function ChatPage() {
                       className="mt-2 w-full rounded-full border-0 px-3 py-2 tracking-tight"
                       style={{
                         background: 'rgba(234, 247, 255, 0.07)',
-                        border: '1px solid rgba(32, 227, 255, 0.12)',
+                        border: '1px solid rgba(var(--codedock-primary-rgb), 0.12)',
                         color: 'var(--muted)',
                         cursor: 'pointer',
-                        fontSize: '12px',
+                        fontSize: "var(--krds-body-xsmall)",
                         fontWeight: 900
                       }}
                     >
@@ -1645,7 +1647,7 @@ export function ChatPage() {
                     className="mx-1 rounded-xl px-3 py-3"
                     style={{
                       background: 'rgba(5, 11, 20, 0.58)',
-                      border: '1px solid rgba(32, 227, 255, 0.18)',
+                      border: '1px solid rgba(var(--codedock-primary-rgb), 0.18)',
                       boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.06)'
                     }}
                     initial={{ opacity: 0, y: -6 }}
@@ -1653,7 +1655,7 @@ export function ChatPage() {
                     exit={{ opacity: 0, y: -6 }}
                     transition={{ type: 'spring', stiffness: 360, damping: 32 }}
                   >
-                    <p style={{ fontSize: '11px', fontWeight: 900, color: 'var(--muted)', margin: '0 0 8px 0' }}>채널 이름</p>
+                    <p style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 900, color: 'var(--muted)', margin: '0 0 8px 0' }}>채널 이름</p>
                     <input
                       value={newChannelName}
                       onChange={e => setNewChannelName(e.target.value)}
@@ -1665,7 +1667,7 @@ export function ChatPage() {
                       className="w-full rounded-lg px-3 py-2 outline-none tracking-tight"
                       style={{
                         background: 'rgba(234, 247, 255, 0.08)',
-                        border: '1px solid rgba(32, 227, 255, 0.22)',
+                        border: '1px solid rgba(var(--codedock-primary-rgb), 0.22)',
                         color: 'var(--white)',
                         fontSize: '13px',
                         fontWeight: 850
@@ -1678,10 +1680,10 @@ export function ChatPage() {
                         className="flex-1 rounded-full border-0 px-3 py-2 tracking-tight"
                         style={{
                           background: 'rgba(234, 247, 255, 0.07)',
-                          border: '1px solid rgba(32, 227, 255, 0.12)',
+                          border: '1px solid rgba(var(--codedock-primary-rgb), 0.12)',
                           color: 'var(--muted)',
                           cursor: 'pointer',
-                          fontSize: '12px',
+                          fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 900
                         }}
                       >
@@ -1695,7 +1697,7 @@ export function ChatPage() {
                           background: 'linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))',
                           color: '#021014',
                           cursor: 'pointer',
-                          fontSize: '12px',
+                          fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 950
                         }}
                       >
@@ -1710,7 +1712,7 @@ export function ChatPage() {
                     className="mx-1 rounded-xl px-3 py-3"
                     style={{
                       background: 'rgba(5, 11, 20, 0.58)',
-                      border: '1px solid rgba(57, 255, 136, 0.18)',
+                      border: '1px solid rgba(var(--codedock-secondary-rgb), 0.18)',
                       boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.06)'
                     }}
                     initial={{ opacity: 0, y: -6 }}
@@ -1718,8 +1720,8 @@ export function ChatPage() {
                     exit={{ opacity: 0, y: -6 }}
                     transition={{ type: 'spring', stiffness: 360, damping: 32 }}
                   >
-                    <p style={{ fontSize: '11px', fontWeight: 900, color: 'var(--muted)', margin: '0 0 4px 0' }}>레포 채널</p>
-                    <p style={{ fontSize: '11px', fontWeight: 800, color: 'var(--muted)', margin: '0 0 8px 0' }}>GitHub 저장소 URL을 입력하세요</p>
+                    <p style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 900, color: 'var(--muted)', margin: '0 0 4px 0' }}>레포 채널</p>
+                    <p style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 800, color: 'var(--muted)', margin: '0 0 8px 0' }}>GitHub 저장소 URL을 입력하세요</p>
                     <input
                       value={newRepoChannelUrl}
                       onChange={e => setNewRepoChannelUrl(e.target.value)}
@@ -1731,7 +1733,7 @@ export function ChatPage() {
                       className="w-full rounded-lg px-3 py-2 outline-none tracking-tight"
                       style={{
                         background: 'rgba(234, 247, 255, 0.08)',
-                        border: '1px solid rgba(57, 255, 136, 0.22)',
+                        border: '1px solid rgba(var(--codedock-secondary-rgb), 0.22)',
                         color: 'var(--white)',
                         fontSize: '13px',
                         fontWeight: 850
@@ -1744,10 +1746,10 @@ export function ChatPage() {
                         className="flex-1 rounded-full border-0 px-3 py-2 tracking-tight"
                         style={{
                           background: 'rgba(234, 247, 255, 0.07)',
-                          border: '1px solid rgba(32, 227, 255, 0.12)',
+                          border: '1px solid rgba(var(--codedock-primary-rgb), 0.12)',
                           color: 'var(--muted)',
                           cursor: 'pointer',
-                          fontSize: '12px',
+                          fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 900
                         }}
                       >
@@ -1762,7 +1764,7 @@ export function ChatPage() {
                           background: 'linear-gradient(135deg, var(--matrix-green), var(--deep-teal))',
                           color: '#021014',
                           cursor: parseRepoNameFromUrl(newRepoChannelUrl) ? 'pointer' : 'not-allowed',
-                          fontSize: '12px',
+                          fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 950
                         }}
                       >
@@ -1788,9 +1790,9 @@ export function ChatPage() {
                           layoutId="workspaceSidebarActiveTab"
                           className="absolute inset-0 rounded-full"
                           style={{
-                            background: 'linear-gradient(135deg, rgba(32, 227, 255, 0.18), rgba(234, 247, 255, 0.045)), rgba(11, 22, 40, 0.52)',
-                            border: '1px solid rgba(32, 227, 255, 0.30)',
-                            boxShadow: '0 0 24px rgba(32, 227, 255, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12)',
+                            background: 'linear-gradient(135deg, rgba(var(--codedock-primary-rgb), 0.18), rgba(234, 247, 255, 0.045)), rgba(11, 22, 40, 0.52)',
+                            border: '1px solid rgba(var(--codedock-primary-rgb), 0.30)',
+                            boxShadow: '0 0 24px rgba(var(--codedock-primary-rgb), 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12)',
                             backdropFilter: 'blur(14px) saturate(180%)'
                           }}
                           transition={{ type: 'spring', stiffness: 380, damping: 30 }}
@@ -1829,10 +1831,10 @@ export function ChatPage() {
                           </span>
                           {getChannelBadge(ch.id) && (
                             <span className="relative z-10 flex-shrink-0 rounded-full px-1.5 py-0.5" style={{
-                              background: 'rgba(32, 227, 255, 0.22)',
-                              border: '1px solid rgba(32, 227, 255, 0.18)',
+                              background: 'rgba(var(--codedock-primary-rgb), 0.22)',
+                              border: '1px solid rgba(var(--codedock-primary-rgb), 0.18)',
                               color: 'var(--neon-cyan)',
-                              fontSize: '10px',
+                              fontSize: "var(--krds-body-xsmall)",
                               fontWeight: 950
                             }}>
                               {getChannelBadge(ch.id)}
@@ -1843,7 +1845,7 @@ export function ChatPage() {
                       <button
                         type="button"
                         onClick={() => setChannelMenuOpenId(isMenuOpen ? null : ch.id)}
-                        className="relative z-10 grid h-7 w-7 flex-shrink-0 place-items-center rounded-full border-0 bg-transparent transition-all hover:bg-[rgba(32,227,255,0.10)]"
+                        className="relative z-10 grid h-7 w-7 flex-shrink-0 place-items-center rounded-full border-0 bg-transparent transition-all hover:bg-[rgba(var(--codedock-primary-rgb),0.10)]"
                         style={{ cursor: 'pointer' }}
                         aria-label="채널 옵션"
                       >
@@ -1854,14 +1856,14 @@ export function ChatPage() {
                     {isMenuOpen && (
                       <div className="mx-2 overflow-hidden rounded-lg" style={{
                         background: 'rgba(5, 11, 20, 0.92)',
-                        border: '1px solid rgba(32, 227, 255, 0.18)',
+                        border: '1px solid rgba(var(--codedock-primary-rgb), 0.18)',
                         boxShadow: '0 4px 16px rgba(0,0,0,0.4)'
                       }}>
                         <button
                           type="button"
                           onClick={() => handleStartRenameCustomChannel(ch)}
-                          className="flex w-full items-center gap-2 border-0 px-3 py-2 text-left tracking-tight transition-all hover:bg-[rgba(32,227,255,0.08)]"
-                          style={{ background: 'transparent', color: 'var(--white)', fontSize: '12px', fontWeight: 800, cursor: 'pointer', borderBottom: '1px solid rgba(32, 227, 255, 0.10)' }}
+                          className="flex w-full items-center gap-2 border-0 px-3 py-2 text-left tracking-tight transition-all hover:bg-[rgba(var(--codedock-primary-rgb),0.08)]"
+                          style={{ background: 'transparent', color: 'var(--white)', fontSize: "var(--krds-body-xsmall)", fontWeight: 800, cursor: 'pointer', borderBottom: '1px solid rgba(var(--codedock-primary-rgb), 0.10)' }}
                         >
                           <Pencil size={13} style={{ color: 'var(--neon-cyan)' }} />
                           이름 수정
@@ -1870,7 +1872,7 @@ export function ChatPage() {
                           type="button"
                           onClick={() => handleDeleteCustomChannel(ch.id)}
                           className="flex w-full items-center gap-2 border-0 px-3 py-2 text-left tracking-tight transition-all hover:bg-[rgba(255,107,107,0.08)]"
-                          style={{ background: 'transparent', color: '#FF6B6B', fontSize: '12px', fontWeight: 800, cursor: 'pointer' }}
+                          style={{ background: 'transparent', color: '#FF6B6B', fontSize: "var(--krds-body-xsmall)", fontWeight: 800, cursor: 'pointer' }}
                         >
                           <Trash2 size={13} />
                           채널 삭제
@@ -1896,9 +1898,9 @@ export function ChatPage() {
                           layoutId="workspaceSidebarActiveTab"
                           className="absolute inset-0 rounded-full"
                           style={{
-                            background: 'linear-gradient(135deg, rgba(57, 255, 136, 0.18), rgba(234, 247, 255, 0.045)), rgba(11, 22, 40, 0.52)',
-                            border: '1px solid rgba(57, 255, 136, 0.30)',
-                            boxShadow: '0 0 24px rgba(57, 255, 136, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12)',
+                            background: 'linear-gradient(135deg, rgba(var(--codedock-primary-rgb), 0.18), rgba(234, 247, 255, 0.045)), rgba(11, 22, 40, 0.52)',
+                            border: '1px solid rgba(var(--codedock-primary-rgb), 0.30)',
+                            boxShadow: '0 0 24px rgba(var(--codedock-primary-rgb), 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12)',
                             backdropFilter: 'blur(14px) saturate(180%)'
                           }}
                           transition={{ type: 'spring', stiffness: 380, damping: 30 }}
@@ -1910,7 +1912,7 @@ export function ChatPage() {
                         className="relative z-10 flex min-w-0 flex-1 items-center gap-3 border-0 bg-transparent px-4 py-3 text-left"
                         style={{ cursor: 'pointer' }}
                       >
-                        <GitBranch size={15} style={{ color: isRepoBodyActive ? 'var(--matrix-green)' : 'var(--muted)', flexShrink: 0 }} />
+                        <GitBranch size={15} style={{ color: isRepoBodyActive ? 'var(--neon-cyan)' : 'var(--muted)', flexShrink: 0 }} />
                         <span className="truncate tracking-tight flex-1" style={{
                           fontSize: '13px',
                           fontWeight: isRepoBodyActive ? 900 : 800,
@@ -1920,10 +1922,10 @@ export function ChatPage() {
                         </span>
                         {getChannelBadge(repoChannelId) && (
                           <span className="relative z-10 flex-shrink-0 rounded-full px-1.5 py-0.5" style={{
-                            background: 'rgba(32, 227, 255, 0.22)',
-                            border: '1px solid rgba(32, 227, 255, 0.18)',
+                            background: 'rgba(var(--codedock-primary-rgb), 0.22)',
+                            border: '1px solid rgba(var(--codedock-primary-rgb), 0.18)',
                             color: 'var(--neon-cyan)',
-                            fontSize: '10px',
+                            fontSize: "var(--krds-body-xsmall)",
                             fontWeight: 950
                           }}>
                             {getChannelBadge(repoChannelId)}
@@ -1933,7 +1935,7 @@ export function ChatPage() {
                       <button
                         type="button"
                         onClick={() => setRepoMenuOpenId(repoMenuOpenId === repo.id ? null : repo.id)}
-                        className="relative z-10 grid h-7 w-7 flex-shrink-0 place-items-center rounded-full border-0 bg-transparent transition-all hover:bg-[rgba(32,227,255,0.10)]"
+                        className="relative z-10 grid h-7 w-7 flex-shrink-0 place-items-center rounded-full border-0 bg-transparent transition-all hover:bg-[rgba(var(--codedock-primary-rgb),0.10)]"
                         style={{ cursor: 'pointer' }}
                         aria-label="레포 옵션"
                       >
@@ -1942,7 +1944,7 @@ export function ChatPage() {
                       <button
                         type="button"
                         onClick={() => toggleRepoSubmenu(repo.id)}
-                        className="relative z-10 mr-2 grid h-7 w-7 flex-shrink-0 place-items-center rounded-full border-0 bg-transparent transition-all hover:bg-[rgba(32,227,255,0.10)]"
+                        className="relative z-10 mr-2 grid h-7 w-7 flex-shrink-0 place-items-center rounded-full border-0 bg-transparent transition-all hover:bg-[rgba(var(--codedock-primary-rgb),0.10)]"
                         style={{ cursor: 'pointer' }}
                         aria-label={isExpanded ? '서브메뉴 닫기' : '서브메뉴 열기'}
                       >
@@ -1956,14 +1958,14 @@ export function ChatPage() {
                     {repoMenuOpenId === repo.id && (
                       <div className="mx-2 overflow-hidden rounded-lg" style={{
                         background: 'rgba(5, 11, 20, 0.92)',
-                        border: '1px solid rgba(32, 227, 255, 0.18)',
+                        border: '1px solid rgba(var(--codedock-primary-rgb), 0.18)',
                         boxShadow: '0 4px 16px rgba(0,0,0,0.4)'
                       }}>
                         <button
                           type="button"
                           onClick={() => { handleDeleteRepository(repo.id); setRepoMenuOpenId(null); }}
                           className="flex w-full items-center gap-2 border-0 px-3 py-2 text-left tracking-tight transition-all hover:bg-[rgba(255,107,107,0.08)]"
-                          style={{ background: 'transparent', color: '#FF6B6B', fontSize: '12px', fontWeight: 800, cursor: 'pointer' }}
+                          style={{ background: 'transparent', color: '#FF6B6B', fontSize: "var(--krds-body-xsmall)", fontWeight: 800, cursor: 'pointer' }}
                         >
                           <Trash2 size={13} />
                           채널 삭제
@@ -1992,23 +1994,23 @@ export function ChatPage() {
                                 layoutId="workspaceSidebarActiveTab"
                                 className="absolute inset-0 rounded-full"
                                 style={{
-                                  background: 'linear-gradient(135deg, rgba(57, 255, 136, 0.18), rgba(234, 247, 255, 0.045)), rgba(11, 22, 40, 0.52)',
-                                  border: '1px solid rgba(57, 255, 136, 0.30)',
-                                  boxShadow: '0 0 24px rgba(57, 255, 136, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12)',
+                                  background: 'linear-gradient(135deg, rgba(var(--codedock-primary-rgb), 0.18), rgba(234, 247, 255, 0.045)), rgba(11, 22, 40, 0.52)',
+                                  border: '1px solid rgba(var(--codedock-primary-rgb), 0.30)',
+                                  boxShadow: '0 0 24px rgba(var(--codedock-primary-rgb), 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12)',
                                   backdropFilter: 'blur(14px) saturate(180%)'
                                 }}
                                 transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                               />
                             )}
-                            <GitPullRequest size={14} style={{ color: isPRActive ? 'var(--matrix-green)' : 'var(--muted)', flexShrink: 0, position: 'relative', zIndex: 1 }} />
+                            <GitPullRequest size={14} style={{ color: isPRActive ? 'var(--neon-cyan)' : 'var(--muted)', flexShrink: 0, position: 'relative', zIndex: 1 }} />
                             <span className="relative z-10 flex-1 tracking-tight" style={{ fontSize: '13px', fontWeight: isPRActive ? 900 : 800, color: isPRActive ? 'var(--white)' : 'var(--muted)' }}>
                               PR
                             </span>
                             <span className="relative z-10 flex-shrink-0 rounded-full px-2 py-0.5 tracking-tight" style={{
-                              background: isPRActive ? 'rgba(57, 255, 136, 0.22)' : 'rgba(234, 247, 255, 0.08)',
-                              border: '1px solid rgba(57, 255, 136, 0.18)',
-                              color: isPRActive ? 'var(--matrix-green)' : 'var(--muted)',
-                              fontSize: '10px',
+                              background: isPRActive ? 'rgba(var(--codedock-primary-rgb), 0.22)' : 'rgba(234, 247, 255, 0.08)',
+                              border: '1px solid rgba(var(--codedock-primary-rgb), 0.18)',
+                              color: isPRActive ? 'var(--neon-cyan)' : 'var(--muted)',
+                              fontSize: "var(--krds-body-xsmall)",
                               fontWeight: 950
                             }}>
                               {repo.openPRs}
@@ -2027,23 +2029,23 @@ export function ChatPage() {
                                 layoutId="workspaceSidebarActiveTab"
                                 className="absolute inset-0 rounded-full"
                                 style={{
-                                  background: 'linear-gradient(135deg, rgba(57, 255, 136, 0.18), rgba(234, 247, 255, 0.045)), rgba(11, 22, 40, 0.52)',
-                                  border: '1px solid rgba(57, 255, 136, 0.30)',
-                                  boxShadow: '0 0 24px rgba(57, 255, 136, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12)',
+                                  background: 'linear-gradient(135deg, rgba(var(--codedock-primary-rgb), 0.18), rgba(234, 247, 255, 0.045)), rgba(11, 22, 40, 0.52)',
+                                  border: '1px solid rgba(var(--codedock-primary-rgb), 0.30)',
+                                  boxShadow: '0 0 24px rgba(var(--codedock-primary-rgb), 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12)',
                                   backdropFilter: 'blur(14px) saturate(180%)'
                                 }}
                                 transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                               />
                             )}
-                            <CheckSquare size={14} style={{ color: isIssueActive ? 'var(--matrix-green)' : 'var(--muted)', flexShrink: 0, position: 'relative', zIndex: 1 }} />
+                            <CheckSquare size={14} style={{ color: isIssueActive ? 'var(--neon-cyan)' : 'var(--muted)', flexShrink: 0, position: 'relative', zIndex: 1 }} />
                             <span className="relative z-10 flex-1 tracking-tight" style={{ fontSize: '13px', fontWeight: isIssueActive ? 900 : 800, color: isIssueActive ? 'var(--white)' : 'var(--muted)' }}>
                               이슈
                             </span>
                             <span className="relative z-10 flex-shrink-0 rounded-full px-2 py-0.5 tracking-tight" style={{
-                              background: isIssueActive ? 'rgba(57, 255, 136, 0.22)' : 'rgba(234, 247, 255, 0.08)',
-                              border: '1px solid rgba(57, 255, 136, 0.18)',
-                              color: isIssueActive ? 'var(--matrix-green)' : 'var(--muted)',
-                              fontSize: '10px',
+                              background: isIssueActive ? 'rgba(var(--codedock-primary-rgb), 0.22)' : 'rgba(234, 247, 255, 0.08)',
+                              border: '1px solid rgba(var(--codedock-primary-rgb), 0.18)',
+                              color: isIssueActive ? 'var(--neon-cyan)' : 'var(--muted)',
+                              fontSize: "var(--krds-body-xsmall)",
                               fontWeight: 950
                             }}>
                               {repo.activeIssues}
@@ -2062,9 +2064,9 @@ export function ChatPage() {
                                 layoutId="workspaceSidebarActiveTab"
                                 className="absolute inset-0 rounded-full"
                                 style={{
-                                  background: 'linear-gradient(135deg, rgba(32, 227, 255, 0.18), rgba(234, 247, 255, 0.045)), rgba(11, 22, 40, 0.52)',
-                                  border: '1px solid rgba(32, 227, 255, 0.30)',
-                                  boxShadow: '0 0 24px rgba(32, 227, 255, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12)',
+                                  background: 'linear-gradient(135deg, rgba(var(--codedock-primary-rgb), 0.18), rgba(234, 247, 255, 0.045)), rgba(11, 22, 40, 0.52)',
+                                  border: '1px solid rgba(var(--codedock-primary-rgb), 0.30)',
+                                  boxShadow: '0 0 24px rgba(var(--codedock-primary-rgb), 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12)',
                                   backdropFilter: 'blur(14px) saturate(180%)'
                                 }}
                                 transition={{ type: 'spring', stiffness: 380, damping: 30 }}
@@ -2082,13 +2084,13 @@ export function ChatPage() {
                 );
               })}
 
-              <div className="my-1" style={{ borderTop: '1px solid rgba(32, 227, 255, 0.14)' }}></div>
+              <div className="my-1" style={{ borderTop: '1px solid rgba(var(--codedock-primary-rgb), 0.14)' }}></div>
 
               {renderSidebarGroup('documentation', '문서', DOCUMENTATION_CHANNELS)}
             </div>
 
             <div className="mt-auto grid gap-2 pt-4">
-              <div className="mb-2" style={{ borderTop: '1px solid rgba(32, 227, 255, 0.14)' }}></div>
+              <div className="mb-2" style={{ borderTop: '1px solid rgba(var(--codedock-primary-rgb), 0.14)' }}></div>
 
               {renderSidebarChannel({ id: 'team', label: '팀', icon: Users })}
               {renderProfileDock()}
@@ -2097,7 +2099,7 @@ export function ChatPage() {
           ) : (
             <div className="flex-1 rounded-2xl px-4 py-5" style={{
               background: 'rgba(5, 11, 20, 0.28)',
-              border: '1px dashed rgba(32, 227, 255, 0.18)'
+              border: '1px dashed rgba(var(--codedock-primary-rgb), 0.18)'
             }}>
               <p className="m-0 tracking-tight" style={{
                 color: 'var(--muted)',
@@ -2115,7 +2117,7 @@ export function ChatPage() {
         {!selectedPR && !selectedIssue && (
           <section className="relative h-full min-h-0 rounded-[30px] overflow-hidden" style={{
             background: 'rgba(11, 22, 40, 0.82)',
-            border: '1px solid rgba(32, 227, 255, 0.16)',
+            border: '1px solid rgba(var(--codedock-primary-rgb), 0.16)',
             boxShadow: '0 20px 60px rgba(0, 0, 0, 0.32)',
             backdropFilter: 'blur(16px)'
           }}>
@@ -2126,9 +2128,9 @@ export function ChatPage() {
                 className="absolute right-4 top-4 z-20 inline-flex items-center gap-2 rounded-full border-0 px-4 py-2 tracking-tight transition-all hover:scale-[1.03]"
                 style={{
                   background: 'rgba(5, 11, 20, 0.78)',
-                  border: '1px solid rgba(32, 227, 255, 0.24)',
+                  border: '1px solid rgba(var(--codedock-primary-rgb), 0.24)',
                   color: 'var(--neon-cyan)',
-                  fontSize: '12px',
+                  fontSize: "var(--krds-body-xsmall)",
                   fontWeight: 950,
                   cursor: 'pointer',
                   boxShadow: '0 12px 30px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.08)',
@@ -2292,9 +2294,9 @@ export function ChatPage() {
                 overscrollBehavior: 'contain',
                 zIndex: 9997,
                 background: 'rgba(5, 11, 20, 0.97)',
-                border: '1px solid rgba(32, 227, 255, 0.22)',
+                border: '1px solid rgba(var(--codedock-primary-rgb), 0.22)',
                 borderRadius: '14px',
-                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5), 0 0 20px rgba(32, 227, 255, 0.06)',
+                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5), 0 0 20px rgba(var(--codedock-primary-rgb), 0.06)',
                 backdropFilter: 'blur(16px)',
                 padding: '6px',
               }}
@@ -2304,7 +2306,7 @@ export function ChatPage() {
               transition={{ type: 'spring', stiffness: 420, damping: 34 }}
             >
               {sortedWorkspaceMembers.length === 0 ? (
-                <p style={{ margin: 0, padding: '12px', textAlign: 'center', fontSize: '12px', color: 'var(--muted)' }}>팀원이 없습니다</p>
+                <p style={{ margin: 0, padding: '12px', textAlign: 'center', fontSize: "var(--krds-body-xsmall)", color: 'var(--muted)' }}>팀원이 없습니다</p>
               ) : sortedWorkspaceMembers.map((member, idx) => {
                 const pKey = (member.presence ?? (member.online ? 'active' : 'offline')) as PresenceKey;
                 const meta = PRESENCE_META[pKey] ?? PRESENCE_META.offline;
@@ -2315,12 +2317,12 @@ export function ChatPage() {
                 return (
                   <div key={member.id ?? idx}>
                     {showOnlineLabel && (
-                      <p style={{ margin: '4px 0 2px 8px', fontSize: '10px', fontWeight: 950, color: 'var(--matrix-green)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                      <p style={{ margin: '4px 0 2px 8px', fontSize: "var(--krds-body-xsmall)", fontWeight: 950, color: 'var(--matrix-green)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
                         온라인
                       </p>
                     )}
                     {showOfflineLabel && (
-                      <p style={{ margin: `${idx > 0 ? '8px' : '4px'} 0 2px 8px`, fontSize: '10px', fontWeight: 950, color: 'var(--muted)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                      <p style={{ margin: `${idx > 0 ? '8px' : '4px'} 0 2px 8px`, fontSize: "var(--krds-body-xsmall)", fontWeight: 950, color: 'var(--muted)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
                         오프라인
                       </p>
                     )}
@@ -2329,7 +2331,7 @@ export function ChatPage() {
                       padding: '7px 10px', borderRadius: '10px',
                       background: 'transparent',
                     }}
-                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(32, 227, 255, 0.06)')}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(var(--codedock-primary-rgb), 0.06)')}
                       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                     >
                       {/* Avatar with presence-colored status dot */}
@@ -2338,7 +2340,7 @@ export function ChatPage() {
                           width: '30px', height: '30px', borderRadius: '50%',
                           background: 'linear-gradient(135deg, var(--neon-cyan), #8b7cf6)',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: '11px', fontWeight: 950, color: '#021014',
+                          fontSize: "var(--krds-body-xsmall)", fontWeight: 950, color: '#021014',
                         }}>
                           {member.initials}
                         </div>
@@ -2352,14 +2354,14 @@ export function ChatPage() {
                       {/* Name + role (left), status label (top-right) */}
                       <div style={{ minWidth: 0, flex: 1, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '6px' }}>
                         <div style={{ minWidth: 0, flex: 1 }}>
-                          <p style={{ margin: 0, fontSize: '12px', fontWeight: 950, color: 'var(--white)', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          <p style={{ margin: 0, fontSize: "var(--krds-body-xsmall)", fontWeight: 950, color: 'var(--white)', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                             {member.name}
                           </p>
-                          <p style={{ margin: '1px 0 0', fontSize: '10px', fontWeight: 800, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          <p style={{ margin: '1px 0 0', fontSize: "var(--krds-body-xsmall)", fontWeight: 800, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                             {member.role}
                           </p>
                         </div>
-                        <span style={{ fontSize: '10px', fontWeight: 850, color: meta.color, flexShrink: 0, lineHeight: 1.2, paddingTop: '1px' }}>
+                        <span style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 850, color: meta.color, flexShrink: 0, lineHeight: 1.2, paddingTop: '1px' }}>
                           {meta.label}
                         </span>
                       </div>

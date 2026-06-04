@@ -158,13 +158,12 @@ function AutoScrollContainer({ children, itemCount }: { children: React.ReactNod
   return (
     <div
       ref={ref}
-      className="grid gap-4 overflow-y-auto"
+      className="codedock-scrollbar-hidden grid gap-4 overflow-y-auto"
       style={{
-        maxHeight: lockedHeight !== null ? `${lockedHeight}px` : "none",
+        maxHeight: lockedHeight !== null ? `min(${lockedHeight}px, max(320px, calc(100svh - 430px)))` : "none",
         padding: "8px",
         margin: "-8px",
         scrollbarWidth: "none",
-        overscrollBehavior: "contain",
       }}
     >
       {children}
@@ -178,9 +177,9 @@ function DotHandle({ dragRef }: { dragRef: React.Ref<HTMLDivElement> }) {
       ref={dragRef}
       onClick={(e) => e.stopPropagation()}
       title="드래그하여 순서 변경"
-      style={{ color: "rgba(32, 227, 255, 0.35)", cursor: "grab", lineHeight: 0, padding: "4px" }}
-      onMouseEnter={(e) => ((e.currentTarget as HTMLDivElement).style.color = "rgba(32, 227, 255, 0.75)")}
-      onMouseLeave={(e) => ((e.currentTarget as HTMLDivElement).style.color = "rgba(32, 227, 255, 0.35)")}
+      style={{ color: "rgba(var(--codedock-primary-rgb), 0.35)", cursor: "grab", lineHeight: 0, padding: "4px" }}
+      onMouseEnter={(e) => ((e.currentTarget as HTMLDivElement).style.color = "rgba(var(--codedock-primary-rgb), 0.75)")}
+      onMouseLeave={(e) => ((e.currentTarget as HTMLDivElement).style.color = "rgba(var(--codedock-primary-rgb), 0.35)")}
     >
       <svg width="12" height="18" viewBox="0 0 12 18" fill="currentColor">
         {([0, 6, 12] as number[]).flatMap((y) =>
@@ -257,6 +256,18 @@ function DraggableTeamCard({
             >
               {org.name}
             </h3>
+            <span
+              className="px-2 py-0.5 rounded-md tracking-tight"
+              style={{
+                fontSize: "var(--krds-body-xsmall)",
+                fontWeight: 800,
+                background: "rgba(var(--codedock-primary-rgb), 0.12)",
+                color: "var(--neon-cyan)",
+                border: "1px solid rgba(var(--codedock-primary-rgb), 0.25)",
+              }}
+            >
+              {org.myRole}
+            </span>
           </div>
           <div className="flex flex-wrap gap-4">
             <span className="tracking-tight" style={{ fontSize: "14px", fontWeight: 800, color: "var(--muted)" }}>
@@ -384,7 +395,7 @@ function CreateTeamModal({
         className="w-full max-w-[620px] rounded-[24px] overflow-hidden"
         style={{
           background: "rgba(8, 16, 32, 0.98)",
-          border: "1px solid rgba(32, 227, 255, 0.18)",
+          border: "1px solid rgba(var(--codedock-primary-rgb), 0.18)",
           boxShadow: "0 32px 80px rgba(0,0,0,0.55)",
         }}
         onClick={(e) => e.stopPropagation()}
@@ -405,11 +416,11 @@ function CreateTeamModal({
                       width: "20px",
                       height: "20px",
                       borderRadius: "50%",
-                      background: step === s ? "var(--neon-cyan)" : step > s ? "rgba(32, 227, 255, 0.35)" : "rgba(255,255,255,0.10)",
+                      background: step === s ? "var(--neon-cyan)" : step > s ? "rgba(var(--codedock-primary-rgb), 0.35)" : "rgba(255,255,255,0.10)",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      fontSize: "11px",
+                      fontSize: "var(--krds-body-xsmall)",
                       fontWeight: 950,
                       color: step >= s ? "#021014" : "var(--muted)",
                       transition: "all 0.2s",
@@ -417,7 +428,7 @@ function CreateTeamModal({
                   >
                     {s}
                   </div>
-                  <span style={{ fontSize: "12px", fontWeight: 800, color: step === s ? "var(--white)" : "var(--muted)" }}>
+                  <span style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 800, color: step === s ? "var(--white)" : "var(--muted)" }}>
                     {s === 1 ? "팀 이름" : s === 2 ? "리포지토리" : "팀원 추가"}
                   </span>
                   {s < 3 && (
@@ -425,7 +436,7 @@ function CreateTeamModal({
                       style={{
                         width: "20px",
                         height: "1.5px",
-                        background: step > s ? "rgba(32, 227, 255, 0.4)" : "rgba(255,255,255,0.10)",
+                        background: step > s ? "rgba(var(--codedock-primary-rgb), 0.4)" : "rgba(255,255,255,0.10)",
                         marginLeft: "2px",
                       }}
                     />
@@ -445,7 +456,7 @@ function CreateTeamModal({
 
         {step === 1 && (
           <div className="px-7 pb-7">
-            <label className="block mb-2 tracking-tight" style={{ fontSize: "12px", fontWeight: 900, color: "var(--muted)" }}>
+            <label className="block mb-2 tracking-tight" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 900, color: "var(--muted)" }}>
               팀 이름 <span style={{ color: "#FF6B6B" }}>*</span>
             </label>
             <input
@@ -457,13 +468,13 @@ function CreateTeamModal({
               className="w-full rounded-xl px-4 py-3 outline-none tracking-tight"
               style={{
                 background: "rgba(255,255,255,0.05)",
-                border: "1.5px solid rgba(32, 227, 255, 0.25)",
+                border: "1.5px solid rgba(var(--codedock-primary-rgb), 0.25)",
                 color: "var(--white)",
                 fontSize: "15px",
                 fontWeight: 700,
               }}
-              onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(32, 227, 255, 0.6)")}
-              onBlur={(e) => (e.currentTarget.style.borderColor = "rgba(32, 227, 255, 0.25)")}
+              onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(var(--codedock-primary-rgb), 0.6)")}
+              onBlur={(e) => (e.currentTarget.style.borderColor = "rgba(var(--codedock-primary-rgb), 0.25)")}
             />
             <div className="flex gap-3 mt-6">
               <button
@@ -483,7 +494,7 @@ function CreateTeamModal({
                   fontSize: "14px",
                   fontWeight: 900,
                   cursor: canProceed ? "pointer" : "not-allowed",
-                  boxShadow: canProceed ? "0 4px 14px rgba(32, 227, 255, 0.28)" : "none",
+                  boxShadow: canProceed ? "0 4px 14px rgba(var(--codedock-primary-rgb), 0.28)" : "none",
                 }}
               >
                 다음
@@ -504,13 +515,13 @@ function CreateTeamModal({
               <span style={{ fontSize: "13px", fontWeight: 800, color: "var(--white)" }}>my_github</span>
               <span
                 className="px-1.5 py-0.5 rounded"
-                style={{ fontSize: "10px", fontWeight: 900, background: "rgba(57,255,136,0.15)", color: "var(--matrix-green)" }}
+                style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 900, background: "rgba(var(--codedock-secondary-rgb), 0.15)", color: "var(--matrix-green)" }}
               >
                 연결됨
               </span>
             </div>
 
-            <p className="m-0 mb-3 tracking-tight" style={{ fontSize: "12px", fontWeight: 900, color: "var(--muted)" }}>
+            <p className="m-0 mb-3 tracking-tight" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 900, color: "var(--muted)" }}>
               연결할 리포지토리 선택{" "}
               <span style={{ fontWeight: 700 }}>(선택 사항 · {selectedRepos.length}개 선택됨)</span>
             </p>
@@ -524,13 +535,13 @@ function CreateTeamModal({
                 className="w-full rounded-xl py-2.5 pl-4 pr-11 outline-none tracking-tight"
                 style={{
                   background: "rgba(255,255,255,0.05)",
-                  border: "1.5px solid rgba(32, 227, 255, 0.18)",
+                  border: "1.5px solid rgba(var(--codedock-primary-rgb), 0.18)",
                   color: "var(--white)",
                   fontSize: "13px",
                   fontWeight: 700,
                 }}
-                onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(32, 227, 255, 0.5)")}
-                onBlur={(e) => (e.currentTarget.style.borderColor = "rgba(32, 227, 255, 0.18)")}
+                onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(var(--codedock-primary-rgb), 0.5)")}
+                onBlur={(e) => (e.currentTarget.style.borderColor = "rgba(var(--codedock-primary-rgb), 0.18)")}
               />
               {repoSearch.length > 0 && (
                 <button
@@ -560,8 +571,8 @@ function CreateTeamModal({
                     onClick={() => toggleRepo(repo.id)}
                     className="flex items-center gap-3 w-full rounded-xl px-4 py-3 text-left border-0 transition-all"
                     style={{
-                      background: isSelected ? "rgba(32, 227, 255, 0.10)" : "rgba(255,255,255,0.03)",
-                      border: isSelected ? "1px solid rgba(32, 227, 255, 0.35)" : "1px solid rgba(255,255,255,0.07)",
+                      background: isSelected ? "rgba(var(--codedock-primary-rgb), 0.10)" : "rgba(255,255,255,0.03)",
+                      border: isSelected ? "1px solid rgba(var(--codedock-primary-rgb), 0.35)" : "1px solid rgba(255,255,255,0.07)",
                       cursor: "pointer",
                     }}
                   >
@@ -589,7 +600,7 @@ function CreateTeamModal({
                         <span style={{ color: "var(--muted)" }}>{repo.owner}/</span>
                         {repo.name}
                       </p>
-                      <p className="m-0 mt-0.5 tracking-tight" style={{ fontSize: "11px", fontWeight: 700, color: "var(--muted)" }}>
+                      <p className="m-0 mt-0.5 tracking-tight" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 700, color: "var(--muted)" }}>
                         {repo.language}
                       </p>
                     </div>
@@ -597,14 +608,14 @@ function CreateTeamModal({
                       <span
                         className="py-0.5 rounded tracking-tight"
                         style={{
-                          fontSize: "10px",
+                          fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 900,
                           width: "48px",
                           textAlign: "center",
                           display: "inline-block",
-                          background: repo.relation === "owner" ? "rgba(32, 227, 255, 0.10)" : "rgba(255, 200, 50, 0.10)",
+                          background: repo.relation === "owner" ? "rgba(var(--codedock-primary-rgb), 0.10)" : "rgba(255, 200, 50, 0.10)",
                           color: repo.relation === "owner" ? "var(--neon-cyan)" : "#FFD93D",
-                          border: repo.relation === "owner" ? "1px solid rgba(32, 227, 255, 0.22)" : "1px solid rgba(255, 200, 50, 0.22)",
+                          border: repo.relation === "owner" ? "1px solid rgba(var(--codedock-primary-rgb), 0.22)" : "1px solid rgba(255, 200, 50, 0.22)",
                         }}
                       >
                         {repo.relation === "owner" ? "소유자" : "협업자"}
@@ -612,7 +623,7 @@ function CreateTeamModal({
                       <span
                         className="py-0.5 rounded tracking-tight"
                         style={{
-                          fontSize: "10px",
+                          fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 900,
                           width: "72px",
                           textAlign: "center",
@@ -646,7 +657,7 @@ function CreateTeamModal({
                   fontSize: "14px",
                   fontWeight: 900,
                   cursor: "pointer",
-                  boxShadow: "0 4px 14px rgba(32, 227, 255, 0.28)",
+                  boxShadow: "0 4px 14px rgba(var(--codedock-primary-rgb), 0.28)",
                 }}
               >
                 {selectedRepos.length > 0 ? `다음 (${selectedRepos.length}개 연결)` : "다음"}
@@ -657,11 +668,11 @@ function CreateTeamModal({
 
         {step === 3 && (
           <div className="px-7 pb-7">
-            <div className="mb-5 rounded-2xl px-4 py-3" style={{ background: "rgba(32, 227, 255, 0.08)", border: "1px solid rgba(32, 227, 255, 0.18)" }}>
+            <div className="mb-5 rounded-2xl px-4 py-3" style={{ background: "rgba(var(--codedock-primary-rgb), 0.08)", border: "1px solid rgba(var(--codedock-primary-rgb), 0.18)" }}>
               <p className="m-0 tracking-tight" style={{ color: "var(--white)", fontSize: "14px", fontWeight: 950 }}>
                 팀원을 초대하세요
               </p>
-              <p className="m-0 mt-1 tracking-tight" style={{ color: "var(--muted)", fontSize: "12px", fontWeight: 750, lineHeight: 1.5 }}>
+              <p className="m-0 mt-1 tracking-tight" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 750, lineHeight: 1.5 }}>
                 팀 생성 후 초대 메일을 발송합니다. 지금 건너뛰고 나중에 팀 관리에서 추가할 수도 있습니다.
               </p>
             </div>
@@ -681,7 +692,7 @@ function CreateTeamModal({
                 className="min-w-0 rounded-xl px-4 py-3 outline-none tracking-tight"
                 style={{
                   background: "rgba(255,255,255,0.05)",
-                  border: "1.5px solid rgba(32, 227, 255, 0.20)",
+                  border: "1.5px solid rgba(var(--codedock-primary-rgb), 0.20)",
                   color: "var(--white)",
                   fontSize: "13px",
                   fontWeight: 800,
@@ -693,9 +704,9 @@ function CreateTeamModal({
                 className="rounded-xl px-3 py-3 outline-none tracking-tight"
                 style={{
                   background: "rgba(255,255,255,0.05)",
-                  border: "1.5px solid rgba(32, 227, 255, 0.20)",
+                  border: "1.5px solid rgba(var(--codedock-primary-rgb), 0.20)",
                   color: "var(--white)",
-                  fontSize: "12px",
+                  fontSize: "var(--krds-body-xsmall)",
                   fontWeight: 850,
                 }}
               >
@@ -710,8 +721,8 @@ function CreateTeamModal({
                 onClick={handleAddMemberByEmail}
                 className="rounded-xl border-0 px-4 py-3 tracking-tight"
                 style={{
-                  background: "rgba(32, 227, 255, 0.12)",
-                  border: "1px solid rgba(32, 227, 255, 0.24)",
+                  background: "rgba(var(--codedock-primary-rgb), 0.12)",
+                  border: "1px solid rgba(var(--codedock-primary-rgb), 0.24)",
                   color: "var(--neon-cyan)",
                   cursor: "pointer",
                   fontSize: "13px",
@@ -722,7 +733,7 @@ function CreateTeamModal({
               </button>
             </div>
 
-            <p className="m-0 mb-2 tracking-tight" style={{ color: "var(--muted)", fontSize: "12px", fontWeight: 900 }}>
+            <p className="m-0 mb-2 tracking-tight" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 900 }}>
               추천 팀원
             </p>
             <div className="mb-4 grid gap-2 overflow-y-auto pr-1" style={{ maxHeight: "248px" }}>
@@ -735,19 +746,19 @@ function CreateTeamModal({
                     onClick={() => toggleSuggestedMember(member)}
                     className="flex w-full items-center gap-3 rounded-xl border-0 px-4 py-3 text-left transition-all"
                     style={{
-                      background: selected ? "rgba(57, 255, 136, 0.10)" : "rgba(255,255,255,0.03)",
-                      border: selected ? "1px solid rgba(57, 255, 136, 0.30)" : "1px solid rgba(255,255,255,0.07)",
+                      background: selected ? "rgba(var(--codedock-secondary-rgb), 0.10)" : "rgba(255,255,255,0.03)",
+                      border: selected ? "1px solid rgba(var(--codedock-secondary-rgb), 0.30)" : "1px solid rgba(255,255,255,0.07)",
                       cursor: "pointer",
                     }}
                   >
-                    <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full" style={{ background: "linear-gradient(135deg, var(--neon-cyan), var(--matrix-green))", color: "#021014", fontSize: "12px", fontWeight: 950 }}>
+                    <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full" style={{ background: "linear-gradient(135deg, var(--neon-cyan), var(--matrix-green))", color: "#021014", fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}>
                       {member.name.slice(0, 1)}
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate" style={{ color: "var(--white)", fontSize: "13px", fontWeight: 950 }}>{member.name}</span>
-                      <span className="block truncate" style={{ color: "var(--muted)", fontSize: "11px", fontWeight: 750 }}>{member.email} · {member.role}</span>
+                      <span className="block truncate" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 750 }}>{member.email} · {member.role}</span>
                     </span>
-                    <span style={{ color: selected ? "var(--matrix-green)" : "var(--muted)", fontSize: "12px", fontWeight: 950 }}>
+                    <span style={{ color: selected ? "var(--matrix-green)" : "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}>
                       {selected ? "선택됨" : "초대"}
                     </span>
                   </button>
@@ -763,7 +774,7 @@ function CreateTeamModal({
                     className="grid items-center gap-3 rounded-xl px-4 py-3 tracking-tight"
                     style={{
                       background: "rgba(234, 247, 255, 0.08)",
-                      border: "1px solid rgba(32, 227, 255, 0.16)",
+                      border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)",
                       gridTemplateColumns: "minmax(0, 1fr) 190px auto",
                     }}
                   >
@@ -771,7 +782,7 @@ function CreateTeamModal({
                       <p className="m-0 truncate" style={{ color: "var(--white)", fontSize: "13px", fontWeight: 950 }}>
                         {member.name}
                       </p>
-                      <p className="m-0 truncate" style={{ color: "var(--muted)", fontSize: "11px", fontWeight: 750 }}>
+                      <p className="m-0 truncate" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 750 }}>
                         {member.email}
                       </p>
                     </div>
@@ -781,9 +792,9 @@ function CreateTeamModal({
                       className="rounded-xl px-3 py-2 outline-none tracking-tight"
                       style={{
                         background: "rgba(255,255,255,0.06)",
-                        border: "1px solid rgba(32, 227, 255, 0.20)",
+                        border: "1px solid rgba(var(--codedock-primary-rgb), 0.20)",
                         color: "var(--white)",
-                        fontSize: "12px",
+                        fontSize: "var(--krds-body-xsmall)",
                         fontWeight: 850,
                       }}
                     >
@@ -831,7 +842,7 @@ function CreateTeamModal({
                   fontSize: "14px",
                   fontWeight: 900,
                   cursor: "pointer",
-                  boxShadow: "0 4px 14px rgba(32, 227, 255, 0.28)",
+                  boxShadow: "0 4px 14px rgba(var(--codedock-primary-rgb), 0.28)",
                 }}
               >
                 {selectedMembers.length > 0 ? `팀 만들기 (${selectedMembers.length}명 초대)` : "팀 만들기"}
@@ -865,7 +876,7 @@ function InvitationsModal({
         className="w-full max-w-[620px] rounded-[24px] overflow-hidden"
         style={{
           background: "rgba(8, 16, 32, 0.98)",
-          border: "1px solid rgba(32, 227, 255, 0.18)",
+          border: "1px solid rgba(var(--codedock-primary-rgb), 0.18)",
           boxShadow: "0 32px 80px rgba(0,0,0,0.55)",
         }}
         onClick={(e) => e.stopPropagation()}
@@ -902,7 +913,7 @@ function InvitationsModal({
                 <div
                   key={invite.id}
                   className="flex items-center gap-4 px-5 py-4 rounded-2xl"
-                  style={{ background: "rgba(234, 247, 255, 0.04)", border: "1px solid rgba(32, 227, 255, 0.12)" }}
+                  style={{ background: "rgba(234, 247, 255, 0.04)", border: "1px solid rgba(var(--codedock-primary-rgb), 0.12)" }}
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
@@ -912,27 +923,27 @@ function InvitationsModal({
                       <span
                         className="px-2 py-0.5 rounded-md tracking-tight flex-shrink-0"
                         style={{
-                          fontSize: "11px",
+                          fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 800,
-                          background: "rgba(32, 227, 255, 0.10)",
+                          background: "rgba(var(--codedock-primary-rgb), 0.10)",
                           color: "var(--neon-cyan)",
-                          border: "1px solid rgba(32, 227, 255, 0.22)",
+                          border: "1px solid rgba(var(--codedock-primary-rgb), 0.22)",
                         }}
                       >
                         {invite.role}
                       </span>
                     </div>
-                    <p className="m-0 mb-2 tracking-tight" style={{ fontSize: "12px", fontWeight: 700, color: "var(--muted)" }}>
+                    <p className="m-0 mb-2 tracking-tight" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 700, color: "var(--muted)" }}>
                       {invite.inviterName} 님이 초대했습니다 · {invite.time}
                     </p>
                     <div className="flex items-center gap-3">
-                      <span className="flex items-center gap-1 tracking-tight" style={{ fontSize: "12px", fontWeight: 800, color: "var(--muted)" }}>
+                      <span className="flex items-center gap-1 tracking-tight" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 800, color: "var(--muted)" }}>
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
                         </svg>
                         <span style={{ color: "var(--white)" }}>{invite.memberCount}명</span>
                       </span>
-                      <span className="flex items-center gap-1 tracking-tight" style={{ fontSize: "12px", fontWeight: 800, color: "var(--muted)" }}>
+                      <span className="flex items-center gap-1 tracking-tight" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 800, color: "var(--muted)" }}>
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                           <circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M18 9v1a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V9"/><path d="M12 12v3"/>
                         </svg>
@@ -941,7 +952,7 @@ function InvitationsModal({
                       <span
                         className="flex items-center gap-1 tracking-tight"
                         style={{
-                          fontSize: "12px",
+                          fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 800,
                           color: invite.expiresInDays <= 1 ? "#FF6B6B" : "var(--muted)",
                         }}
@@ -961,7 +972,7 @@ function InvitationsModal({
                     <button
                       onClick={() => onAccept(invite)}
                       className="flex h-9 w-9 items-center justify-center rounded-xl border-0 transition-all hover:scale-[1.08]"
-                      style={{ background: "rgba(57, 255, 136, 0.12)", color: "var(--matrix-green)", cursor: "pointer", border: "1px solid rgba(57, 255, 136, 0.25)" }}
+                      style={{ background: "rgba(var(--codedock-secondary-rgb), 0.12)", color: "var(--matrix-green)", cursor: "pointer", border: "1px solid rgba(var(--codedock-secondary-rgb), 0.25)" }}
                       title="수락"
                     >
                       <Check size={16} />
@@ -1069,9 +1080,9 @@ export function WorkspacePage() {
 
     // Persist workspace team to localStorage
     const memberPool: Record<string, object> = {
-      "jaejun@codedock.dev":  { id: "jaejun",  initials: "JJ", name: "김재준",  role: "Tech Lead",          email: "jaejun@codedock.dev",  github: "kimjaejun",  score: 95, online: true,  statusColor: "#39FF88", commits: 247, prs: 42, reviews: 68, protected: true },
-      "jinpil@codedock.dev":  { id: "jinpil",  initials: "JP", name: "김진필",  role: "Backend Developer",  email: "jinpil@codedock.dev",  github: "kimjinpil",  score: 88, online: true,  statusColor: "#39FF88", commits: 189, prs: 35, reviews: 52 },
-      "junwoo@codedock.dev":  { id: "junwoo",  initials: "JW", name: "김준우",  role: "Frontend Developer", email: "junwoo@codedock.dev",  github: "kimjunwoo",  score: 82, online: true,  statusColor: "#39FF88", commits: 156, prs: 28, reviews: 45 },
+      "jaejun@codedock.dev":  { id: "jaejun",  initials: "JJ", name: "김재준",  role: "Tech Lead",          email: "jaejun@codedock.dev",  github: "kimjaejun",  score: 95, online: true,  statusColor: "var(--matrix-green)", commits: 247, prs: 42, reviews: 68, protected: true },
+      "jinpil@codedock.dev":  { id: "jinpil",  initials: "JP", name: "김진필",  role: "Backend Developer",  email: "jinpil@codedock.dev",  github: "kimjinpil",  score: 88, online: true,  statusColor: "var(--matrix-green)", commits: 189, prs: 35, reviews: 52 },
+      "junwoo@codedock.dev":  { id: "junwoo",  initials: "JW", name: "김준우",  role: "Frontend Developer", email: "junwoo@codedock.dev",  github: "kimjunwoo",  score: 82, online: true,  statusColor: "var(--matrix-green)", commits: 156, prs: 28, reviews: 45 },
       "jinhyun@codedock.dev": { id: "jinhyun", initials: "JH", name: "김진현",  role: "DevOps Engineer",    email: "jinhyun@codedock.dev", github: "kimjinhyun", score: 74, online: false, statusColor: "#8B94A7", commits: 98,  prs: 18, reviews: 31 },
       "hyun@codedock.dev":    { id: "hyun",    initials: "AH", name: "안현",    role: "QA Engineer",        email: "hyun@codedock.dev",    github: "ahnhyun",    score: 79, online: false, statusColor: "#8B94A7", commits: 45,  prs: 12, reviews: 87 },
     };
@@ -1134,11 +1145,11 @@ export function WorkspacePage() {
 
   return (
     <DndProvider backend={HTML5Backend}>
-      <div className="w-[min(1600px,calc(100vw-36px))] mx-auto py-12 pb-20">
+      <div className="mx-auto w-[min(1600px,calc(100vw-24px))] py-[clamp(28px,4vw,48px)] pb-20">
         <div className="mb-8">
           <h1
             className="m-0 mb-2 leading-[0.9] tracking-[-0.08em]"
-            style={{ fontSize: "clamp(48px, 6vw, 72px)", fontWeight: 950, color: "var(--white)", textShadow: "0 0 22px rgba(32, 227, 255, 0.18)" }}
+            style={{ fontSize: "clamp(48px, 6vw, 72px)", fontWeight: 950, color: "var(--white)", textShadow: "0 0 22px rgba(var(--codedock-primary-rgb), 0.18)" }}
           >
             대시보드
           </h1>
@@ -1159,7 +1170,7 @@ export function WorkspacePage() {
               className="px-6 py-6 rounded-3xl"
               style={{
                 background: "rgba(11, 22, 40, 0.82)",
-                border: "1px solid rgba(32, 227, 255, 0.16)",
+                border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)",
                 boxShadow: "0 20px 60px rgba(0, 0, 0, 0.32)",
                 backdropFilter: "blur(16px)",
               }}
@@ -1176,25 +1187,25 @@ export function WorkspacePage() {
 
         <section
           ref={teamSectionRef}
-          className="mb-9 px-9 py-9 rounded-[30px]"
+          className="mb-9 rounded-[30px] px-[clamp(20px,3vw,36px)] py-[clamp(22px,3vw,36px)]"
           style={{
             background: "rgba(11, 22, 40, 0.82)",
-            border: "1px solid rgba(32, 227, 255, 0.16)",
+            border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)",
             boxShadow: "0 20px 60px rgba(0, 0, 0, 0.32)",
             backdropFilter: "blur(16px)",
           }}
         >
-          <div className="flex items-center justify-between mb-6">
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
             <h2 className="m-0 leading-none tracking-[-0.075em]" style={{ fontSize: "clamp(28px, 4vw, 44px)", fontWeight: 950 }}>
               내 팀
             </h2>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <button
                 onClick={() => setShowInvitesModal(true)}
-                className="px-5 py-3 rounded-xl flex items-center gap-2 tracking-tight transition-all hover:brightness-110"
+                className="flex items-center gap-2 rounded-xl px-5 py-3 tracking-tight transition-all hover:brightness-110"
                 style={{
                   background: "transparent",
-                  border: "1.5px solid rgba(32, 227, 255, 0.5)",
+                  border: "1.5px solid rgba(var(--codedock-primary-rgb), 0.5)",
                   color: "var(--neon-cyan)",
                   fontSize: "14px",
                   fontWeight: 900,
@@ -1205,7 +1216,7 @@ export function WorkspacePage() {
                 {invites.length > 0 && (
                   <span
                     className="flex h-5 w-5 items-center justify-center rounded-full"
-                    style={{ background: "var(--neon-cyan)", color: "#021014", fontSize: "11px", fontWeight: 950 }}
+                    style={{ background: "var(--neon-cyan)", color: "#021014", fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}
                   >
                     {invites.length}
                   </span>
@@ -1213,14 +1224,14 @@ export function WorkspacePage() {
               </button>
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="px-5 py-3 rounded-xl border-0 flex items-center gap-2 tracking-tight transition-all hover:brightness-110"
+                className="flex items-center gap-2 rounded-xl border-0 px-5 py-3 tracking-tight transition-all hover:brightness-110"
                 style={{
                   background: "linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))",
                   color: "#021014",
                   fontSize: "14px",
                   fontWeight: 900,
                   cursor: "pointer",
-                  boxShadow: "0 4px 12px rgba(32, 227, 255, 0.3)",
+                  boxShadow: "0 4px 12px rgba(var(--codedock-primary-rgb), 0.3)",
                 }}
               >
                 <Plus size={18} />
@@ -1250,10 +1261,10 @@ export function WorkspacePage() {
         </section>
 
         <section
-          className="px-9 py-9 rounded-[30px]"
+          className="rounded-[30px] px-[clamp(20px,3vw,36px)] py-[clamp(22px,3vw,36px)]"
           style={{
             background: "rgba(11, 22, 40, 0.82)",
-            border: "1px solid rgba(32, 227, 255, 0.16)",
+            border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)",
             boxShadow: "0 20px 60px rgba(0, 0, 0, 0.32)",
             backdropFilter: "blur(16px)",
           }}

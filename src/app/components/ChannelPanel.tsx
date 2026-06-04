@@ -409,7 +409,7 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
       )}
       {/* Header */}
       <div className="px-6 py-4 flex items-center justify-between" style={{
-        borderBottom: '1px solid rgba(32, 227, 255, 0.14)'
+        borderBottom: '1px solid rgba(var(--codedock-primary-rgb), 0.14)'
       }}>
         <div className="flex items-center gap-2">
           <Hash size={18} style={{ color: 'var(--neon-cyan)' }} />
@@ -426,11 +426,11 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
           onClick={onOpenInvite}
           className="inline-flex items-center gap-2 rounded-full border-0 px-3 py-2 tracking-tight transition-all"
           style={{
-            background: 'rgba(32, 227, 255, 0.12)',
-            border: '1px solid rgba(32, 227, 255, 0.24)',
+            background: 'rgba(var(--codedock-primary-rgb), 0.12)',
+            border: '1px solid rgba(var(--codedock-primary-rgb), 0.24)',
             color: 'var(--neon-cyan)',
             cursor: 'pointer',
-            fontSize: '12px',
+            fontSize: "var(--krds-body-xsmall)",
             fontWeight: 950
           }}
           aria-label="팀원 추가"
@@ -453,10 +453,10 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
               className="rounded-xl overflow-hidden relative group"
               style={{
                 width: '100%',
-                background: isOwnThread ? 'rgba(32, 227, 255, 0.075)' : 'rgba(5, 11, 20, 0.54)',
+                background: isOwnThread ? 'rgba(var(--codedock-primary-rgb), 0.075)' : 'rgba(5, 11, 20, 0.54)',
                 border: selectedThreadId === thread.id
-                  ? '2px solid rgba(32, 227, 255, 0.6)'
-                  : isOwnThread ? '1px solid rgba(32, 227, 255, 0.18)' : '1px solid rgba(32, 227, 255, 0.14)',
+                  ? '2px solid rgba(var(--codedock-primary-rgb), 0.6)'
+                  : isOwnThread ? '1px solid rgba(var(--codedock-primary-rgb), 0.18)' : '1px solid rgba(var(--codedock-primary-rgb), 0.14)',
                 borderRadius: '12px',
                 boxShadow: selectedThreadId === thread.id ? '0 0 12px rgba(32, 227, 255, 0.15)' : 'none'
               }}
@@ -466,8 +466,8 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
               <div className="w-full px-5 py-4">
                 <div className="flex items-start gap-3">
                   <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-full" style={{
-                    background: isOwnThread ? 'rgba(32, 227, 255, 0.16)' : 'rgba(32, 227, 255, 0.12)',
-                    border: isOwnThread ? '1px solid rgba(32, 227, 255, 0.30)' : '1px solid rgba(32, 227, 255, 0.22)',
+                    background: isOwnThread ? 'rgba(var(--codedock-primary-rgb), 0.16)' : 'rgba(var(--codedock-primary-rgb), 0.12)',
+                    border: isOwnThread ? '1px solid rgba(var(--codedock-primary-rgb), 0.30)' : '1px solid rgba(var(--codedock-primary-rgb), 0.22)',
                     color: 'var(--neon-cyan)',
                     fontSize: thread.avatar.length > 2 ? '18px' : '13px',
                     fontWeight: 950,
@@ -484,16 +484,16 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
                       </span>
                       {isOwnThread && (
                         <span className="rounded px-1.5 py-0.5 tracking-tight" style={{
-                          background: 'rgba(32, 227, 255, 0.12)',
+                          background: 'rgba(var(--codedock-primary-rgb), 0.12)',
                           color: 'var(--neon-cyan)',
-                          fontSize: '10px',
+                          fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 950
                         }}>
                           내 메시지
                         </span>
                       )}
                       <span className="tracking-tight" style={{
-                        fontSize: '11px',
+                        fontSize: "var(--krds-body-xsmall)",
                         fontWeight: 700,
                         color: 'var(--muted)'
                       }}>
@@ -544,15 +544,15 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
                           }}
                           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border-0 cursor-pointer transition-all"
                           style={{
-                            background: 'rgba(32, 227, 255, 0.08)',
-                            border: '1px solid rgba(32, 227, 255, 0.2)'
+                            background: 'rgba(var(--codedock-primary-rgb), 0.08)',
+                            border: '1px solid rgba(var(--codedock-primary-rgb), 0.2)'
                           }}
                           onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(32, 227, 255, 0.16)'; }}
                           onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(32, 227, 255, 0.08)'; }}
                         >
                           <MessageSquare size={14} style={{ color: 'var(--neon-cyan)' }} />
                           <span className="tracking-tight" style={{
-                            fontSize: '11px',
+                            fontSize: "var(--krds-body-xsmall)",
                             fontWeight: 900,
                             color: 'var(--neon-cyan)'
                           }}>
@@ -561,7 +561,7 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
                         </button>
                         {thread.lastReply && (
                           <span className="tracking-tight" style={{
-                            fontSize: '11px',
+                            fontSize: "var(--krds-body-xsmall)",
                             fontWeight: 700,
                             color: 'var(--muted)'
                           }}>
@@ -589,12 +589,12 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
 
       {/* Composer */}
       <div className="px-6 pt-1 pb-3" style={{
-        borderTop: '1px solid rgba(32, 227, 255, 0.14)'
+        borderTop: '1px solid rgba(var(--codedock-primary-rgb), 0.14)'
       }}>
         {selectedAttachments.length > 0 && (
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <span className="tracking-tight" style={{
-              fontSize: '11px', fontWeight: 900, color: 'var(--muted)'
+              fontSize: "var(--krds-body-xsmall)", fontWeight: 900, color: 'var(--muted)'
             }}>
               첨부 {selectedAttachments.length}
             </span>
@@ -604,10 +604,10 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
                 onClick={() => handleAttachmentRemove(attachment.id)}
                 className="px-3 py-1.5 rounded-full border-0 flex items-center gap-2 tracking-tight"
                 style={{
-                  background: 'rgba(32, 227, 255, 0.12)',
-                  border: '1px solid rgba(32, 227, 255, 0.24)',
+                  background: 'rgba(var(--codedock-primary-rgb), 0.12)',
+                  border: '1px solid rgba(var(--codedock-primary-rgb), 0.24)',
                   color: 'var(--white)',
-                  fontSize: '11px',
+                  fontSize: "var(--krds-body-xsmall)",
                   fontWeight: 900,
                   cursor: 'pointer'
                 }}
@@ -643,7 +643,7 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
         {activePanel === 'attachment' && (
           <div className="mb-3 rounded-xl px-4 py-3" style={{
             background: 'rgba(5, 11, 20, 0.78)',
-            border: '1px solid rgba(32, 227, 255, 0.18)',
+            border: '1px solid rgba(var(--codedock-primary-rgb), 0.18)',
             boxShadow: '0 16px 36px rgba(0, 0, 0, 0.24)'
           }}>
             <div className="flex flex-wrap gap-1 mb-3">
@@ -653,10 +653,10 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
                   onClick={() => setActiveAttachmentType(group.type)}
                   className="px-3 py-1.5 rounded-lg border-0 tracking-tight"
                   style={{
-                    background: activeAttachmentType === group.type ? 'rgba(32, 227, 255, 0.16)' : 'transparent',
-                    border: activeAttachmentType === group.type ? '1px solid rgba(32, 227, 255, 0.36)' : '1px solid transparent',
+                    background: activeAttachmentType === group.type ? 'rgba(var(--codedock-primary-rgb), 0.16)' : 'transparent',
+                    border: activeAttachmentType === group.type ? '1px solid rgba(var(--codedock-primary-rgb), 0.36)' : '1px solid transparent',
                     color: activeAttachmentType === group.type ? 'var(--neon-cyan)' : 'var(--muted)',
-                    fontSize: '12px', fontWeight: 950, cursor: 'pointer'
+                    fontSize: "var(--krds-body-xsmall)", fontWeight: 950, cursor: 'pointer'
                   }}
                 >
                   {group.label}
@@ -664,7 +664,7 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
               ))}
             </div>
             <p className="m-0 mb-3 tracking-tight" style={{
-              fontSize: '12px', fontWeight: 800, color: 'var(--muted)'
+              fontSize: "var(--krds-body-xsmall)", fontWeight: 800, color: 'var(--muted)'
             }}>
               {activeAttachmentGroup.description}
             </p>
@@ -677,8 +677,8 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
                     onClick={() => handleAttachmentToggle(attachment)}
                     className="w-full rounded-lg px-3 py-2 border-0 text-left transition-all"
                     style={{
-                      background: isSelected ? 'rgba(32, 227, 255, 0.14)' : 'rgba(11, 22, 40, 0.62)',
-                      border: isSelected ? '1px solid rgba(32, 227, 255, 0.34)' : '1px solid rgba(32, 227, 255, 0.12)',
+                      background: isSelected ? 'rgba(var(--codedock-primary-rgb), 0.14)' : 'rgba(11, 22, 40, 0.62)',
+                      border: isSelected ? '1px solid rgba(var(--codedock-primary-rgb), 0.34)' : '1px solid rgba(var(--codedock-primary-rgb), 0.12)',
                       cursor: 'pointer'
                     }}
                   >
@@ -689,15 +689,15 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
                         {attachment.title}
                       </span>
                       <span className="px-2 py-0.5 rounded-full tracking-tight" style={{
-                        background: isSelected ? 'rgba(57, 255, 136, 0.16)' : 'rgba(32, 227, 255, 0.10)',
+                        background: isSelected ? 'rgba(var(--codedock-secondary-rgb), 0.16)' : 'rgba(var(--codedock-primary-rgb), 0.10)',
                         color: isSelected ? 'var(--matrix-green)' : 'var(--neon-cyan)',
-                        fontSize: '10px', fontWeight: 950, whiteSpace: 'nowrap'
+                        fontSize: "var(--krds-body-xsmall)", fontWeight: 950, whiteSpace: 'nowrap'
                       }}>
                         {isSelected ? '선택됨' : attachment.meta}
                       </span>
                     </div>
                     <p className="m-0 mt-1 tracking-tight" style={{
-                      fontSize: '12px', fontWeight: 700, color: 'var(--muted)', lineHeight: '1.45'
+                      fontSize: "var(--krds-body-xsmall)", fontWeight: 700, color: 'var(--muted)', lineHeight: '1.45'
                     }}>
                       {attachment.detail}
                     </p>
@@ -711,7 +711,7 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
         {activePanel === 'link' && (
           <div className="mb-3 rounded-xl px-4 py-3" style={{
             background: 'rgba(5, 11, 20, 0.78)',
-            border: '1px solid rgba(32, 227, 255, 0.18)',
+            border: '1px solid rgba(var(--codedock-primary-rgb), 0.18)',
             boxShadow: '0 16px 36px rgba(0, 0, 0, 0.24)'
           }}>
             <div className="mb-3 flex items-center gap-2">
@@ -733,7 +733,7 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
                 className="rounded-lg border-0 px-3 py-2 outline-none tracking-tight"
                 style={{
                   background: 'rgba(11, 22, 40, 0.72)',
-                  border: '1px solid rgba(32, 227, 255, 0.14)',
+                  border: '1px solid rgba(var(--codedock-primary-rgb), 0.14)',
                   color: 'var(--white)', fontSize: '13px', fontWeight: 750
                 }}
               />
@@ -747,7 +747,7 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
                 className="rounded-lg border-0 px-3 py-2 outline-none tracking-tight"
                 style={{
                   background: 'rgba(11, 22, 40, 0.72)',
-                  border: '1px solid rgba(32, 227, 255, 0.14)',
+                  border: '1px solid rgba(var(--codedock-primary-rgb), 0.14)',
                   color: 'var(--white)', fontSize: '13px', fontWeight: 750
                 }}
               />
@@ -770,7 +770,7 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
             {linkPreviewAttachment && (
               <div className="mt-3">
                 <p className="m-0 mb-2 tracking-tight" style={{
-                  color: 'var(--muted)', fontSize: '11px', fontWeight: 900
+                  color: 'var(--muted)', fontSize: "var(--krds-body-xsmall)", fontWeight: 900
                 }}>
                   미리보기
                 </p>
@@ -835,7 +835,7 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
 
         <div className="relative flex items-end gap-2 px-4 py-2 rounded-xl" style={{
           background: 'rgba(5, 11, 20, 0.6)',
-          border: '1px solid rgba(32, 227, 255, 0.14)'
+          border: '1px solid rgba(var(--codedock-primary-rgb), 0.14)'
         }}>
             <textarea
               value={messageText}

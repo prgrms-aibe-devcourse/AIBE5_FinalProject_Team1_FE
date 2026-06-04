@@ -95,7 +95,7 @@ function getStatusColor(status: string) {
     case "Changes Requested":
       return { bg: "rgba(255, 107, 107, 0.15)", border: "rgba(255, 107, 107, 0.4)", text: "#FF6B6B" };
     default:
-      return { bg: "rgba(32, 227, 255, 0.15)", border: "rgba(32, 227, 255, 0.3)", text: "var(--neon-cyan)" };
+      return { bg: "rgba(var(--codedock-primary-rgb), 0.15)", border: "rgba(var(--codedock-primary-rgb), 0.3)", text: "var(--neon-cyan)" };
   }
 }
 
@@ -149,18 +149,18 @@ function StatCard({
   return (
     <div className="rounded-2xl px-5 py-5" style={{
       background: "rgba(5, 11, 20, 0.58)",
-      border: "1px solid rgba(32, 227, 255, 0.16)",
+      border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)",
       boxShadow: "0 12px 28px rgba(0, 0, 0, 0.24)"
     }}>
       <Icon size={20} style={{ color: "var(--neon-cyan)", marginBottom: 10 }} />
       <p className="m-0 tracking-[-0.04em]" style={{ fontSize: 32, fontWeight: 950, color }}>
         {value}
       </p>
-      <p className="m-0 mt-1 tracking-tight" style={{ fontSize: 12, fontWeight: 900, color: "var(--muted)" }}>
+      <p className="m-0 mt-1 tracking-tight" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 900, color: "var(--muted)" }}>
         {label}
       </p>
       {helper && (
-        <p className="m-0 mt-1 tracking-tight" style={{ fontSize: 11, fontWeight: 800, color: "var(--matrix-green)" }}>
+        <p className="m-0 mt-1 tracking-tight" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 800, color: "var(--matrix-green)" }}>
           {helper}
         </p>
       )}
@@ -208,10 +208,10 @@ export function OverviewPanel({ repositories, selectedRepositoryId, onSelectRepo
                 onClick={() => setActiveRepositoryId(null)}
                 className="inline-flex items-center gap-2 rounded-full border-0 px-3 py-2 tracking-tight transition-all hover:scale-[1.02]"
                 style={{
-                  background: "rgba(32, 227, 255, 0.08)",
-                  border: "1px solid rgba(32, 227, 255, 0.18)",
+                  background: "rgba(var(--codedock-primary-rgb), 0.08)",
+                  border: "1px solid rgba(var(--codedock-primary-rgb), 0.18)",
                   color: "var(--neon-cyan)",
-                  fontSize: 12,
+                  fontSize: "var(--krds-body-xsmall)",
                   fontWeight: 950,
                   cursor: "pointer"
                 }}
@@ -220,12 +220,12 @@ export function OverviewPanel({ repositories, selectedRepositoryId, onSelectRepo
                 통합 개요
               </button>
               <div className="inline-flex items-center gap-2 rounded-full px-3 py-1.5" style={{
-                background: "rgba(57, 255, 136, 0.10)",
-                border: "1px solid rgba(57, 255, 136, 0.22)",
+                background: "rgba(var(--codedock-secondary-rgb), 0.10)",
+                border: "1px solid rgba(var(--codedock-secondary-rgb), 0.22)",
                 color: "var(--matrix-green)"
               }}>
                 <span className="h-2 w-2 rounded-full" style={{ background: "var(--matrix-green)" }} />
-                <span className="tracking-tight" style={{ fontSize: 12, fontWeight: 950 }}>
+                <span className="tracking-tight" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}>
                   리포지토리 개요
                 </span>
               </div>
@@ -239,9 +239,9 @@ export function OverviewPanel({ repositories, selectedRepositoryId, onSelectRepo
           </div>
           <div className="mt-10 -mr-2 rounded-2xl px-4 py-3 text-center" style={{
             background: "rgba(234, 247, 255, 0.045)",
-            border: "1px solid rgba(32, 227, 255, 0.14)"
+            border: "1px solid rgba(var(--codedock-primary-rgb), 0.14)"
           }}>
-            <p className="m-0 mb-1" style={{ color: "var(--muted)", fontSize: 11, fontWeight: 900 }}>현재 선택</p>
+            <p className="m-0 mb-1" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 900 }}>현재 선택</p>
             <p className="m-0" style={{ color: selectedRepositoryId === activeRepository.id ? "var(--neon-cyan)" : "var(--white)", fontSize: 13, fontWeight: 950 }}>
               {selectedRepositoryId === activeRepository.id ? "동기화됨" : "미리보기"}
             </p>
@@ -258,7 +258,7 @@ export function OverviewPanel({ repositories, selectedRepositoryId, onSelectRepo
         <div className="mb-5 grid gap-5 xl:grid-cols-2">
           <section className="rounded-2xl px-5 py-5" style={{
             background: "rgba(5, 11, 20, 0.58)",
-            border: "1px solid rgba(32, 227, 255, 0.16)"
+            border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)"
           }}>
             <h3 className="m-0 mb-4 tracking-tight" style={{ color: "var(--white)", fontSize: 17, fontWeight: 950 }}>
               최근 활동
@@ -271,7 +271,7 @@ export function OverviewPanel({ repositories, selectedRepositoryId, onSelectRepo
                     <p className="m-0 tracking-tight" style={{ color: "var(--white)", fontSize: 13, fontWeight: 850, lineHeight: 1.45 }}>
                       <span style={{ color: "var(--matrix-green)", fontWeight: 950 }}>{activity.user}</span> {activity.action}
                     </p>
-                    <p className="m-0 mt-0.5 tracking-tight" style={{ color: "var(--muted)", fontSize: 11, fontWeight: 750 }}>
+                    <p className="m-0 mt-0.5 tracking-tight" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 750 }}>
                       {activity.time}
                     </p>
                   </div>
@@ -282,7 +282,7 @@ export function OverviewPanel({ repositories, selectedRepositoryId, onSelectRepo
 
           <section className="rounded-2xl px-5 py-5" style={{
             background: "rgba(5, 11, 20, 0.58)",
-            border: "1px solid rgba(32, 227, 255, 0.16)"
+            border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)"
           }}>
             <h3 className="m-0 mb-4 tracking-tight" style={{ color: "var(--white)", fontSize: 17, fontWeight: 950 }}>
               진행 중인 PR
@@ -293,7 +293,7 @@ export function OverviewPanel({ repositories, selectedRepositoryId, onSelectRepo
                 return (
                   <div key={pr.number} className="rounded-xl px-4 py-3" style={{
                     background: "rgba(234, 247, 255, 0.045)",
-                    border: "1px solid rgba(32, 227, 255, 0.10)"
+                    border: "1px solid rgba(var(--codedock-primary-rgb), 0.10)"
                   }}>
                     <div className="mb-2 flex items-start justify-between gap-3">
                       <p className="m-0 min-w-0 tracking-tight" style={{ color: "var(--white)", fontSize: 13, fontWeight: 950 }}>
@@ -303,16 +303,16 @@ export function OverviewPanel({ repositories, selectedRepositoryId, onSelectRepo
                         background: status.bg,
                         border: `1px solid ${status.border}`,
                         color: status.text,
-                        fontSize: 10,
+                        fontSize: "var(--krds-body-xsmall)",
                         fontWeight: 950
                       }}>
                         {getStatusLabel(pr.status)}
                       </span>
                     </div>
                     <div className="flex flex-wrap gap-3">
-                      <span style={{ color: "var(--muted)", fontSize: 11, fontWeight: 800 }}>{pr.author}</span>
-                      <span style={{ color: "var(--muted)", fontSize: 11, fontWeight: 800 }}>리뷰어 {pr.reviewers}명</span>
-                      <span style={{ color: "var(--muted)", fontSize: 11, fontWeight: 800 }}>댓글 {pr.comments}개</span>
+                      <span style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>{pr.author}</span>
+                      <span style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>리뷰어 {pr.reviewers}명</span>
+                      <span style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>댓글 {pr.comments}개</span>
                     </div>
                   </div>
                 );
@@ -323,7 +323,7 @@ export function OverviewPanel({ repositories, selectedRepositoryId, onSelectRepo
 
         <section className="rounded-2xl px-5 py-5" style={{
           background: "rgba(5, 11, 20, 0.58)",
-          border: "1px solid rgba(32, 227, 255, 0.16)"
+          border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)"
         }}>
           <h3 className="m-0 mb-5 tracking-tight" style={{ color: "var(--white)", fontSize: 17, fontWeight: 950 }}>
             리포지토리 상태
@@ -341,11 +341,11 @@ export function OverviewPanel({ repositories, selectedRepositoryId, onSelectRepo
                   <div className="mb-2 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
                       <Icon size={16} style={{ color: "var(--neon-cyan)" }} />
-                      <span style={{ color: "var(--muted)", fontSize: 12, fontWeight: 900 }}>{item.label}</span>
+                      <span style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 900 }}>{item.label}</span>
                     </div>
-                    <span style={{ color, fontSize: 12, fontWeight: 950 }}>{item.value}/100</span>
+                    <span style={{ color, fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}>{item.value}/100</span>
                   </div>
-                  <div className="h-2 overflow-hidden rounded-full" style={{ background: "rgba(32, 227, 255, 0.10)" }}>
+                  <div className="h-2 overflow-hidden rounded-full" style={{ background: "rgba(var(--codedock-primary-rgb), 0.10)" }}>
                     <div className="h-full rounded-full" style={{ width: `${item.value}%`, background: color }} />
                   </div>
                 </div>
@@ -361,12 +361,12 @@ export function OverviewPanel({ repositories, selectedRepositoryId, onSelectRepo
     <div ref={scrollRootRef} className="codedock-scrollbar-hidden flex h-full min-h-0 flex-col overflow-y-auto px-6 py-6">
       <div className="mb-6">
         <div className="mb-3 inline-flex items-center gap-2 rounded-full px-3 py-1.5" style={{
-          background: "rgba(32, 227, 255, 0.09)",
-          border: "1px solid rgba(32, 227, 255, 0.22)",
+          background: "rgba(var(--codedock-primary-rgb), 0.09)",
+          border: "1px solid rgba(var(--codedock-primary-rgb), 0.22)",
           color: "var(--neon-cyan)"
         }}>
           <Layers size={15} />
-          <span className="tracking-tight" style={{ fontSize: 12, fontWeight: 950 }}>
+          <span className="tracking-tight" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}>
             통합 워크스페이스
           </span>
         </div>
@@ -388,14 +388,14 @@ export function OverviewPanel({ repositories, selectedRepositoryId, onSelectRepo
 
       <section className="mb-6 rounded-2xl px-5 py-5" style={{
         background: "rgba(5, 11, 20, 0.50)",
-        border: "1px solid rgba(32, 227, 255, 0.16)"
+        border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)"
       }}>
         <div className="mb-4 flex items-center justify-between gap-4">
           <div>
             <h3 className="m-0 mb-1 tracking-tight" style={{ color: "var(--white)", fontSize: 18, fontWeight: 950 }}>
               리포지토리별 개요
             </h3>
-            <p className="m-0 tracking-tight" style={{ color: "var(--muted)", fontSize: 12, fontWeight: 800 }}>
+            <p className="m-0 tracking-tight" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>
               저장소를 선택하면 상세 개요로 전환됩니다.
             </p>
           </div>
@@ -411,7 +411,7 @@ export function OverviewPanel({ repositories, selectedRepositoryId, onSelectRepo
               className="rounded-2xl px-5 py-5 text-left transition-all hover:translate-y-[-2px]"
               style={{
                 background: "rgba(11, 22, 40, 0.82)",
-                border: "1px solid rgba(32, 227, 255, 0.18)",
+                border: "1px solid rgba(var(--codedock-primary-rgb), 0.18)",
                 boxShadow: "0 14px 34px rgba(0, 0, 0, 0.25)",
                 cursor: "pointer"
               }}
@@ -421,7 +421,7 @@ export function OverviewPanel({ repositories, selectedRepositoryId, onSelectRepo
                   <h4 className="m-0 mb-1 truncate tracking-tight" style={{ color: "var(--white)", fontSize: 17, fontWeight: 950 }}>
                     {repo.name}
                   </h4>
-                  <p className="m-0 tracking-tight" style={{ color: repo.connected ? "var(--matrix-green)" : "var(--muted)", fontSize: 11, fontWeight: 900 }}>
+                  <p className="m-0 tracking-tight" style={{ color: repo.connected ? "var(--matrix-green)" : "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 900 }}>
                     {repo.connected ? "GitHub 연결됨" : "연결되지 않음"}
                   </p>
                 </div>
@@ -430,15 +430,15 @@ export function OverviewPanel({ repositories, selectedRepositoryId, onSelectRepo
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <p className="m-0 mb-1" style={{ color: "var(--muted)", fontSize: 11, fontWeight: 800 }}>PR</p>
+                  <p className="m-0 mb-1" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>PR</p>
                   <p className="m-0" style={{ color: "var(--neon-cyan)", fontSize: 22, fontWeight: 950 }}>{repo.openPRs}</p>
                 </div>
                 <div>
-                  <p className="m-0 mb-1" style={{ color: "var(--muted)", fontSize: 11, fontWeight: 800 }}>위험</p>
+                  <p className="m-0 mb-1" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>위험</p>
                   <p className="m-0" style={{ color: repo.highRisk > 0 ? "#FF6B6B" : "var(--matrix-green)", fontSize: 22, fontWeight: 950 }}>{repo.highRisk}</p>
                 </div>
                 <div>
-                  <p className="m-0 mb-1" style={{ color: "var(--muted)", fontSize: 11, fontWeight: 800 }}>이슈</p>
+                  <p className="m-0 mb-1" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>이슈</p>
                   <p className="m-0" style={{ color: "var(--soft-mint)", fontSize: 22, fontWeight: 950 }}>{repo.activeIssues}</p>
                 </div>
               </div>
@@ -449,7 +449,7 @@ export function OverviewPanel({ repositories, selectedRepositoryId, onSelectRepo
 
       <section className="rounded-2xl px-5 py-5" style={{
         background: "rgba(5, 11, 20, 0.50)",
-        border: "1px solid rgba(32, 227, 255, 0.16)"
+        border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)"
       }}>
         <h3 className="m-0 mb-4 tracking-tight" style={{ color: "var(--white)", fontSize: 18, fontWeight: 950 }}>
           통합 우선순위
@@ -462,7 +462,7 @@ export function OverviewPanel({ repositories, selectedRepositoryId, onSelectRepo
           ].map((item) => (
             <div key={item.label} className="flex items-center justify-between rounded-xl px-4 py-3" style={{
               background: "rgba(234, 247, 255, 0.045)",
-              border: "1px solid rgba(32, 227, 255, 0.10)"
+              border: "1px solid rgba(var(--codedock-primary-rgb), 0.10)"
             }}>
               <span className="tracking-tight" style={{ color: "var(--white)", fontSize: 14, fontWeight: 900 }}>{item.label}</span>
               <span className="tracking-tight" style={{ color: item.color, fontSize: 14, fontWeight: 950 }}>{item.value}</span>

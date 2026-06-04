@@ -25,8 +25,8 @@ import { useLanguage } from "../contexts/LanguageContext";
 import { useTheme } from "../contexts/ThemeContext";
 
 const reviewSignals = [
-  { label: "GitHub 연동", value: "PR·이슈", tone: "#20E3FF", progress: 76 },
-  { label: "팀 채팅", value: "실시간", tone: "#B7FFE3", progress: 88 },
+  { label: "GitHub 연동", value: "PR·이슈", tone: "var(--neon-cyan)", progress: 76 },
+  { label: "팀 채팅", value: "실시간", tone: "var(--soft-mint)", progress: 88 },
   { label: "문서 허브", value: "API·ERD", tone: "#FFD166", progress: 100 },
 ];
 
@@ -51,13 +51,13 @@ const featureCards = [
     icon: GitPullRequest,
     title: "GitHub 워크스페이스",
     description: "PR, 이슈, 변경 파일을 한 화면으로 모읍니다.",
-    tone: "#20E3FF",
+    tone: "var(--neon-cyan)",
   },
   {
     icon: MessageSquare,
     title: "팀 채팅과 결정 로그",
     description: "리뷰 질문과 결정 사항을 채팅에 남깁니다.",
-    tone: "#B7FFE3",
+    tone: "var(--soft-mint)",
   },
   {
     icon: FileText,
@@ -73,6 +73,8 @@ const workspaceFlow = [
   "팀 채팅에서 리뷰 프로세스 정리",
   "문서와 결정 사항으로 남기기",
 ];
+
+const toneAlpha = (color: string, percent: number) => `color-mix(in srgb, ${color} ${percent}%, transparent)`;
 
 type LandingSection = "hero" | "features" | "flow" | "closing";
 
@@ -165,8 +167,8 @@ export function HomePage() {
     : mascotMessages;
   const reviewSignalsCopy = isEnglish
     ? [
-        { label: "GitHub sync", value: "PRs", tone: "#20E3FF", progress: 76 },
-        { label: "Team chat", value: "Live", tone: "#B7FFE3", progress: 88 },
+        { label: "GitHub sync", value: "PRs", tone: "var(--neon-cyan)", progress: 76 },
+        { label: "Team chat", value: "Live", tone: "var(--soft-mint)", progress: 88 },
         { label: "Docs hub", value: "API", tone: "#FFD166", progress: 100 },
       ]
     : reviewSignals;
@@ -176,13 +178,13 @@ export function HomePage() {
           icon: GitPullRequest,
           title: "GitHub workspace",
           description: "Collect PRs, issues, and changed files in one screen.",
-          tone: "#20E3FF",
+          tone: "var(--neon-cyan)",
         },
         {
           icon: MessageSquare,
           title: "Team chat and decisions",
           description: "Keep review questions and decisions in team chat.",
-          tone: "#B7FFE3",
+          tone: "var(--soft-mint)",
         },
         {
           icon: FileText,
@@ -641,7 +643,7 @@ export function HomePage() {
                       transition={{ duration: 0.42, ease: "easeOut" }}
                     >
                       <span
-                        className="mb-2 inline-flex rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-tight sm:text-xs"
+                        className="mb-2 inline-flex rounded-full px-3 py-1 text-sm font-black uppercase tracking-tight sm:text-sm"
                         style={{
                           background: `${colors.primary}, 0.12)`,
                           border: `1px solid ${colors.primary}, 0.22)`,
@@ -657,7 +659,7 @@ export function HomePage() {
                         {activeIntroDialogue.lines.map((line, lineIndex) => (
                           <motion.p
                             key={line}
-                            className="m-0 text-xs font-black leading-5 sm:text-sm sm:leading-6"
+                            className="m-0 text-sm font-black leading-5 sm:text-sm sm:leading-6"
                             style={{ color: lineIndex === 0 && activeIntroDialogue.id === "brand" ? colors.primaryHex : "#DFFAFF" }}
                             initial={{ opacity: 0, y: 8 }}
                             animate={{ opacity: 1, y: 0 }}
@@ -684,7 +686,7 @@ export function HomePage() {
                 {introFeatureTags.map((item) => (
                   <span
                     key={item}
-                    className="rounded-full px-3 py-2 text-xs font-black tracking-tight"
+                    className="rounded-full px-3 py-2 text-sm font-black tracking-tight"
                     style={{
                       background: "rgba(234, 247, 255, 0.055)",
                       border: `1px solid ${colors.primary}, 0.14)`,
@@ -735,7 +737,7 @@ export function HomePage() {
           className="pointer-events-none absolute inset-0"
           style={{
             background: `
-              linear-gradient(90deg, ${colors.primary}, 0.08), transparent 34%, rgba(255,209,102,0.06) 56%, rgba(57,255,136,0.07) 70%, transparent),
+              linear-gradient(90deg, ${colors.primary}, 0.08), transparent 34%, rgba(255,209,102,0.06) 56%, rgba(var(--codedock-secondary-rgb),0.07) 70%, transparent),
               linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
               linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px)
             `,
@@ -762,7 +764,7 @@ export function HomePage() {
               className="h-2 w-2 rounded-full"
               style={{
                 background: "var(--matrix-green)",
-                boxShadow: "0 0 0 5px rgba(57,255,136,0.13), 0 0 16px rgba(57,255,136,0.7)",
+                boxShadow: "0 0 0 5px rgba(var(--codedock-secondary-rgb),0.13), 0 0 16px rgba(var(--codedock-secondary-rgb),0.7)",
               }}
               animate={{ scale: [1, 1.55, 1], opacity: [0.74, 1, 0.74] }}
               transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
@@ -901,7 +903,7 @@ export function HomePage() {
           >
             <div className="mb-3 flex items-center justify-between">
               <div>
-                <p className="m-0 text-xs font-black tracking-tight" style={{ color: colors.primaryHex }}>
+                <p className="m-0 text-sm font-black tracking-tight" style={{ color: colors.primaryHex }}>
                   {isEnglish ? "CODEDOCK MASCOT" : "CODEDOCK 마스코트"}
                 </p>
                 <h2 className="m-0 mt-1 text-lg font-black tracking-tight" style={{ color: "var(--white)" }}>
@@ -909,11 +911,11 @@ export function HomePage() {
                 </h2>
               </div>
               <div
-                className="rounded-full px-3 py-1.5 text-xs font-black tracking-tight"
+                className="rounded-full px-3 py-1.5 text-sm font-black tracking-tight"
                 style={{
-                  background: "rgba(57,255,136,0.10)",
-                  border: "1px solid rgba(57,255,136,0.24)",
-                  color: "#B7FFE3",
+                  background: "rgba(var(--codedock-secondary-rgb),0.10)",
+                  border: "1px solid rgba(var(--codedock-secondary-rgb),0.24)",
+                  color: "var(--soft-mint)",
                 }}
               >
                 {isEnglish ? "LIVE" : "실시간"}
@@ -971,11 +973,11 @@ export function HomePage() {
                     className="relative cursor-pointer overflow-hidden rounded-[18px] px-3 py-2 outline-none"
                     style={{
                       background: isSignalActive
-                        ? `linear-gradient(135deg, ${signal.tone}1A, rgba(234, 247, 255, 0.06))`
+                        ? `linear-gradient(135deg, ${toneAlpha(signal.tone, 10)}, rgba(234, 247, 255, 0.06))`
                         : "rgba(234, 247, 255, 0.055)",
                       border: `1px solid ${isSignalActive ? signal.tone : `${colors.primary}, 0.13)`}`,
                       boxShadow: isSignalActive
-                        ? `0 0 22px ${signal.tone}24, inset 0 1px 0 rgba(255,255,255,0.10)`
+                        ? `0 0 22px ${toneAlpha(signal.tone, 14)}, inset 0 1px 0 rgba(255,255,255,0.10)`
                         : "inset 0 1px 0 rgba(255,255,255,0.07)",
                       color: "#DFFAFF",
                       transition: "background 180ms ease, border-color 180ms ease, box-shadow 180ms ease",
@@ -997,8 +999,8 @@ export function HomePage() {
                     transition={{ duration: 0.2, ease: "easeOut" }}
                   >
                     <div className="relative z-10 flex items-center justify-between gap-3">
-                      <span className="text-xs font-black tracking-tight xl:text-sm">{signal.label}</span>
-                      <span className="text-xs font-black tracking-tight xl:text-sm" style={{ color: signal.tone }}>
+                      <span className="text-sm font-black tracking-tight xl:text-sm">{signal.label}</span>
+                      <span className="text-sm font-black tracking-tight xl:text-sm" style={{ color: signal.tone }}>
                         {signal.value}
                       </span>
                     </div>
@@ -1014,7 +1016,7 @@ export function HomePage() {
                         className="h-full rounded-full"
                         style={{
                           background: `linear-gradient(90deg, ${signal.tone}, ${colors.primaryHex})`,
-                          boxShadow: `0 0 14px ${signal.tone}66`,
+                          boxShadow: `0 0 14px ${toneAlpha(signal.tone, 40)}`,
                         }}
                         initial={false}
                         animate={{ width: isSignalActive ? `${signal.progress}%` : "0%" }}
@@ -1025,7 +1027,7 @@ export function HomePage() {
                       {isSignalActive && (
                         <motion.p
                           data-review-signal-detail={index + 1}
-                          className="relative z-10 m-0 mt-3 text-xs font-semibold leading-5 tracking-tight lg:hidden"
+                          className="relative z-10 m-0 mt-3 text-sm font-semibold leading-5 tracking-tight lg:hidden"
                           style={{ color: "#CFF8FF" }}
                           initial={{ opacity: 0, y: -4, height: 0 }}
                           animate={{ opacity: 1, y: 0, height: "auto" }}
@@ -1044,10 +1046,10 @@ export function HomePage() {
                   <motion.p
                     key={reviewSignalsCopy[activeSignalIndex]?.label}
                     data-review-signal-detail={activeSignalIndex + 1}
-                    className="relative z-10 m-0 hidden rounded-[18px] px-3 py-2 text-xs font-semibold leading-5 tracking-tight lg:col-span-3 lg:block"
+                    className="relative z-10 m-0 hidden rounded-[18px] px-3 py-2 text-sm font-semibold leading-5 tracking-tight lg:col-span-3 lg:block"
                     style={{
                       background: "rgba(234, 247, 255, 0.055)",
-                      border: `1px solid ${reviewSignalsCopy[activeSignalIndex]?.tone ?? colors.primaryHex}44`,
+                      border: `1px solid ${toneAlpha(reviewSignalsCopy[activeSignalIndex]?.tone ?? colors.primaryHex, 27)}`,
                       color: "#CFF8FF",
                     }}
                     initial={{ opacity: 0, y: -4 }}
@@ -1105,7 +1107,7 @@ export function HomePage() {
               <h2 className="m-0 mt-3 text-2xl font-black leading-tight tracking-tight" style={{ color: "var(--white)" }}>
                 {isEnglish ? "GitHub, chat, and docs move as one story." : "GitHub, 채팅, 문서가 한 흐름으로 이어져요."}
               </h2>
-              <p className="m-0 mt-3 text-xs font-semibold leading-5 tracking-tight sm:text-sm sm:leading-6" style={{ color: "var(--muted)" }}>
+              <p className="m-0 mt-3 text-sm font-semibold leading-5 tracking-tight sm:text-sm sm:leading-6" style={{ color: "var(--muted)" }}>
                 {isEnglish
                   ? "PRs, issues, team decisions, and documents stay in the same process from review to record."
                   : "PR과 이슈의 작업 프로세스가 팀 대화와 문서 기록까지 이어져, 작업 후에도 결정 사항을 바로 추적할 수 있어요."}
@@ -1126,7 +1128,7 @@ export function HomePage() {
                   animate={{ width: `${featureProgressPercent}%` }}
                   transition={{ duration: 0.32, ease: "easeOut" }}
                   style={{
-                    background: `linear-gradient(90deg, ${colors.primaryHex}, #39FF88, #FFD166)`,
+                    background: `linear-gradient(90deg, ${colors.primaryHex}, var(--matrix-green), #FFD166)`,
                     boxShadow: `0 0 18px ${colors.primary}, 0.42), 0 0 24px rgba(255,209,102,0.18)`,
                   }}
                 />
@@ -1153,11 +1155,11 @@ export function HomePage() {
                     className="group relative flex min-h-[82px] cursor-pointer items-center gap-3 overflow-hidden rounded-2xl px-3 py-3 text-left outline-none"
                     style={{
                       background: isFeatureActive
-                        ? `linear-gradient(145deg, ${feature.tone}26, rgba(234, 247, 255, 0.075))`
+                        ? `linear-gradient(145deg, ${toneAlpha(feature.tone, 15)}, rgba(234, 247, 255, 0.075))`
                         : "rgba(234, 247, 255, 0.052)",
                       border: `1px solid ${isFeatureActive ? feature.tone : `${colors.primary}, 0.13)`}`,
                       boxShadow: isFeatureActive
-                        ? `0 0 26px ${feature.tone}1F, inset 0 1px 0 rgba(255,255,255,0.10)`
+                        ? `0 0 26px ${toneAlpha(feature.tone, 12)}, inset 0 1px 0 rgba(255,255,255,0.10)`
                         : "inset 0 1px 0 rgba(255,255,255,0.06)",
                       transition: "background 180ms ease, border-color 180ms ease, box-shadow 180ms ease",
                     }}
@@ -1165,9 +1167,9 @@ export function HomePage() {
                     <span
                       className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-2xl"
                       style={{
-                        background: `${feature.tone}18`,
-                        border: `1px solid ${feature.tone}55`,
-                        boxShadow: `0 0 20px ${feature.tone}22`,
+                        background: toneAlpha(feature.tone, 9),
+                        border: `1px solid ${toneAlpha(feature.tone, 33)}`,
+                        boxShadow: `0 0 20px ${toneAlpha(feature.tone, 13)}`,
                       }}
                     >
                       <motion.span
@@ -1178,13 +1180,13 @@ export function HomePage() {
                       </motion.span>
                     </span>
                     <span className="min-w-0">
-                      <span className="block text-[11px] font-black tracking-tight" style={{ color: feature.tone }}>
+                      <span className="block text-[var(--krds-body-xsmall)] font-black tracking-tight" style={{ color: feature.tone }}>
                         0{index + 1}
                       </span>
                       <span className="mt-0.5 block text-base font-black tracking-tight" style={{ color: "var(--white)" }}>
                         {feature.title}
                       </span>
-                      <span className="mt-1.5 block text-xs font-semibold leading-5 tracking-tight" style={{ color: "var(--muted)" }}>
+                      <span className="mt-1.5 block text-sm font-semibold leading-5 tracking-tight" style={{ color: "var(--muted)" }}>
                         {feature.description}
                       </span>
                     </span>
@@ -1192,7 +1194,7 @@ export function HomePage() {
                       className="pointer-events-none absolute bottom-0 left-0 h-1 rounded-full"
                       style={{
                         background: `linear-gradient(90deg, ${feature.tone}, ${colors.primaryHex})`,
-                        boxShadow: `0 0 18px ${feature.tone}66`,
+                        boxShadow: `0 0 18px ${toneAlpha(feature.tone, 40)}`,
                       }}
                       initial={false}
                       animate={{ width: isFeatureActive ? "100%" : "0%" }}
@@ -1208,11 +1210,11 @@ export function HomePage() {
             className="relative min-h-[430px] overflow-hidden rounded-[34px] p-4 sm:p-5 lg:min-h-[450px]"
             style={{
               background: `
-                radial-gradient(circle at 82% 14%, ${activeFeature.tone}22, transparent 32%),
+                radial-gradient(circle at 82% 14%, ${toneAlpha(activeFeature.tone, 13)}, transparent 32%),
                 linear-gradient(145deg, rgba(11, 22, 40, 0.86), rgba(5, 11, 20, 0.72))
               `,
-              border: `1px solid ${activeFeature.tone}55`,
-              boxShadow: `0 18px 54px rgba(0,0,0,0.34), 0 0 34px ${activeFeature.tone}18, inset 0 1px 0 rgba(255,255,255,0.09)`,
+              border: `1px solid ${toneAlpha(activeFeature.tone, 33)}`,
+              boxShadow: `0 18px 54px rgba(0,0,0,0.34), 0 0 34px ${toneAlpha(activeFeature.tone, 9)}, inset 0 1px 0 rgba(255,255,255,0.09)`,
               backdropFilter: "blur(18px) saturate(165%)",
             }}
           >
@@ -1239,10 +1241,10 @@ export function HomePage() {
                 className="relative z-10 flex min-h-[398px] flex-col items-center overflow-hidden rounded-[28px] p-5 text-center sm:p-6 lg:min-h-[410px]"
                 style={{
                   background: `
-                    linear-gradient(145deg, ${activeFeature.tone}14, rgba(234, 247, 255, 0.055) 42%, rgba(5, 11, 20, 0.42)),
+                    linear-gradient(145deg, ${toneAlpha(activeFeature.tone, 8)}, rgba(234, 247, 255, 0.055) 42%, rgba(5, 11, 20, 0.42)),
                     rgba(5, 11, 20, 0.36)
                   `,
-                  border: `1px solid ${activeFeature.tone}44`,
+                  border: `1px solid ${toneAlpha(activeFeature.tone, 27)}`,
                   boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)",
                 }}
               >
@@ -1250,14 +1252,14 @@ export function HomePage() {
                   <div
                     className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl"
                     style={{
-                      background: `${activeFeature.tone}18`,
-                      border: `1px solid ${activeFeature.tone}66`,
-                      boxShadow: `0 0 26px ${activeFeature.tone}26`,
+                      background: toneAlpha(activeFeature.tone, 9),
+                      border: `1px solid ${toneAlpha(activeFeature.tone, 40)}`,
+                      boxShadow: `0 0 26px ${toneAlpha(activeFeature.tone, 15)}`,
                     }}
                   >
                     <activeFeature.icon size={27} strokeWidth={2.5} style={{ color: activeFeature.tone }} />
                   </div>
-                  <span className="absolute right-0 top-0 text-5xl font-black leading-none tracking-tight" style={{ color: `${activeFeature.tone}1F` }}>
+                  <span className="absolute right-0 top-0 text-5xl font-black leading-none tracking-tight" style={{ color: toneAlpha(activeFeature.tone, 12) }}>
                     0{activeFeatureIndex + 1}
                   </span>
                 </div>
@@ -1293,7 +1295,7 @@ export function HomePage() {
                           key={item}
                           className="flex items-center justify-between gap-3 rounded-2xl px-3 py-2.5"
                           style={{
-                            background: index === 0 ? `${activeFeature.tone}14` : "rgba(5, 11, 20, 0.34)",
+                            background: index === 0 ? toneAlpha(activeFeature.tone, 8) : "rgba(5, 11, 20, 0.34)",
                             border: `1px solid ${index === 0 ? activeFeature.tone : "rgba(234,247,255,0.10)"}`,
                           }}
                         >
@@ -1301,7 +1303,7 @@ export function HomePage() {
                             <GitPullRequest size={16} strokeWidth={2.5} style={{ color: activeFeature.tone }} />
                             {item}
                           </span>
-                          <span className="text-xs font-black tracking-tight" style={{ color: index === 0 ? activeFeature.tone : "#B7FFE3" }}>
+                          <span className="text-sm font-black tracking-tight" style={{ color: index === 0 ? activeFeature.tone : "var(--soft-mint)" }}>
                             {index === 0 ? (isEnglish ? "AI" : "AI") : (isEnglish ? "sync" : "동기화")}
                           </span>
                         </div>
@@ -1326,11 +1328,11 @@ export function HomePage() {
                           <div
                             className="max-w-[88%] rounded-[20px] px-4 py-3"
                             style={{
-                              background: index === 1 ? `${activeFeature.tone}18` : "rgba(5, 11, 20, 0.36)",
+                              background: index === 1 ? toneAlpha(activeFeature.tone, 9) : "rgba(5, 11, 20, 0.36)",
                               border: `1px solid ${index === 1 ? activeFeature.tone : "rgba(234,247,255,0.10)"}`,
                             }}
                           >
-                            <p className="m-0 text-[11px] font-black tracking-tight" style={{ color: activeFeature.tone }}>
+                            <p className="m-0 text-[var(--krds-body-xsmall)] font-black tracking-tight" style={{ color: activeFeature.tone }}>
                               {item.name}
                             </p>
                             <p className="m-0 mt-1 text-sm font-bold leading-6 tracking-tight" style={{ color: "#EAF7FF" }}>
@@ -1377,7 +1379,7 @@ export function HomePage() {
                       }}
                     >
                       <CheckCircle2 size={14} strokeWidth={2.6} style={{ color: activeFeature.tone }} />
-                      <span className="text-xs font-black tracking-tight">{bullet}</span>
+                      <span className="text-sm font-black tracking-tight">{bullet}</span>
                     </div>
                   ))}
                 </div>
@@ -1427,8 +1429,8 @@ export function HomePage() {
             animate={{ width: `${flowProgressPercent}%` }}
             transition={{ duration: 0.32, ease: "easeOut" }}
             style={{
-              background: `linear-gradient(90deg, ${colors.primaryHex}, #39FF88, #FFD166)`,
-              boxShadow: `0 0 18px ${colors.primary}, 0.42), 0 0 24px rgba(57,255,136,0.22)`,
+              background: `linear-gradient(90deg, ${colors.primaryHex}, var(--matrix-green), #FFD166)`,
+              boxShadow: `0 0 18px ${colors.primary}, 0.42), 0 0 24px rgba(var(--codedock-secondary-rgb),0.22)`,
             }}
           />
         </div>
@@ -1474,14 +1476,14 @@ export function HomePage() {
                     data-flow-connector={`${index + 1}-${index + 2}`}
                     className="pointer-events-none absolute left-[calc(100%+1px)] top-1/2 z-20 hidden h-[3px] w-3 origin-left -translate-y-1/2 rounded-full md:block"
                     style={{
-                      background: `linear-gradient(90deg, ${colors.primaryHex}, #39FF88)`,
+                      background: `linear-gradient(90deg, ${colors.primaryHex}, var(--matrix-green))`,
                     }}
                     initial={false}
                     animate={{
                       opacity: isActiveConnector ? 1 : 0,
                       scaleX: isActiveConnector ? 1 : 0,
                       boxShadow: isActiveConnector
-                        ? `0 0 16px ${colors.primary}, 0.55), 0 0 20px rgba(57,255,136,0.30)`
+                        ? `0 0 16px ${colors.primary}, 0.55), 0 0 20px rgba(var(--codedock-secondary-rgb),0.30)`
                         : "none",
                     }}
                     transition={{ duration: 0.2, ease: "easeOut" }}
@@ -1489,7 +1491,7 @@ export function HomePage() {
                   <motion.span
                     className="pointer-events-none absolute left-8 top-[calc(100%+1px)] z-20 h-3 w-[3px] origin-top rounded-full md:hidden"
                     style={{
-                      background: `linear-gradient(180deg, ${colors.primaryHex}, #39FF88)`,
+                      background: `linear-gradient(180deg, ${colors.primaryHex}, var(--matrix-green))`,
                     }}
                     initial={false}
                     animate={{
@@ -1505,8 +1507,8 @@ export function HomePage() {
                 style={{
                   background: isActiveNode
                     ? `${colors.primary}, 0.18)`
-                    : index === workspaceFlowCopy.length - 1 ? "rgba(255,209,102,0.15)" : "rgba(57,255,136,0.12)",
-                  color: index === workspaceFlowCopy.length - 1 ? "#FFD166" : "#39FF88",
+                    : index === workspaceFlowCopy.length - 1 ? "rgba(255,209,102,0.15)" : "rgba(var(--codedock-secondary-rgb),0.12)",
+                  color: index === workspaceFlowCopy.length - 1 ? "#FFD166" : "var(--matrix-green)",
                   boxShadow: isActiveNode ? `0 0 18px ${colors.primary}, 0.28)` : "none",
                 }}
               >
@@ -1518,7 +1520,7 @@ export function HomePage() {
                 </motion.span>
               </span>
               <div>
-                <p className="m-0 text-xs font-black tracking-tight" style={{ color: colors.primaryHex }}>
+                <p className="m-0 text-sm font-black tracking-tight" style={{ color: colors.primaryHex }}>
                   STEP {index + 1}
                 </p>
                 <p className="m-0 mt-1 text-sm font-bold leading-6 tracking-tight" style={{ color: "#DFFAFF" }}>
@@ -1670,7 +1672,7 @@ export function HomePage() {
               />
             </motion.div>
             <div className="min-w-0">
-              <p className="m-0 mb-1 text-[10px] font-black uppercase tracking-tight" style={{ color: colors.primaryHex }}>
+              <p className="m-0 mb-1 text-sm font-black uppercase tracking-tight" style={{ color: colors.primaryHex }}>
                 {floatingMascotLabel}
               </p>
               <MascotTypingBubble
@@ -1777,7 +1779,7 @@ function MascotTypingBubble({
       )}
       <div
         className={`relative z-10 flex max-w-full items-center gap-2 font-black tracking-tight ${
-          compact ? "px-3 py-2 text-xs sm:text-sm" : "px-4 py-3 text-sm"
+          compact ? "px-3 py-2 text-sm sm:text-sm" : "px-4 py-3 text-sm"
         }`}
       >
         <MessageSquare className="flex-shrink-0" size={compact ? 14 : 16} strokeWidth={2.4} />

@@ -16,11 +16,17 @@
   --void: #050B14;
   --panel: #0B1628;
   --panel-soft: #101F34;
-  --neon-cyan: #20E3FF;
-  --matrix-green: #39FF88;
+  --codedock-primary: #20E3FF;
+  --codedock-primary-rgb: 32, 227, 255;
+  --codedock-secondary: #39FF88;
+  --codedock-secondary-rgb: 57, 255, 136;
+  --codedock-deep-teal: #00A9A5;
+  --codedock-soft-mint: #B7FFE3;
+  --neon-cyan: var(--codedock-primary);
+  --matrix-green: var(--codedock-secondary);
   --electric-blue: #3B82F6;
-  --deep-teal: #00A9A5;
-  --soft-mint: #B7FFE3;
+  --deep-teal: var(--codedock-deep-teal);
+  --soft-mint: var(--codedock-soft-mint);
   --white: #EAF7FF;
   --muted: #91AFC4;
 
@@ -318,7 +324,7 @@
   text-shadow:
     1px 0 0 rgba(234, 247, 255, 0.45),
     0 1px 0 rgba(234, 247, 255, 0.30),
-    0 0 16px rgba(32, 227, 255, 0.20);
+    0 0 16px rgba(var(--codedock-primary-rgb), 0.20);
   transform: translateY(0);
   -webkit-font-smoothing: none;
   image-rendering: pixelated;
@@ -337,12 +343,12 @@
     1px 0 0 rgba(234, 247, 255, 0.24),
     0 1px 0 rgba(234, 247, 255, 0.18),
     0 0 14px var(--codedock-wordmark-accent),
-    0 0 26px rgba(32, 227, 255, 0.18);
+    0 0 26px rgba(var(--codedock-primary-rgb), 0.18);
 }
 
 .codedock-wordmark:hover,
 .codedock-brand-link:hover .codedock-wordmark {
-  filter: drop-shadow(0 0 16px rgba(32, 227, 255, 0.16));
+  filter: drop-shadow(0 0 16px rgba(var(--codedock-primary-rgb), 0.16));
   transform: translateY(-2px) scale(1.018);
 }
 
@@ -350,8 +356,8 @@
 .codedock-brand-link:hover .codedock-wordmark__code {
   text-shadow:
     0 0 10px rgba(255, 255, 255, 0.16),
-    0 0 20px rgba(32, 227, 255, 0.16),
-    0 0 32px rgba(57, 255, 136, 0.08);
+    0 0 20px rgba(var(--codedock-primary-rgb), 0.16),
+    0 0 32px rgba(var(--codedock-secondary-rgb), 0.08);
   transform: translateY(-1px);
 }
 
@@ -360,7 +366,7 @@
   text-shadow:
     1px 0 0 rgba(234, 247, 255, 0.62),
     0 1px 0 rgba(234, 247, 255, 0.40),
-    0 0 18px rgba(32, 227, 255, 0.34);
+    0 0 18px rgba(var(--codedock-primary-rgb), 0.34);
   transform: translateY(-1px);
 }
 
@@ -371,7 +377,7 @@
     1px 0 0 rgba(234, 247, 255, 0.28),
     0 1px 0 rgba(234, 247, 255, 0.22),
     0 0 18px var(--codedock-wordmark-accent),
-    0 0 34px rgba(32, 227, 255, 0.30);
+    0 0 34px rgba(var(--codedock-primary-rgb), 0.30);
 }
 
 @keyframes codedock-wordmark-capital-pop {
@@ -545,7 +551,7 @@
 .codedock-auth-input:focus {
   background: rgba(234, 247, 255, 0.075) !important;
   box-shadow:
-    0 0 0 3px rgba(32, 227, 255, 0.12),
+    0 0 0 3px rgba(var(--codedock-primary-rgb), 0.12),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
@@ -557,7 +563,7 @@
   caret-color: var(--neon-cyan) !important;
   box-shadow:
     0 0 0 1000px rgba(16, 31, 52, 0.96) inset,
-    0 0 0 1px rgba(32, 227, 255, 0.18) inset !important;
+    0 0 0 1px rgba(var(--codedock-primary-rgb), 0.18) inset !important;
   transition: background-color 999999s ease-in-out 0s;
 }
 
@@ -576,15 +582,15 @@
   justify-content: center;
   border-radius: 28px;
   background:
-    radial-gradient(circle at 18% 12%, rgba(32, 227, 255, 0.13), transparent 30%),
-    radial-gradient(circle at 86% 8%, rgba(57, 255, 136, 0.09), transparent 32%),
+    radial-gradient(circle at 18% 12%, rgba(var(--codedock-primary-rgb), 0.13), transparent 30%),
+    radial-gradient(circle at 86% 8%, rgba(var(--codedock-secondary-rgb), 0.09), transparent 32%),
     linear-gradient(rgba(234, 247, 255, 0.035) 1px, transparent 1px),
     linear-gradient(90deg, rgba(234, 247, 255, 0.035) 1px, transparent 1px),
     #07101d;
   background-size: 100% 100%, 100% 100%, 28px 28px, 28px 28px, 100% 100%;
   box-shadow:
-    inset 0 0 0 1px rgba(32, 227, 255, 0.10),
-    inset 0 24px 90px rgba(32, 227, 255, 0.04);
+    inset 0 0 0 1px rgba(var(--codedock-primary-rgb), 0.10),
+    inset 0 24px 90px rgba(var(--codedock-primary-rgb), 0.04);
 }
 
 .codedock-mermaid-diagram svg {
@@ -598,13 +604,13 @@
 .codedock-mermaid-diagram .entityBox,
 .codedock-mermaid-diagram .er.entityBox {
   fill: #13324a !important;
-  stroke: #20e3ff !important;
+  stroke: var(--neon-cyan) !important;
   stroke-width: 1.35px !important;
 }
 
 .codedock-mermaid-diagram .attributeBoxOdd,
 .codedock-mermaid-diagram .attributeBoxEven {
-  stroke: rgba(32, 227, 255, 0.20) !important;
+  stroke: rgba(var(--codedock-primary-rgb), 0.20) !important;
   stroke-width: 1px !important;
 }
 
@@ -625,12 +631,12 @@
 .codedock-mermaid-diagram .entityLabel {
   fill: #ffffff !important;
   font-weight: 950 !important;
-  text-shadow: 0 0 12px rgba(32, 227, 255, 0.16);
+  text-shadow: 0 0 12px rgba(var(--codedock-primary-rgb), 0.16);
 }
 
 .codedock-mermaid-diagram .relationshipLabelBox {
   fill: rgba(7, 16, 29, 0.96) !important;
-  stroke: rgba(57, 255, 136, 0.34) !important;
+  stroke: rgba(var(--codedock-secondary-rgb), 0.34) !important;
   stroke-width: 1.2px !important;
   opacity: 1 !important;
   rx: 6;
@@ -641,21 +647,21 @@
 .codedock-mermaid-diagram .relationshipLabel {
   font-size: 11.5px !important;
   font-weight: 850 !important;
-  fill: #b7ffe3 !important;
+  fill: var(--soft-mint) !important;
   letter-spacing: 0.01em;
 }
 
 .codedock-mermaid-diagram .relationshipLine {
-  stroke: #39ff88 !important;
+  stroke: var(--matrix-green) !important;
   stroke-width: 2.6px !important;
   stroke-linecap: round !important;
   stroke-linejoin: round !important;
-  filter: drop-shadow(0 0 6px rgba(57, 255, 136, 0.45));
+  filter: drop-shadow(0 0 6px rgba(var(--codedock-secondary-rgb), 0.45));
 }
 
 .codedock-mermaid-diagram .marker {
-  stroke: #39ff88 !important;
-  fill: #39ff88 !important;
+  stroke: var(--matrix-green) !important;
+  fill: var(--matrix-green) !important;
 }
 
 /* 까마귀발(crow's foot) 마커 자체 — path/line 모두 굵고 둥글게 */
@@ -665,27 +671,27 @@
 
 .codedock-mermaid-diagram marker path,
 .codedock-mermaid-diagram marker line {
-  stroke: #39ff88 !important;
+  stroke: var(--matrix-green) !important;
   stroke-width: 2.4 !important;
   stroke-linecap: round !important;
   stroke-linejoin: round !important;
   fill: none !important;
-  filter: drop-shadow(0 0 3px rgba(57, 255, 136, 0.55));
+  filter: drop-shadow(0 0 3px rgba(var(--codedock-secondary-rgb), 0.55));
 }
 
 /* "only one" / "one or more" 표기의 직선 짧은 막대는 fill이 있어야 보임 */
 .codedock-mermaid-diagram marker[id*="ONLY_ONE"] path,
 .codedock-mermaid-diagram marker[id*="ONE_ONLY"] path {
-  fill: #39ff88 !important;
+  fill: var(--matrix-green) !important;
 }
 
 /* "zero" 표기의 동그라미 — 외곽선만, fill은 배경색 */
 .codedock-mermaid-diagram marker[id*="ZERO"] circle,
 .codedock-mermaid-diagram marker circle {
-  stroke: #39ff88 !important;
+  stroke: var(--matrix-green) !important;
   stroke-width: 2.2 !important;
   fill: #050b14 !important;
-  filter: drop-shadow(0 0 4px rgba(57, 255, 136, 0.5));
+  filter: drop-shadow(0 0 4px rgba(var(--codedock-secondary-rgb), 0.5));
 }
 
 .codedock-mermaid-diagram .node rect,
@@ -694,7 +700,7 @@
 .codedock-mermaid-diagram .node polygon,
 .codedock-mermaid-diagram .node path {
   fill: #122238 !important;
-  stroke: #20e3ff !important;
+  stroke: var(--neon-cyan) !important;
   stroke-width: 1.4px !important;
   filter: drop-shadow(0 16px 26px rgba(0, 0, 0, 0.28));
 }
@@ -712,25 +718,23 @@
 
 .codedock-mermaid-diagram .edgeLabel rect {
   fill: #07101d !important;
-  stroke: rgba(57, 255, 136, 0.20) !important;
+  stroke: rgba(var(--codedock-secondary-rgb), 0.20) !important;
 }
 
 .codedock-mermaid-diagram .edgePath path,
 .codedock-mermaid-diagram path.flowchart-link {
-  stroke: #39ff88 !important;
+  stroke: var(--matrix-green) !important;
   stroke-width: 2.1px !important;
 }
 
 /* marker path 기본 색상은 위쪽의 까마귀발 규칙에서 더 구체적으로 처리됨 */
 
 .codedock-scrollbar-hidden {
-  overscroll-behavior: contain;
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
 
-.overflow-y-auto,
-.overflow-auto {
+.codedock-scroll-lock-boundary {
   overscroll-behavior: contain;
 }
 
@@ -738,37 +742,51 @@
   display: none;
 }
 
-* {
+.codedock-scrollbar,
+html,
+body {
   scrollbar-width: thin;
   scrollbar-color: rgba(116, 132, 154, 0.9) rgba(7, 14, 27, 0.96);
 }
 
-*::-webkit-scrollbar {
+.codedock-scrollbar::-webkit-scrollbar,
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
   width: 14px;
   height: 14px;
 }
 
-*::-webkit-scrollbar-track {
+.codedock-scrollbar::-webkit-scrollbar-track,
+html::-webkit-scrollbar-track,
+body::-webkit-scrollbar-track {
   background: #070e1b;
-  border-left: 1px solid rgba(32, 227, 255, 0.10);
+  border-left: 1px solid rgba(var(--codedock-primary-rgb), 0.10);
 }
 
-*::-webkit-scrollbar-thumb {
+.codedock-scrollbar::-webkit-scrollbar-thumb,
+html::-webkit-scrollbar-thumb,
+body::-webkit-scrollbar-thumb {
   min-height: 56px;
   border: 4px solid #070e1b;
   border-radius: 999px;
   background: #74849a;
   box-shadow:
     inset 0 0 0 1px rgba(234, 247, 255, 0.10),
-    0 0 14px rgba(32, 227, 255, 0.08);
+    0 0 14px rgba(var(--codedock-primary-rgb), 0.08);
 }
 
-*::-webkit-scrollbar-thumb:hover {
+.codedock-scrollbar::-webkit-scrollbar-thumb:hover,
+html::-webkit-scrollbar-thumb:hover,
+body::-webkit-scrollbar-thumb:hover {
   background: #8fa0b8;
 }
 
-*::-webkit-scrollbar-corner,
-*::-webkit-scrollbar-button {
+.codedock-scrollbar::-webkit-scrollbar-corner,
+.codedock-scrollbar::-webkit-scrollbar-button,
+html::-webkit-scrollbar-corner,
+html::-webkit-scrollbar-button,
+body::-webkit-scrollbar-corner,
+body::-webkit-scrollbar-button {
   background: #070e1b;
 }
 
@@ -776,7 +794,7 @@
   position: relative;
   overflow: hidden;
   box-shadow:
-    0 0 0 rgba(32, 227, 255, 0),
+    0 0 0 rgba(var(--codedock-primary-rgb), 0),
     inset 0 1px 0 rgba(255, 255, 255, 0.10);
 }
 
@@ -822,13 +840,13 @@
   0%,
   100% {
     box-shadow:
-      0 0 0 rgba(32, 227, 255, 0),
+      0 0 0 rgba(var(--codedock-primary-rgb), 0),
       inset 0 1px 0 rgba(255, 255, 255, 0.10);
   }
 
   50% {
     box-shadow:
-      0 0 16px rgba(32, 227, 255, 0.18),
+      0 0 16px rgba(var(--codedock-primary-rgb), 0.18),
       inset 0 1px 0 rgba(255, 255, 255, 0.16);
   }
 }

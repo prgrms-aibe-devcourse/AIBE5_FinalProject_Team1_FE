@@ -20,7 +20,7 @@ import { useTheme } from "../contexts/ThemeContext";
 import { setAuthenticated } from "../auth";
 
 const loginDemoMessagesKo = [
-  { speaker: "CodeDock", text: "위험 파일 3개를 먼저 묶었어요.", tone: "#B7FFE3" },
+  { speaker: "CodeDock", text: "위험 파일 3개를 먼저 묶었어요.", tone: "var(--soft-mint)" },
   { speaker: "팀 채팅", text: "리뷰 기준 문서에 반영할게요.", tone: "#CFF8FF" },
 ];
 
@@ -40,6 +40,8 @@ const loginWelcomeMessagesEn = [
   "A long review queue is fine.\nI'll point out the important files and clear the runway.",
 ];
 
+const toneAlpha = (color: string, percent: number) => `color-mix(in srgb, ${color} ${percent}%, transparent)`;
+
 const loginTabDemosKo = [
   {
     icon: Sparkles,
@@ -47,7 +49,7 @@ const loginTabDemosKo = [
     title: "오늘의 리뷰 상황",
     summary: "대기 PR 15개 중 위험 신호 3건을 먼저 정리합니다.",
     metrics: ["대기 15", "위험 3", "완료 8"],
-    tone: "#20E3FF",
+    tone: "var(--neon-cyan)",
   },
   {
     icon: GitPullRequest,
@@ -55,7 +57,7 @@ const loginTabDemosKo = [
     title: "PR #42 인증 변경",
     summary: "변경 파일, 댓글, 체크리스트를 한 화면에서 봅니다.",
     metrics: ["파일 7", "댓글 12", "위험 3"],
-    tone: "#B7FFE3",
+    tone: "var(--soft-mint)",
   },
   {
     icon: FileText,
@@ -104,7 +106,7 @@ export function LoginPage() {
   const isEnglish = language === "en";
   const loginDemoMessages = isEnglish
     ? [
-        { speaker: "CodeDock", text: "I grouped the 3 risky files first.", tone: "#B7FFE3" },
+        { speaker: "CodeDock", text: "I grouped the 3 risky files first.", tone: "var(--soft-mint)" },
         { speaker: "Team Chat", text: "I'll reflect the review rule in the docs.", tone: "#CFF8FF" },
       ]
     : loginDemoMessagesKo;
@@ -116,7 +118,7 @@ export function LoginPage() {
           title: "Today's Review Status",
           summary: "CodeDock prioritizes 3 risk signals from 15 waiting PRs.",
           metrics: ["Waiting 15", "Risks 3", "Done 8"],
-          tone: "#20E3FF",
+          tone: "var(--neon-cyan)",
         },
         {
           icon: GitPullRequest,
@@ -124,7 +126,7 @@ export function LoginPage() {
           title: "PR #42 Auth Changes",
           summary: "Changed files, comments, and checklists stay in one review screen.",
           metrics: ["Files 7", "Comments 12", "Risks 3"],
-          tone: "#B7FFE3",
+          tone: "var(--soft-mint)",
         },
         {
           icon: FileText,
@@ -217,7 +219,7 @@ export function LoginPage() {
         <div
           className="pointer-events-none absolute -right-36 -bottom-44 h-[360px] w-[360px] rounded-full"
           style={{
-            background: "radial-gradient(circle, rgba(57,255,136,0.14), transparent 70%)",
+            background: "radial-gradient(circle, rgba(var(--codedock-secondary-rgb),0.14), transparent 70%)",
           }}
         />
 
@@ -229,11 +231,11 @@ export function LoginPage() {
           style={{
             background: `
               radial-gradient(circle at 48% 25%, ${colors.primary}, 0.16), transparent 38%),
-              radial-gradient(circle at 50% 72%, rgba(57,255,136,0.12), transparent 34%),
+              radial-gradient(circle at 50% 72%, rgba(var(--codedock-secondary-rgb),0.12), transparent 34%),
               linear-gradient(145deg, rgba(16,31,52,0.95), rgba(5,11,20,0.88))
             `,
             border: `1px solid ${colors.primary}, 0.20)`,
-            boxShadow: "inset 0 0 32px rgba(32, 227, 255, 0.08), 0 18px 48px rgba(0, 0, 0, 0.32)",
+            boxShadow: "inset 0 0 32px rgba(var(--codedock-primary-rgb), 0.08), 0 18px 48px rgba(0, 0, 0, 0.32)",
           }}
         >
           <div>
@@ -249,7 +251,7 @@ export function LoginPage() {
                 className="h-2 w-2 rounded-full"
                 style={{
                   background: "var(--matrix-green)",
-                  boxShadow: "0 0 0 5px rgba(57,255,136,0.13), 0 0 16px rgba(57,255,136,0.7)",
+                  boxShadow: "0 0 0 5px rgba(var(--codedock-secondary-rgb),0.13), 0 0 16px rgba(var(--codedock-secondary-rgb),0.7)",
                 }}
               />
               <span className="text-sm font-black tracking-tight">{loginCopy.access}</span>
@@ -288,14 +290,14 @@ export function LoginPage() {
                   <div className="flex items-center gap-2">
                     <span className="h-2.5 w-2.5 rounded-full bg-[#FF8FA3]" />
                     <span className="h-2.5 w-2.5 rounded-full bg-[#FFD166]" />
-                    <span className="h-2.5 w-2.5 rounded-full bg-[#39FF88]" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-[var(--matrix-green)]" />
                   </div>
                   <div
                     className="rounded-full px-3 py-1.5 text-xs font-black tracking-tight"
                     style={{
-                      background: "rgba(57,255,136,0.10)",
-                      border: "1px solid rgba(57,255,136,0.22)",
-                      color: "#B7FFE3",
+                      background: "rgba(var(--codedock-secondary-rgb),0.10)",
+                      border: "1px solid rgba(var(--codedock-secondary-rgb),0.22)",
+                      color: "var(--soft-mint)",
                     }}
                   >
                     {loginCopy.liveWorkspace}
@@ -312,26 +314,26 @@ export function LoginPage() {
                   }}
                 >
                   <div
-                    className="mb-3 flex items-center justify-between rounded-2xl px-3 py-2"
+                    className="mb-3 flex min-h-[50px] items-center justify-between gap-3 rounded-2xl px-3 py-2.5"
                     style={{
                       background: "rgba(234, 247, 255, 0.045)",
                       border: `1px solid ${colors.primary}, 0.10)`,
                     }}
                   >
-                    <div className="flex items-center gap-2">
+                    <div className="flex min-w-max items-center gap-2">
                       <CoffeeLogo
                         className="h-7 w-7 flex-shrink-0"
                         style={{ filter: `drop-shadow(0 0 8px ${colors.primary}, 0.22))` }}
                       />
                       <CodeDockWordmark accentColor={colors.primaryHex} className="text-xs" />
                     </div>
-                    <div className="hidden items-center gap-1 sm:flex">
+                    <div className="hidden min-w-max flex-nowrap items-center justify-end gap-1.5 sm:flex">
                       {loginTabDemos.map((demo, index) => (
                         <span
                           key={demo.name}
-                          className="rounded-full px-2 py-1 text-[10px] font-black tracking-tight"
+                          className="inline-flex min-h-7 items-center whitespace-nowrap rounded-full px-2 py-1 text-xs font-black leading-[1.5] tracking-tight"
                           style={{
-                            background: activeDemoIndex === index ? `${demo.tone}1F` : "transparent",
+                            background: activeDemoIndex === index ? toneAlpha(demo.tone, 12) : "transparent",
                             color: activeDemoIndex === index ? demo.tone : "rgba(234,247,255,0.42)",
                           }}
                         >
@@ -341,7 +343,7 @@ export function LoginPage() {
                     </div>
                   </div>
 
-                  <div className="grid min-h-[250px] grid-cols-[54px_minmax(0,1fr)] gap-3">
+                  <div className="grid min-h-[285px] grid-cols-[54px_minmax(0,1fr)] gap-3">
                     <aside
                       className="grid content-start gap-2 rounded-2xl p-2"
                       style={{
@@ -357,7 +359,7 @@ export function LoginPage() {
                           onClick={() => setActiveDemoIndex(index)}
                           className="grid h-10 w-10 place-items-center rounded-xl border-0 transition hover:scale-105"
                           style={{
-                            background: activeDemoIndex === index ? `${demo.tone}24` : "rgba(5, 11, 20, 0.35)",
+                            background: activeDemoIndex === index ? toneAlpha(demo.tone, 14) : "rgba(5, 11, 20, 0.35)",
                             color: activeDemoIndex === index ? demo.tone : "rgba(234,247,255,0.48)",
                           }}
                         >
@@ -371,29 +373,29 @@ export function LoginPage() {
                         key={activeDemo.name}
                         className="relative overflow-hidden rounded-2xl p-4"
                         style={{
-                          background: `linear-gradient(135deg, ${activeDemo.tone}14, rgba(234, 247, 255, 0.04))`,
-                          border: `1px solid ${activeDemo.tone}38`,
-                          minHeight: "300px",
+                          background: `linear-gradient(135deg, ${toneAlpha(activeDemo.tone, 8)}, rgba(234, 247, 255, 0.04))`,
+                          border: `1px solid ${toneAlpha(activeDemo.tone, 22)}`,
+                          minHeight: "320px",
                         }}
                         initial={{ opacity: 0, y: 10, scale: 0.98 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: -10, scale: 0.98 }}
                         transition={{ duration: 0.32, ease: "easeOut" }}
                       >
-                        <div className="mb-4 flex items-center justify-between gap-3">
+                        <div className="mb-4 flex items-start justify-between gap-3">
                           <div>
-                            <p className="m-0 text-xs font-black tracking-tight" style={{ color: activeDemo.tone }}>
+                            <p className="m-0 text-xs font-black leading-[1.5] tracking-tight" style={{ color: activeDemo.tone }}>
                               {activeDemo.name}
                             </p>
-                            <h3 className="m-0 mt-1 text-lg font-black leading-tight tracking-tight" style={{ color: "var(--white)" }}>
+                            <h3 className="m-0 mt-1 text-base font-black leading-[1.45] tracking-tight" style={{ color: "var(--white)" }}>
                               {activeDemo.title}
                             </h3>
                           </div>
                           <span
                             className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-2xl"
                             style={{
-                              background: `${activeDemo.tone}1F`,
-                              border: `1px solid ${activeDemo.tone}44`,
+                              background: toneAlpha(activeDemo.tone, 12),
+                              border: `1px solid ${toneAlpha(activeDemo.tone, 27)}`,
                             }}
                           >
                             <activeDemo.icon size={20} strokeWidth={2.5} style={{ color: activeDemo.tone }} />
@@ -406,10 +408,10 @@ export function LoginPage() {
                               {activeDemo.metrics.map((metric) => (
                                 <div
                                   key={metric}
-                                  className="rounded-xl px-2 py-3 text-center text-[11px] font-black tracking-tight"
+                                  className="rounded-xl px-2 py-3 text-center text-xs font-black tracking-tight"
                                   style={{
                                     background: "rgba(5, 11, 20, 0.44)",
-                                    border: `1px solid ${activeDemo.tone}2E`,
+                                    border: `1px solid ${toneAlpha(activeDemo.tone, 18)}`,
                                     color: "#DFFAFF",
                                   }}
                                 >
@@ -449,7 +451,7 @@ export function LoginPage() {
                                 className="rounded-xl px-3 py-2"
                                 style={{
                                   background: "rgba(5, 11, 20, 0.42)",
-                                  border: `1px solid ${index === 0 ? "#FF8FA355" : `${activeDemo.tone}2E`}`,
+                                  border: `1px solid ${index === 0 ? "#FF8FA355" : toneAlpha(activeDemo.tone, 18)}`,
                                 }}
                               >
                                 <div className="flex items-center justify-between gap-2 text-xs font-black tracking-tight">
@@ -459,7 +461,7 @@ export function LoginPage() {
                                   </span>
                                 </div>
                                 <div className="mt-2 grid gap-1">
-                                  <span className="h-1.5 rounded-full" style={{ width: "86%", background: `${activeDemo.tone}55` }} />
+                                  <span className="h-1.5 rounded-full" style={{ width: "86%", background: toneAlpha(activeDemo.tone, 33) }} />
                                   <span className="h-1.5 rounded-full" style={{ width: index === 0 ? "54%" : "68%", background: "rgba(234,247,255,0.16)" }} />
                                 </div>
                               </div>
@@ -475,13 +477,13 @@ export function LoginPage() {
                                 className="rounded-xl px-3 py-2"
                                 style={{
                                   background: "rgba(5, 11, 20, 0.42)",
-                                  border: `1px solid ${activeDemo.tone}33`,
+                                  border: `1px solid ${toneAlpha(activeDemo.tone, 20)}`,
                                 }}
                               >
                                 <p className="m-0 text-xs font-black tracking-tight" style={{ color: activeDemo.tone }}>
                                   {endpoint}
                                 </p>
-                                <p className="m-0 mt-1 text-[11px] font-bold tracking-tight" style={{ color: "rgba(234,247,255,0.62)" }}>
+                                <p className="m-0 mt-1 text-xs font-bold tracking-tight" style={{ color: "rgba(234,247,255,0.62)" }}>
                                   {isEnglish ? "response" : "응답"} {index === 1 ? "200 / 401" : "200 / 404"}
                                 </p>
                               </div>
@@ -496,9 +498,9 @@ export function LoginPage() {
                               viewBox="0 0 100 100"
                               preserveAspectRatio="none"
                             >
-                              <line x1="15" y1="40" x2="71" y2="40" stroke={`${activeDemo.tone}88`} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
-                              <line x1="15" y1="40" x2="46" y2="70" stroke={`${activeDemo.tone}66`} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
-                              <line x1="71" y1="40" x2="46" y2="70" stroke={`${activeDemo.tone}66`} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+                              <line x1="15" y1="40" x2="71" y2="40" stroke={toneAlpha(activeDemo.tone, 53)} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+                              <line x1="15" y1="40" x2="46" y2="70" stroke={toneAlpha(activeDemo.tone, 40)} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+                              <line x1="71" y1="40" x2="46" y2="70" stroke={toneAlpha(activeDemo.tone, 40)} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
                             </svg>
                             {[
                               { label: "users", left: "6%", top: "28%" },
@@ -512,9 +514,9 @@ export function LoginPage() {
                                   left: node.left,
                                   top: node.top,
                                   background: "rgb(5, 11, 20)",
-                                  border: `1px solid ${activeDemo.tone}55`,
+                                  border: `1px solid ${toneAlpha(activeDemo.tone, 33)}`,
                                   color: "#DFFAFF",
-                                  boxShadow: `0 0 18px ${activeDemo.tone}18`,
+                                  boxShadow: `0 0 18px ${toneAlpha(activeDemo.tone, 9)}`,
                                 }}
                               >
                                 {node.label}
@@ -524,7 +526,7 @@ export function LoginPage() {
                         )}
 
                         {activeDemoIndex === 4 && (
-                          <div className="grid gap-2">
+                          <div className="grid gap-2.5">
                             {[
                               ...loginDemoMessages,
                               {
@@ -537,17 +539,17 @@ export function LoginPage() {
                             ].map((item, index) => (
                               <div
                                 key={item.text}
-                                className={`rounded-2xl px-3 py-2 text-xs font-bold leading-5 tracking-tight ${index === 1 ? "ml-8" : "mr-5"}`}
+                                className={`rounded-2xl px-3.5 py-2.5 text-xs font-bold leading-[1.6] tracking-tight ${index === 1 ? "ml-8" : "mr-5"}`}
                                 style={{
-                                  background: index === 1 ? "rgba(234, 247, 255, 0.06)" : `${item.tone}18`,
-                                  border: `1px solid ${item.tone}33`,
+                                  background: index === 1 ? "rgba(234, 247, 255, 0.06)" : toneAlpha(item.tone, 9),
+                                  border: `1px solid ${toneAlpha(item.tone, 20)}`,
                                   color: "#DFFAFF",
                                 }}
                               >
-                                <span className="block text-[11px] font-black" style={{ color: item.tone }}>
+                                <span className="mb-0.5 block text-xs font-black leading-[1.5]" style={{ color: item.tone }}>
                                   {item.speaker}
                                 </span>
-                                {item.text}
+                                <span className="block whitespace-normal break-keep leading-[1.6]">{item.text}</span>
                               </div>
                             ))}
                           </div>
@@ -768,7 +770,7 @@ export function LoginPage() {
           >
             <div className="my-6 flex items-center gap-3">
               <div className="h-px flex-1" style={{ background: `${colors.primary}, 0.14)` }} />
-              <span className="text-xs font-black tracking-tight" style={{ color: "var(--muted)" }}>
+              <span className="text-[var(--krds-body-xsmall)] font-black tracking-tight" style={{ color: "var(--muted)" }}>
                 {loginCopy.divider}
               </span>
               <div className="h-px flex-1" style={{ background: `${colors.primary}, 0.14)` }} />
@@ -809,9 +811,9 @@ export function LoginPage() {
               <p
                 className="mt-5 rounded-2xl px-4 py-3 text-sm font-bold leading-6 tracking-tight"
                 style={{
-                  background: "rgba(57, 255, 136, 0.08)",
-                  border: "1px solid rgba(57, 255, 136, 0.22)",
-                  color: "#B7FFE3",
+                  background: "rgba(var(--codedock-secondary-rgb), 0.08)",
+                  border: "1px solid rgba(var(--codedock-secondary-rgb), 0.22)",
+                  color: "var(--soft-mint)",
                 }}
               >
                 {message}

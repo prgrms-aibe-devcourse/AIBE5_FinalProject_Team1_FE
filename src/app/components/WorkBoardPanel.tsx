@@ -34,6 +34,8 @@ const COLUMNS: { id: ColumnId; title: string; color: string }[] = [
   { id: "blocked", title: "막힘", color: "#FF6B6B" },
 ];
 
+const colorAlpha = (color: string, percent: number) => `color-mix(in srgb, ${color} ${percent}%, transparent)`;
+
 const STAT_ICONS: Record<ColumnId, typeof Clock> = {
   todo: Clock,
   in_progress: Clock,
@@ -44,9 +46,9 @@ const STAT_ICONS: Record<ColumnId, typeof Clock> = {
 
 const COLUMN_LABEL_MAP: Record<ColumnId, { name: string; color: string }[]> = {
   todo: [{ name: "할 일", color: "#6B7280" }],
-  in_progress: [{ name: "진행 중", color: "#20E3FF" }],
+  in_progress: [{ name: "진행 중", color: "var(--neon-cyan)" }],
   review: [{ name: "검토 중", color: "#A8E6CF" }],
-  done: [{ name: "완료", color: "#39FF88" }],
+  done: [{ name: "완료", color: "var(--matrix-green)" }],
   blocked: [{ name: "막힘", color: "#FF6B6B" }],
 };
 
@@ -251,22 +253,22 @@ function IssueCard({ issue, columnId, index, moveIssue, onViewIssue }: IssueCard
       className="px-4 py-4 rounded-2xl transition-all hover:scale-[1.02]"
       style={{
         background: "rgba(234, 247, 255, 0.055)",
-        border: "1px solid rgba(32, 227, 255, 0.14)",
+        border: "1px solid rgba(var(--codedock-primary-rgb), 0.14)",
         boxShadow: "0 8px 24px rgba(0, 0, 0, 0.22)",
         opacity: isDragging ? 0.4 : 1,
         cursor: "grab",
       }}
     >
       <div className="flex items-start justify-between gap-2 mb-3">
-        <span className="tracking-tight" style={{ fontSize: "12px", fontWeight: 900, color: "var(--neon-cyan)" }}>
+        <span className="tracking-tight" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 900, color: "var(--neon-cyan)" }}>
           #{issue.id}
         </span>
         <div
           className="flex items-center gap-1 px-2 py-0.5 rounded-full"
           style={{
-            background: `${getPriorityColor(issue.priority)}22`,
+            background: colorAlpha(getPriorityColor(issue.priority), 13),
             border: `1px solid ${getPriorityColor(issue.priority)}`,
-            fontSize: "11px",
+            fontSize: "var(--krds-body-xsmall)",
             fontWeight: 900,
             color: getPriorityColor(issue.priority),
           }}
@@ -284,12 +286,12 @@ function IssueCard({ issue, columnId, index, moveIssue, onViewIssue }: IssueCard
         {issue.assignee ? (
           <div className="flex items-center gap-2">
             <User size={14} style={{ color: "var(--matrix-green)" }} />
-            <span className="tracking-tight" style={{ fontSize: "12px", fontWeight: 800, color: "var(--muted)" }}>
+            <span className="tracking-tight" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 800, color: "var(--muted)" }}>
               {issue.assignee}
             </span>
           </div>
         ) : (
-          <span className="tracking-tight" style={{ fontSize: "12px", fontWeight: 800, color: "var(--muted)" }}>
+          <span className="tracking-tight" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 800, color: "var(--muted)" }}>
             미할당
           </span>
         )}
@@ -298,9 +300,9 @@ function IssueCard({ issue, columnId, index, moveIssue, onViewIssue }: IssueCard
           <span
             className="px-2 py-0.5 rounded tracking-tight"
             style={{
-              background: "rgba(57, 255, 136, 0.15)",
-              border: "1px solid rgba(57, 255, 136, 0.3)",
-              fontSize: "11px",
+              background: "rgba(var(--codedock-secondary-rgb), 0.15)",
+              border: "1px solid rgba(var(--codedock-secondary-rgb), 0.3)",
+              fontSize: "var(--krds-body-xsmall)",
               fontWeight: 900,
               color: "var(--matrix-green)",
             }}
@@ -346,7 +348,7 @@ function DropColumn({ column, issues, moveIssue, onViewIssue }: DropColumnProps)
         className="px-5 py-4 rounded-t-3xl"
         style={{
           background: "rgba(11, 22, 40, 0.95)",
-          border: "1px solid rgba(32, 227, 255, 0.16)",
+          border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)",
           borderBottom: "none",
           backdropFilter: "blur(16px)",
         }}
@@ -358,8 +360,8 @@ function DropColumn({ column, issues, moveIssue, onViewIssue }: DropColumnProps)
           <span
             className="px-2 py-1 rounded-full tracking-tight"
             style={{
-              background: `${column.color}22`,
-              fontSize: "12px",
+              background: colorAlpha(column.color, 13),
+              fontSize: "var(--krds-body-xsmall)",
               fontWeight: 900,
               color: column.color,
             }}
@@ -373,8 +375,8 @@ function DropColumn({ column, issues, moveIssue, onViewIssue }: DropColumnProps)
         ref={columnRef}
         className="px-4 py-4 rounded-b-3xl flex-1"
         style={{
-          background: isOver ? "rgba(32, 227, 255, 0.08)" : "rgba(11, 22, 40, 0.82)",
-          border: `1px solid ${isOver ? "rgba(32, 227, 255, 0.5)" : "rgba(32, 227, 255, 0.16)"}`,
+          background: isOver ? "rgba(var(--codedock-primary-rgb), 0.08)" : "rgba(11, 22, 40, 0.82)",
+          border: `1px solid ${isOver ? "rgba(var(--codedock-primary-rgb), 0.5)" : "rgba(var(--codedock-primary-rgb), 0.16)"}`,
           borderTop: "none",
           boxShadow: "0 20px 60px rgba(0, 0, 0, 0.32)",
           backdropFilter: "blur(16px)",
@@ -442,7 +444,7 @@ function WorkBoardContent({ repositoryName, onViewIssue }: WorkBoardPanelProps) 
               fontSize: "clamp(36px, 4vw, 56px)",
               fontWeight: 950,
               color: "var(--white)",
-              textShadow: "0 0 22px rgba(32, 227, 255, 0.18)",
+              textShadow: "0 0 22px rgba(var(--codedock-primary-rgb), 0.18)",
             }}
           >
             작업 보드
@@ -461,13 +463,13 @@ function WorkBoardContent({ repositoryName, onViewIssue }: WorkBoardPanelProps) 
                 className="px-5 py-5 rounded-3xl"
                 style={{
                   background: "rgba(11, 22, 40, 0.82)",
-                  border: "1px solid rgba(32, 227, 255, 0.16)",
+                  border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)",
                   boxShadow: "0 20px 60px rgba(0, 0, 0, 0.32)",
                   backdropFilter: "blur(16px)",
                 }}
               >
                 <Icon size={20} style={{ color: col.color, marginBottom: "8px" }} />
-                <p className="m-0 mb-2 tracking-tight" style={{ color: "var(--muted)", fontSize: "12px", fontWeight: 900 }}>
+                <p className="m-0 mb-2 tracking-tight" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 900 }}>
                   {col.title}
                 </p>
                 <p className="m-0 tracking-[-0.06em]" style={{ fontSize: "32px", fontWeight: 950, color: col.color }}>

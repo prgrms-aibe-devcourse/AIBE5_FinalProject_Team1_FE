@@ -1,5 +1,7 @@
 import { Clock, AlertCircle, CheckCircle2, XCircle, User } from "lucide-react";
 
+const colorAlpha = (color: string, percent: number) => `color-mix(in srgb, ${color} ${percent}%, transparent)`;
+
 export function IssueBoardPage() {
   const columns = [
     { id: 'todo', title: '할 일', color: 'var(--muted)' },
@@ -66,7 +68,7 @@ export function IssueBoardPage() {
           fontSize: 'clamp(48px, 6vw, 72px)',
           fontWeight: 950,
           color: 'var(--white)',
-          textShadow: '0 0 22px rgba(32, 227, 255, 0.18)'
+          textShadow: '0 0 22px rgba(var(--codedock-primary-rgb), 0.18)'
         }}>
           이슈 보드
         </h1>
@@ -91,14 +93,14 @@ export function IssueBoardPage() {
           return (
             <div key={stat.label} className="px-5 py-5 rounded-3xl" style={{
               background: 'rgba(11, 22, 40, 0.82)',
-              border: '1px solid rgba(32, 227, 255, 0.16)',
+              border: '1px solid rgba(var(--codedock-primary-rgb), 0.16)',
               boxShadow: '0 20px 60px rgba(0, 0, 0, 0.32)',
               backdropFilter: 'blur(16px)'
             }}>
               <Icon size={20} style={{ color: stat.color, marginBottom: '8px' }} />
               <p className="m-0 mb-2 tracking-tight" style={{
                 color: 'var(--muted)',
-                fontSize: '12px',
+                fontSize: "var(--krds-body-xsmall)",
                 fontWeight: 900
               }}>
                 {stat.label}
@@ -120,7 +122,7 @@ export function IssueBoardPage() {
           <div key={column.id} className="flex flex-col">
             <div className="px-5 py-4 rounded-t-3xl sticky top-20 z-10" style={{
               background: 'rgba(11, 22, 40, 0.95)',
-              border: '1px solid rgba(32, 227, 255, 0.16)',
+              border: '1px solid rgba(var(--codedock-primary-rgb), 0.16)',
               borderBottom: 'none',
               backdropFilter: 'blur(16px)'
             }}>
@@ -133,8 +135,8 @@ export function IssueBoardPage() {
                   {column.title}
                 </h2>
                 <span className="px-2 py-1 rounded-full tracking-tight" style={{
-                  background: `${column.color}22`,
-                  fontSize: '12px',
+                  background: colorAlpha(column.color, 13),
+                  fontSize: "var(--krds-body-xsmall)",
                   fontWeight: 900,
                   color: column.color
                 }}>
@@ -145,7 +147,7 @@ export function IssueBoardPage() {
 
             <div className="px-4 py-4 rounded-b-3xl flex-1" style={{
               background: 'rgba(11, 22, 40, 0.82)',
-              border: '1px solid rgba(32, 227, 255, 0.16)',
+              border: '1px solid rgba(var(--codedock-primary-rgb), 0.16)',
               borderTop: 'none',
               boxShadow: '0 20px 60px rgba(0, 0, 0, 0.32)',
               backdropFilter: 'blur(16px)'
@@ -157,22 +159,22 @@ export function IssueBoardPage() {
                     className="px-4 py-4 rounded-2xl cursor-pointer transition-all hover:scale-[1.02]"
                     style={{
                       background: 'rgba(234, 247, 255, 0.055)',
-                      border: '1px solid rgba(32, 227, 255, 0.14)',
+                      border: '1px solid rgba(var(--codedock-primary-rgb), 0.14)',
                       boxShadow: '0 8px 24px rgba(0, 0, 0, 0.22)'
                     }}
                   >
                     <div className="flex items-start justify-between gap-2 mb-3">
                       <span className="tracking-tight" style={{
-                        fontSize: '12px',
+                        fontSize: "var(--krds-body-xsmall)",
                         fontWeight: 900,
                         color: 'var(--neon-cyan)'
                       }}>
                         #{issue.id}
                       </span>
                       <div className="flex items-center gap-1 px-2 py-0.5 rounded-full" style={{
-                        background: `${getPriorityColor(issue.priority)}22`,
+                        background: colorAlpha(getPriorityColor(issue.priority), 13),
                         border: `1px solid ${getPriorityColor(issue.priority)}`,
-                        fontSize: '11px',
+                        fontSize: "var(--krds-body-xsmall)",
                         fontWeight: 900,
                         color: getPriorityColor(issue.priority)
                       }}>
@@ -194,7 +196,7 @@ export function IssueBoardPage() {
                         <div className="flex items-center gap-2">
                           <User size={14} style={{ color: 'var(--matrix-green)' }} />
                           <span className="tracking-tight" style={{
-                            fontSize: '12px',
+                            fontSize: "var(--krds-body-xsmall)",
                             fontWeight: 800,
                             color: 'var(--muted)'
                           }}>
@@ -203,7 +205,7 @@ export function IssueBoardPage() {
                         </div>
                       ) : (
                         <span className="tracking-tight" style={{
-                          fontSize: '12px',
+                          fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 800,
                           color: 'var(--muted)'
                         }}>
@@ -213,9 +215,9 @@ export function IssueBoardPage() {
 
                       {issue.relatedPR && (
                         <span className="px-2 py-0.5 rounded tracking-tight" style={{
-                          background: 'rgba(57, 255, 136, 0.15)',
-                          border: '1px solid rgba(57, 255, 136, 0.3)',
-                          fontSize: '11px',
+                          background: 'rgba(var(--codedock-secondary-rgb), 0.15)',
+                          border: '1px solid rgba(var(--codedock-secondary-rgb), 0.3)',
+                          fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 900,
                           color: 'var(--matrix-green)'
                         }}>

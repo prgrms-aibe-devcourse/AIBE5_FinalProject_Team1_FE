@@ -21,9 +21,9 @@ export function TypingIndicatorBar({ label }: TypingIndicatorBarProps) {
         className={`codedock-typing-indicator-badge inline-flex max-w-full items-center gap-1.5 truncate rounded-full px-2.5 py-1 tracking-tight transition-all duration-200 ${active ? "is-active" : ""}`}
         style={{
           background: "rgba(5, 11, 20, 0.78)",
-          border: "1px solid rgba(32, 227, 255, 0.16)",
+          border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)",
           color: "var(--neon-cyan)",
-          fontSize: "11px",
+          fontSize: "var(--krds-body-xsmall)",
           fontWeight: 900,
           opacity: active ? 1 : 0,
           transform: active ? "translateY(0) scale(1)" : "translateY(2px) scale(0.98)"

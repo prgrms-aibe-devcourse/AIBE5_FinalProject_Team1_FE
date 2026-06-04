@@ -194,13 +194,13 @@ const mermaidConfig = {
     background: "#050B14",
     mainBkg: "#132338",
     primaryColor: "#132338",
-    primaryBorderColor: "#20E3FF",
+    primaryBorderColor: "var(--neon-cyan)",
     primaryTextColor: "#EAF7FF",
     secondaryColor: "#0F1D30",
     tertiaryColor: "#07101D",
-    lineColor: "#39FF88",
+    lineColor: "var(--matrix-green)",
     textColor: "#EAF7FF",
-    nodeBorder: "#20E3FF",
+    nodeBorder: "var(--neon-cyan)",
     nodeTextColor: "#EAF7FF",
     edgeLabelBackground: "#07101D",
     erEdgeLabelBackground: "#07101D",
@@ -801,7 +801,7 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
         className="inline-flex h-9 w-9 items-center justify-center rounded-lg border-0 transition-all hover:scale-105"
         style={{
           background: "rgba(234, 247, 255, 0.06)",
-          border: "1px solid rgba(32, 227, 255, 0.16)",
+          border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)",
           color: "var(--white)",
           cursor: "pointer"
         }}
@@ -815,11 +815,11 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
         onClick={() => setDiagramZoom(defaultDiagramZoom)}
         className="inline-flex h-9 items-center justify-center gap-1 rounded-lg border-0 px-3 font-mono transition-all hover:scale-105"
         style={{
-          background: "rgba(32, 227, 255, 0.10)",
-          border: "1px solid rgba(32, 227, 255, 0.24)",
+          background: "rgba(var(--codedock-primary-rgb), 0.10)",
+          border: "1px solid rgba(var(--codedock-primary-rgb), 0.24)",
           color: "var(--neon-cyan)",
           cursor: "pointer",
-          fontSize: "12px",
+          fontSize: "var(--krds-body-xsmall)",
           fontWeight: 950
         }}
         aria-label="ERD 100%로 보기"
@@ -834,7 +834,7 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
         className="inline-flex h-9 w-9 items-center justify-center rounded-lg border-0 transition-all hover:scale-105"
         style={{
           background: "rgba(234, 247, 255, 0.06)",
-          border: "1px solid rgba(32, 227, 255, 0.16)",
+          border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)",
           color: "var(--white)",
           cursor: "pointer"
         }}
@@ -906,7 +906,7 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
             </h1>
             <p className="m-0 mt-1 tracking-tight" style={{
               color: "var(--muted)",
-              fontSize: embedded ? "12px" : "14px",
+              fontSize: embedded ? "var(--krds-body-xsmall)" : "14px",
               fontWeight: 800
             }}>
               {repositoryName}
@@ -928,7 +928,7 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
                 border: "1px solid rgba(255, 145, 77, 0.32)",
                 color: "#ff9a5c",
                 cursor: selectedErd ? "pointer" : "not-allowed",
-                fontSize: "12px",
+                fontSize: "var(--krds-body-xsmall)",
                 fontWeight: 950,
                 opacity: selectedErd ? 1 : 0.42
               }}
@@ -943,10 +943,10 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
               className="inline-flex shrink-0 items-center gap-2 rounded-lg border-0 px-3 py-2 tracking-tight"
               style={{
                 background: "rgba(234, 247, 255, 0.06)",
-                border: "1px solid rgba(32, 227, 255, 0.16)",
+                border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)",
                 color: "var(--white)",
                 cursor: selectedErd ? "pointer" : "not-allowed",
-                fontSize: "12px",
+                fontSize: "var(--krds-body-xsmall)",
                 fontWeight: 900,
                 opacity: selectedErd ? 1 : 0.42
               }}
@@ -964,7 +964,7 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
                 border: "1px solid rgba(255, 107, 107, 0.22)",
                 color: "#ff8f8f",
                 cursor: selectedErd ? "pointer" : "not-allowed",
-                fontSize: "12px",
+                fontSize: "var(--krds-body-xsmall)",
                 fontWeight: 950,
                 opacity: selectedErd ? 1 : 0.42
               }}
@@ -981,10 +981,10 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
                 className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border-0 px-3 tracking-tight"
                 style={{
                   background: "rgba(234, 247, 255, 0.06)",
-                  border: "1px solid rgba(32, 227, 255, 0.16)",
+                  border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)",
                   color: "var(--white)",
                   cursor: selectedErd ? "pointer" : "not-allowed",
-                  fontSize: "12px",
+                  fontSize: "var(--krds-body-xsmall)",
                   fontWeight: 900,
                   opacity: selectedErd ? 1 : 0.42
                 }}
@@ -1004,7 +1004,7 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
                   role="menu"
                   style={{
                     background: "rgba(11, 22, 40, 0.98)",
-                    border: "1px solid rgba(32, 227, 255, 0.22)",
+                    border: "1px solid rgba(var(--codedock-primary-rgb), 0.22)",
                     boxShadow: "0 16px 40px rgba(0,0,0,0.5)",
                     minWidth: 168,
                   }}
@@ -1021,7 +1021,7 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
                       fontSize: "13px",
                       fontWeight: 850,
                       cursor: canDownloadDiagram ? "pointer" : "not-allowed",
-                      borderBottom: "1px solid rgba(32, 227, 255, 0.10)",
+                      borderBottom: "1px solid rgba(var(--codedock-primary-rgb), 0.10)",
                     }}
                     title={!canDownloadDiagram ? "다이어그램 렌더링 후 다운로드 가능" : undefined}
                   >
@@ -1054,11 +1054,11 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
       <div className={embedded ? "grid min-h-0 flex-1 gap-4 xl:grid-cols-[330px_minmax(0,1fr)]" : "grid gap-5 xl:grid-cols-[430px_1fr]"}>
         <section className={embedded ? "flex min-h-0 flex-col overflow-hidden rounded-2xl" : "rounded-2xl overflow-hidden"} style={{
           background: "rgba(11, 22, 40, 0.88)",
-          border: "1px solid rgba(32, 227, 255, 0.16)",
+          border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)",
           boxShadow: "0 18px 44px rgba(0, 0, 0, 0.30)"
         }}>
           <div className="px-4 py-4" style={{
-            borderBottom: "1px solid rgba(32, 227, 255, 0.14)"
+            borderBottom: "1px solid rgba(var(--codedock-primary-rgb), 0.14)"
           }}>
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
@@ -1071,7 +1071,7 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
                 </h2>
                 <p className="m-0 mt-1 truncate tracking-tight" style={{
                   color: "var(--muted)",
-                  fontSize: "11px",
+                  fontSize: "var(--krds-body-xsmall)",
                   fontWeight: 800
                 }}>
                   {repositoryName} 프로젝트 다이어그램
@@ -1082,11 +1082,11 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
                 onClick={handleAddErd}
                 className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border-0 px-3 py-2 tracking-tight transition-all hover:scale-[1.02]"
                 style={{
-                  background: "rgba(32, 227, 255, 0.10)",
-                  border: "1px solid rgba(32, 227, 255, 0.24)",
+                  background: "rgba(var(--codedock-primary-rgb), 0.10)",
+                  border: "1px solid rgba(var(--codedock-primary-rgb), 0.24)",
                   color: "var(--neon-cyan)",
                   cursor: "pointer",
-                  fontSize: "12px",
+                  fontSize: "var(--krds-body-xsmall)",
                   fontWeight: 950
                 }}
               >
@@ -1104,7 +1104,7 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
                   className="rounded-xl px-4 py-5 text-center tracking-tight"
                   style={{
                     background: "rgba(234, 247, 255, 0.045)",
-                    border: "1px dashed rgba(32, 227, 255, 0.24)",
+                    border: "1px dashed rgba(var(--codedock-primary-rgb), 0.24)",
                     color: "var(--white)"
                   }}
                 >
@@ -1112,7 +1112,7 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
                   <p className="m-0" style={{ fontSize: "14px", fontWeight: 950 }}>
                     ERD를 추가하세요
                   </p>
-                  <p className="m-0 mt-1" style={{ color: "var(--muted)", fontSize: "11px", fontWeight: 800 }}>
+                  <p className="m-0 mt-1" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>
                     추가 버튼을 눌러 새 다이어그램을 만들 수 있어요.
                   </p>
                 </div>
@@ -1127,10 +1127,10 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
                     key={erdDoc.id}
                     className="grid grid-cols-[minmax(0,1fr)_auto] items-stretch gap-2 rounded-xl px-2 py-2 tracking-tight transition-all hover:translate-x-0.5"
                     style={{
-                      background: isSelected ? "rgba(32, 227, 255, 0.12)" : "rgba(234, 247, 255, 0.045)",
-                      border: isSelected ? "1px solid rgba(32, 227, 255, 0.34)" : "1px solid rgba(32, 227, 255, 0.12)",
+                      background: isSelected ? "rgba(var(--codedock-primary-rgb), 0.12)" : "rgba(234, 247, 255, 0.045)",
+                      border: isSelected ? "1px solid rgba(var(--codedock-primary-rgb), 0.34)" : "1px solid rgba(var(--codedock-primary-rgb), 0.12)",
                       color: "var(--white)",
-                      boxShadow: isSelected ? "0 10px 28px rgba(32, 227, 255, 0.10)" : "none"
+                      boxShadow: isSelected ? "0 10px 28px rgba(var(--codedock-primary-rgb), 0.10)" : "none"
                     }}
                   >
                     <button
@@ -1144,20 +1144,20 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
                           <p className="m-0 truncate" style={{ fontSize: "13px", fontWeight: 950 }}>
                             {erdDoc.title}
                           </p>
-                          <p className="m-0 mt-1 truncate" style={{ color: "var(--muted)", fontSize: "11px", fontWeight: 800 }}>
+                          <p className="m-0 mt-1 truncate" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>
                             {erdDoc.description}
                           </p>
                         </div>
                         <span className="shrink-0 rounded-full px-2 py-1 font-mono" style={{
-                          background: isSelected ? "rgba(57, 255, 136, 0.12)" : "rgba(234, 247, 255, 0.06)",
+                          background: isSelected ? "rgba(var(--codedock-secondary-rgb), 0.12)" : "rgba(234, 247, 255, 0.06)",
                           color: isSelected ? "var(--soft-mint)" : "var(--muted)",
-                          fontSize: "10px",
+                          fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 950
                         }}>
                           {documentDiagram.entities.length}T
                         </span>
                       </div>
-                      <div className="mt-3 flex items-center justify-between gap-2" style={{ color: "var(--muted)", fontSize: "10px", fontWeight: 850 }}>
+                      <div className="mt-3 flex items-center justify-between gap-2" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 850 }}>
                         <span>컬럼 {documentColumnCount}</span>
                         <span>관계 {documentDiagram.relations.length}</span>
                         <span>{erdDoc.updatedAt}</span>
@@ -1187,7 +1187,7 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
           </div>
 
           <div className="flex items-center justify-between px-4 py-3" style={{
-            borderBottom: "1px solid rgba(32, 227, 255, 0.14)"
+            borderBottom: "1px solid rgba(var(--codedock-primary-rgb), 0.14)"
           }}>
             <div className="flex items-center gap-2">
               <Table2 size={17} style={{ color: "var(--neon-cyan)" }} />
@@ -1201,7 +1201,7 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
             </div>
             <span className="max-w-[150px] truncate tracking-tight" style={{
               color: "var(--muted)",
-              fontSize: "11px",
+              fontSize: "var(--krds-body-xsmall)",
               fontWeight: 800
             }}>
               {selectedErd?.title ?? "ERD 없음"}
@@ -1215,7 +1215,7 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
                 background: "rgba(255, 107, 107, 0.10)",
                 border: "1px solid rgba(255, 107, 107, 0.30)",
                 color: "#FFB4B4",
-                fontSize: "12px",
+                fontSize: "var(--krds-body-xsmall)",
                 fontWeight: 850,
                 lineHeight: 1.6
               }}
@@ -1237,7 +1237,7 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
               background: "rgba(5, 11, 20, 0.78)",
               color: "var(--soft-mint)",
               cursor: selectedErd ? "text" : "not-allowed",
-              fontSize: "12px",
+              fontSize: "var(--krds-body-xsmall)",
               fontWeight: 800,
               lineHeight: 1.7,
               opacity: selectedErd ? 1 : 0.62
@@ -1247,12 +1247,12 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
 
         <section className={embedded ? "flex min-h-0 flex-col overflow-hidden rounded-2xl" : "rounded-2xl overflow-hidden"} style={{
           background: "linear-gradient(145deg, rgba(11, 22, 40, 0.96), rgba(5, 11, 20, 0.90))",
-          border: "1px solid rgba(32, 227, 255, 0.18)",
+          border: "1px solid rgba(var(--codedock-primary-rgb), 0.18)",
           boxShadow: "0 18px 44px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(234, 247, 255, 0.08)"
         }}>
           <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4" style={{
-            borderBottom: "1px solid rgba(32, 227, 255, 0.14)",
-            background: "linear-gradient(90deg, rgba(32, 227, 255, 0.10), rgba(57, 255, 136, 0.045), rgba(5, 11, 20, 0.72))"
+            borderBottom: "1px solid rgba(var(--codedock-primary-rgb), 0.14)",
+            background: "linear-gradient(90deg, rgba(var(--codedock-primary-rgb), 0.10), rgba(var(--codedock-secondary-rgb), 0.045), rgba(5, 11, 20, 0.72))"
           }}>
             <div className="flex items-center gap-4">
               <PreviewStat label="테이블" value={diagram.entities.length} />
@@ -1265,11 +1265,11 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
                 onClick={handleAddErd}
                 className="inline-flex shrink-0 items-center gap-2 rounded-lg border-0 px-3 py-2 tracking-tight transition-all hover:scale-[1.02]"
                 style={{
-                  background: "rgba(32, 227, 255, 0.10)",
-                  border: "1px solid rgba(32, 227, 255, 0.24)",
+                  background: "rgba(var(--codedock-primary-rgb), 0.10)",
+                  border: "1px solid rgba(var(--codedock-primary-rgb), 0.24)",
                   color: "var(--neon-cyan)",
                   cursor: "pointer",
-                  fontSize: "12px",
+                  fontSize: "var(--krds-body-xsmall)",
                   fontWeight: 950
                 }}
               >
@@ -1297,8 +1297,8 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
                 width: `max(100%, ${scaledCanvasWidth}px)`,
                 height: `max(100%, ${scaledCanvasHeight}px)`,
                 background: `
-                  radial-gradient(circle at 18% 12%, rgba(32, 227, 255, 0.16), transparent 28%),
-                  radial-gradient(circle at 86% 8%, rgba(57, 255, 136, 0.10), transparent 30%),
+                  radial-gradient(circle at 18% 12%, rgba(var(--codedock-primary-rgb), 0.16), transparent 28%),
+                  radial-gradient(circle at 86% 8%, rgba(var(--codedock-secondary-rgb), 0.10), transparent 30%),
                   linear-gradient(rgba(234, 247, 255, 0.035) 1px, transparent 1px),
                   linear-gradient(90deg, rgba(234, 247, 255, 0.035) 1px, transparent 1px),
                   rgba(5, 11, 20, 0.72)
@@ -1325,7 +1325,7 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
                       top: diagramFrameOffsetY,
                       width: 320,
                       background: "rgba(11, 22, 40, 0.78)",
-                      border: "1px dashed rgba(32, 227, 255, 0.28)",
+                      border: "1px dashed rgba(var(--codedock-primary-rgb), 0.28)",
                       color: "var(--white)",
                       boxShadow: "0 18px 44px rgba(0, 0, 0, 0.24)"
                     }}
@@ -1334,7 +1334,7 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
                     <p className="m-0" style={{ fontSize: 15, fontWeight: 950 }}>
                       ERD를 추가하세요
                     </p>
-                    <p className="m-0 mt-2" style={{ color: "var(--muted)", fontSize: 12, fontWeight: 800, lineHeight: 1.6 }}>
+                    <p className="m-0 mt-2" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800, lineHeight: 1.6 }}>
                       새 다이어그램을 만들면 여기에서 바로 미리볼 수 있어요.
                     </p>
                   </div>
@@ -1389,7 +1389,7 @@ function PreviewStat({ label, value }: { label: string; value: number }) {
     <div>
       <p className="m-0 tracking-tight" style={{
         color: "var(--muted)",
-        fontSize: "10px",
+        fontSize: "var(--krds-body-xsmall)",
         fontWeight: 900,
         textTransform: "uppercase"
       }}>
@@ -1399,7 +1399,7 @@ function PreviewStat({ label, value }: { label: string; value: number }) {
         color: "var(--neon-cyan)",
         fontSize: "18px",
         fontWeight: 950,
-        textShadow: "0 0 18px rgba(32, 227, 255, 0.28)"
+        textShadow: "0 0 18px rgba(var(--codedock-primary-rgb), 0.28)"
       }}>
         {value}
       </p>

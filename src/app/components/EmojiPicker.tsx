@@ -23,7 +23,7 @@ export function EmojiPicker({ onSelect }: EmojiPickerProps) {
       className="rounded-xl px-4 py-3"
       style={{
         background: "rgba(5, 11, 20, 0.82)",
-        border: "1px solid rgba(32, 227, 255, 0.18)",
+        border: "1px solid rgba(var(--codedock-primary-rgb), 0.18)",
         boxShadow: "0 16px 36px rgba(0, 0, 0, 0.24)"
       }}
     >
@@ -34,7 +34,7 @@ export function EmojiPicker({ onSelect }: EmojiPickerProps) {
               className="m-0 mb-2 tracking-tight"
               style={{
                 color: "var(--muted)",
-                fontSize: "11px",
+                fontSize: "var(--krds-body-xsmall)",
                 fontWeight: 900
               }}
             >
@@ -48,8 +48,8 @@ export function EmojiPicker({ onSelect }: EmojiPickerProps) {
                   onClick={() => onSelect(emoji)}
                   className="flex h-9 w-9 items-center justify-center rounded-lg border-0 transition-all"
                   style={{
-                    background: "rgba(32, 227, 255, 0.08)",
-                    border: "1px solid rgba(32, 227, 255, 0.12)",
+                    background: "rgba(var(--codedock-primary-rgb), 0.08)",
+                    border: "1px solid rgba(var(--codedock-primary-rgb), 0.12)",
                     cursor: "pointer",
                     fontSize: "18px"
                   }}

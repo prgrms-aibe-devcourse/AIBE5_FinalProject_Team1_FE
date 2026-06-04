@@ -29,7 +29,6 @@ export function SettingsPage() {
   const [saved, setSaved] = useState(false);
 
   const handleSave = () => {
-    console.log('Settings saved:', settings);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -93,7 +92,7 @@ export function SettingsPage() {
                 { key: 'prReviews', label: 'PR 리뷰 요청', desc: 'PR 리뷰 요청 시 알림을 받습니다' },
                 { key: 'issueUpdates', label: '이슈 업데이트', desc: '할당된 이슈의 업데이트를 받습니다' }
               ].map((item) => (
-                <label key={item.key} className="flex items-start gap-4 cursor-pointer p-4 rounded-xl transition-all hover:bg-[rgba(32,227,255,0.05)]">
+                <label key={item.key} className="flex items-start gap-4 cursor-pointer p-4 rounded-xl transition-all hover:bg-[rgba(var(--codedock-primary-rgb),0.05)]">
                   <input
                     type="checkbox"
                     checked={settings.notifications[item.key as keyof typeof settings.notifications]}
@@ -212,7 +211,7 @@ export function SettingsPage() {
                 </select>
               </div>
 
-              <label className="flex items-start gap-4 cursor-pointer p-4 rounded-xl transition-all hover:bg-[rgba(32,227,255,0.05)]">
+              <label className="flex items-start gap-4 cursor-pointer p-4 rounded-xl transition-all hover:bg-[rgba(var(--codedock-primary-rgb),0.05)]">
                 <input
                   type="checkbox"
                   checked={settings.privacy.emailVisibility}
@@ -348,7 +347,7 @@ export function SettingsPage() {
                   ? 'linear-gradient(135deg, var(--matrix-green), #2ecc71)'
                   : `linear-gradient(135deg, ${colors.primaryHex}, ${colors.secondary})`,
                 boxShadow: saved
-                  ? '0 0 24px rgba(57, 255, 136, 0.24)'
+                  ? '0 0 24px rgba(var(--codedock-secondary-rgb), 0.24)'
                   : `0 0 24px ${colors.primary}, 0.24)`
               }}
             >

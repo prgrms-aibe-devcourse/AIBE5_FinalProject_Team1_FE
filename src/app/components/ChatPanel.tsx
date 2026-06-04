@@ -19,6 +19,8 @@ export interface IssueHistoryEvent {
   eventType: 'created' | 'assigned' | 'labeled' | 'commented' | 'status_changed';
 }
 
+const colorAlpha = (color: string, percent: number) => `color-mix(in srgb, ${color} ${percent}%, transparent)`;
+
 interface Message {
   id: number;
   user: string;
@@ -460,7 +462,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
         </div>
       )}
       <div className="flex items-center justify-between px-6 py-4" style={{
-        borderBottom: '1px solid rgba(32, 227, 255, 0.14)'
+        borderBottom: '1px solid rgba(var(--codedock-primary-rgb), 0.14)'
       }}>
         <h3 className="m-0 flex items-center gap-2 tracking-[-0.065em]" style={{
           fontSize: '18px',
@@ -472,10 +474,10 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
         </h3>
         {showAISummary && (
           <button className="px-3 py-2 rounded-lg border-0 flex items-center gap-2 tracking-tight" style={{
-            background: 'rgba(32, 227, 255, 0.10)',
-            border: '1px solid rgba(32, 227, 255, 0.22)',
+            background: 'rgba(var(--codedock-primary-rgb), 0.10)',
+            border: '1px solid rgba(var(--codedock-primary-rgb), 0.22)',
             color: 'var(--neon-cyan)',
-            fontSize: '12px',
+            fontSize: "var(--krds-body-xsmall)",
             fontWeight: 900,
             cursor: 'pointer'
           }}>
@@ -487,7 +489,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
 
       {isRepository && (
         <div className="px-6 py-3" style={{
-          borderBottom: '1px solid rgba(32, 227, 255, 0.14)'
+          borderBottom: '1px solid rgba(var(--codedock-primary-rgb), 0.14)'
         }}>
           <div className="flex items-center gap-1">
             {[
@@ -500,8 +502,8 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                 onClick={() => setActiveTab(tab.id as 'all' | 'pending' | 'completed')}
                 className="px-4 py-2 border-0 rounded-lg tracking-tight transition-all"
                 style={{
-                  background: activeTab === tab.id ? 'rgba(32, 227, 255, 0.15)' : 'transparent',
-                  border: activeTab === tab.id ? '1px solid rgba(32, 227, 255, 0.3)' : '1px solid transparent',
+                  background: activeTab === tab.id ? 'rgba(var(--codedock-primary-rgb), 0.15)' : 'transparent',
+                  border: activeTab === tab.id ? '1px solid rgba(var(--codedock-primary-rgb), 0.3)' : '1px solid transparent',
                   color: activeTab === tab.id ? 'var(--neon-cyan)' : 'var(--muted)',
                   fontSize: '13px',
                   fontWeight: 900,
@@ -539,10 +541,10 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
               <div className="flex items-center gap-2">
                 {showSlackAvatar && (
                   <span className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-full tracking-tight" style={{
-                    background: isOwnMessage ? 'rgba(32, 227, 255, 0.16)' : msg.type === 'system' ? 'rgba(32, 227, 255, 0.18)' : 'rgba(57, 255, 136, 0.14)',
-                    border: isOwnMessage ? '1px solid rgba(32, 227, 255, 0.30)' : msg.type === 'system' ? '1px solid rgba(32, 227, 255, 0.32)' : '1px solid rgba(57, 255, 136, 0.28)',
+                    background: isOwnMessage ? 'rgba(var(--codedock-primary-rgb), 0.16)' : msg.type === 'system' ? 'rgba(var(--codedock-primary-rgb), 0.18)' : 'rgba(var(--codedock-secondary-rgb), 0.14)',
+                    border: isOwnMessage ? '1px solid rgba(var(--codedock-primary-rgb), 0.30)' : msg.type === 'system' ? '1px solid rgba(var(--codedock-primary-rgb), 0.32)' : '1px solid rgba(var(--codedock-secondary-rgb), 0.28)',
                     color: isOwnMessage ? 'var(--neon-cyan)' : msg.type === 'system' ? 'var(--neon-cyan)' : 'var(--matrix-green)',
-                    fontSize: '11px',
+                    fontSize: "var(--krds-body-xsmall)",
                     fontWeight: 950
                   }}>
                     {isOwnMessage ? currentUserAvatar : msg.type === 'system' ? 'AI' : getUserInitial(msg.user)}
@@ -557,16 +559,16 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                 </span>
                 {isOwnMessage && (
                   <span className="rounded px-1.5 py-0.5 tracking-tight" style={{
-                    background: 'rgba(32, 227, 255, 0.12)',
+                    background: 'rgba(var(--codedock-primary-rgb), 0.12)',
                     color: 'var(--neon-cyan)',
-                    fontSize: '10px',
+                    fontSize: "var(--krds-body-xsmall)",
                     fontWeight: 950
                   }}>
                     내 메시지
                   </span>
                 )}
                 <span className="tracking-tight" style={{
-                  fontSize: '11px',
+                  fontSize: "var(--krds-body-xsmall)",
                   fontWeight: 700,
                   color: 'var(--muted)'
                 }}>
@@ -589,19 +591,19 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                     className="rounded-xl overflow-hidden transition-all hover:translate-y-[-1px]"
                     style={{
                     background: msg.prStatus === 'merged' ? 'rgba(20, 10, 30, 0.85)' : 'rgba(11, 22, 40, 0.85)',
-                    border: msg.prStatus === 'merged' ? '1px solid rgba(138, 43, 226, 0.35)' : '1px solid rgba(32, 227, 255, 0.2)',
+                    border: msg.prStatus === 'merged' ? '1px solid rgba(138, 43, 226, 0.35)' : '1px solid rgba(var(--codedock-primary-rgb), 0.2)',
                     boxShadow: msg.prStatus === 'merged' ? '0 4px 16px rgba(138, 43, 226, 0.2)' : '0 4px 16px rgba(0, 0, 0, 0.3)',
                     cursor: 'pointer'
                   }}>
                     {/* Header */}
                     <div className="px-4 py-2.5 flex items-center justify-between" style={{
                       background: msg.prStatus === 'merged' ? 'rgba(138, 43, 226, 0.1)' : 'rgba(5, 11, 20, 0.5)',
-                      borderBottom: msg.prStatus === 'merged' ? '1px solid rgba(138, 43, 226, 0.2)' : '1px solid rgba(32, 227, 255, 0.14)'
+                      borderBottom: msg.prStatus === 'merged' ? '1px solid rgba(138, 43, 226, 0.2)' : '1px solid rgba(var(--codedock-primary-rgb), 0.14)'
                     }}>
                       <div className="flex items-center gap-2">
                         <GitPullRequest size={14} style={{ color: msg.prStatus === 'merged' ? '#A78BFA' : 'var(--neon-cyan)' }} />
                         <span className="font-mono tracking-tight" style={{
-                          fontSize: '11px',
+                          fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 800,
                           color: 'var(--muted)'
                         }}>
@@ -611,7 +613,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                           <span className="px-2 py-0.5 rounded-md" style={{
                             background: 'rgba(34, 197, 94, 0.15)',
                             border: '1px solid rgba(34, 197, 94, 0.3)',
-                            fontSize: '10px',
+                            fontSize: "var(--krds-body-xsmall)",
                             fontWeight: 900,
                             color: '#22C55E'
                           }}>
@@ -623,7 +625,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                         {msg.labels?.map((label, idx) => (
                           <span key={idx} className="px-2 py-0.5 rounded-md tracking-tight" style={{
                             background: 'rgba(138, 43, 226, 0.15)',
-                            fontSize: '10px',
+                            fontSize: "var(--krds-body-xsmall)",
                             fontWeight: 800,
                             color: '#A78BFA'
                           }}>
@@ -635,7 +637,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
 
                     {/* Title */}
                     <div className="px-4 py-3" style={{
-                      borderBottom: msg.prStatus === 'merged' ? '1px solid rgba(138, 43, 226, 0.15)' : '1px solid rgba(32, 227, 255, 0.1)'
+                      borderBottom: msg.prStatus === 'merged' ? '1px solid rgba(138, 43, 226, 0.15)' : '1px solid rgba(var(--codedock-primary-rgb), 0.1)'
                     }}>
                       <h4 className="m-0 mb-2 tracking-tight" style={{
                         fontSize: '15px',
@@ -649,21 +651,21 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                         <span className="px-2 py-0.5 rounded-md flex items-center gap-1" style={{
                           background: msg.prStatus === 'merged' ? 'rgba(138, 43, 226, 0.15)' : 'rgba(34, 197, 94, 0.15)',
                           border: msg.prStatus === 'merged' ? '1px solid rgba(138, 43, 226, 0.3)' : '1px solid rgba(34, 197, 94, 0.3)',
-                          fontSize: '10px',
+                          fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 900,
                           color: msg.prStatus === 'merged' ? '#A78BFA' : '#22C55E'
                         }}>
                           {msg.prStatus === 'merged' ? '병합됨' : '열림'}
                         </span>
                         <span className="tracking-tight" style={{
-                          fontSize: '11px',
+                          fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 700,
                           color: 'var(--muted)'
                         }}>
                           2시간 전
                         </span>
                         <span className="tracking-tight" style={{
-                          fontSize: '11px',
+                          fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 700,
                           color: 'var(--muted)'
                         }}>
@@ -674,13 +676,13 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
 
                     {/* Stats */}
                     <div className="px-4 py-3 flex items-center gap-4" style={{
-                      borderBottom: msg.prStatus === 'merged' ? '1px solid rgba(138, 43, 226, 0.15)' : '1px solid rgba(32, 227, 255, 0.1)'
+                      borderBottom: msg.prStatus === 'merged' ? '1px solid rgba(138, 43, 226, 0.15)' : '1px solid rgba(var(--codedock-primary-rgb), 0.1)'
                     }}>
                       {msg.approved !== undefined && (
                         <div className="flex items-center gap-1">
                           <CheckCircle size={12} style={{ color: '#22C55E' }} />
                           <span className="tracking-tight" style={{
-                            fontSize: '11px',
+                            fontSize: "var(--krds-body-xsmall)",
                             fontWeight: 800,
                             color: 'var(--muted)'
                           }}>
@@ -692,7 +694,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                         <div className="flex items-center gap-1">
                           <Clock size={12} style={{ color: '#FFA500' }} />
                           <span className="tracking-tight" style={{
-                            fontSize: '11px',
+                            fontSize: "var(--krds-body-xsmall)",
                             fontWeight: 800,
                             color: 'var(--muted)'
                           }}>
@@ -701,7 +703,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                         </div>
                       )}
                       <span className="tracking-tight" style={{
-                        fontSize: '11px',
+                        fontSize: "var(--krds-body-xsmall)",
                         fontWeight: 800,
                         color: 'var(--muted)'
                       }}>
@@ -709,14 +711,14 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                       </span>
                       <div className="flex items-center gap-2">
                         <span className="tracking-tight" style={{
-                          fontSize: '11px',
+                          fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 800,
                           color: '#22C55E'
                         }}>
                           +{msg.additions || 145}
                         </span>
                         <span className="tracking-tight" style={{
-                          fontSize: '11px',
+                          fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 800,
                           color: '#FF6B6B'
                         }}>
@@ -731,7 +733,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                         <span className="px-2.5 py-1 rounded-md tracking-tight" style={{
                           background: msg.aiRisk === 'High' ? 'rgba(255, 107, 107, 0.15)' : msg.aiRisk === 'Medium' ? 'rgba(255, 165, 0, 0.15)' : 'rgba(34, 197, 94, 0.15)',
                           border: msg.aiRisk === 'High' ? '1px solid rgba(255, 107, 107, 0.3)' : msg.aiRisk === 'Medium' ? '1px solid rgba(255, 165, 0, 0.3)' : '1px solid rgba(34, 197, 94, 0.3)',
-                          fontSize: '10px',
+                          fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 900,
                           color: msg.aiRisk === 'High' ? '#FF6B6B' : msg.aiRisk === 'Medium' ? '#FFA500' : '#22C55E'
                         }}>
@@ -742,7 +744,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                         <span className="px-2.5 py-1 rounded-md tracking-tight" style={{
                           background: 'rgba(34, 197, 94, 0.15)',
                           border: '1px solid rgba(34, 197, 94, 0.3)',
-                          fontSize: '10px',
+                          fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 900,
                           color: '#22C55E'
                         }}>
@@ -753,7 +755,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                         <span className="px-2.5 py-1 rounded-md tracking-tight" style={{
                           background: 'rgba(255, 165, 0, 0.15)',
                           border: '1px solid rgba(255, 165, 0, 0.3)',
-                          fontSize: '10px',
+                          fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 900,
                           color: '#FFA500'
                         }}>
@@ -770,7 +772,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                           background: 'rgba(59, 130, 246, 0.15)',
                           border: '1px solid rgba(59, 130, 246, 0.3)',
                           color: '#60A5FA',
-                          fontSize: '11px',
+                          fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 900,
                           cursor: 'pointer'
                         }}
@@ -781,10 +783,10 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                         onClick={(e) => e.stopPropagation()}
                         className="px-3 py-1.5 rounded-md border-0 tracking-tight transition-all flex items-center gap-1.5"
                         style={{
-                        background: 'rgba(32, 227, 255, 0.08)',
-                        border: '1px solid rgba(32, 227, 255, 0.2)',
+                        background: 'rgba(var(--codedock-primary-rgb), 0.08)',
+                        border: '1px solid rgba(var(--codedock-primary-rgb), 0.2)',
                         color: 'var(--muted)',
-                        fontSize: '11px',
+                        fontSize: "var(--krds-body-xsmall)",
                         fontWeight: 800,
                         cursor: 'pointer'
                       }}>
@@ -823,7 +825,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                       <div className="flex items-center gap-2">
                         <CircleDot size={14} style={{ color: '#22C55E' }} />
                         <span className="font-mono tracking-tight" style={{
-                          fontSize: '11px',
+                          fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 800,
                           color: 'var(--muted)'
                         }}>
@@ -833,9 +835,9 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                       <div className="flex items-center gap-1.5 flex-wrap justify-end">
                         {msg.issueLabels?.map((label, idx) => (
                           <span key={idx} className="px-2 py-0.5 rounded-md tracking-tight" style={{
-                            background: `${label.color}22`,
-                            border: `1px solid ${label.color}66`,
-                            fontSize: '10px',
+                            background: colorAlpha(label.color, 13),
+                            border: `1px solid ${colorAlpha(label.color, 40)}`,
+                            fontSize: "var(--krds-body-xsmall)",
                             fontWeight: 800,
                             color: label.color
                           }}>
@@ -863,9 +865,9 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                           const Icon = cfg.icon;
                           return (
                             <span className="px-2 py-0.5 rounded-md flex items-center gap-1" style={{
-                              background: `${cfg.color}22`,
-                              border: `1px solid ${cfg.color}44`,
-                              fontSize: '10px',
+                              background: colorAlpha(cfg.color, 13),
+                              border: `1px solid ${colorAlpha(cfg.color, 27)}`,
+                              fontSize: "var(--krds-body-xsmall)",
                               fontWeight: 900,
                               color: cfg.color
                             }}>
@@ -875,14 +877,14 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                           );
                         })()}
                         <span className="tracking-tight" style={{
-                          fontSize: '11px',
+                          fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 700,
                           color: 'var(--muted)'
                         }}>
                           {msg.time}
                         </span>
                         <span className="tracking-tight" style={{
-                          fontSize: '11px',
+                          fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 700,
                           color: 'var(--muted)'
                         }}>
@@ -895,9 +897,9 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                     <div className="px-4 py-3 flex items-center gap-2 flex-wrap">
                       {msg.issuePriority && (
                         <span className="px-2.5 py-1 rounded-md tracking-tight" style={{
-                          background: `${issuePriorityConfig[msg.issuePriority].color}22`,
-                          border: `1px solid ${issuePriorityConfig[msg.issuePriority].color}44`,
-                          fontSize: '10px',
+                          background: colorAlpha(issuePriorityConfig[msg.issuePriority].color, 13),
+                          border: `1px solid ${colorAlpha(issuePriorityConfig[msg.issuePriority].color, 27)}`,
+                          fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 900,
                           color: issuePriorityConfig[msg.issuePriority].color
                         }}>
@@ -908,7 +910,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                         <span className="px-2.5 py-1 rounded-md tracking-tight" style={{
                           background: 'rgba(234, 247, 255, 0.07)',
                           border: '1px solid rgba(234, 247, 255, 0.14)',
-                          fontSize: '10px',
+                          fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 900,
                           color: 'var(--muted)'
                         }}>
@@ -917,7 +919,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                       )}
                       {msg.issueAssignees && msg.issueAssignees.length > 0 && (
                         <span className="tracking-tight" style={{
-                          fontSize: '11px',
+                          fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 700,
                           color: 'var(--muted)'
                         }}>
@@ -934,7 +936,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                           background: 'rgba(34, 197, 94, 0.12)',
                           border: '1px solid rgba(34, 197, 94, 0.28)',
                           color: '#22C55E',
-                          fontSize: '11px',
+                          fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 900,
                           cursor: 'pointer'
                         }}
@@ -949,15 +951,15 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                 <div className="relative">
                   <div className="rounded-xl overflow-hidden" style={{
                     background: 'rgba(5, 11, 20, 0.6)',
-                    border: '1px solid rgba(32, 227, 255, 0.14)'
+                    border: '1px solid rgba(var(--codedock-primary-rgb), 0.14)'
                   }}>
                     <div className="px-3 py-2 flex items-center gap-2" style={{
-                      background: 'rgba(32, 227, 255, 0.08)',
-                      borderBottom: '1px solid rgba(32, 227, 255, 0.14)'
+                      background: 'rgba(var(--codedock-primary-rgb), 0.08)',
+                      borderBottom: '1px solid rgba(var(--codedock-primary-rgb), 0.14)'
                     }}>
                       <Code size={14} style={{ color: 'var(--neon-cyan)' }} />
                       <span className="font-mono tracking-tight" style={{
-                        fontSize: '11px',
+                        fontSize: "var(--krds-body-xsmall)",
                         fontWeight: 800,
                         color: 'var(--neon-cyan)'
                       }}>
@@ -993,11 +995,11 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                   )}
                   <div className="px-4 py-3" style={{
                     background: msg.type === 'system'
-                      ? 'rgba(32, 227, 255, 0.08)'
+                      ? 'rgba(var(--codedock-primary-rgb), 0.08)'
                       : isOwnMessage
-                        ? 'rgba(32, 227, 255, 0.075)'
+                        ? 'rgba(var(--codedock-primary-rgb), 0.075)'
                         : 'rgba(5, 11, 20, 0.42)',
-                    border: `1px solid ${msg.type === 'system' ? 'rgba(32, 227, 255, 0.22)' : isOwnMessage ? 'rgba(32, 227, 255, 0.18)' : 'rgba(32, 227, 255, 0.10)'}`,
+                    border: `1px solid ${msg.type === 'system' ? 'rgba(var(--codedock-primary-rgb), 0.22)' : isOwnMessage ? 'rgba(var(--codedock-primary-rgb), 0.18)' : 'rgba(var(--codedock-primary-rgb), 0.10)'}`,
                     borderRadius: '12px',
                     boxShadow: 'none'
                   }}>
@@ -1012,8 +1014,8 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                       <div className="flex gap-2 mt-2">
                         {msg.mentions.map((mention, idx) => (
                           <span key={idx} className="px-2 py-0.5 rounded tracking-tight" style={{
-                            background: 'rgba(57, 255, 136, 0.15)',
-                            fontSize: '11px',
+                            background: 'rgba(var(--codedock-secondary-rgb), 0.15)',
+                            fontSize: "var(--krds-body-xsmall)",
                             fontWeight: 900,
                             color: 'var(--matrix-green)'
                           }}>
@@ -1062,12 +1064,12 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
       </div>
 
       <div className="px-6 pt-1 pb-3" style={{
-        borderTop: '1px solid rgba(32, 227, 255, 0.14)'
+        borderTop: '1px solid rgba(var(--codedock-primary-rgb), 0.14)'
       }}>
         {(codeBlockText.trim() || selectedAttachments.length > 0) && (
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <span className="tracking-tight" style={{
-              fontSize: '11px',
+              fontSize: "var(--krds-body-xsmall)",
               fontWeight: 900,
               color: 'var(--muted)'
             }}>
@@ -1079,11 +1081,11 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                 onClick={() => setActivePanel('code')}
                 className="flex items-center gap-1.5 rounded-full border-0 px-2.5 py-1 tracking-tight transition-all"
                 style={{
-                  background: 'rgba(32, 227, 255, 0.12)',
-                  border: '1px solid rgba(32, 227, 255, 0.34)',
+                  background: 'rgba(var(--codedock-primary-rgb), 0.12)',
+                  border: '1px solid rgba(var(--codedock-primary-rgb), 0.34)',
                   color: 'var(--neon-cyan)',
                   cursor: 'pointer',
-                  fontSize: '12px',
+                  fontSize: "var(--krds-body-xsmall)",
                   fontWeight: 900,
                 }}
                 title="코드 블록 보기"
@@ -1110,10 +1112,10 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                 onClick={() => handleAttachmentRemove(attachment.id)}
                 className="px-3 py-1.5 rounded-full border-0 flex items-center gap-2 tracking-tight"
                 style={{
-                  background: 'rgba(32, 227, 255, 0.12)',
-                  border: '1px solid rgba(32, 227, 255, 0.24)',
+                  background: 'rgba(var(--codedock-primary-rgb), 0.12)',
+                  border: '1px solid rgba(var(--codedock-primary-rgb), 0.24)',
                   color: 'var(--white)',
-                  fontSize: '11px',
+                  fontSize: "var(--krds-body-xsmall)",
                   fontWeight: 900,
                   cursor: 'pointer'
                 }}
@@ -1129,11 +1131,11 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
 
         {activePanel === 'code' && (
           <div className="mb-3 px-4 py-3 rounded-xl" style={{
-            background: 'rgba(32, 227, 255, 0.08)',
-            border: '1px solid rgba(32, 227, 255, 0.22)'
+            background: 'rgba(var(--codedock-primary-rgb), 0.08)',
+            border: '1px solid rgba(var(--codedock-primary-rgb), 0.22)'
           }}>
             <p className="m-0 mb-2 tracking-tight" style={{
-              fontSize: '12px',
+              fontSize: "var(--krds-body-xsmall)",
               fontWeight: 900,
               color: 'var(--neon-cyan)'
             }}>
@@ -1147,7 +1149,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
               rows={4}
               style={{
                 background: 'rgba(5, 11, 20, 0.6)',
-                border: '1px solid rgba(32, 227, 255, 0.14)',
+                border: '1px solid rgba(var(--codedock-primary-rgb), 0.14)',
                 color: 'var(--white)',
                 fontSize: '13px',
                 fontWeight: 700
@@ -1159,7 +1161,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
         {activePanel === 'attachment' && (
           <div className="mb-3 rounded-xl px-4 py-3" style={{
             background: 'rgba(5, 11, 20, 0.78)',
-            border: '1px solid rgba(32, 227, 255, 0.18)',
+            border: '1px solid rgba(var(--codedock-primary-rgb), 0.18)',
             boxShadow: '0 16px 36px rgba(0, 0, 0, 0.24)'
           }}>
             <div className="flex flex-wrap gap-1 mb-3">
@@ -1169,10 +1171,10 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                   onClick={() => setActiveAttachmentType(group.type)}
                   className="px-3 py-1.5 rounded-lg border-0 tracking-tight"
                   style={{
-                    background: activeAttachmentType === group.type ? 'rgba(32, 227, 255, 0.16)' : 'transparent',
-                    border: activeAttachmentType === group.type ? '1px solid rgba(32, 227, 255, 0.36)' : '1px solid transparent',
+                    background: activeAttachmentType === group.type ? 'rgba(var(--codedock-primary-rgb), 0.16)' : 'transparent',
+                    border: activeAttachmentType === group.type ? '1px solid rgba(var(--codedock-primary-rgb), 0.36)' : '1px solid transparent',
                     color: activeAttachmentType === group.type ? 'var(--neon-cyan)' : 'var(--muted)',
-                    fontSize: '12px',
+                    fontSize: "var(--krds-body-xsmall)",
                     fontWeight: 950,
                     cursor: 'pointer'
                   }}
@@ -1182,7 +1184,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
               ))}
             </div>
             <p className="m-0 mb-3 tracking-tight" style={{
-              fontSize: '12px',
+              fontSize: "var(--krds-body-xsmall)",
               fontWeight: 800,
               color: 'var(--muted)'
             }}>
@@ -1198,8 +1200,8 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                     onClick={() => handleAttachmentToggle(attachment)}
                     className="w-full rounded-lg px-3 py-2 border-0 text-left transition-all"
                     style={{
-                      background: isSelected ? 'rgba(32, 227, 255, 0.14)' : 'rgba(11, 22, 40, 0.62)',
-                      border: isSelected ? '1px solid rgba(32, 227, 255, 0.34)' : '1px solid rgba(32, 227, 255, 0.12)',
+                      background: isSelected ? 'rgba(var(--codedock-primary-rgb), 0.14)' : 'rgba(11, 22, 40, 0.62)',
+                      border: isSelected ? '1px solid rgba(var(--codedock-primary-rgb), 0.34)' : '1px solid rgba(var(--codedock-primary-rgb), 0.12)',
                       cursor: 'pointer'
                     }}
                   >
@@ -1212,9 +1214,9 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                         {attachment.title}
                       </span>
                       <span className="px-2 py-0.5 rounded-full tracking-tight" style={{
-                        background: isSelected ? 'rgba(57, 255, 136, 0.16)' : 'rgba(32, 227, 255, 0.10)',
+                        background: isSelected ? 'rgba(var(--codedock-secondary-rgb), 0.16)' : 'rgba(var(--codedock-primary-rgb), 0.10)',
                         color: isSelected ? 'var(--matrix-green)' : 'var(--neon-cyan)',
-                        fontSize: '10px',
+                        fontSize: "var(--krds-body-xsmall)",
                         fontWeight: 950,
                         whiteSpace: 'nowrap'
                       }}>
@@ -1222,7 +1224,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                       </span>
                     </div>
                     <p className="m-0 mt-1 tracking-tight" style={{
-                      fontSize: '12px',
+                      fontSize: "var(--krds-body-xsmall)",
                       fontWeight: 700,
                       color: 'var(--muted)',
                       lineHeight: '1.45'
@@ -1239,7 +1241,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
         {activePanel === 'link' && (
           <div className="mb-3 rounded-xl px-4 py-3" style={{
             background: 'rgba(5, 11, 20, 0.78)',
-            border: '1px solid rgba(32, 227, 255, 0.18)',
+            border: '1px solid rgba(var(--codedock-primary-rgb), 0.18)',
             boxShadow: '0 16px 36px rgba(0, 0, 0, 0.24)'
           }}>
             <div className="mb-3 flex items-center gap-2">
@@ -1266,7 +1268,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                 className="rounded-lg border-0 px-3 py-2 outline-none tracking-tight"
                 style={{
                   background: 'rgba(11, 22, 40, 0.72)',
-                  border: '1px solid rgba(32, 227, 255, 0.14)',
+                  border: '1px solid rgba(var(--codedock-primary-rgb), 0.14)',
                   color: 'var(--white)',
                   fontSize: '13px',
                   fontWeight: 750
@@ -1285,7 +1287,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                 className="rounded-lg border-0 px-3 py-2 outline-none tracking-tight"
                 style={{
                   background: 'rgba(11, 22, 40, 0.72)',
-                  border: '1px solid rgba(32, 227, 255, 0.14)',
+                  border: '1px solid rgba(var(--codedock-primary-rgb), 0.14)',
                   color: 'var(--white)',
                   fontSize: '13px',
                   fontWeight: 750
@@ -1312,7 +1314,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
               <div className="mt-3">
                 <p className="m-0 mb-2 tracking-tight" style={{
                   color: 'var(--muted)',
-                  fontSize: '11px',
+                  fontSize: "var(--krds-body-xsmall)",
                   fontWeight: 900
                 }}>
                   미리보기
@@ -1375,7 +1377,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
 
         <div className="relative flex items-end gap-2 px-4 py-2 rounded-xl" style={{
           background: 'rgba(5, 11, 20, 0.6)',
-          border: '1px solid rgba(32, 227, 255, 0.14)'
+          border: '1px solid rgba(var(--codedock-primary-rgb), 0.14)'
         }}>
           <textarea
             value={message}
@@ -1418,8 +1420,8 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                   onMouseLeave={() => setHoveredToolBtn(null)}
                   className="relative w-9 h-9 rounded-lg border-0 flex items-center justify-center transition-all cursor-pointer"
                   style={{
-                    background: active || hoveredToolBtn === label ? 'rgba(32, 227, 255, 0.15)' : 'rgba(32, 227, 255, 0.08)',
-                    border: `1px solid ${active || hoveredToolBtn === label ? 'rgba(32, 227, 255, 0.3)' : 'rgba(32, 227, 255, 0.14)'}`,
+                    background: active || hoveredToolBtn === label ? 'rgba(var(--codedock-primary-rgb), 0.15)' : 'rgba(var(--codedock-primary-rgb), 0.08)',
+                    border: `1px solid ${active || hoveredToolBtn === label ? 'rgba(var(--codedock-primary-rgb), 0.3)' : 'rgba(var(--codedock-primary-rgb), 0.14)'}`,
                     color: active || hoveredToolBtn === label ? 'var(--neon-cyan)' : 'var(--muted)'
                   }}
                 >{icon}</button>
@@ -1448,7 +1450,6 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
             ><Send size={18} /></button>
           </div>
         </div>
-
       </div>
 
       {/* PR 공유 모달 */}
@@ -1459,12 +1460,12 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
         }}>
           <div className="w-full max-w-lg mx-4 rounded-2xl overflow-hidden" style={{
             background: 'rgba(11, 22, 40, 0.95)',
-            border: '1px solid rgba(32, 227, 255, 0.3)',
+            border: '1px solid rgba(var(--codedock-primary-rgb), 0.3)',
             boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)'
           }}>
             {/* 헤더 */}
             <div className="px-6 py-5" style={{
-              borderBottom: '1px solid rgba(32, 227, 255, 0.14)'
+              borderBottom: '1px solid rgba(var(--codedock-primary-rgb), 0.14)'
             }}>
               <h3 className="m-0 tracking-tight" style={{
                 fontSize: '18px',
@@ -1479,8 +1480,8 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
             <div className="px-6 py-6">
               {/* PR 정보 */}
               <div className="mb-4 p-4 rounded-xl" style={{
-                background: 'rgba(32, 227, 255, 0.08)',
-                border: '1px solid rgba(32, 227, 255, 0.2)'
+                background: 'rgba(var(--codedock-primary-rgb), 0.08)',
+                border: '1px solid rgba(var(--codedock-primary-rgb), 0.2)'
               }}>
                 <div className="flex items-center gap-2 mb-2">
                   <GitPullRequest size={16} style={{ color: 'var(--neon-cyan)' }} />
@@ -1502,28 +1503,28 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                 </p>
                 <div className="flex items-center gap-3">
                   <span className="tracking-tight" style={{
-                    fontSize: '11px',
+                    fontSize: "var(--krds-body-xsmall)",
                     fontWeight: 700,
                     color: 'var(--muted)'
                   }}>
                     작성자 {selectedPRForShare.prAuthor || selectedPRForShare.user}
                   </span>
                   <span className="tracking-tight" style={{
-                    fontSize: '11px',
+                    fontSize: "var(--krds-body-xsmall)",
                     fontWeight: 700,
                     color: 'var(--muted)'
                   }}>
                     파일 {selectedPRForShare.filesChanged || 0}개
                   </span>
                   <span className="tracking-tight" style={{
-                    fontSize: '11px',
+                    fontSize: "var(--krds-body-xsmall)",
                     fontWeight: 800,
                     color: '#22C55E'
                   }}>
                     +{selectedPRForShare.additions || 0}
                   </span>
                   <span className="tracking-tight" style={{
-                    fontSize: '11px',
+                    fontSize: "var(--krds-body-xsmall)",
                     fontWeight: 800,
                     color: '#FF6B6B'
                   }}>
@@ -1547,8 +1548,8 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                       key={channel.id}
                       className="flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-all"
                       style={{
-                        background: selectedChannels.includes(channel.id) ? 'rgba(32, 227, 255, 0.15)' : 'rgba(5, 11, 20, 0.6)',
-                        border: selectedChannels.includes(channel.id) ? '1px solid rgba(32, 227, 255, 0.3)' : '1px solid rgba(32, 227, 255, 0.14)'
+                        background: selectedChannels.includes(channel.id) ? 'rgba(var(--codedock-primary-rgb), 0.15)' : 'rgba(5, 11, 20, 0.6)',
+                        border: selectedChannels.includes(channel.id) ? '1px solid rgba(var(--codedock-primary-rgb), 0.3)' : '1px solid rgba(var(--codedock-primary-rgb), 0.14)'
                       }}
                     >
                       <input
@@ -1592,7 +1593,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                   rows={5}
                   style={{
                     background: 'rgba(5, 11, 20, 0.6)',
-                    border: '1px solid rgba(32, 227, 255, 0.14)',
+                    border: '1px solid rgba(var(--codedock-primary-rgb), 0.14)',
                     color: 'var(--white)',
                     fontSize: '13px',
                     fontWeight: 700
@@ -1603,14 +1604,14 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
 
             {/* 버튼 */}
             <div className="px-6 py-4 flex gap-3" style={{
-              borderTop: '1px solid rgba(32, 227, 255, 0.14)'
+              borderTop: '1px solid rgba(var(--codedock-primary-rgb), 0.14)'
             }}>
               <button
                 onClick={handleCancelShare}
                 className="flex-1 px-4 py-2.5 rounded-xl border-0 tracking-tight transition-all cursor-pointer"
                 style={{
-                  background: 'rgba(32, 227, 255, 0.08)',
-                  border: '1px solid rgba(32, 227, 255, 0.3)',
+                  background: 'rgba(var(--codedock-primary-rgb), 0.08)',
+                  border: '1px solid rgba(var(--codedock-primary-rgb), 0.3)',
                   color: 'var(--white)',
                   fontSize: '13px',
                   fontWeight: 900
@@ -1623,7 +1624,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                 disabled={!shareMessage.trim() || selectedChannels.length === 0}
                 className="flex-1 px-4 py-2.5 rounded-xl border-0 tracking-tight transition-all cursor-pointer"
                 style={{
-                  background: (shareMessage.trim() && selectedChannels.length > 0) ? 'linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))' : 'rgba(32, 227, 255, 0.2)',
+                  background: (shareMessage.trim() && selectedChannels.length > 0) ? 'linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))' : 'rgba(var(--codedock-primary-rgb), 0.2)',
                   color: (shareMessage.trim() && selectedChannels.length > 0) ? '#021014' : 'var(--muted)',
                   fontSize: '13px',
                   fontWeight: 900,

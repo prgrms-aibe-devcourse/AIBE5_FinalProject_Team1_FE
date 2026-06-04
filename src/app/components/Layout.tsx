@@ -133,7 +133,7 @@ export function Layout() {
               <span className="grid min-w-0 leading-none">
                 <span className="max-w-[112px] truncate text-sm font-black tracking-tight">{profile.name}</span>
                 <span
-                  className="mt-1 max-w-[112px] truncate text-[11px] font-bold tracking-tight"
+                  className="mt-1 max-w-[112px] truncate text-[var(--krds-body-xsmall)] font-bold tracking-tight"
                   style={{ color: "rgba(234, 247, 255, 0.62)" }}
                 >
                   {profile.workspace}
@@ -332,7 +332,7 @@ function AccountMenu({ variant, onLogout, tabIndex }: AccountMenuProps) {
                 </span>
                 {isFull && (
                   <span
-                    className="mt-1 max-w-[112px] truncate text-[11px] font-bold tracking-tight"
+                    className="mt-1 max-w-[112px] truncate text-[var(--krds-body-xsmall)] font-bold tracking-tight"
                     style={{ color: "rgba(234, 247, 255, 0.62)" }}
                   >
                     {profile.workspace}
