@@ -130,13 +130,13 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden" style={{
       background: 'rgba(11, 22, 40, 0.82)',
-      border: '1px solid rgba(32, 227, 255, 0.16)',
+      border: '1px solid rgba(var(--codedock-primary-rgb), 0.16)',
       borderRadius: '30px',
       boxShadow: '0 20px 60px rgba(0, 0, 0, 0.32)',
       backdropFilter: 'blur(16px)'
     }}>
       <div className="flex items-center justify-between px-6 py-4" style={{
-        borderBottom: '1px solid rgba(32, 227, 255, 0.14)'
+        borderBottom: '1px solid rgba(var(--codedock-primary-rgb), 0.14)'
       }}>
         <h3 className="m-0 tracking-[-0.065em]" style={{
           fontSize: '18px',
@@ -163,7 +163,7 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
         <div className="grid gap-4">
           {/* 원본 메시지 */}
           <div className="pb-4" style={{
-            borderBottom: '1px solid rgba(32, 227, 255, 0.14)'
+            borderBottom: '1px solid rgba(var(--codedock-primary-rgb), 0.14)'
           }}>
             <div className="flex items-center gap-2 mb-2">
               <span className="tracking-tight" style={{
@@ -174,7 +174,7 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
                 {originalMessage.user}
               </span>
               <span className="tracking-tight" style={{
-                fontSize: '11px',
+                fontSize: "var(--krds-body-xsmall)",
                 fontWeight: 700,
                 color: 'var(--muted)'
               }}>
@@ -182,8 +182,8 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
               </span>
             </div>
             <div className="px-4 py-3 rounded-xl" style={{
-              background: 'rgba(32, 227, 255, 0.08)',
-              border: '1px solid rgba(32, 227, 255, 0.22)'
+              background: 'rgba(var(--codedock-primary-rgb), 0.08)',
+              border: '1px solid rgba(var(--codedock-primary-rgb), 0.22)'
             }}>
               <p className="m-0 leading-[1.5] tracking-tight" style={{
                 fontSize: '14px',
@@ -202,17 +202,17 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
           {/* 답글 개수 표시 */}
           <div className="flex items-center gap-2">
             <div className="h-px flex-1" style={{
-              background: 'rgba(32, 227, 255, 0.14)'
+              background: 'rgba(var(--codedock-primary-rgb), 0.14)'
             }} />
             <span className="tracking-tight" style={{
-              fontSize: '12px',
+              fontSize: "var(--krds-body-xsmall)",
               fontWeight: 800,
               color: 'var(--muted)'
             }}>
               {visibleReplyCount}개의 답글
             </span>
             <div className="h-px flex-1" style={{
-              background: 'rgba(32, 227, 255, 0.14)'
+              background: 'rgba(var(--codedock-primary-rgb), 0.14)'
             }} />
           </div>
 
@@ -225,19 +225,19 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
                 <div className="px-4 py-3 rounded-xl" style={{
                   width: '100%',
                   maxWidth: '100%',
-                  background: isMine ? 'rgba(32, 227, 255, 0.075)' : 'linear-gradient(135deg, rgba(5, 11, 20, 0.6), rgba(11, 22, 40, 0.4))',
-                  border: isMine ? '1px solid rgba(32, 227, 255, 0.18)' : '1px solid rgba(32, 227, 255, 0.16)',
+                  background: isMine ? 'rgba(var(--codedock-primary-rgb), 0.075)' : 'linear-gradient(135deg, rgba(5, 11, 20, 0.6), rgba(11, 22, 40, 0.4))',
+                  border: isMine ? '1px solid rgba(var(--codedock-primary-rgb), 0.18)' : '1px solid rgba(var(--codedock-primary-rgb), 0.16)',
                   borderRadius: '12px',
                   boxShadow: 'none'
                 }}>
                   <div className="flex items-center gap-2 mb-2 pb-2" style={{
-                    borderBottom: '1px solid rgba(32, 227, 255, 0.1)'
+                    borderBottom: '1px solid rgba(var(--codedock-primary-rgb), 0.1)'
                   }}>
                     <div className="w-7 h-7 flex-shrink-0 rounded-full flex items-center justify-center" style={{
-                      background: isMine ? 'rgba(32, 227, 255, 0.16)' : 'rgba(32, 227, 255, 0.14)'
+                      background: isMine ? 'rgba(var(--codedock-primary-rgb), 0.16)' : 'rgba(var(--codedock-primary-rgb), 0.14)'
                     }}>
                       <span style={{
-                        fontSize: '10px',
+                        fontSize: "var(--krds-body-xsmall)",
                         fontWeight: 900,
                         color: 'var(--neon-cyan)'
                       }}>
@@ -254,11 +254,11 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
                           {isMine ? getDisplayUserName(reply.user) : reply.user}
                         </span>
                         {isMine && (
-                          <span className="rounded px-1.5 py-0.5" style={{ background: 'rgba(32, 227, 255, 0.14)', color: 'var(--neon-cyan)', fontSize: '9px', fontWeight: 950 }}>내 메시지</span>
+                          <span className="rounded px-1.5 py-0.5" style={{ background: 'rgba(var(--codedock-primary-rgb), 0.14)', color: 'var(--neon-cyan)', fontSize: '9px', fontWeight: 950 }}>내 메시지</span>
                         )}
                       </div>
                       <span className="tracking-tight" style={{
-                        fontSize: '10px',
+                        fontSize: "var(--krds-body-xsmall)",
                         fontWeight: 700,
                         color: 'var(--muted)'
                       }}>
@@ -269,23 +269,23 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
                   {hasDiffRef && (
                     <div className="mb-2 overflow-hidden rounded-xl" style={{
                       background: 'rgba(5, 11, 20, 0.72)',
-                      border: '1px solid rgba(32, 227, 255, 0.22)',
+                      border: '1px solid rgba(var(--codedock-primary-rgb), 0.22)',
                       userSelect: 'none'
                     }}>
                       <div className="flex items-center gap-2 px-3 py-1.5" style={{
-                        borderBottom: '1px solid rgba(32, 227, 255, 0.12)',
-                        background: 'rgba(32, 227, 255, 0.07)'
+                        borderBottom: '1px solid rgba(var(--codedock-primary-rgb), 0.12)',
+                        background: 'rgba(var(--codedock-primary-rgb), 0.07)'
                       }}>
                         <FileCode size={11} style={{ color: 'var(--neon-cyan)', flexShrink: 0 }} />
-                        <span className="truncate font-mono" style={{ color: 'var(--neon-cyan)', fontSize: '10px', fontWeight: 950 }}>
+                        <span className="truncate font-mono" style={{ color: 'var(--neon-cyan)', fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}>
                           {reply.fileName ?? reply.fileId}
                         </span>
-                        <span className="flex-shrink-0 rounded px-1.5 py-0.5 font-mono" style={{ background: 'rgba(32, 227, 255, 0.14)', color: 'var(--neon-cyan)', fontSize: '9px', fontWeight: 950 }}>
+                        <span className="flex-shrink-0 rounded px-1.5 py-0.5 font-mono" style={{ background: 'rgba(var(--codedock-primary-rgb), 0.14)', color: 'var(--neon-cyan)', fontSize: '9px', fontWeight: 950 }}>
                           L{reply.line}
                         </span>
                       </div>
                       {reply.code && (
-                        <div className="px-3 py-2 font-mono" style={{ color: '#C6D4E5', fontSize: '11px', fontWeight: 850, lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                        <div className="px-3 py-2 font-mono" style={{ color: '#C6D4E5', fontSize: "var(--krds-body-xsmall)", fontWeight: 850, lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
                           {reply.code}
                         </div>
                       )}
@@ -310,7 +310,7 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
       </div>
 
       <div className="px-6 pt-1 pb-3" style={{
-        borderTop: '1px solid rgba(32, 227, 255, 0.14)'
+        borderTop: '1px solid rgba(var(--codedock-primary-rgb), 0.14)'
       }}>
         {emojiPickerOpen && (
           <div className="mb-2">

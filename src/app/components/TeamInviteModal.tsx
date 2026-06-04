@@ -83,7 +83,7 @@ export function TeamInviteModal({ isOpen, onClose, onInvite }: TeamInviteModalPr
             className="w-full max-w-[620px] overflow-hidden rounded-[24px]"
             style={{
               background: "rgba(8, 16, 32, 0.98)",
-              border: "1px solid rgba(32, 227, 255, 0.18)",
+              border: "1px solid rgba(var(--codedock-primary-rgb), 0.18)",
               boxShadow: "0 32px 80px rgba(0,0,0,0.55)",
             }}
             initial={{ opacity: 0, scale: 0.95, y: 16 }}
@@ -117,14 +117,14 @@ export function TeamInviteModal({ isOpen, onClose, onInvite }: TeamInviteModalPr
               <div
                 className="mb-5 rounded-xl px-4 py-3"
                 style={{
-                  background: "rgba(32, 227, 255, 0.06)",
-                  border: "1px solid rgba(32, 227, 255, 0.16)",
+                  background: "rgba(var(--codedock-primary-rgb), 0.06)",
+                  border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)",
                 }}
               >
                 <p className="m-0 tracking-tight" style={{ color: "var(--white)", fontSize: "14px", fontWeight: 950 }}>
                   팀원을 초대하세요
                 </p>
-                <p className="m-0 mt-1 tracking-tight" style={{ color: "var(--muted)", fontSize: "12px", fontWeight: 750, lineHeight: 1.5 }}>
+                <p className="m-0 mt-1 tracking-tight" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 750, lineHeight: 1.5 }}>
                   초대 메일을 발송합니다. 초대받은 팀원은 수락 후 팀에 합류됩니다.
                 </p>
               </div>
@@ -142,7 +142,7 @@ export function TeamInviteModal({ isOpen, onClose, onInvite }: TeamInviteModalPr
                   className="min-w-0 rounded-xl px-4 py-3 outline-none tracking-tight"
                   style={{
                     background: "rgba(255,255,255,0.05)",
-                    border: "1.5px solid rgba(32, 227, 255, 0.20)",
+                    border: "1.5px solid rgba(var(--codedock-primary-rgb), 0.20)",
                     color: "var(--white)",
                     fontSize: "13px",
                     fontWeight: 800,
@@ -154,9 +154,9 @@ export function TeamInviteModal({ isOpen, onClose, onInvite }: TeamInviteModalPr
                   className="rounded-xl px-3 py-3 outline-none tracking-tight"
                   style={{
                     background: "rgba(255,255,255,0.05)",
-                    border: "1.5px solid rgba(32, 227, 255, 0.20)",
+                    border: "1.5px solid rgba(var(--codedock-primary-rgb), 0.20)",
                     color: "var(--white)",
-                    fontSize: "12px",
+                    fontSize: "var(--krds-body-xsmall)",
                     fontWeight: 850,
                   }}
                 >
@@ -171,8 +171,8 @@ export function TeamInviteModal({ isOpen, onClose, onInvite }: TeamInviteModalPr
                   onClick={handleAdd}
                   className="rounded-xl border-0 px-4 py-3 tracking-tight"
                   style={{
-                    background: "rgba(32, 227, 255, 0.12)",
-                    border: "1px solid rgba(32, 227, 255, 0.24)",
+                    background: "rgba(var(--codedock-primary-rgb), 0.12)",
+                    border: "1px solid rgba(var(--codedock-primary-rgb), 0.24)",
                     color: "var(--neon-cyan)",
                     cursor: "pointer",
                     fontSize: "13px",
@@ -184,7 +184,7 @@ export function TeamInviteModal({ isOpen, onClose, onInvite }: TeamInviteModalPr
               </div>
 
               {/* 추천 팀원 */}
-              <p className="m-0 mb-2 tracking-tight" style={{ color: "var(--muted)", fontSize: "12px", fontWeight: 900 }}>
+              <p className="m-0 mb-2 tracking-tight" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 900 }}>
                 추천 팀원
               </p>
               <div className="mb-4 grid gap-2 overflow-y-auto pr-1" style={{ maxHeight: "248px" }}>
@@ -197,22 +197,22 @@ export function TeamInviteModal({ isOpen, onClose, onInvite }: TeamInviteModalPr
                       onClick={() => handleToggleSuggested(member)}
                       className="flex w-full items-center gap-3 rounded-xl border-0 px-4 py-3 text-left transition-all"
                       style={{
-                        background: selected ? "rgba(57, 255, 136, 0.10)" : "rgba(255,255,255,0.03)",
-                        border: selected ? "1px solid rgba(57, 255, 136, 0.30)" : "1px solid rgba(255,255,255,0.07)",
+                        background: selected ? "rgba(var(--codedock-secondary-rgb), 0.10)" : "rgba(255,255,255,0.03)",
+                        border: selected ? "1px solid rgba(var(--codedock-secondary-rgb), 0.30)" : "1px solid rgba(255,255,255,0.07)",
                         cursor: "pointer",
                       }}
                     >
                       <span
                         className="grid flex-shrink-0 place-items-center rounded-full"
-                        style={{ width: 36, height: 36, background: "linear-gradient(135deg, var(--neon-cyan), var(--matrix-green))", color: "#021014", fontSize: "12px", fontWeight: 950 }}
+                        style={{ width: 36, height: 36, background: "linear-gradient(135deg, var(--neon-cyan), var(--matrix-green))", color: "#021014", fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}
                       >
                         {member.name.slice(0, 1)}
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate" style={{ color: "var(--white)", fontSize: "13px", fontWeight: 950 }}>{member.name}</span>
-                        <span className="block truncate" style={{ color: "var(--muted)", fontSize: "11px", fontWeight: 750 }}>{member.email} · {member.role}</span>
+                        <span className="block truncate" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 750 }}>{member.email} · {member.role}</span>
                       </span>
-                      <span style={{ color: selected ? "var(--matrix-green)" : "var(--muted)", fontSize: "12px", fontWeight: 950 }}>
+                      <span style={{ color: selected ? "var(--matrix-green)" : "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}>
                         {selected ? "선택됨" : "초대"}
                       </span>
                     </button>
@@ -223,7 +223,7 @@ export function TeamInviteModal({ isOpen, onClose, onInvite }: TeamInviteModalPr
               {/* 선택된 팀원 목록 */}
               {invited.length > 0 && (
                 <>
-                  <p className="m-0 mb-2 tracking-tight" style={{ color: "var(--muted)", fontSize: "12px", fontWeight: 900 }}>
+                  <p className="m-0 mb-2 tracking-tight" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 900 }}>
                     초대할 팀원 ({invited.length}명)
                   </p>
                   <div className="mb-5 grid gap-2 overflow-y-auto pr-1" style={{ maxHeight: "228px" }}>
@@ -233,13 +233,13 @@ export function TeamInviteModal({ isOpen, onClose, onInvite }: TeamInviteModalPr
                         className="grid items-center gap-3 rounded-xl px-4 py-3 tracking-tight"
                         style={{
                           background: "rgba(234, 247, 255, 0.08)",
-                          border: "1px solid rgba(32, 227, 255, 0.16)",
+                          border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)",
                           gridTemplateColumns: "minmax(0, 1fr) 190px auto",
                         }}
                       >
                         <div className="min-w-0">
                           <p className="m-0 truncate" style={{ color: "var(--white)", fontSize: "13px", fontWeight: 950 }}>{member.name}</p>
-                          <p className="m-0 truncate" style={{ color: "var(--muted)", fontSize: "11px", fontWeight: 750 }}>{member.email}</p>
+                          <p className="m-0 truncate" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 750 }}>{member.email}</p>
                         </div>
                         <select
                           value={member.role}
@@ -247,9 +247,9 @@ export function TeamInviteModal({ isOpen, onClose, onInvite }: TeamInviteModalPr
                           className="rounded-xl px-3 py-2 outline-none tracking-tight"
                           style={{
                             background: "rgba(255,255,255,0.06)",
-                            border: "1px solid rgba(32, 227, 255, 0.20)",
+                            border: "1px solid rgba(var(--codedock-primary-rgb), 0.20)",
                             color: "var(--white)",
-                            fontSize: "12px",
+                            fontSize: "var(--krds-body-xsmall)",
                             fontWeight: 850,
                           }}
                         >
@@ -307,7 +307,7 @@ export function TeamInviteModal({ isOpen, onClose, onInvite }: TeamInviteModalPr
                     fontSize: "14px",
                     fontWeight: 900,
                     cursor: invited.length > 0 ? "pointer" : "not-allowed",
-                    boxShadow: invited.length > 0 ? "0 4px 14px rgba(32, 227, 255, 0.28)" : "none",
+                    boxShadow: invited.length > 0 ? "0 4px 14px rgba(var(--codedock-primary-rgb), 0.28)" : "none",
                   }}
                 >
                   {invited.length > 0 ? `${invited.length}명 초대하기` : "초대하기"}

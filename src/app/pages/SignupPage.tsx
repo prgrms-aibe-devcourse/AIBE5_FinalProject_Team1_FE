@@ -41,6 +41,8 @@ const githubConnectSteps: Array<{ status: Exclude<GithubConnectStatus, "idle">; 
   { status: "connected", label: "연동 완료", detail: "가입 후 바로 PR 리뷰를 시작할 수 있습니다." },
 ];
 
+const toneAlpha = (color: string, percent: number) => `color-mix(in srgb, ${color} ${percent}%, transparent)`;
+
 export function SignupPage() {
   const { colors } = useTheme();
   const [formData, setFormData] = useState({
@@ -175,7 +177,7 @@ export function SignupPage() {
       }
 
       return {
-        tone: "#39FF88",
+        tone: "var(--matrix-green)",
         status: "가입 준비 완료",
         title: "Happy Hacking!",
         body: "GitHub 연동까지 끝났어요. 이제 회원가입을 완료하면 바로 작업 공간으로 들어갈 수 있어요.",
@@ -255,7 +257,7 @@ export function SignupPage() {
 
     if (isEmailValid && !hasPassword) {
       return {
-        tone: "#39FF88",
+        tone: "var(--matrix-green)",
         status: "이메일 입력 완료",
         title: "이메일 입력 완료!",
         body: "좋아요. 이 주소로 CodeDock 계정을 만들게요. 이제 안전한 비밀번호를 입력해주세요.",
@@ -265,7 +267,7 @@ export function SignupPage() {
 
     if (isPasswordValid && !hasConfirmPassword) {
       return {
-        tone: "#20E3FF",
+        tone: "var(--neon-cyan)",
         status: "비밀번호 입력 완료",
         title: "비밀번호도 안전해요.",
         body: "마지막으로 같은 비밀번호를 한 번 더 입력하면 확인할 수 있어요.",
@@ -275,7 +277,7 @@ export function SignupPage() {
 
     if (isNameReady && isEmailValid && isPasswordValid && passwordsMatch && !agreeTerms) {
       return {
-        tone: "#20E3FF",
+        tone: "var(--neon-cyan)",
         status: "입력 완료",
         title: "Happy Hacking!",
         body: "입력이 모두 끝났어요. GitHub를 연결하면 PR 리뷰를 바로 시작할 수 있어요.",
@@ -285,7 +287,7 @@ export function SignupPage() {
 
     if (isNameReady && isEmailValid && isPasswordValid && passwordsMatch && agreeTerms) {
       return {
-        tone: "#39FF88",
+        tone: "var(--matrix-green)",
         status: "준비 완료",
         title: "Happy Hacking!",
         body: "가입 준비가 끝났어요. 이제 CodeDock에서 리뷰와 문서를 이어갈 수 있습니다.",
@@ -433,7 +435,6 @@ export function SignupPage() {
     }
 
     setMessage("회원가입 요청이 준비되었습니다. 백엔드 연동 시 이 데이터와 GitHub 권한으로 계정을 생성하면 됩니다.");
-    console.log("Signup:", formData);
   };
 
   const handleGithubSignup = () => {
@@ -444,7 +445,6 @@ export function SignupPage() {
 
     setMessage("");
     setGithubConnectStatus("connecting");
-    console.log("GitHub Signup Connect");
   };
 
   return (
@@ -495,19 +495,19 @@ export function SignupPage() {
               ].map((step) => (
                 <div
                   key={step.key}
-                  className="rounded-2xl px-3 py-2 text-xs font-black tracking-tight"
+                  className="rounded-2xl px-3 py-2 text-[var(--krds-body-xsmall)] font-black tracking-tight"
                   style={{
                     background: step.active
                       ? `${colors.primary}, 0.14)`
                       : step.done
-                        ? "rgba(57,255,136,0.10)"
+                        ? "rgba(var(--codedock-secondary-rgb),0.10)"
                         : "rgba(234,247,255,0.045)",
                     border: step.active
                       ? `1px solid ${colors.primary}, 0.34)`
                       : step.done
-                        ? "1px solid rgba(57,255,136,0.24)"
+                        ? "1px solid rgba(var(--codedock-secondary-rgb),0.24)"
                         : "1px solid rgba(234,247,255,0.08)",
-                    color: step.active ? colors.primaryHex : step.done ? "#B7FFE3" : "rgba(234,247,255,0.52)",
+                    color: step.active ? colors.primaryHex : step.done ? "var(--soft-mint)" : "rgba(234,247,255,0.52)",
                   }}
                 >
                   {step.label}
@@ -613,12 +613,12 @@ export function SignupPage() {
                         animate={{ width: `${(passwordStrength / 5) * 100}%` }}
                         transition={{ duration: 0.28, ease: "easeOut" }}
                         style={{
-                          background: `linear-gradient(90deg, ${colors.primaryHex}, #39FF88)`,
+                          background: `linear-gradient(90deg, ${colors.primaryHex}, var(--matrix-green))`,
                           boxShadow: `0 0 16px ${colors.primary}, 0.26)`,
                         }}
                       />
                     </div>
-                    <span className="text-xs font-bold tracking-tight" style={{ color: "var(--muted)" }}>
+                    <span className="text-[var(--krds-body-xsmall)] font-bold tracking-tight" style={{ color: "var(--muted)" }}>
                       비밀번호 강도: {strengthLabels[Math.max(passwordStrength - 1, 0)]}
                     </span>
                   </div>
@@ -722,7 +722,7 @@ export function SignupPage() {
                       <ArrowLeft size={17} strokeWidth={2.5} />
                       계정 정보 수정
                     </button>
-                    <span className="rounded-full px-3 py-1 text-xs font-black tracking-tight" style={{ background: "rgba(234,247,255,0.06)", color: colors.primaryHex }}>
+                    <span className="rounded-full px-3 py-1 text-[var(--krds-body-xsmall)] font-black tracking-tight" style={{ background: "rgba(234,247,255,0.06)", color: colors.primaryHex }}>
                       2 / 2
                     </span>
                   </div>
@@ -792,8 +792,8 @@ export function SignupPage() {
                         transition={{ duration: 0.3, ease: "easeOut" }}
                         style={{
                           background: "rgba(234, 247, 255, 0.045)",
-                          border: `1px solid ${isGithubConnected ? "rgba(57,255,136,0.28)" : `${colors.primary}, 0.16)`}`,
-                          boxShadow: isGithubConnected ? "0 0 26px rgba(57,255,136,0.10)" : "none",
+                          border: `1px solid ${isGithubConnected ? "rgba(var(--codedock-secondary-rgb),0.28)" : `${colors.primary}, 0.16)`}`,
+                          boxShadow: isGithubConnected ? "0 0 26px rgba(var(--codedock-secondary-rgb),0.10)" : "none",
                         }}
                       >
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -801,9 +801,9 @@ export function SignupPage() {
                             <span
                               className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-2xl"
                               style={{
-                                background: isGithubConnected ? "rgba(57,255,136,0.12)" : "rgba(234, 247, 255, 0.07)",
-                                border: isGithubConnected ? "1px solid rgba(57,255,136,0.30)" : `1px solid ${colors.primary}, 0.18)`,
-                                color: isGithubConnected ? "#39FF88" : "var(--white)",
+                                background: isGithubConnected ? "rgba(var(--codedock-secondary-rgb),0.12)" : "rgba(234, 247, 255, 0.07)",
+                                border: isGithubConnected ? "1px solid rgba(var(--codedock-secondary-rgb),0.30)" : `1px solid ${colors.primary}, 0.18)`,
+                                color: isGithubConnected ? "var(--matrix-green)" : "var(--white)",
                               }}
                             >
                               {isGithubConnected ? <Check size={21} strokeWidth={3} /> : <Github size={21} strokeWidth={2.2} />}
@@ -812,7 +812,7 @@ export function SignupPage() {
                               <p className="m-0 text-sm font-black tracking-tight" style={{ color: "var(--white)" }}>
                                 GitHub 저장소 연동
                               </p>
-                              <p className="m-0 mt-1 text-xs font-bold tracking-tight" style={{ color: "var(--muted)" }}>
+                              <p className="m-0 mt-1 text-[var(--krds-body-xsmall)] font-bold tracking-tight" style={{ color: "var(--muted)" }}>
                                 GitHub를 연결하면 PR 리뷰와 이슈를 바로 시작할 수 있어요.
                               </p>
                             </div>
@@ -829,7 +829,7 @@ export function SignupPage() {
                             className="flex h-11 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-2xl border-0 px-3 text-[13px] font-black tracking-tight transition sm:px-4 sm:text-sm enabled:hover:scale-[1.02] disabled:cursor-default"
                             style={{
                               background: isGithubConnected
-                                ? "rgba(57,255,136,0.18)"
+                                ? "rgba(var(--codedock-secondary-rgb),0.18)"
                                 : isGithubConnecting
                                   ? "rgba(234, 247, 255, 0.08)"
                                   : `linear-gradient(135deg, ${colors.primaryHex}, ${colors.secondary})`,
@@ -839,7 +839,7 @@ export function SignupPage() {
                                   : isGithubConnected
                                     ? "0 0 18px rgba(57,255,136,0.10)"
                                     : "none",
-                              color: isGithubConnected ? "#B7FFE3" : isGithubConnecting ? "rgba(234,247,255,0.62)" : "#021014",
+                              color: isGithubConnected ? "var(--soft-mint)" : isGithubConnecting ? "rgba(234,247,255,0.62)" : "#021014",
                             }}
                           >
                             <motion.span
@@ -869,7 +869,7 @@ export function SignupPage() {
                                   className="flex items-start gap-3 rounded-2xl px-3 py-2"
                                   style={{
                                     background: isDone
-                                      ? "rgba(57,255,136,0.08)"
+                                      ? "rgba(var(--codedock-secondary-rgb),0.08)"
                                       : isCurrent
                                         ? `${colors.primary}, 0.10)`
                                         : "rgba(234, 247, 255, 0.035)",
@@ -878,7 +878,7 @@ export function SignupPage() {
                                   <span
                                     className="mt-0.5 grid h-5 w-5 flex-shrink-0 place-items-center rounded-full"
                                     style={{
-                                      background: isDone ? "#39FF88" : isCurrent ? colors.primaryHex : "rgba(234,247,255,0.14)",
+                                      background: isDone ? "var(--matrix-green)" : isCurrent ? colors.primaryHex : "rgba(234,247,255,0.14)",
                                       color: isDone || isCurrent ? "#021014" : "rgba(234,247,255,0.48)",
                                     }}
                                   >
@@ -896,10 +896,10 @@ export function SignupPage() {
                                     )}
                                   </span>
                                   <div>
-                                    <p className="m-0 text-xs font-black tracking-tight" style={{ color: isDone ? "#B7FFE3" : "var(--white)" }}>
+                                    <p className="m-0 text-[var(--krds-body-xsmall)] font-black tracking-tight" style={{ color: isDone ? "var(--soft-mint)" : "var(--white)" }}>
                                       {step.label}
                                     </p>
-                                    <p className="m-0 mt-1 text-xs font-bold leading-5 tracking-tight" style={{ color: "rgba(234,247,255,0.58)" }}>
+                                    <p className="m-0 mt-1 text-[var(--krds-body-xsmall)] font-bold leading-5 tracking-tight" style={{ color: "rgba(234,247,255,0.58)" }}>
                                       {step.detail}
                                     </p>
                                   </div>
@@ -968,15 +968,15 @@ export function SignupPage() {
                   background:
                     message.includes("확인") || message.includes("동의") || message.includes("일치")
                       ? "rgba(255, 107, 107, 0.08)"
-                      : "rgba(57, 255, 136, 0.08)",
+                      : "rgba(var(--codedock-secondary-rgb), 0.08)",
                   border:
                     message.includes("확인") || message.includes("동의") || message.includes("일치")
                       ? "1px solid rgba(255, 107, 107, 0.24)"
-                      : "1px solid rgba(57, 255, 136, 0.22)",
+                      : "1px solid rgba(var(--codedock-secondary-rgb), 0.22)",
                   color:
                     message.includes("확인") || message.includes("동의") || message.includes("일치")
                       ? "#FFB4B4"
-                      : "#B7FFE3",
+                      : "var(--soft-mint)",
                 }}
               >
                 {message}
@@ -1000,11 +1000,11 @@ export function SignupPage() {
           style={{
             background: `
               radial-gradient(circle at 50% 35%, ${colors.primary}, 0.17), transparent 42%),
-              radial-gradient(circle at 56% 78%, rgba(57,255,136,0.13), transparent 36%),
+              radial-gradient(circle at 56% 78%, rgba(var(--codedock-secondary-rgb),0.13), transparent 36%),
               linear-gradient(145deg, rgba(16,31,52,0.95), rgba(5,11,20,0.88))
             `,
             border: `1px solid ${colors.primary}, 0.20)`,
-            boxShadow: "inset 0 0 32px rgba(32, 227, 255, 0.08), 0 18px 48px rgba(0, 0, 0, 0.32)",
+            boxShadow: "inset 0 0 32px rgba(var(--codedock-primary-rgb), 0.08), 0 18px 48px rgba(0, 0, 0, 0.32)",
           }}
         >
           <div>
@@ -1042,17 +1042,17 @@ export function SignupPage() {
                 className="-mt-6 h-48 w-48 flex-shrink-0"
                 alive={assistantFeedback.warning}
                 mood={assistantFeedback.warning ? "risk" : isGithubConnected ? "success" : isConnectStep ? "cta" : "idle"}
-                style={{ filter: `drop-shadow(0 0 28px ${assistantFeedback.tone}66)` }}
+                style={{ filter: `drop-shadow(0 0 28px ${toneAlpha(assistantFeedback.tone, 40)})` }}
               />
               <AnimatePresence mode="wait">
                 <motion.div
                   key={`${assistantFeedback.title}-${assistantFeedback.body}`}
                   className="relative -mt-2 rounded-[24px] rounded-bl-md px-4 py-4"
                   style={{
-                    background: assistantFeedback.warning ? "rgba(255, 107, 107, 0.085)" : `${assistantFeedback.tone}17`,
-                    border: `1px solid ${assistantFeedback.tone}55`,
+                    background: assistantFeedback.warning ? "rgba(255, 107, 107, 0.085)" : toneAlpha(assistantFeedback.tone, 9),
+                    border: `1px solid ${toneAlpha(assistantFeedback.tone, 33)}`,
                     color: "#DFFAFF",
-                    boxShadow: `0 0 26px ${assistantFeedback.tone}18`,
+                    boxShadow: `0 0 26px ${toneAlpha(assistantFeedback.tone, 9)}`,
                   }}
                   initial={{ opacity: 0, y: 10, scale: 0.97 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -1065,7 +1065,7 @@ export function SignupPage() {
                     ) : (
                       <Check size={16} strokeWidth={3} style={{ color: assistantFeedback.tone }} />
                     )}
-                    <span className="text-xs font-black tracking-tight" style={{ color: assistantFeedback.tone }}>
+                    <span className="text-[var(--krds-body-xsmall)] font-black tracking-tight" style={{ color: assistantFeedback.tone }}>
                       {assistantFeedback.status}
                     </span>
                   </div>
@@ -1083,15 +1083,15 @@ export function SignupPage() {
               {validationItems.map((item) => (
                 <div
                   key={item.label}
-                  className="flex items-center gap-2 rounded-2xl px-3 py-3 text-xs font-black tracking-tight"
+                  className="flex items-center gap-2 rounded-2xl px-3 py-3 text-[var(--krds-body-xsmall)] font-black tracking-tight"
                   style={{
-                    background: item.warning ? "rgba(255, 107, 107, 0.08)" : item.done ? "rgba(57,255,136,0.08)" : "rgba(234, 247, 255, 0.045)",
+                    background: item.warning ? "rgba(255, 107, 107, 0.08)" : item.done ? "rgba(var(--codedock-secondary-rgb),0.08)" : "rgba(234, 247, 255, 0.045)",
                     border: item.warning
                       ? "1px solid rgba(255, 107, 107, 0.24)"
                       : item.done
-                        ? "1px solid rgba(57,255,136,0.22)"
+                        ? "1px solid rgba(var(--codedock-secondary-rgb),0.22)"
                         : `1px solid ${colors.primary}, 0.12)`,
-                    color: item.warning ? "#FFB4B4" : item.done ? "#B7FFE3" : "rgba(234,247,255,0.56)",
+                    color: item.warning ? "#FFB4B4" : item.done ? "var(--soft-mint)" : "rgba(234,247,255,0.56)",
                   }}
                 >
                   {item.warning ? <AlertTriangle size={15} strokeWidth={2.6} /> : <Check size={15} strokeWidth={3} />}

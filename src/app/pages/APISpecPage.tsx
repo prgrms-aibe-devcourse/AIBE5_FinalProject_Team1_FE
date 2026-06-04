@@ -17,6 +17,8 @@ import {
 type ApiMethod = "GET" | "POST" | "PATCH" | "DELETE";
 type ApiStatus = "completed" | "in_progress" | "design";
 
+const colorAlpha = (color: string, percent: number) => `color-mix(in srgb, ${color} ${percent}%, transparent)`;
+
 interface ApiSpec {
   id: number;
   group: string;
@@ -558,8 +560,8 @@ export function APISpecPage({ embedded = false }: APISpecPageProps) {
         <div
           className={`inline-flex items-center gap-2 rounded-full ${embedded ? "mb-3 px-3 py-1.5" : "mb-4 px-4 py-2"}`}
           style={{
-            background: "rgba(32, 227, 255, 0.09)",
-            border: "1px solid rgba(32, 227, 255, 0.22)",
+            background: "rgba(var(--codedock-primary-rgb), 0.09)",
+            border: "1px solid rgba(var(--codedock-primary-rgb), 0.22)",
             color: "var(--neon-cyan)",
           }}
         >
@@ -572,7 +574,7 @@ export function APISpecPage({ embedded = false }: APISpecPageProps) {
             fontSize: embedded ? "clamp(30px, 3vw, 44px)" : "clamp(48px, 6vw, 72px)",
             fontWeight: 950,
             color: "var(--white)",
-            textShadow: "0 0 22px rgba(32, 227, 255, 0.18)",
+            textShadow: "0 0 22px rgba(var(--codedock-primary-rgb), 0.18)",
           }}
         >
           API 명세
@@ -600,7 +602,7 @@ export function APISpecPage({ embedded = false }: APISpecPageProps) {
         className={embedded ? "mb-5 rounded-2xl px-5 py-5" : "mb-6 rounded-[30px] px-6 py-6"}
         style={{
           background: "rgba(11, 22, 40, 0.82)",
-          border: "1px solid rgba(32, 227, 255, 0.16)",
+          border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)",
           boxShadow: embedded ? "0 14px 36px rgba(0, 0, 0, 0.28)" : "0 20px 60px rgba(0, 0, 0, 0.32)",
           backdropFilter: "blur(16px)",
         }}
@@ -621,7 +623,7 @@ export function APISpecPage({ embedded = false }: APISpecPageProps) {
                 className="flex items-start gap-2 rounded-2xl px-4 py-3"
                 style={{
                   background: "rgba(234, 247, 255, 0.055)",
-                  border: "1px solid rgba(32, 227, 255, 0.12)",
+                  border: "1px solid rgba(var(--codedock-primary-rgb), 0.12)",
                 }}
               >
                 <CheckCircle2 size={17} strokeWidth={2.6} style={{ color: "var(--matrix-green)", marginTop: 2 }} />
@@ -639,7 +641,7 @@ export function APISpecPage({ embedded = false }: APISpecPageProps) {
           className={embedded ? "rounded-2xl px-5 py-5" : "rounded-[30px] px-6 py-6"}
           style={{
             background: "rgba(11, 22, 40, 0.82)",
-            border: "1px solid rgba(32, 227, 255, 0.16)",
+            border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)",
             boxShadow: embedded ? "0 14px 36px rgba(0, 0, 0, 0.28)" : "0 20px 60px rgba(0, 0, 0, 0.32)",
             backdropFilter: "blur(16px)",
           }}
@@ -667,13 +669,13 @@ export function APISpecPage({ embedded = false }: APISpecPageProps) {
                 className="flex items-center justify-between rounded-2xl px-4 py-3"
                 style={{
                   background: "rgba(5, 11, 20, 0.42)",
-                  border: "1px solid rgba(32, 227, 255, 0.10)",
+                  border: "1px solid rgba(var(--codedock-primary-rgb), 0.10)",
                 }}
               >
                 <span className="text-sm font-black tracking-tight" style={{ color: "var(--white)" }}>
                   {group.name}
                 </span>
-                <span className="text-xs font-black tracking-tight" style={{ color: group.gapCount ? "var(--matrix-green)" : "var(--muted)" }}>
+                <span className="text-[var(--krds-body-xsmall)] font-black tracking-tight" style={{ color: group.gapCount ? "var(--matrix-green)" : "var(--muted)" }}>
                   {group.count}개 {group.gapCount ? `(+${group.gapCount})` : ""}
                 </span>
               </div>
@@ -687,8 +689,8 @@ export function APISpecPage({ embedded = false }: APISpecPageProps) {
                 onClick={() => setSelectedAPI(api.id)}
                 className="w-full rounded-2xl px-4 py-4 text-left transition-all"
                 style={{
-                  background: selectedAPI === api.id ? "rgba(32, 227, 255, 0.15)" : "rgba(5, 11, 20, 0.42)",
-                  border: selectedAPI === api.id ? "1px solid rgba(32, 227, 255, 0.32)" : "1px solid rgba(32, 227, 255, 0.10)",
+                  background: selectedAPI === api.id ? "rgba(var(--codedock-primary-rgb), 0.15)" : "rgba(5, 11, 20, 0.42)",
+                  border: selectedAPI === api.id ? "1px solid rgba(var(--codedock-primary-rgb), 0.32)" : "1px solid rgba(var(--codedock-primary-rgb), 0.10)",
                   cursor: "pointer",
                 }}
                 type="button"
@@ -698,9 +700,9 @@ export function APISpecPage({ embedded = false }: APISpecPageProps) {
                   <StatusBadge status={api.status} />
                   {api.addedFromGap && (
                     <span
-                      className="rounded-full px-2 py-0.5 text-[11px] font-black tracking-tight"
+                      className="rounded-full px-2 py-0.5 text-[var(--krds-body-xsmall)] font-black tracking-tight"
                       style={{
-                        background: "rgba(57, 255, 136, 0.14)",
+                        background: "rgba(var(--codedock-secondary-rgb), 0.14)",
                         color: "var(--matrix-green)",
                       }}
                     >
@@ -711,7 +713,7 @@ export function APISpecPage({ embedded = false }: APISpecPageProps) {
                 <p className="m-0 mb-1 font-mono text-sm font-black tracking-tight" style={{ color: "var(--white)" }}>
                   {api.endpoint}
                 </p>
-                <p className="m-0 text-xs font-bold leading-5 tracking-tight" style={{ color: "var(--muted)" }}>
+                <p className="m-0 text-[var(--krds-body-xsmall)] font-bold leading-5 tracking-tight" style={{ color: "var(--muted)" }}>
                   {api.summary}
                 </p>
               </button>
@@ -723,7 +725,7 @@ export function APISpecPage({ embedded = false }: APISpecPageProps) {
           className={embedded ? "rounded-2xl px-5 py-5" : "rounded-[30px] px-8 py-8"}
           style={{
             background: "rgba(11, 22, 40, 0.82)",
-            border: "1px solid rgba(32, 227, 255, 0.16)",
+            border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)",
             boxShadow: embedded ? "0 14px 36px rgba(0, 0, 0, 0.28)" : "0 20px 60px rgba(0, 0, 0, 0.32)",
             backdropFilter: "blur(16px)",
           }}
@@ -733,7 +735,7 @@ export function APISpecPage({ embedded = false }: APISpecPageProps) {
               <div className="mb-3 flex flex-wrap items-center gap-2">
                 <MethodBadge method={selectedAPIData.method} large />
                 <StatusBadge status={selectedAPIData.status} />
-                <span className="rounded-full px-3 py-1 text-xs font-black tracking-tight" style={{ background: "rgba(234, 247, 255, 0.055)", color: "var(--muted)" }}>
+                <span className="rounded-full px-3 py-1 text-[var(--krds-body-xsmall)] font-black tracking-tight" style={{ background: "rgba(234, 247, 255, 0.055)", color: "var(--muted)" }}>
                   {selectedAPIData.group}
                 </span>
               </div>
@@ -783,7 +785,7 @@ export function APISpecPage({ embedded = false }: APISpecPageProps) {
         className={embedded ? "mt-5 overflow-hidden rounded-2xl" : "mt-7 overflow-hidden rounded-[30px]"}
         style={{
           background: "rgba(11, 22, 40, 0.86)",
-          border: "1px solid rgba(32, 227, 255, 0.18)",
+          border: "1px solid rgba(var(--codedock-primary-rgb), 0.18)",
           boxShadow: embedded ? "0 14px 36px rgba(0, 0, 0, 0.28)" : "0 20px 60px rgba(0, 0, 0, 0.32)",
           backdropFilter: "blur(16px)",
         }}
@@ -817,7 +819,7 @@ export function APISpecPage({ embedded = false }: APISpecPageProps) {
 
             .codedock-swagger .swagger-ui .opblock {
               background: rgba(5, 11, 20, 0.50) !important;
-              border-color: rgba(32, 227, 255, 0.18) !important;
+              border-color: rgba(var(--codedock-primary-rgb), 0.18) !important;
               box-shadow: none;
             }
 
@@ -837,7 +839,7 @@ export function APISpecPage({ embedded = false }: APISpecPageProps) {
             .codedock-swagger .swagger-ui .tab li,
             .codedock-swagger .swagger-ui .model-title,
             .codedock-swagger .swagger-ui .model {
-              color: #B7FFE3 !important;
+              color: var(--soft-mint) !important;
             }
 
             .codedock-swagger .swagger-ui textarea,
@@ -851,21 +853,21 @@ export function APISpecPage({ embedded = false }: APISpecPageProps) {
         <div
           className="flex flex-wrap items-center justify-between gap-3 px-5 py-4"
           style={{
-            borderBottom: "1px solid rgba(32, 227, 255, 0.14)",
-            background: "linear-gradient(90deg, rgba(32, 227, 255, 0.10), rgba(57, 255, 136, 0.045), rgba(5, 11, 20, 0.72))",
+            borderBottom: "1px solid rgba(var(--codedock-primary-rgb), 0.14)",
+            background: "linear-gradient(90deg, rgba(var(--codedock-primary-rgb), 0.10), rgba(var(--codedock-secondary-rgb), 0.045), rgba(5, 11, 20, 0.72))",
           }}
         >
           <div>
-            <p className="m-0 mb-1 font-mono text-xs font-black uppercase tracking-[0.14em]" style={{ color: "var(--neon-cyan)" }}>
+            <p className="m-0 mb-1 font-mono text-[var(--krds-body-xsmall)] font-black uppercase tracking-[0.14em]" style={{ color: "var(--neon-cyan)" }}>
               Swagger / OpenAPI 3.1
             </p>
             <h2 className="m-0 text-xl font-black tracking-tight" style={{ color: "var(--white)" }}>
               Swagger UI 연동 미리보기
             </h2>
           </div>
-          <span className="rounded-full px-3 py-1.5 text-xs font-black tracking-tight" style={{
-            background: "rgba(57, 255, 136, 0.12)",
-            border: "1px solid rgba(57, 255, 136, 0.24)",
+          <span className="rounded-full px-3 py-1.5 text-[var(--krds-body-xsmall)] font-black tracking-tight" style={{
+            background: "rgba(var(--codedock-secondary-rgb), 0.12)",
+            border: "1px solid rgba(var(--codedock-secondary-rgb), 0.24)",
             color: "var(--matrix-green)",
           }}>
             OpenAPI paths {Object.keys(openApiSpec.paths).length}개
@@ -891,13 +893,13 @@ function StatCard({ label, value, color }: { label: string; value: number; color
       className="rounded-3xl px-5 py-5"
       style={{
         background: "rgba(11, 22, 40, 0.82)",
-        border: "1px solid rgba(32, 227, 255, 0.16)",
+        border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)",
         boxShadow: "0 20px 60px rgba(0, 0, 0, 0.32)",
         backdropFilter: "blur(16px)",
       }}
     >
       <FileText size={20} style={{ color, marginBottom: 8 }} />
-      <p className="m-0 mb-2 text-xs font-black tracking-tight" style={{ color: "var(--muted)" }}>
+      <p className="m-0 mb-2 text-[var(--krds-body-xsmall)] font-black tracking-tight" style={{ color: "var(--muted)" }}>
         {label}
       </p>
       <p className="m-0 text-4xl font-black tracking-tight" style={{ color }}>
@@ -913,10 +915,10 @@ function MethodBadge({ method, large = false }: { method: ApiMethod; large?: boo
     <span
       className="rounded-lg font-mono font-black tracking-tight"
       style={{
-        background: `${color}22`,
+        background: colorAlpha(color, 13),
         border: `1px solid ${color}`,
         color,
-        fontSize: large ? 14 : 11,
+        fontSize: large ? 14 : "var(--krds-body-xsmall)",
         padding: large ? "6px 10px" : "3px 8px",
       }}
     >
@@ -929,9 +931,9 @@ function StatusBadge({ status }: { status: ApiStatus }) {
   const color = getStatusColor(status);
   return (
     <span
-      className="inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[11px] font-black tracking-tight"
+      className="inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[var(--krds-body-xsmall)] font-black tracking-tight"
       style={{
-        background: `${color}22`,
+        background: colorAlpha(color, 13),
         color,
       }}
     >
@@ -947,10 +949,10 @@ function InfoBlock({ icon: Icon, label, value }: { icon: typeof Code; label: str
       className="rounded-2xl px-5 py-4"
       style={{
         background: "rgba(5, 11, 20, 0.42)",
-        border: "1px solid rgba(32, 227, 255, 0.10)",
+        border: "1px solid rgba(var(--codedock-primary-rgb), 0.10)",
       }}
     >
-      <p className="m-0 mb-2 flex items-center gap-2 text-xs font-black tracking-tight" style={{ color: "var(--neon-cyan)" }}>
+      <p className="m-0 mb-2 flex items-center gap-2 text-[var(--krds-body-xsmall)] font-black tracking-tight" style={{ color: "var(--neon-cyan)" }}>
         <Icon size={14} />
         {label}
       </p>
@@ -971,7 +973,7 @@ function SpecBlock({ title, payload }: { title: string; payload: string }) {
         className="m-0 overflow-x-auto rounded-2xl p-4 font-mono text-sm leading-6"
         style={{
           background: "rgba(5, 11, 20, 0.62)",
-          border: "1px solid rgba(32, 227, 255, 0.14)",
+          border: "1px solid rgba(var(--codedock-primary-rgb), 0.14)",
           color: "var(--soft-mint)",
         }}
       >
@@ -994,7 +996,7 @@ function getMethodColor(method: ApiMethod) {
     case "GET":
       return "#6BCF7F";
     case "POST":
-      return "#20E3FF";
+      return "var(--neon-cyan)";
     case "PATCH":
       return "#FFD93D";
     case "DELETE":

@@ -102,13 +102,13 @@ export function Footer() {
 
         <div className="pt-4" style={{ borderTop: `1px solid ${tone(0.14)}` }}>
           <div className="flex flex-col items-center justify-between gap-3 md:flex-row">
-            <p className="m-0 tracking-tight" style={{ fontSize: "12px", fontWeight: 700, color: "var(--muted)" }}>
+            <p className="m-0 tracking-tight" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 700, color: "var(--muted)" }}>
               © {currentYear} CodeDock. {copy.rights}
             </p>
             <p
               className="m-0 flex items-center gap-2 tracking-tight"
               style={{
-                fontSize: "12px",
+                fontSize: "var(--krds-body-xsmall)",
                 fontWeight: 700,
                 color: "var(--muted)"
               }}

@@ -1,5 +1,7 @@
 import { GitPullRequest, AlertTriangle, CheckCircle2, Clock } from "lucide-react";
 
+const colorAlpha = (color: string, percent: number) => `color-mix(in srgb, ${color} ${percent}%, transparent)`;
+
 interface ProjectPageProps {
   embedded?: boolean;
 }
@@ -59,7 +61,7 @@ export function ProjectPage({ embedded = false }: ProjectPageProps) {
     : "px-9 py-9 rounded-[30px]";
   const sectionStyle = {
     background: 'rgba(11, 22, 40, 0.82)',
-    border: '1px solid rgba(32, 227, 255, 0.16)',
+    border: '1px solid rgba(var(--codedock-primary-rgb), 0.16)',
     boxShadow: embedded ? '0 14px 36px rgba(0, 0, 0, 0.28)' : '0 20px 60px rgba(0, 0, 0, 0.32)',
     backdropFilter: 'blur(16px)'
   };
@@ -68,14 +70,14 @@ export function ProjectPage({ embedded = false }: ProjectPageProps) {
     <div className={pageClassName}>
       <div className={embedded ? "mb-5" : "mb-8"}>
         <div className={`inline-flex items-center gap-2 rounded-full ${embedded ? 'mb-3 px-3 py-1.5' : 'mb-4 px-4 py-2'}`} style={{
-          background: 'rgba(32, 227, 255, 0.09)',
-          border: '1px solid rgba(32, 227, 255, 0.22)',
+          background: 'rgba(var(--codedock-primary-rgb), 0.09)',
+          border: '1px solid rgba(var(--codedock-primary-rgb), 0.22)',
           color: 'var(--neon-cyan)',
-          boxShadow: '0 0 24px rgba(32, 227, 255, 0.08)'
+          boxShadow: '0 0 24px rgba(var(--codedock-primary-rgb), 0.08)'
         }}>
           <span className="w-2 h-2 rounded-full" style={{
             background: 'var(--matrix-green)',
-            boxShadow: '0 0 0 5px rgba(57,255,136,0.13), 0 0 16px rgba(57,255,136,0.7)'
+            boxShadow: '0 0 0 5px rgba(var(--codedock-secondary-rgb), 0.13), 0 0 16px rgba(var(--codedock-secondary-rgb), 0.7)'
           }} />
           <span className="font-black text-sm tracking-tight">SecureFlow Workspace</span>
         </div>
@@ -84,7 +86,7 @@ export function ProjectPage({ embedded = false }: ProjectPageProps) {
           fontSize: embedded ? 'clamp(30px, 3vw, 44px)' : 'clamp(48px, 6vw, 72px)',
           fontWeight: 950,
           color: 'var(--white)',
-          textShadow: '0 0 22px rgba(32, 227, 255, 0.18)'
+          textShadow: '0 0 22px rgba(var(--codedock-primary-rgb), 0.18)'
         }}>
           프로젝트 대시보드
         </h1>
@@ -103,14 +105,14 @@ export function ProjectPage({ embedded = false }: ProjectPageProps) {
           return (
             <div key={stat.label} className={embedded ? "px-4 py-4 rounded-2xl" : "px-5 py-5 rounded-3xl"} style={{
               background: 'rgba(11, 22, 40, 0.82)',
-              border: '1px solid rgba(32, 227, 255, 0.16)',
+              border: '1px solid rgba(var(--codedock-primary-rgb), 0.16)',
               boxShadow: embedded ? '0 12px 30px rgba(0, 0, 0, 0.26)' : '0 20px 60px rgba(0, 0, 0, 0.32)',
               backdropFilter: 'blur(16px)'
             }}>
               <Icon size={embedded ? 20 : 24} style={{ color: stat.color, marginBottom: embedded ? '8px' : '12px' }} />
               <p className="m-0 mb-2 tracking-tight" style={{
                 color: 'var(--muted)',
-                fontSize: embedded ? '12px' : '13px',
+                fontSize: embedded ? 'var(--krds-body-xsmall)' : '13px',
                 fontWeight: 900
               }}>
                 {stat.label}
@@ -144,7 +146,7 @@ export function ProjectPage({ embedded = false }: ProjectPageProps) {
               className={`transition-all ${embedded ? 'rounded-2xl px-4 py-4' : 'rounded-3xl px-6 py-5'}`}
               style={{
                 background: 'rgba(234, 247, 255, 0.055)',
-                border: '1px solid rgba(32, 227, 255, 0.14)',
+                border: '1px solid rgba(var(--codedock-primary-rgb), 0.14)',
                 boxShadow: embedded ? '0 10px 24px rgba(0, 0, 0, 0.18)' : '0 14px 36px rgba(0, 0, 0, 0.22)'
               }}
             >
@@ -157,9 +159,9 @@ export function ProjectPage({ embedded = false }: ProjectPageProps) {
                   #{pr.id} {pr.title}
                 </h3>
                 <div className="flex items-center gap-2 px-3 py-1 rounded-full flex-shrink-0" style={{
-                  background: `${getRiskColor(pr.risk)}22`,
+                  background: colorAlpha(getRiskColor(pr.risk), 13),
                   border: `1px solid ${getRiskColor(pr.risk)}`,
-                  fontSize: embedded ? '11px' : '12px',
+                  fontSize: 'var(--krds-body-xsmall)',
                   fontWeight: 900,
                   color: getRiskColor(pr.risk)
                 }}>
@@ -168,21 +170,21 @@ export function ProjectPage({ embedded = false }: ProjectPageProps) {
               </div>
               <div className="flex flex-wrap gap-4">
                 <span className="tracking-tight" style={{
-                  fontSize: embedded ? '12px' : '14px',
+                  fontSize: embedded ? 'var(--krds-body-xsmall)' : '14px',
                   fontWeight: 800,
                   color: 'var(--muted)'
                 }}>
                   작성자: <span style={{ color: 'var(--matrix-green)' }}>{pr.author}</span>
                 </span>
                 <span className="tracking-tight" style={{
-                  fontSize: embedded ? '12px' : '14px',
+                  fontSize: embedded ? 'var(--krds-body-xsmall)' : '14px',
                   fontWeight: 800,
                   color: 'var(--muted)'
                 }}>
                   변경 파일: <span style={{ color: 'var(--neon-cyan)' }}>{pr.files}</span>
                 </span>
                 <span className="tracking-tight" style={{
-                  fontSize: embedded ? '12px' : '14px',
+                  fontSize: embedded ? 'var(--krds-body-xsmall)' : '14px',
                   fontWeight: 800,
                   color: 'var(--muted)'
                 }}>
@@ -210,7 +212,7 @@ export function ProjectPage({ embedded = false }: ProjectPageProps) {
                 className={embedded ? "px-4 py-3 rounded-xl" : "px-5 py-4 rounded-2xl"}
                 style={{
                   background: 'rgba(5, 11, 20, 0.42)',
-                  border: '1px solid rgba(32, 227, 255, 0.10)'
+                  border: '1px solid rgba(var(--codedock-primary-rgb), 0.10)'
                 }}
               >
                 <p className="m-0 mb-2 leading-[1.5] tracking-tight" style={{
@@ -222,14 +224,14 @@ export function ProjectPage({ embedded = false }: ProjectPageProps) {
                 </p>
                 <div className="flex gap-3 flex-wrap">
                   <span className="tracking-tight" style={{
-                    fontSize: embedded ? '12px' : '13px',
+                    fontSize: 'var(--krds-body-xsmall)',
                     fontWeight: 700,
                     color: 'var(--muted)'
                   }}>
                     PR #{decision.pr}
                   </span>
                   <span className="tracking-tight" style={{
-                    fontSize: embedded ? '12px' : '13px',
+                    fontSize: 'var(--krds-body-xsmall)',
                     fontWeight: 700,
                     color: 'var(--muted)'
                   }}>
@@ -256,7 +258,7 @@ export function ProjectPage({ embedded = false }: ProjectPageProps) {
                 className={embedded ? "px-4 py-3 rounded-xl" : "px-5 py-4 rounded-2xl"}
                 style={{
                   background: 'rgba(5, 11, 20, 0.42)',
-                  border: '1px solid rgba(32, 227, 255, 0.10)',
+                  border: '1px solid rgba(var(--codedock-primary-rgb), 0.10)',
                   opacity: item.status === 'completed' ? 0.6 : 1
                 }}
               >
@@ -278,7 +280,7 @@ export function ProjectPage({ embedded = false }: ProjectPageProps) {
                       {item.text}
                     </p>
                     <span className="tracking-tight" style={{
-                      fontSize: embedded ? '12px' : '13px',
+                      fontSize: 'var(--krds-body-xsmall)',
                       fontWeight: 700,
                       color: 'var(--muted)'
                     }}>

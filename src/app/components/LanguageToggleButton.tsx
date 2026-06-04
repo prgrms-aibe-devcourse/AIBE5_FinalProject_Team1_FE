@@ -29,7 +29,7 @@ export function LanguageToggleButton() {
       aria-label={`Switch to ${nextLanguage}`}
     >
       <Languages size={18} strokeWidth={2.4} />
-      <span className="text-xs font-black">{label}</span>
+      <span className="text-[var(--krds-body-xsmall)] font-black">{label}</span>
     </motion.button>
   );
 }

@@ -1252,7 +1252,7 @@ ${template.contentEn}`;
           fontSize: embedded ? 'clamp(30px, 3vw, 44px)' : 'clamp(48px, 6vw, 72px)',
           fontWeight: 950,
           color: 'var(--white)',
-          textShadow: '0 0 22px rgba(32, 227, 255, 0.18)'
+          textShadow: '0 0 22px rgba(var(--codedock-primary-rgb), 0.18)'
         }}>
           문서 관리
         </h1>
@@ -1272,14 +1272,14 @@ ${template.contentEn}`;
           return (
             <div key={category.id} className={embedded ? "px-4 py-4 rounded-2xl" : "px-5 py-5 rounded-3xl"} style={{
               background: 'rgba(11, 22, 40, 0.82)',
-              border: '1px solid rgba(32, 227, 255, 0.16)',
+              border: '1px solid rgba(var(--codedock-primary-rgb), 0.16)',
               boxShadow: embedded ? '0 12px 30px rgba(0, 0, 0, 0.26)' : '0 20px 60px rgba(0, 0, 0, 0.32)',
               backdropFilter: 'blur(16px)'
             }}>
               <Icon size={20} style={{ color: category.color, marginBottom: '8px' }} />
               <p className="m-0 mb-2 tracking-tight" style={{
                 color: 'var(--muted)',
-                fontSize: '12px',
+                fontSize: "var(--krds-body-xsmall)",
                 fontWeight: 900
               }}>
                 {getCategoryLabel(category)}
@@ -1299,7 +1299,7 @@ ${template.contentEn}`;
       <div className={embedded ? "grid min-h-0 flex-1 gap-5 xl:grid-cols-[330px_1fr]" : "grid lg:grid-cols-[360px_1fr] gap-6"}>
         <section className={embedded ? "flex min-h-0 flex-col overflow-hidden px-5 py-5 rounded-2xl" : "flex max-h-[calc(100vh-170px)] min-h-[620px] flex-col overflow-hidden px-6 py-6 rounded-[30px]"} style={{
           background: 'rgba(11, 22, 40, 0.82)',
-          border: '1px solid rgba(32, 227, 255, 0.16)',
+          border: '1px solid rgba(var(--codedock-primary-rgb), 0.16)',
           boxShadow: embedded ? '0 14px 36px rgba(0, 0, 0, 0.28)' : '0 20px 60px rgba(0, 0, 0, 0.32)',
           backdropFilter: 'blur(16px)'
         }}>
@@ -1312,7 +1312,7 @@ ${template.contentEn}`;
 
           <div className="mb-4 grid flex-shrink-0 grid-cols-2 gap-2 rounded-2xl p-1" style={{
             background: 'rgba(5, 11, 20, 0.54)',
-            border: '1px solid rgba(32, 227, 255, 0.14)'
+            border: '1px solid rgba(var(--codedock-primary-rgb), 0.14)'
           }}>
             {[
               { id: "templates" as const, label: language === "en" ? "Templates" : "템플릿", count: documentTemplates.length },
@@ -1324,11 +1324,11 @@ ${template.contentEn}`;
                 onClick={() => setDocListTab(tab.id)}
                 className="rounded-xl border-0 px-3 py-2.5 tracking-tight transition-all"
                 style={{
-                  background: docListTab === tab.id ? 'rgba(32, 227, 255, 0.16)' : 'transparent',
-                  border: docListTab === tab.id ? '1px solid rgba(32, 227, 255, 0.26)' : '1px solid transparent',
+                  background: docListTab === tab.id ? 'rgba(var(--codedock-primary-rgb), 0.16)' : 'transparent',
+                  border: docListTab === tab.id ? '1px solid rgba(var(--codedock-primary-rgb), 0.26)' : '1px solid transparent',
                   color: docListTab === tab.id ? 'var(--white)' : 'var(--muted)',
                   cursor: 'pointer',
-                  fontSize: '12px',
+                  fontSize: "var(--krds-body-xsmall)",
                   fontWeight: 950
                 }}
               >
@@ -1342,8 +1342,8 @@ ${template.contentEn}`;
 
           {docListTab === "templates" && (
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl px-3 py-3" style={{
-            background: 'linear-gradient(135deg, rgba(32, 227, 255, 0.10), rgba(57, 255, 136, 0.055)), rgba(5, 11, 20, 0.52)',
-            border: '1px solid rgba(32, 227, 255, 0.18)',
+            background: 'linear-gradient(135deg, rgba(var(--codedock-primary-rgb), 0.10), rgba(var(--codedock-secondary-rgb), 0.055)), rgba(5, 11, 20, 0.52)',
+            border: '1px solid rgba(var(--codedock-primary-rgb), 0.18)',
             boxShadow: 'inset 0 1px 0 rgba(234, 247, 255, 0.08)'
           }}>
             <div className="mb-3 flex items-center justify-between gap-3">
@@ -1357,17 +1357,17 @@ ${template.contentEn}`;
                 </p>
                 <p className="m-0 mt-1 tracking-tight" style={{
                   color: 'var(--muted)',
-                  fontSize: '11px',
+                  fontSize: "var(--krds-body-xsmall)",
                   fontWeight: 800
                 }}>
                   {language === "en" ? "Pick a format, write, then register" : "양식을 선택해 작성한 뒤 등록하세요"}
                 </p>
               </div>
               <span className="rounded-full px-2 py-1 tracking-tight" style={{
-                background: 'rgba(32, 227, 255, 0.12)',
-                border: '1px solid rgba(32, 227, 255, 0.22)',
+                background: 'rgba(var(--codedock-primary-rgb), 0.12)',
+                border: '1px solid rgba(var(--codedock-primary-rgb), 0.22)',
                 color: 'var(--neon-cyan)',
-                fontSize: '11px',
+                fontSize: "var(--krds-body-xsmall)",
                 fontWeight: 950
               }}>
                 {documentTemplates.length}
@@ -1386,9 +1386,9 @@ ${template.contentEn}`;
                     key={template.id}
                     className="w-full rounded-xl px-2.5 py-2.5 transition-all hover:translate-y-[-1px]"
                     style={{
-                      background: draftTemplate?.id === template.id ? 'rgba(32, 227, 255, 0.13)' : 'rgba(5, 11, 20, 0.58)',
-                      border: draftTemplate?.id === template.id ? '1px solid rgba(32, 227, 255, 0.34)' : '1px solid rgba(32, 227, 255, 0.12)',
-                      boxShadow: draftTemplate?.id === template.id ? '0 0 24px rgba(32, 227, 255, 0.10)' : 'none'
+                      background: draftTemplate?.id === template.id ? 'rgba(var(--codedock-primary-rgb), 0.13)' : 'rgba(5, 11, 20, 0.58)',
+                      border: draftTemplate?.id === template.id ? '1px solid rgba(var(--codedock-primary-rgb), 0.34)' : '1px solid rgba(var(--codedock-primary-rgb), 0.12)',
+                      boxShadow: draftTemplate?.id === template.id ? '0 0 24px rgba(var(--codedock-primary-rgb), 0.10)' : 'none'
                     }}
                   >
                     <button
@@ -1399,8 +1399,8 @@ ${template.contentEn}`;
                     >
                       <div className="flex items-start gap-2.5">
                       <span className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-xl" style={{
-                        background: `${template.color === 'var(--neon-cyan)' ? 'rgba(32, 227, 255, 0.14)' : 'rgba(234, 247, 255, 0.07)'}`,
-                        border: '1px solid rgba(32, 227, 255, 0.16)'
+                        background: `${template.color === 'var(--neon-cyan)' ? 'rgba(var(--codedock-primary-rgb), 0.14)' : 'rgba(234, 247, 255, 0.07)'}`,
+                        border: '1px solid rgba(var(--codedock-primary-rgb), 0.16)'
                       }}>
                         <Icon size={17} style={{ color: template.color }} />
                       </span>
@@ -1414,7 +1414,7 @@ ${template.contentEn}`;
                         </span>
                         <span className="mt-1 line-clamp-1 block tracking-tight" style={{
                           color: 'var(--muted)',
-                          fontSize: '11px',
+                          fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 780,
                           lineHeight: 1.45
                         }}>
@@ -1435,7 +1435,7 @@ ${template.contentEn}`;
                           background: 'rgba(234, 247, 255, 0.06)',
                           border: '1px solid rgba(234, 247, 255, 0.08)',
                           color: 'var(--soft-mint)',
-                          fontSize: '10px',
+                          fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 850
                         }}>
                           {tag}
@@ -1466,8 +1466,8 @@ ${template.contentEn}`;
                   }}
                   className="w-full px-3 py-3 rounded-xl border-0 text-left transition-all hover:translate-y-[-1px]"
                   style={{
-                    background: selectedDoc === doc.id ? 'rgba(32, 227, 255, 0.15)' : 'rgba(5, 11, 20, 0.42)',
-                    border: selectedDoc === doc.id ? '1px solid rgba(32, 227, 255, 0.3)' : '1px solid rgba(32, 227, 255, 0.10)',
+                    background: selectedDoc === doc.id ? 'rgba(var(--codedock-primary-rgb), 0.15)' : 'rgba(5, 11, 20, 0.42)',
+                    border: selectedDoc === doc.id ? '1px solid rgba(var(--codedock-primary-rgb), 0.3)' : '1px solid rgba(var(--codedock-primary-rgb), 0.10)',
                     cursor: 'pointer'
                   }}
                 >
@@ -1482,9 +1482,9 @@ ${template.contentEn}`;
                     )}
                     </span>
                     <span className="rounded-full px-2 py-0.5 tracking-tight" style={{
-                      background: doc.generatedBy === 'AI' ? 'rgba(32, 227, 255, 0.11)' : 'rgba(57, 255, 136, 0.10)',
+                      background: doc.generatedBy === 'AI' ? 'rgba(var(--codedock-primary-rgb), 0.11)' : 'rgba(var(--codedock-secondary-rgb), 0.10)',
                       color: doc.generatedBy === 'AI' ? 'var(--neon-cyan)' : 'var(--soft-mint)',
-                      fontSize: '10px',
+                      fontSize: "var(--krds-body-xsmall)",
                       fontWeight: 950
                     }}>
                       {doc.generatedBy}
@@ -1499,7 +1499,7 @@ ${template.contentEn}`;
                   </p>
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="tracking-tight" style={{
-                      fontSize: '11px',
+                      fontSize: "var(--krds-body-xsmall)",
                       fontWeight: 700,
                       color: 'var(--muted)'
                     }}>
@@ -1507,7 +1507,7 @@ ${template.contentEn}`;
                     </span>
                     <span style={{ color: 'var(--muted)' }}>•</span>
                     <span className="tracking-tight" style={{
-                      fontSize: '11px',
+                      fontSize: "var(--krds-body-xsmall)",
                       fontWeight: 700,
                       color: 'var(--muted)'
                     }}>
@@ -1516,8 +1516,8 @@ ${template.contentEn}`;
                   </div>
                   {doc.relatedPR && (
                     <span className="inline-block mt-2 px-2 py-0.5 rounded tracking-tight" style={{
-                      background: 'rgba(57, 255, 136, 0.15)',
-                      fontSize: '11px',
+                      background: 'rgba(var(--codedock-secondary-rgb), 0.15)',
+                      fontSize: "var(--krds-body-xsmall)",
                       fontWeight: 900,
                       color: 'var(--matrix-green)'
                     }}>
@@ -1534,20 +1534,20 @@ ${template.contentEn}`;
         {draftTemplate && (
           <section className={embedded ? "flex min-h-0 flex-col overflow-hidden px-5 py-5 rounded-2xl" : "px-8 py-8 rounded-[30px]"} style={{
             background: 'rgba(11, 22, 40, 0.82)',
-            border: '1px solid rgba(32, 227, 255, 0.16)',
+            border: '1px solid rgba(var(--codedock-primary-rgb), 0.16)',
             boxShadow: embedded ? '0 14px 36px rgba(0, 0, 0, 0.28)' : '0 20px 60px rgba(0, 0, 0, 0.32)',
             backdropFilter: 'blur(16px)'
           }}>
             <div className="mb-5 flex flex-shrink-0 items-start justify-between gap-4">
               <div className="min-w-0 flex-1">
                 <div className="mb-3 inline-flex items-center gap-2 rounded-full px-3 py-1" style={{
-                  background: 'rgba(57, 255, 136, 0.12)',
-                  border: '1px solid rgba(57, 255, 136, 0.24)'
+                  background: 'rgba(var(--codedock-secondary-rgb), 0.12)',
+                  border: '1px solid rgba(var(--codedock-secondary-rgb), 0.24)'
                 }}>
                   <Plus size={15} style={{ color: 'var(--soft-mint)' }} />
                   <span className="tracking-tight" style={{
                     color: 'var(--soft-mint)',
-                    fontSize: '12px',
+                    fontSize: "var(--krds-body-xsmall)",
                     fontWeight: 900
                   }}>
                     {language === "en" ? "Writing from template" : "템플릿 작성 중"}
@@ -1571,8 +1571,8 @@ ${template.contentEn}`;
                 </p>
               </div>
               <div className="hidden shrink-0 items-center gap-2 rounded-2xl px-3 py-2 sm:flex" style={{
-                background: 'rgba(32, 227, 255, 0.08)',
-                border: '1px solid rgba(32, 227, 255, 0.16)'
+                background: 'rgba(var(--codedock-primary-rgb), 0.08)',
+                border: '1px solid rgba(var(--codedock-primary-rgb), 0.16)'
               }}>
                 {(() => {
                   const TemplateIcon = draftTemplate.icon;
@@ -1580,7 +1580,7 @@ ${template.contentEn}`;
                 })()}
                 <span className="tracking-tight" style={{
                   color: 'var(--soft-mint)',
-                  fontSize: '12px',
+                  fontSize: "var(--krds-body-xsmall)",
                   fontWeight: 900
                 }}>
                   {language === "en" ? draftTemplate.titleEn : draftTemplate.title}
@@ -1594,7 +1594,7 @@ ${template.contentEn}`;
                 <label className="grid gap-2">
                   <span className="tracking-tight" style={{
                     color: 'var(--muted)',
-                    fontSize: '12px',
+                    fontSize: "var(--krds-body-xsmall)",
                     fontWeight: 950
                   }}>
                     {language === "en" ? "Title" : "제목"}
@@ -1605,7 +1605,7 @@ ${template.contentEn}`;
                     className="rounded-2xl border-0 px-4 py-3 outline-none tracking-tight"
                     style={{
                       background: 'rgba(5, 11, 20, 0.62)',
-                      border: '1px solid rgba(32, 227, 255, 0.18)',
+                      border: '1px solid rgba(var(--codedock-primary-rgb), 0.18)',
                       color: 'var(--white)',
                       fontSize: '15px',
                       fontWeight: 850
@@ -1616,7 +1616,7 @@ ${template.contentEn}`;
                 <label className="grid min-h-0 gap-2">
                   <span className="tracking-tight" style={{
                     color: 'var(--muted)',
-                    fontSize: '12px',
+                    fontSize: "var(--krds-body-xsmall)",
                     fontWeight: 950
                   }}>
                     {language === "en" ? "Body" : "본문"}
@@ -1627,7 +1627,7 @@ ${template.contentEn}`;
                     className={`codedock-scrollbar-hidden min-h-[360px] resize-none rounded-2xl border-0 px-5 py-5 font-mono outline-none ${embedded ? "h-[min(48vh,520px)]" : "h-[500px]"}`}
                     style={{
                       background: 'rgba(5, 11, 20, 0.62)',
-                      border: '1px solid rgba(32, 227, 255, 0.18)',
+                      border: '1px solid rgba(var(--codedock-primary-rgb), 0.18)',
                       color: 'var(--white)',
                       fontSize: '13px',
                       fontWeight: 750,
@@ -1660,9 +1660,9 @@ ${template.contentEn}`;
                 onClick={() => handleGenerateAiDocument(draftTemplate)}
                 className="inline-flex items-center gap-2 rounded-xl border-0 px-5 py-3 tracking-tight transition-all hover:scale-[1.01]"
                 style={{
-                  background: 'linear-gradient(135deg, rgba(32, 227, 255, 0.20), rgba(57, 255, 136, 0.12)), rgba(234, 247, 255, 0.055)',
-                  border: '1px solid rgba(32, 227, 255, 0.28)',
-                  boxShadow: 'inset 0 1px 0 rgba(234, 247, 255, 0.12), 0 0 22px rgba(32, 227, 255, 0.08)',
+                  background: 'linear-gradient(135deg, rgba(var(--codedock-primary-rgb), 0.20), rgba(var(--codedock-secondary-rgb), 0.12)), rgba(234, 247, 255, 0.055)',
+                  border: '1px solid rgba(var(--codedock-primary-rgb), 0.28)',
+                  boxShadow: 'inset 0 1px 0 rgba(234, 247, 255, 0.12), 0 0 22px rgba(var(--codedock-primary-rgb), 0.08)',
                   color: 'var(--neon-cyan)',
                   cursor: 'pointer',
                   fontSize: '13px',
@@ -1696,7 +1696,7 @@ ${template.contentEn}`;
         {!draftTemplate && selectedDocData && (
           <section className={embedded ? "flex min-h-0 flex-col overflow-hidden px-5 py-5 rounded-2xl" : "px-8 py-8 rounded-[30px]"} style={{
             background: 'rgba(11, 22, 40, 0.82)',
-            border: '1px solid rgba(32, 227, 255, 0.16)',
+            border: '1px solid rgba(var(--codedock-primary-rgb), 0.16)',
             boxShadow: embedded ? '0 14px 36px rgba(0, 0, 0, 0.28)' : '0 20px 60px rgba(0, 0, 0, 0.32)',
             backdropFilter: 'blur(16px)'
           }}>
@@ -1705,12 +1705,12 @@ ${template.contentEn}`;
                 <div className="flex items-center gap-3 mb-3">
                   {selectedDocData.generatedBy === 'AI' && (
                     <div className="flex items-center gap-2 px-3 py-1 rounded-full" style={{
-                      background: 'rgba(32, 227, 255, 0.15)',
-                      border: '1px solid rgba(32, 227, 255, 0.3)'
+                      background: 'rgba(var(--codedock-primary-rgb), 0.15)',
+                      border: '1px solid rgba(var(--codedock-primary-rgb), 0.3)'
                     }}>
                       <Sparkles size={16} style={{ color: 'var(--neon-cyan)' }} />
                       <span className="tracking-tight" style={{
-                        fontSize: '12px',
+                        fontSize: "var(--krds-body-xsmall)",
                         fontWeight: 900,
                         color: 'var(--neon-cyan)'
                       }}>
@@ -1720,12 +1720,12 @@ ${template.contentEn}`;
                   )}
                   {selectedDocData.generatedBy === 'Template' && (
                     <div className="flex items-center gap-2 px-3 py-1 rounded-full" style={{
-                      background: 'rgba(57, 255, 136, 0.12)',
-                      border: '1px solid rgba(57, 255, 136, 0.24)'
+                      background: 'rgba(var(--codedock-secondary-rgb), 0.12)',
+                      border: '1px solid rgba(var(--codedock-secondary-rgb), 0.24)'
                     }}>
                       <Plus size={15} style={{ color: 'var(--soft-mint)' }} />
                       <span className="tracking-tight" style={{
-                        fontSize: '12px',
+                        fontSize: "var(--krds-body-xsmall)",
                         fontWeight: 900,
                         color: 'var(--soft-mint)'
                       }}>
@@ -1784,7 +1784,7 @@ ${template.contentEn}`;
                           border: '1px solid rgba(234, 247, 255, 0.12)',
                           color: 'var(--muted)',
                           cursor: 'pointer',
-                          fontSize: '12px',
+                          fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 950
                         }}
                       >
@@ -1801,7 +1801,7 @@ ${template.contentEn}`;
                           color: '#021014',
                           cursor: editTitle.trim() && editContent.trim() ? 'pointer' : 'not-allowed',
                           opacity: editTitle.trim() && editContent.trim() ? 1 : 0.48,
-                          fontSize: '12px',
+                          fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 950
                         }}
                       >
@@ -1816,11 +1816,11 @@ ${template.contentEn}`;
                         onClick={() => handleStartEditDocument(selectedDocData)}
                         className="inline-flex items-center gap-2 rounded-xl border-0 px-3 py-2 tracking-tight"
                         style={{
-                          background: 'rgba(32, 227, 255, 0.10)',
-                          border: '1px solid rgba(32, 227, 255, 0.22)',
+                          background: 'rgba(var(--codedock-primary-rgb), 0.10)',
+                          border: '1px solid rgba(var(--codedock-primary-rgb), 0.22)',
                           color: 'var(--neon-cyan)',
                           cursor: 'pointer',
-                          fontSize: '12px',
+                          fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 950
                         }}
                       >
@@ -1836,7 +1836,7 @@ ${template.contentEn}`;
                           border: '1px solid rgba(255, 107, 107, 0.22)',
                           color: '#FF9C9C',
                           cursor: 'pointer',
-                          fontSize: '12px',
+                          fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 950
                         }}
                       >
@@ -1851,8 +1851,8 @@ ${template.contentEn}`;
 
             {selectedDocData.relatedPR && (
               <div className="px-5 py-4 mb-6 rounded-2xl" style={{
-                background: 'rgba(57, 255, 136, 0.08)',
-                border: '1px solid rgba(57, 255, 136, 0.22)'
+                background: 'rgba(var(--codedock-secondary-rgb), 0.08)',
+                border: '1px solid rgba(var(--codedock-secondary-rgb), 0.22)'
               }}>
                 <p className="m-0 tracking-tight" style={{
                   fontSize: '13px',
@@ -1870,7 +1870,7 @@ ${template.contentEn}`;
                   <label className="grid gap-2">
                     <span className="tracking-tight" style={{
                       color: 'var(--muted)',
-                      fontSize: '12px',
+                      fontSize: "var(--krds-body-xsmall)",
                       fontWeight: 950
                     }}>
                       {language === "en" ? "Title" : "제목"}
@@ -1881,7 +1881,7 @@ ${template.contentEn}`;
                       className="rounded-2xl border-0 px-4 py-3 outline-none tracking-tight"
                       style={{
                         background: 'rgba(5, 11, 20, 0.62)',
-                        border: '1px solid rgba(32, 227, 255, 0.18)',
+                        border: '1px solid rgba(var(--codedock-primary-rgb), 0.18)',
                         color: 'var(--white)',
                         fontSize: '15px',
                         fontWeight: 850
@@ -1891,7 +1891,7 @@ ${template.contentEn}`;
                   <label className="grid gap-2">
                     <span className="tracking-tight" style={{
                       color: 'var(--muted)',
-                      fontSize: '12px',
+                      fontSize: "var(--krds-body-xsmall)",
                       fontWeight: 950
                     }}>
                       {language === "en" ? "Body" : "본문"}
@@ -1902,7 +1902,7 @@ ${template.contentEn}`;
                       className={`codedock-scrollbar-hidden min-h-[360px] resize-none rounded-2xl border-0 px-5 py-5 font-mono outline-none ${embedded ? "h-[min(48vh,520px)]" : "h-[500px]"}`}
                       style={{
                         background: 'rgba(5, 11, 20, 0.62)',
-                        border: '1px solid rgba(32, 227, 255, 0.18)',
+                        border: '1px solid rgba(var(--codedock-primary-rgb), 0.18)',
                         color: 'var(--white)',
                         fontSize: '13px',
                         fontWeight: 750,
@@ -1916,7 +1916,7 @@ ${template.contentEn}`;
               <div className={embedded ? "codedock-scrollbar-hidden min-h-0 flex-1 overflow-y-auto pr-1" : "codedock-scrollbar-hidden max-h-[760px] overflow-y-auto pr-2"}>
                 <div className="rounded-3xl px-6 py-6" style={{
                   background: 'rgba(5, 11, 20, 0.46)',
-                  border: '1px solid rgba(32, 227, 255, 0.12)',
+                  border: '1px solid rgba(var(--codedock-primary-rgb), 0.12)',
                   boxShadow: 'inset 0 1px 0 rgba(234, 247, 255, 0.06)'
                 }}>
                   {renderDocumentPreview(selectedDocContent)}

@@ -257,7 +257,7 @@ const aiFeedbackFiles: AiFeedbackFile[] = [
 const reviewers = [
   { initials: "JP", name: "김진필", status: "Approved", color: "#22C55E" },
   { initials: "JW", name: "김준우", status: "Pending", color: "#F59E0B" },
-  { initials: "JH", name: "김진현", status: "Commented", color: "#39FF88" }
+  { initials: "JH", name: "김진현", status: "Commented", color: "var(--matrix-green)" }
 ];
 
 const prDialogTabs = [
@@ -322,6 +322,8 @@ function renderInlineCode(text: string) {
 function statusColor(status: DiffFile["status"]) {
   return status === "added" ? "#22C55E" : "var(--neon-cyan)";
 }
+
+const colorAlpha = (color: string, percent: number) => `color-mix(in srgb, ${color} ${percent}%, transparent)`;
 
 function statusLabel(status: DiffFile["status"]) {
   return status === "added" ? "추가됨" : "수정됨";
@@ -602,7 +604,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
             style={{
               border: "1px solid rgba(88, 166, 255, 0.58)",
               color: "#9CCBFF",
-              fontSize: 12,
+              fontSize: "var(--krds-body-xsmall)",
               fontWeight: 900
             }}
           >
@@ -675,8 +677,8 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
   const renderSummaryTab = () => (
     <div className="grid gap-6">
       <section className="rounded-2xl px-6 py-5" style={{
-        background: "rgba(32, 227, 255, 0.10)",
-        border: "1px solid rgba(32, 227, 255, 0.30)"
+        background: "rgba(var(--codedock-primary-rgb), 0.10)",
+        border: "1px solid rgba(var(--codedock-primary-rgb), 0.30)"
       }}>
         <div className="mb-4 flex items-center gap-3">
           <Sparkles size={24} style={{ color: "var(--neon-cyan)" }} />
@@ -730,8 +732,8 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
       <section
         className="overflow-hidden rounded-2xl px-6 py-5"
         style={{
-          background: "linear-gradient(135deg, rgba(32, 227, 255, 0.12), rgba(57, 255, 136, 0.055))",
-          border: "1px solid rgba(32, 227, 255, 0.24)",
+          background: "linear-gradient(135deg, rgba(var(--codedock-primary-rgb), 0.12), rgba(var(--codedock-secondary-rgb), 0.055))",
+          border: "1px solid rgba(var(--codedock-primary-rgb), 0.24)",
           boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)"
         }}
       >
@@ -740,15 +742,15 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
             <span
               className="flex h-11 w-11 items-center justify-center rounded-2xl"
               style={{
-                background: "rgba(32, 227, 255, 0.12)",
-                border: "1px solid rgba(32, 227, 255, 0.26)",
+                background: "rgba(var(--codedock-primary-rgb), 0.12)",
+                border: "1px solid rgba(var(--codedock-primary-rgb), 0.26)",
                 color: "var(--neon-cyan)"
               }}
             >
               <ShieldCheck size={22} />
             </span>
             <div>
-              <p className="m-0 mb-1 font-mono uppercase tracking-[0.14em]" style={{ color: "var(--neon-cyan)", fontSize: 11, fontWeight: 950 }}>
+              <p className="m-0 mb-1 font-mono uppercase tracking-[0.14em]" style={{ color: "var(--neon-cyan)", fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}>
                 AI Feedback
               </p>
               <h3 className="m-0 tracking-tight" style={{ color: "var(--white)", fontSize: 22, fontWeight: 950 }}>
@@ -762,7 +764,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
               background: "rgba(245, 158, 11, 0.14)",
               border: "1px solid rgba(245, 158, 11, 0.38)",
               color: "#FBBF24",
-              fontSize: 12,
+              fontSize: "var(--krds-body-xsmall)",
               fontWeight: 950
             }}
           >
@@ -780,12 +782,12 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
           className="overflow-hidden rounded-2xl"
           style={{
             background: "rgba(5, 11, 20, 0.52)",
-            border: "1px solid rgba(32, 227, 255, 0.15)"
+            border: "1px solid rgba(var(--codedock-primary-rgb), 0.15)"
           }}
         >
           <div
             className="flex flex-wrap items-start justify-between gap-4 px-5 py-4"
-            style={{ borderBottom: "1px solid rgba(32, 227, 255, 0.12)" }}
+            style={{ borderBottom: "1px solid rgba(var(--codedock-primary-rgb), 0.12)" }}
           >
             <div className="flex min-w-0 gap-3">
               <span
@@ -802,7 +804,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
                 <h4 className="m-0 truncate tracking-tight" style={{ color: "var(--white)", fontSize: 17, fontWeight: 950 }}>
                   {file.name}
                 </h4>
-                <p className="m-0 mt-1 truncate font-mono" style={{ color: "var(--muted)", fontSize: 12, fontWeight: 800 }}>
+                <p className="m-0 mt-1 truncate font-mono" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>
                   {file.path}
                 </p>
               </div>
@@ -813,7 +815,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
                 background: file.risk === "높음" ? "rgba(239, 68, 68, 0.13)" : "rgba(245, 158, 11, 0.13)",
                 border: file.risk === "높음" ? "1px solid rgba(239, 68, 68, 0.38)" : "1px solid rgba(245, 158, 11, 0.38)",
                 color: file.risk === "높음" ? "#FF8FA3" : "#FBBF24",
-                fontSize: 12,
+                fontSize: "var(--krds-body-xsmall)",
                 fontWeight: 950
               }}
             >
@@ -847,7 +849,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
             </div>
           </div>
 
-          <div className="grid gap-0 lg:grid-cols-2" style={{ borderTop: "1px solid rgba(32, 227, 255, 0.12)" }}>
+          <div className="grid gap-0 lg:grid-cols-2" style={{ borderTop: "1px solid rgba(var(--codedock-primary-rgb), 0.12)" }}>
             {[
               {
                 title: "현재 코드",
@@ -859,7 +861,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
               },
               {
                 title: "AI 추천 코드",
-                tone: "#39FF88",
+                tone: "var(--matrix-green)",
                 bg: "rgba(34, 197, 94, 0.055)",
                 prefix: "+",
                 startLine: file.recommendedStartLine,
@@ -871,25 +873,25 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
                 className="min-w-0"
                 style={{
                   background: block.bg,
-                  borderRight: block.title === "현재 코드" ? "1px solid rgba(32, 227, 255, 0.12)" : undefined
+                  borderRight: block.title === "현재 코드" ? "1px solid rgba(var(--codedock-primary-rgb), 0.12)" : undefined
                 }}
               >
                 <div className="flex items-center justify-between gap-3 px-4 py-3" style={{ borderBottom: "1px solid rgba(234, 247, 255, 0.08)" }}>
                   <span className="tracking-tight" style={{ color: block.tone, fontSize: 13, fontWeight: 950 }}>
                     {block.title}
                   </span>
-                  <span className="font-mono" style={{ color: "var(--muted)", fontSize: 11, fontWeight: 800 }}>
+                  <span className="font-mono" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>
                     {file.name}
                   </span>
                 </div>
                 <div className="codedock-scrollbar-hidden overflow-x-auto px-0 py-2">
                   {block.lines.map((line, index) => (
                     <div key={`${file.id}-${block.title}-${index}`} className="grid min-w-[520px] grid-cols-[52px_28px_minmax(0,1fr)] items-start px-4 py-1.5 font-mono">
-                      <span style={{ color: "rgba(234, 247, 255, 0.38)", fontSize: 12, fontWeight: 800 }}>
+                      <span style={{ color: "rgba(234, 247, 255, 0.38)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>
                         {block.startLine + index}
                       </span>
-                      <span style={{ color: block.tone, fontSize: 12, fontWeight: 950 }}>{block.prefix}</span>
-                      <code className="whitespace-pre-wrap break-words" style={{ color: "var(--soft-mint)", fontSize: 12.5, fontWeight: 800, lineHeight: 1.65 }}>
+                      <span style={{ color: block.tone, fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}>{block.prefix}</span>
+                      <code className="whitespace-pre-wrap break-words" style={{ color: "var(--soft-mint)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800, lineHeight: 1.65 }}>
                         {line}
                       </code>
                     </div>
@@ -899,7 +901,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
             ))}
           </div>
 
-          <div className="flex flex-wrap gap-2 px-5 py-4" style={{ borderTop: "1px solid rgba(32, 227, 255, 0.12)" }}>
+          <div className="flex flex-wrap gap-2 px-5 py-4" style={{ borderTop: "1px solid rgba(var(--codedock-primary-rgb), 0.12)" }}>
             {file.findings.map((finding) => (
               <span
                 key={finding}
@@ -908,7 +910,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
                   background: "rgba(234, 247, 255, 0.055)",
                   border: "1px solid rgba(234, 247, 255, 0.10)",
                   color: "var(--soft-mint)",
-                  fontSize: 12,
+                  fontSize: "var(--krds-body-xsmall)",
                   fontWeight: 850
                 }}
               >
@@ -931,7 +933,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
       ].map(([time, user, text]) => (
         <div key={`${time}-${user}`} className="flex gap-4 rounded-2xl px-5 py-4" style={{
           background: "rgba(5, 11, 20, 0.46)",
-          border: "1px solid rgba(32, 227, 255, 0.12)"
+          border: "1px solid rgba(var(--codedock-primary-rgb), 0.12)"
         }}>
           <span className="font-mono" style={{ color: "var(--neon-cyan)", fontSize: 13, fontWeight: 950 }}>{time}</span>
           <div>
@@ -961,7 +963,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
           className="px-4 py-3"
           style={{
             background: "rgba(8, 17, 31, 0.96)",
-            borderBottom: "1px solid rgba(32, 227, 255, 0.14)",
+            borderBottom: "1px solid rgba(var(--codedock-primary-rgb), 0.14)",
             backdropFilter: "blur(14px)"
           }}
         >
@@ -976,8 +978,8 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
               <span
                 className="rounded-full px-2 py-1 font-mono"
                 style={{
-                  background: "rgba(57, 255, 136, 0.10)",
-                  border: "1px solid rgba(57, 255, 136, 0.24)",
+                  background: "rgba(var(--codedock-secondary-rgb), 0.10)",
+                  border: "1px solid rgba(var(--codedock-secondary-rgb), 0.24)",
                   color: "var(--matrix-green)",
                   fontSize: 9,
                   fontWeight: 950
@@ -992,7 +994,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
                   className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-full border-0 transition-all hover:scale-110"
                   style={{
                     background: "rgba(234, 247, 255, 0.07)",
-                    border: "1px solid rgba(32, 227, 255, 0.18)",
+                    border: "1px solid rgba(var(--codedock-primary-rgb), 0.18)",
                     color: "var(--muted)",
                     cursor: "pointer"
                   }}
@@ -1003,7 +1005,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
               )}
             </div>
           </div>
-          <p className="m-0 tracking-tight" style={{ color: "var(--muted)", fontSize: 11, fontWeight: 800, lineHeight: 1.45 }}>
+          <p className="m-0 tracking-tight" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800, lineHeight: 1.45 }}>
             DIFF 라인을 클릭하면 이 PR 스레드 입력창에 파일과 줄 번호가 참조로 붙습니다.
           </p>
         </div>
@@ -1019,29 +1021,29 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
                   key={comment.id}
                   className="w-full rounded-2xl px-3 py-2"
                   style={{
-                    background: isMine ? "rgba(32, 227, 255, 0.10)" : "rgba(11, 22, 40, 0.78)",
-                    border: isMine ? "1px solid rgba(32, 227, 255, 0.28)" : "1px solid rgba(32, 227, 255, 0.12)"
+                    background: isMine ? "rgba(var(--codedock-primary-rgb), 0.10)" : "rgba(11, 22, 40, 0.78)",
+                    border: isMine ? "1px solid rgba(var(--codedock-primary-rgb), 0.28)" : "1px solid rgba(var(--codedock-primary-rgb), 0.12)"
                   }}
                 >
                   <div className="mb-1 flex items-center gap-2">
                     <span
                       className="h-6 w-6 rounded-full text-center leading-6 flex-shrink-0"
                       style={{
-                        background: isMine ? "linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))" : "rgba(32, 227, 255, 0.14)",
+                        background: isMine ? "linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))" : "rgba(var(--codedock-primary-rgb), 0.14)",
                         color: isMine ? "#021014" : "var(--neon-cyan)",
-                        fontSize: 10,
+                        fontSize: "var(--krds-body-xsmall)",
                         fontWeight: 950
                       }}
                     >
                       {isMine ? currentUserAvatar : comment.author.slice(0, 1)}
                     </span>
-                    <span className="tracking-tight" style={{ color: isMine ? "var(--neon-cyan)" : "var(--white)", fontSize: 12, fontWeight: 950 }}>
+                    <span className="tracking-tight" style={{ color: isMine ? "var(--neon-cyan)" : "var(--white)", fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}>
                       {isMine ? getDisplayAuthor(comment.author) : comment.author}
                     </span>
                     {isMine && (
-                      <span className="rounded px-1.5 py-0.5" style={{ background: "rgba(32, 227, 255, 0.14)", color: "var(--neon-cyan)", fontSize: 9, fontWeight: 950 }}>내 메시지</span>
+                      <span className="rounded px-1.5 py-0.5" style={{ background: "rgba(var(--codedock-primary-rgb), 0.14)", color: "var(--neon-cyan)", fontSize: 9, fontWeight: 950 }}>내 메시지</span>
                     )}
-                    <span className="tracking-tight" style={{ color: "var(--muted)", fontSize: 10, fontWeight: 800 }}>
+                    <span className="tracking-tight" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>
                       {comment.time}
                     </span>
                   </div>
@@ -1053,31 +1055,31 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
                         className="mb-2 overflow-hidden rounded-xl"
                         style={{
                           background: "rgba(5, 11, 20, 0.72)",
-                          border: "1px solid rgba(32, 227, 255, 0.22)",
+                          border: "1px solid rgba(var(--codedock-primary-rgb), 0.22)",
                           userSelect: "none"
                         }}
                       >
                         <div
                           className="flex items-center gap-2 px-3 py-1.5"
-                          style={{ borderBottom: "1px solid rgba(32, 227, 255, 0.12)", background: "rgba(32, 227, 255, 0.07)" }}
+                          style={{ borderBottom: "1px solid rgba(var(--codedock-primary-rgb), 0.12)", background: "rgba(var(--codedock-primary-rgb), 0.07)" }}
                         >
                           <FileCode size={11} style={{ color: "var(--neon-cyan)", flexShrink: 0 }} />
-                          <span className="truncate font-mono" style={{ color: "var(--neon-cyan)", fontSize: 10, fontWeight: 950 }}>
+                          <span className="truncate font-mono" style={{ color: "var(--neon-cyan)", fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}>
                             {comment.fileName}
                           </span>
-                          <span className="flex-shrink-0 rounded px-1.5 py-0.5 font-mono" style={{ background: "rgba(32, 227, 255, 0.14)", color: "var(--neon-cyan)", fontSize: 9, fontWeight: 950 }}>
+                          <span className="flex-shrink-0 rounded px-1.5 py-0.5 font-mono" style={{ background: "rgba(var(--codedock-primary-rgb), 0.14)", color: "var(--neon-cyan)", fontSize: 9, fontWeight: 950 }}>
                             L{comment.line}
                           </span>
                         </div>
                         {refCode && (
-                          <div className="px-3 py-2 font-mono" style={{ color: refRow?.added ? "#D7FFE7" : "#C6D4E5", fontSize: 11, fontWeight: 850, lineHeight: 1.55, whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+                          <div className="px-3 py-2 font-mono" style={{ color: refRow?.added ? "#D7FFE7" : "#C6D4E5", fontSize: "var(--krds-body-xsmall)", fontWeight: 850, lineHeight: 1.55, whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
                             {refCode}
                           </div>
                         )}
                       </div>
                     );
                   })()}
-                  <p className="m-0 whitespace-pre-wrap tracking-tight" style={{ color: isMine ? "var(--soft-mint)" : "var(--soft-mint)", fontSize: 12, fontWeight: 800, lineHeight: 1.55 }}>
+                  <p className="m-0 whitespace-pre-wrap tracking-tight" style={{ color: isMine ? "var(--soft-mint)" : "var(--soft-mint)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800, lineHeight: 1.55 }}>
                     {comment.text}
                   </p>
                 </div>
@@ -1090,7 +1092,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
           className="px-4 py-1"
           style={{
             background: "rgba(8, 17, 31, 0.96)",
-            borderTop: "1px solid rgba(32, 227, 255, 0.14)"
+            borderTop: "1px solid rgba(var(--codedock-primary-rgb), 0.14)"
           }}
         >
           {selectedFile && selectedRow && (() => {
@@ -1100,31 +1102,31 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
                 className="mb-2 overflow-hidden rounded-xl"
                 style={{
                   background: "rgba(5, 11, 20, 0.72)",
-                  border: "1px solid rgba(32, 227, 255, 0.26)"
+                  border: "1px solid rgba(var(--codedock-primary-rgb), 0.26)"
                 }}
               >
                 <div
                   className="flex items-center gap-2 px-3 py-1.5"
-                  style={{ background: "rgba(32, 227, 255, 0.09)", borderBottom: "1px solid rgba(32, 227, 255, 0.14)" }}
+                  style={{ background: "rgba(var(--codedock-primary-rgb), 0.09)", borderBottom: "1px solid rgba(var(--codedock-primary-rgb), 0.14)" }}
                 >
                   <FileCode size={11} style={{ color: "var(--neon-cyan)", flexShrink: 0 }} />
-                  <span className="min-w-0 flex-1 truncate font-mono" style={{ color: "var(--neon-cyan)", fontSize: 10, fontWeight: 950 }}>
+                  <span className="min-w-0 flex-1 truncate font-mono" style={{ color: "var(--neon-cyan)", fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}>
                     {selectedFile.name}
                   </span>
-                  <span className="flex-shrink-0 rounded px-1.5 py-0.5 font-mono" style={{ background: "rgba(32, 227, 255, 0.14)", color: "var(--neon-cyan)", fontSize: 9, fontWeight: 950 }}>
+                  <span className="flex-shrink-0 rounded px-1.5 py-0.5 font-mono" style={{ background: "rgba(var(--codedock-primary-rgb), 0.14)", color: "var(--neon-cyan)", fontSize: 9, fontWeight: 950 }}>
                     L{selectedRow.line}
                   </span>
                   <button
                     type="button"
                     onClick={() => setActiveDiffThread(null)}
                     className="flex-shrink-0 rounded-md border-0 px-2 py-0.5"
-                    style={{ background: "rgba(234, 247, 255, 0.06)", color: "var(--muted)", cursor: "pointer", fontSize: 10, fontWeight: 900 }}
+                    style={{ background: "rgba(234, 247, 255, 0.06)", color: "var(--muted)", cursor: "pointer", fontSize: "var(--krds-body-xsmall)", fontWeight: 900 }}
                   >
                     해제
                   </button>
                 </div>
                 {refCode && (
-                  <div className="px-3 py-2 font-mono" style={{ color: selectedRow.added ? "#D7FFE7" : "#C6D4E5", fontSize: 11, fontWeight: 850, lineHeight: 1.55, whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+                  <div className="px-3 py-2 font-mono" style={{ color: selectedRow.added ? "#D7FFE7" : "#C6D4E5", fontSize: "var(--krds-body-xsmall)", fontWeight: 850, lineHeight: 1.55, whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
                     {refCode}
                   </div>
                 )}
@@ -1151,10 +1153,10 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
               rows={1}
               style={{
                 background: "rgba(11, 22, 40, 0.86)",
-                border: "1px solid rgba(32, 227, 255, 0.18)",
+                border: "1px solid rgba(var(--codedock-primary-rgb), 0.18)",
                 color: "var(--white)",
                 fontFamily: "inherit",
-                fontSize: 12,
+                fontSize: "var(--krds-body-xsmall)",
                 fontWeight: 800,
                 lineHeight: 1.55,
                 minHeight: "36px",
@@ -1174,6 +1176,8 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
                 color: "#021014",
                 cursor: prThreadDraft.trim() ? "pointer" : "not-allowed",
                 opacity: prThreadDraft.trim() ? 1 : 0.48,
+                fontSize: "var(--krds-body-xsmall)",
+                fontWeight: 950
               }}
             >
               <Send size={14} />
@@ -1190,17 +1194,17 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
       style={{
         gridTemplateColumns: "2.5fr 7.5fr",
         background: "rgba(5, 11, 20, 0.42)",
-        border: "1px solid rgba(32, 227, 255, 0.14)"
+        border: "1px solid rgba(var(--codedock-primary-rgb), 0.14)"
       }}
     >
       <aside className="codedock-scrollbar-hidden min-h-0 overflow-y-auto px-4 py-4" style={{
-        borderRight: "1px solid rgba(32, 227, 255, 0.12)"
+        borderRight: "1px solid rgba(var(--codedock-primary-rgb), 0.12)"
       }}>
         <div className="mb-4">
           <h3 className="m-0 mb-1 tracking-tight" style={{ color: "var(--white)", fontSize: 14, fontWeight: 950 }}>
             변경 파일
           </h3>
-          <p className="m-0" style={{ color: "var(--muted)", fontSize: 12, fontWeight: 800 }}>
+          <p className="m-0" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>
             파일 {diffFiles.length}개
           </p>
         </div>
@@ -1215,16 +1219,16 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
                 onClick={() => setActiveFileId(file.id)}
                 className="w-full min-w-0 overflow-hidden rounded-xl p-3 text-left transition-all"
                 style={{
-                  background: isActive ? "rgba(32, 227, 255, 0.10)" : "transparent",
-                  border: isActive ? "1px solid rgba(57, 255, 136, 0.28)" : "1px solid transparent",
+                  background: isActive ? "rgba(var(--codedock-primary-rgb), 0.10)" : "transparent",
+                  border: isActive ? "1px solid rgba(var(--codedock-secondary-rgb), 0.28)" : "1px solid transparent",
                   cursor: "pointer"
                 }}
               >
                 <div className="mb-2 flex items-center gap-2">
                   <span className="rounded-md px-2 py-0.5" style={{
-                    background: `${statusColor(file.status)}22`,
+                    background: colorAlpha(statusColor(file.status), 13),
                     color: statusColor(file.status),
-                    fontSize: 10,
+                    fontSize: "var(--krds-body-xsmall)",
                     fontWeight: 950
                   }}>
                     {statusLabel(file.status)}
@@ -1232,7 +1236,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
                   <span className="rounded-md px-2 py-0.5" style={{
                     background: "rgba(234, 247, 255, 0.07)",
                     color: "var(--muted)",
-                    fontSize: 10,
+                    fontSize: "var(--krds-body-xsmall)",
                     fontWeight: 850
                   }}>
                     {tagLabel(file.tag)}
@@ -1245,10 +1249,10 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
                 }}>
                   {file.name}
                 </p>
-                <p className="m-0 mb-2 truncate font-mono" style={{ color: "var(--muted)", fontSize: 10, fontWeight: 750 }}>
+                <p className="m-0 mb-2 truncate font-mono" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 750 }}>
                   {file.path}
                 </p>
-                <div className="flex gap-2 font-mono" style={{ fontSize: 11, fontWeight: 950 }}>
+                <div className="flex gap-2 font-mono" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}>
                   <span style={{ color: "#22C55E" }}>+{file.additions}</span>
                   <span style={{ color: "#EF4444" }}>-{file.deletions}</span>
                 </div>
@@ -1263,7 +1267,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
           className="sticky top-0 z-10 flex items-center gap-3 px-5 py-3"
           style={{
             background: "rgba(8, 17, 31, 0.96)",
-            borderBottom: "1px solid rgba(32, 227, 255, 0.12)",
+            borderBottom: "1px solid rgba(var(--codedock-primary-rgb), 0.12)",
             backdropFilter: "blur(14px)"
           }}
         >
@@ -1288,14 +1292,14 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
                   style={{
                     gridTemplateColumns: "58px 32px minmax(0, 1fr) 92px",
                     background: isThreadOpen
-                      ? "rgba(32, 227, 255, 0.11)"
+                      ? "rgba(var(--codedock-primary-rgb), 0.11)"
                       : row.added
                         ? "rgba(34, 197, 94, 0.12)"
                         : "transparent",
                     borderLeft: isThreadOpen ? "3px solid var(--neon-cyan)" : row.added ? "3px solid #22C55E" : "3px solid transparent",
                   }}
                 >
-                  <span className="select-none text-right" style={{ color: "var(--muted)", fontSize: 12, fontWeight: 800 }}>
+                  <span className="select-none text-right" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>
                     {row.line}
                   </span>
                   <span className="select-none text-center" style={{ color: row.added ? "#22C55E" : "var(--muted)", fontWeight: 950 }}>
@@ -1322,11 +1326,11 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
                     }}
                     className="mx-1 flex h-7 items-center justify-center gap-1 rounded-md border-0 px-2"
                     style={{
-                      background: isThreadOpen || lineComments.length > 0 ? "rgba(32, 227, 255, 0.13)" : "transparent",
-                      border: isThreadOpen || lineComments.length > 0 ? "1px solid rgba(32, 227, 255, 0.28)" : "1px solid transparent",
+                      background: isThreadOpen || lineComments.length > 0 ? "rgba(var(--codedock-primary-rgb), 0.13)" : "transparent",
+                      border: isThreadOpen || lineComments.length > 0 ? "1px solid rgba(var(--codedock-primary-rgb), 0.28)" : "1px solid transparent",
                       color: isThreadOpen || lineComments.length > 0 ? "var(--neon-cyan)" : "var(--muted)",
                       cursor: "pointer",
-                      fontSize: 10,
+                      fontSize: "var(--krds-body-xsmall)",
                       fontWeight: 950
                     }}
                     title={`${activeFile.name} ${row.line}번 줄을 PR 스레드에 참조`}
@@ -1348,7 +1352,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
                   >
                     <div className="mb-3 flex items-center gap-2 tracking-tight" style={{
                       color: "var(--neon-cyan)",
-                      fontSize: 11,
+                      fontSize: "var(--krds-body-xsmall)",
                       fontWeight: 950
                     }}>
                       <MessageSquare size={13} />
@@ -1359,17 +1363,17 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
                         <div key={comment.id}>
                           <div className="mb-1 flex items-center gap-2">
                             <span className="h-5 w-5 rounded-full text-center leading-5" style={{
-                              background: "rgba(32, 227, 255, 0.14)",
+                              background: "rgba(var(--codedock-primary-rgb), 0.14)",
                               color: "var(--neon-cyan)",
-                              fontSize: 10,
+                              fontSize: "var(--krds-body-xsmall)",
                               fontWeight: 950
                             }}>
                               {comment.author.slice(0, 1)}
                             </span>
-                            <span style={{ color: "var(--white)", fontSize: 12, fontWeight: 950 }}>{comment.author}</span>
-                            <span style={{ color: "var(--muted)", fontSize: 11, fontWeight: 800 }}>{comment.time}</span>
+                            <span style={{ color: "var(--white)", fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}>{comment.author}</span>
+                            <span style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>{comment.time}</span>
                           </div>
-                          <p className="m-0 tracking-tight" style={{ color: "var(--soft-mint)", fontSize: 12, fontWeight: 800 }}>
+                          <p className="m-0 tracking-tight" style={{ color: "var(--soft-mint)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>
                             {comment.text}
                           </p>
                         </div>
@@ -1381,12 +1385,12 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
                 {false && isThreadOpen && (
                   <div className="ml-[64px] mr-6 rounded-r-xl px-4 py-3" style={{
                     background: "rgba(5, 11, 20, 0.72)",
-                    borderLeft: "2px solid rgba(32, 227, 255, 0.70)",
-                    borderTop: lineComments.length > 0 ? "1px solid rgba(32, 227, 255, 0.10)" : "none"
+                    borderLeft: "2px solid rgba(var(--codedock-primary-rgb), 0.70)",
+                    borderTop: lineComments.length > 0 ? "1px solid rgba(var(--codedock-primary-rgb), 0.10)" : "none"
                   }}>
                     <p className="m-0 mb-2 tracking-tight" style={{
                       color: "var(--muted)",
-                      fontSize: 11,
+                      fontSize: "var(--krds-body-xsmall)",
                       fontWeight: 850
                     }}>
                       {activeFile.name} {row.line}번 줄에 스레드 댓글 달기
@@ -1405,10 +1409,10 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
                       rows={2}
                       style={{
                         background: "rgba(11, 22, 40, 0.86)",
-                        border: "1px solid rgba(32, 227, 255, 0.16)",
+                        border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)",
                         color: "var(--white)",
                         fontFamily: "inherit",
-                        fontSize: 12,
+                        fontSize: "var(--krds-body-xsmall)",
                         fontWeight: 800,
                         lineHeight: 1.55
                       }}
@@ -1423,7 +1427,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
                           border: "1px solid rgba(234, 247, 255, 0.10)",
                           color: "var(--muted)",
                           cursor: "pointer",
-                          fontSize: 12,
+                          fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 900
                         }}
                       >
@@ -1439,7 +1443,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
                           color: "#021014",
                           cursor: diffCommentDrafts[threadKey]?.trim() ? "pointer" : "not-allowed",
                           opacity: diffCommentDrafts[threadKey]?.trim() ? 1 : 0.48,
-                          fontSize: 12,
+                          fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 950
                         }}
                       >
@@ -1496,7 +1500,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
 
               <section className="mb-5 rounded-2xl px-4 py-4" style={{
                 background: "rgba(5, 11, 20, 0.56)",
-                border: "1px solid rgba(32, 227, 255, 0.18)"
+                border: "1px solid rgba(var(--codedock-primary-rgb), 0.18)"
               }}>
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
@@ -1506,10 +1510,10 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
                     </h3>
                   </div>
                   <span className="rounded-full px-2 py-1 font-mono" style={{
-                    background: "rgba(32, 227, 255, 0.10)",
-                    border: "1px solid rgba(32, 227, 255, 0.20)",
+                    background: "rgba(var(--codedock-primary-rgb), 0.10)",
+                    border: "1px solid rgba(var(--codedock-primary-rgb), 0.20)",
                     color: "var(--neon-cyan)",
-                    fontSize: 11,
+                    fontSize: "var(--krds-body-xsmall)",
                     fontWeight: 950
                   }}>
                     {allThreadItems.length}
@@ -1519,20 +1523,20 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
                 {activeThreadFile && activeThreadRow && activeThreadKey ? (
                   <div className="grid gap-4">
                     <div className="rounded-xl px-3 py-3" style={{
-                      background: "rgba(32, 227, 255, 0.08)",
-                      border: "1px solid rgba(32, 227, 255, 0.20)"
+                      background: "rgba(var(--codedock-primary-rgb), 0.08)",
+                      border: "1px solid rgba(var(--codedock-primary-rgb), 0.20)"
                     }}>
-                      <p className="m-0 mb-1 truncate font-mono" style={{ color: "var(--neon-cyan)", fontSize: 12, fontWeight: 950 }}>
+                      <p className="m-0 mb-1 truncate font-mono" style={{ color: "var(--neon-cyan)", fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}>
                         {activeThreadFile.name}:{activeThreadRow.line}
                       </p>
-                      <p className="m-0 mb-2 truncate font-mono" style={{ color: "var(--muted)", fontSize: 10, fontWeight: 800 }}>
+                      <p className="m-0 mb-2 truncate font-mono" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>
                         {activeThreadFile.path}/{activeThreadFile.name}
                       </p>
                       <code className="block rounded-lg px-3 py-2 font-mono" style={{
                         background: "rgba(5, 11, 20, 0.72)",
                         border: "1px solid rgba(234, 247, 255, 0.08)",
                         color: activeThreadRow.added ? "#D7FFE7" : "#C6D4E5",
-                        fontSize: 11,
+                        fontSize: "var(--krds-body-xsmall)",
                         fontWeight: 850,
                         whiteSpace: "pre-wrap"
                       }}>
@@ -1544,9 +1548,9 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
                       {activeThreadComments.length === 0 ? (
                         <p className="m-0 rounded-xl px-3 py-3 tracking-tight" style={{
                           background: "rgba(234, 247, 255, 0.045)",
-                          border: "1px dashed rgba(32, 227, 255, 0.16)",
+                          border: "1px dashed rgba(var(--codedock-primary-rgb), 0.16)",
                           color: "var(--muted)",
-                          fontSize: 12,
+                          fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 800,
                           lineHeight: 1.6
                         }}>
@@ -1555,26 +1559,26 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
                       ) : (
                         activeThreadComments.map((comment) => (
                           <div key={comment.id} className="rounded-xl px-3 py-3" style={{
-                            background: isCurrentUser(comment.author) ? "rgba(32, 227, 255, 0.10)" : "rgba(11, 22, 40, 0.72)",
-                            border: isCurrentUser(comment.author) ? "1px solid rgba(32, 227, 255, 0.26)" : "1px solid rgba(32, 227, 255, 0.12)"
+                            background: isCurrentUser(comment.author) ? "rgba(var(--codedock-primary-rgb), 0.10)" : "rgba(11, 22, 40, 0.72)",
+                            border: isCurrentUser(comment.author) ? "1px solid rgba(var(--codedock-primary-rgb), 0.26)" : "1px solid rgba(var(--codedock-primary-rgb), 0.12)"
                           }}>
                             <div className="mb-2 flex items-center gap-2">
                               <span className="h-6 w-6 rounded-full text-center leading-6" style={{
-                                background: isCurrentUser(comment.author) ? "linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))" : "rgba(32, 227, 255, 0.14)",
+                                background: isCurrentUser(comment.author) ? "linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))" : "rgba(var(--codedock-primary-rgb), 0.14)",
                                 color: isCurrentUser(comment.author) ? "#021014" : "var(--neon-cyan)",
-                                fontSize: 10,
+                                fontSize: "var(--krds-body-xsmall)",
                                 fontWeight: 950
                               }}>
                                 {comment.author.slice(0, 1)}
                               </span>
-                              <span className="tracking-tight" style={{ color: "var(--white)", fontSize: 12, fontWeight: 950 }}>
+                              <span className="tracking-tight" style={{ color: "var(--white)", fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}>
                                 {comment.author}
                               </span>
-                              <span className="tracking-tight" style={{ color: "var(--muted)", fontSize: 10, fontWeight: 800 }}>
+                              <span className="tracking-tight" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>
                                 {comment.time}
                               </span>
                             </div>
-                            <p className="m-0 tracking-tight" style={{ color: "var(--soft-mint)", fontSize: 12, fontWeight: 800, lineHeight: 1.55 }}>
+                            <p className="m-0 tracking-tight" style={{ color: "var(--soft-mint)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800, lineHeight: 1.55 }}>
                               {comment.text}
                             </p>
                           </div>
@@ -1597,16 +1601,16 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
                         rows={3}
                         style={{
                           background: "rgba(11, 22, 40, 0.86)",
-                          border: "1px solid rgba(32, 227, 255, 0.16)",
+                          border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)",
                           color: "var(--white)",
                           fontFamily: "inherit",
-                          fontSize: 12,
+                          fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 800,
                           lineHeight: 1.55
                         }}
                       />
                       <div className="mt-2 flex items-center justify-between gap-2">
-                        <span className="tracking-tight" style={{ color: "var(--muted)", fontSize: 10, fontWeight: 750 }}>
+                        <span className="tracking-tight" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 750 }}>
                           Enter 전송 · Shift+Enter 줄바꿈
                         </span>
                         <button
@@ -1619,7 +1623,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
                             color: "#021014",
                             cursor: diffCommentDrafts[activeThreadKey]?.trim() ? "pointer" : "not-allowed",
                             opacity: diffCommentDrafts[activeThreadKey]?.trim() ? 1 : 0.48,
-                            fontSize: 12,
+                            fontSize: "var(--krds-body-xsmall)",
                             fontWeight: 950
                           }}
                         >
@@ -1631,7 +1635,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
                   </div>
                 ) : (
                   <div className="grid gap-3">
-                    <p className="m-0 tracking-tight" style={{ color: "var(--muted)", fontSize: 12, fontWeight: 800, lineHeight: 1.6 }}>
+                    <p className="m-0 tracking-tight" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800, lineHeight: 1.6 }}>
                       DIFF의 말풍선 버튼을 누르면 파일명과 줄 번호가 연결된 스레드가 여기 열립니다.
                     </p>
                     {allThreadItems.map((item) => (
@@ -1644,20 +1648,20 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
                         }}
                         className="rounded-xl border-0 px-3 py-3 text-left transition-all hover:translate-y-[-1px]"
                         style={{
-                          background: "rgba(32, 227, 255, 0.07)",
-                          border: "1px solid rgba(32, 227, 255, 0.14)",
+                          background: "rgba(var(--codedock-primary-rgb), 0.07)",
+                          border: "1px solid rgba(var(--codedock-primary-rgb), 0.14)",
                           cursor: "pointer"
                         }}
                       >
                         <div className="mb-1 flex items-center justify-between gap-2">
-                          <span className="truncate font-mono" style={{ color: "var(--neon-cyan)", fontSize: 11, fontWeight: 950 }}>
+                          <span className="truncate font-mono" style={{ color: "var(--neon-cyan)", fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}>
                             {item.file.name}:{item.row.line}
                           </span>
-                          <span style={{ color: "var(--soft-mint)", fontSize: 10, fontWeight: 900 }}>
+                          <span style={{ color: "var(--soft-mint)", fontSize: "var(--krds-body-xsmall)", fontWeight: 900 }}>
                             댓글 {item.comments.length}
                           </span>
                         </div>
-                        <p className="m-0 truncate tracking-tight" style={{ color: "var(--white)", fontSize: 12, fontWeight: 850 }}>
+                        <p className="m-0 truncate tracking-tight" style={{ color: "var(--white)", fontSize: "var(--krds-body-xsmall)", fontWeight: 850 }}>
                           {item.comments[item.comments.length - 1]?.text}
                         </p>
                       </button>
@@ -1679,7 +1683,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
                       }}>
                         {item.checked && <CheckCircle2 size={12} style={{ color: "#021014" }} />}
                       </span>
-                      <span className="tracking-tight" style={{ color: item.checked ? "var(--white)" : "var(--muted)", fontSize: 12, fontWeight: 850 }}>
+                      <span className="tracking-tight" style={{ color: item.checked ? "var(--white)" : "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 850 }}>
                         {item.text}
                       </span>
                     </div>
@@ -1705,23 +1709,23 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
       className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-[30px]"
       style={{
         background: "rgba(8, 17, 31, 0.96)",
-        border: "1px solid rgba(32, 227, 255, 0.24)",
+        border: "1px solid rgba(var(--codedock-primary-rgb), 0.24)",
         boxShadow: "0 30px 90px rgba(0, 0, 0, 0.52), inset 0 1px 0 rgba(255, 255, 255, 0.05)"
       }}
     >
       <header className="flex items-start justify-between gap-6 px-8 py-7" style={{
-        borderBottom: "1px solid rgba(32, 227, 255, 0.16)"
+        borderBottom: "1px solid rgba(var(--codedock-primary-rgb), 0.16)"
       }}>
         <div className="min-w-0">
           <div className="mb-3 flex flex-wrap items-center gap-2 tracking-tight">
             <Github size={15} style={{ color: "var(--muted)" }} />
-            <span className="font-mono" style={{ color: "var(--muted)", fontSize: 12, fontWeight: 800 }}>
+            <span className="font-mono" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>
               {prData.repository || "codedock-team/codedock-frontend"}
             </span>
-            <span style={{ color: "var(--muted)", fontSize: 12, fontWeight: 800 }}>·</span>
-            <span style={{ color: "var(--muted)", fontSize: 12, fontWeight: 800 }}>PR #{prNumber}</span>
-            <span style={{ color: "var(--muted)", fontSize: 12, fontWeight: 800 }}>·</span>
-            <span style={{ color: "var(--muted)", fontSize: 12, fontWeight: 800 }}>GitHub 동기화: 2분 전</span>
+            <span style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>·</span>
+            <span style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>PR #{prNumber}</span>
+            <span style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>·</span>
+            <span style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>GitHub 동기화: 2분 전</span>
           </div>
 
           <h2 className="m-0 mb-3 tracking-tight" style={{ color: "var(--white)", fontSize: 28, fontWeight: 950 }}>
@@ -1733,10 +1737,10 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
 
           <div className="flex flex-wrap items-center gap-3">
             <span className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 font-mono" style={{
-              background: "rgba(32, 227, 255, 0.08)",
-              border: "1px solid rgba(32, 227, 255, 0.18)",
+              background: "rgba(var(--codedock-primary-rgb), 0.08)",
+              border: "1px solid rgba(var(--codedock-primary-rgb), 0.18)",
               color: "var(--neon-cyan)",
-              fontSize: 12,
+              fontSize: "var(--krds-body-xsmall)",
               fontWeight: 900
             }}>
               <GitBranch size={13} />
@@ -1746,7 +1750,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
             <span className="h-6 w-6 rounded-full text-center leading-6" style={{
               background: "linear-gradient(135deg, var(--matrix-green), var(--deep-teal))",
               color: "#021014",
-              fontSize: 11,
+              fontSize: "var(--krds-body-xsmall)",
               fontWeight: 950
             }}>
               {authorBadge}
@@ -1756,7 +1760,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
               background: "rgba(245, 158, 11, 0.12)",
               border: "1px solid rgba(245, 158, 11, 0.45)",
               color: "#FBBF24",
-              fontSize: 12,
+              fontSize: "var(--krds-body-xsmall)",
               fontWeight: 950
             }}>
               <ShieldCheck size={13} />
@@ -1829,7 +1833,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
         </div>
       </header>
 
-      <div className="shrink-0 px-8 py-5" style={{ borderBottom: "1px solid rgba(32, 227, 255, 0.12)" }}>
+      <div className="shrink-0 px-8 py-5" style={{ borderBottom: "1px solid rgba(var(--codedock-primary-rgb), 0.12)" }}>
         <div className="codedock-scrollbar-hidden flex min-h-[46px] items-center gap-2 overflow-x-auto overflow-y-hidden">
           {prDialogTabs.map((tab) => {
             const Icon = tab.icon;
@@ -1842,7 +1846,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
                 className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl px-4 tracking-tight transition-colors duration-150"
                 style={{
                   minWidth: tab.id === "diff" ? 86 : 112,
-                  background: isActive ? "rgba(32, 227, 255, 0.12)" : "rgba(5, 11, 20, 0.42)",
+                  background: isActive ? "rgba(var(--codedock-primary-rgb), 0.12)" : "rgba(5, 11, 20, 0.42)",
                   border: isActive ? "2px solid var(--neon-cyan)" : "2px solid rgba(234, 247, 255, 0.08)",
                   color: isActive ? "var(--neon-cyan)" : "var(--muted)",
                   fontSize: 14,
@@ -1884,9 +1888,9 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
             : "rgba(8, 17, 31, 0.88)",
           border: showThreadModal
             ? "1.5px solid var(--neon-cyan)"
-            : "1.5px solid rgba(32, 227, 255, 0.38)",
+            : "1.5px solid rgba(var(--codedock-primary-rgb), 0.38)",
           boxShadow: showThreadModal
-            ? "0 0 24px rgba(32, 227, 255, 0.38), 0 8px 24px rgba(0,0,0,0.38)"
+            ? "0 0 24px rgba(var(--codedock-primary-rgb), 0.38), 0 8px 24px rgba(0,0,0,0.38)"
             : "0 8px 24px rgba(0,0,0,0.38)",
           color: showThreadModal ? "#021014" : "var(--neon-cyan)",
           cursor: "pointer"
@@ -1915,7 +1919,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
               className="absolute bottom-0 right-0 top-0 z-20 w-[450px]"
               style={{
                 background: "rgba(8, 17, 31, 0.97)",
-                borderLeft: "1px solid rgba(32, 227, 255, 0.20)",
+                borderLeft: "1px solid rgba(var(--codedock-primary-rgb), 0.20)",
                 boxShadow: "-12px 0 40px rgba(0,0,0,0.42)"
               }}
               initial={{ x: "100%" }}

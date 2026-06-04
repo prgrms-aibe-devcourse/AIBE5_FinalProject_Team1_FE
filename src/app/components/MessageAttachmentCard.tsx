@@ -26,8 +26,8 @@ export function MessageAttachmentCard({ attachment, onClick }: MessageAttachment
       className="overflow-hidden rounded-lg"
       onClick={onClick}
       style={{
-        background: "rgba(32, 227, 255, 0.08)",
-        border: "1px solid rgba(32, 227, 255, 0.18)"
+        background: "rgba(var(--codedock-primary-rgb), 0.08)",
+        border: "1px solid rgba(var(--codedock-primary-rgb), 0.18)"
       }}
     >
       {attachment.type === "image" && attachment.previewUrl && (
@@ -35,7 +35,7 @@ export function MessageAttachmentCard({ attachment, onClick }: MessageAttachment
           className="overflow-hidden"
           style={{
             background: "rgba(5, 11, 20, 0.62)",
-            borderBottom: "1px solid rgba(32, 227, 255, 0.14)"
+            borderBottom: "1px solid rgba(var(--codedock-primary-rgb), 0.14)"
           }}
         >
           <img
@@ -51,18 +51,18 @@ export function MessageAttachmentCard({ attachment, onClick }: MessageAttachment
           className="grid gap-3 px-4 py-4 sm:grid-cols-[76px_1fr]"
           style={{
             background: `
-              radial-gradient(circle at 15% 18%, rgba(32, 227, 255, 0.24), transparent 34%),
-              linear-gradient(135deg, rgba(32, 227, 255, 0.12), rgba(57, 255, 136, 0.07)),
+              radial-gradient(circle at 15% 18%, rgba(var(--codedock-primary-rgb), 0.24), transparent 34%),
+              linear-gradient(135deg, rgba(var(--codedock-primary-rgb), 0.12), rgba(var(--codedock-secondary-rgb), 0.07)),
               rgba(5, 11, 20, 0.54)
             `,
-            borderBottom: "1px solid rgba(32, 227, 255, 0.14)"
+            borderBottom: "1px solid rgba(var(--codedock-primary-rgb), 0.14)"
           }}
         >
           <div
             className="grid h-[70px] w-[76px] place-items-center rounded-xl"
             style={{
-              background: "linear-gradient(135deg, rgba(32, 227, 255, 0.22), rgba(57, 255, 136, 0.18))",
-              border: "1px solid rgba(32, 227, 255, 0.26)",
+              background: "linear-gradient(135deg, rgba(var(--codedock-primary-rgb), 0.22), rgba(var(--codedock-secondary-rgb), 0.18))",
+              border: "1px solid rgba(var(--codedock-primary-rgb), 0.26)",
               boxShadow: "inset 0 1px 0 rgba(255,255,255,0.13)"
             }}
           >
@@ -79,9 +79,9 @@ export function MessageAttachmentCard({ attachment, onClick }: MessageAttachment
             <div className="mb-2 flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-1 rounded-full px-2 py-1 tracking-tight" style={{
                 background: "rgba(5, 11, 20, 0.48)",
-                border: "1px solid rgba(32, 227, 255, 0.16)",
+                border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)",
                 color: linkPreview.isSecure ? "var(--matrix-green)" : "var(--muted)",
-                fontSize: 10,
+                fontSize: "var(--krds-body-xsmall)",
                 fontWeight: 950
               }}>
                 <LockKeyhole size={11} />
@@ -89,7 +89,7 @@ export function MessageAttachmentCard({ attachment, onClick }: MessageAttachment
               </span>
               <span className="truncate tracking-tight" style={{
                 color: "var(--muted)",
-                fontSize: 11,
+                fontSize: "var(--krds-body-xsmall)",
                 fontWeight: 850
               }}>
                 {linkPreview.host}
@@ -104,7 +104,7 @@ export function MessageAttachmentCard({ attachment, onClick }: MessageAttachment
             </p>
             <p className="m-0 mt-1 truncate font-mono" style={{
               color: "rgba(234, 247, 255, 0.62)",
-              fontSize: 11,
+              fontSize: "var(--krds-body-xsmall)",
               fontWeight: 750
             }}>
               {linkPreview.displayUrl}
@@ -116,7 +116,7 @@ export function MessageAttachmentCard({ attachment, onClick }: MessageAttachment
       <div className="px-3 py-2">
         <div className="flex items-center justify-between gap-3">
           <span className="inline-flex items-center gap-1.5 tracking-tight" style={{
-            fontSize: "10px",
+            fontSize: "var(--krds-body-xsmall)",
             fontWeight: 950,
             color: "var(--neon-cyan)"
           }}>
@@ -124,7 +124,7 @@ export function MessageAttachmentCard({ attachment, onClick }: MessageAttachment
             {messageAttachmentTypeLabels[attachment.type]}
           </span>
           <span className="tracking-tight" style={{
-            fontSize: "10px",
+            fontSize: "var(--krds-body-xsmall)",
             fontWeight: 800,
             color: "var(--muted)"
           }}>
@@ -140,7 +140,7 @@ export function MessageAttachmentCard({ attachment, onClick }: MessageAttachment
           {attachment.title}
         </p>
         <p className="m-0 mt-1 break-words tracking-tight" style={{
-          fontSize: "12px",
+          fontSize: "var(--krds-body-xsmall)",
           fontWeight: 700,
           color: "var(--muted)",
           lineHeight: 1.45
@@ -157,9 +157,9 @@ export function MessageAttachmentCard({ attachment, onClick }: MessageAttachment
             className="mt-2 inline-flex items-center gap-1.5 rounded-md px-2 py-1 no-underline tracking-tight"
             style={{
               background: "rgba(5, 11, 20, 0.46)",
-              border: "1px solid rgba(32, 227, 255, 0.14)",
+              border: "1px solid rgba(var(--codedock-primary-rgb), 0.14)",
               color: "var(--neon-cyan)",
-              fontSize: "11px",
+              fontSize: "var(--krds-body-xsmall)",
               fontWeight: 900
             }}
             onClick={(event) => event.stopPropagation()}

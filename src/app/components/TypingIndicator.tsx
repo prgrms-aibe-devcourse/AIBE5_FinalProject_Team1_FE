@@ -12,8 +12,8 @@ export function TypingIndicator({ label, note, avatar = "AI", compact = false }:
       style={{
         width: compact ? "fit-content" : "100%",
         maxWidth: compact ? "360px" : "520px",
-        background: "rgba(32, 227, 255, 0.07)",
-        border: "1px solid rgba(32, 227, 255, 0.16)",
+        background: "rgba(var(--codedock-primary-rgb), 0.07)",
+        border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)",
         boxShadow: "0 10px 30px rgba(0, 0, 0, 0.20)"
       }}
       aria-live="polite"
@@ -26,15 +26,15 @@ export function TypingIndicator({ label, note, avatar = "AI", compact = false }:
           }
 
           @keyframes codedockTypingPulse {
-            0%, 100% { box-shadow: 0 0 0 rgba(32, 227, 255, 0); }
-            50% { box-shadow: 0 0 18px rgba(32, 227, 255, 0.28); }
+            0%, 100% { box-shadow: 0 0 0 rgba(var(--codedock-primary-rgb), 0); }
+            50% { box-shadow: 0 0 18px rgba(var(--codedock-primary-rgb), 0.28); }
           }
         `}
       </style>
       <div
         className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full"
         style={{
-          background: "linear-gradient(135deg, rgba(32, 227, 255, 0.95), rgba(19, 166, 151, 0.95))",
+          background: "linear-gradient(135deg, rgba(var(--codedock-primary-rgb), 0.95), rgba(19, 166, 151, 0.95))",
           animation: "codedockTypingPulse 1.8s ease-in-out infinite"
         }}
       >
@@ -42,7 +42,7 @@ export function TypingIndicator({ label, note, avatar = "AI", compact = false }:
           className="tracking-tight"
           style={{
             color: "#021014",
-            fontSize: "10px",
+            fontSize: "var(--krds-body-xsmall)",
             fontWeight: 950
           }}
         >
@@ -55,7 +55,7 @@ export function TypingIndicator({ label, note, avatar = "AI", compact = false }:
             className="truncate tracking-tight"
             style={{
               color: "var(--white)",
-              fontSize: compact ? "12px" : "13px",
+              fontSize: compact ? "var(--krds-body-xsmall)" : "13px",
               fontWeight: 900
             }}
           >
@@ -80,7 +80,7 @@ export function TypingIndicator({ label, note, avatar = "AI", compact = false }:
             className="m-0 mt-1 tracking-tight"
             style={{
               color: "var(--muted)",
-              fontSize: "11px",
+              fontSize: "var(--krds-body-xsmall)",
               fontWeight: 700
             }}
           >

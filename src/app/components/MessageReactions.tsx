@@ -107,13 +107,13 @@ export function MessageReactions({ reactions = [], onToggle }: MessageReactionsP
           onClick={() => onToggle(reaction.emoji)}
           className="rounded-full border-0 px-2.5 py-1 tracking-tight transition-all"
           style={{
-            background: reaction.reacted ? "rgba(32, 227, 255, 0.16)" : "rgba(32, 227, 255, 0.08)",
+            background: reaction.reacted ? "rgba(var(--codedock-primary-rgb), 0.16)" : "rgba(var(--codedock-primary-rgb), 0.08)",
             border: reaction.reacted
-              ? "1px solid rgba(32, 227, 255, 0.34)"
-              : "1px solid rgba(32, 227, 255, 0.14)",
+              ? "1px solid rgba(var(--codedock-primary-rgb), 0.34)"
+              : "1px solid rgba(var(--codedock-primary-rgb), 0.14)",
             color: reaction.reacted ? "var(--neon-cyan)" : "var(--white)",
             cursor: "pointer",
-            fontSize: "12px",
+            fontSize: "var(--krds-body-xsmall)",
             fontWeight: 900
           }}
           aria-label={`${reaction.emoji} 반응 ${reaction.count}개`}
@@ -130,8 +130,8 @@ export function MessageReactions({ reactions = [], onToggle }: MessageReactionsP
         onClick={() => setPickerOpen((open) => !open)}
         className="flex h-7 w-7 items-center justify-center rounded-full border-0 transition-all"
         style={{
-          background: pickerOpen ? "rgba(32, 227, 255, 0.16)" : "rgba(5, 11, 20, 0.42)",
-          border: pickerOpen ? "1px solid rgba(32, 227, 255, 0.34)" : "1px solid rgba(32, 227, 255, 0.14)",
+          background: pickerOpen ? "rgba(var(--codedock-primary-rgb), 0.16)" : "rgba(5, 11, 20, 0.42)",
+          border: pickerOpen ? "1px solid rgba(var(--codedock-primary-rgb), 0.34)" : "1px solid rgba(var(--codedock-primary-rgb), 0.14)",
           color: pickerOpen ? "var(--neon-cyan)" : "var(--muted)",
           cursor: "pointer"
         }}

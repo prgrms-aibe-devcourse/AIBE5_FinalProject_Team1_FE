@@ -46,6 +46,8 @@ const historyIconConfig: Record<IssueHistoryEvent["eventType"], { icon: typeof C
   status_changed: { icon: CheckCircle2, color: "#22C55E"          },
 };
 
+const colorAlpha = (color: string, percent: number) => `color-mix(in srgb, ${color} ${percent}%, transparent)`;
+
 function renderBody(body: string) {
   return body.split("\n").map((line, idx) => {
     if (line.startsWith("## ")) {
@@ -143,7 +145,7 @@ export function IssuePanel({ issueData, onClose, externalThreadMessages, onAddTh
       className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-[30px]"
       style={{
         background:    "rgba(11, 22, 40, 0.82)",
-        border:        "1px solid rgba(32, 227, 255, 0.16)",
+        border:        "1px solid rgba(var(--codedock-primary-rgb), 0.16)",
         boxShadow:     "0 20px 60px rgba(0, 0, 0, 0.32)",
         backdropFilter: "blur(16px)",
       }}
@@ -151,7 +153,7 @@ export function IssuePanel({ issueData, onClose, externalThreadMessages, onAddTh
       {/* Header */}
       <div
         className="flex-shrink-0 px-7 py-6"
-        style={{ borderBottom: "1px solid rgba(32, 227, 255, 0.14)" }}
+        style={{ borderBottom: "1px solid rgba(var(--codedock-primary-rgb), 0.14)" }}
       >
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
@@ -174,7 +176,7 @@ export function IssuePanel({ issueData, onClose, externalThreadMessages, onAddTh
             className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full border-0 transition-all hover:scale-110"
             style={{
               background: "rgba(234, 247, 255, 0.07)",
-              border:     "1px solid rgba(32, 227, 255, 0.18)",
+              border:     "1px solid rgba(var(--codedock-primary-rgb), 0.18)",
               color:      "var(--muted)",
               cursor:     "pointer",
             }}
@@ -188,7 +190,7 @@ export function IssuePanel({ issueData, onClose, externalThreadMessages, onAddTh
       {/* Tabs */}
       <div
         className="flex-shrink-0 flex items-center gap-2 px-7 py-3"
-        style={{ borderBottom: "1px solid rgba(32, 227, 255, 0.14)" }}
+        style={{ borderBottom: "1px solid rgba(var(--codedock-primary-rgb), 0.14)" }}
       >
         {issueTabs.map((tab) => {
           const Icon     = tab.icon;
@@ -200,8 +202,8 @@ export function IssuePanel({ issueData, onClose, externalThreadMessages, onAddTh
               onClick={() => setActiveTab(tab.id)}
               className="flex items-center gap-2 rounded-full border-0 px-4 py-2 tracking-tight transition-all"
               style={{
-                background: isActive ? "rgba(32, 227, 255, 0.14)" : "transparent",
-                border:     isActive ? "1px solid rgba(32, 227, 255, 0.32)" : "1px solid transparent",
+                background: isActive ? "rgba(var(--codedock-primary-rgb), 0.14)" : "transparent",
+                border:     isActive ? "1px solid rgba(var(--codedock-primary-rgb), 0.32)" : "1px solid transparent",
                 color:      isActive ? "var(--neon-cyan)" : "var(--muted)",
                 fontSize:   13,
                 fontWeight: 900,
@@ -227,7 +229,7 @@ export function IssuePanel({ issueData, onClose, externalThreadMessages, onAddTh
               className="rounded-2xl px-5 py-5"
               style={{
                 background: "rgba(5, 11, 20, 0.46)",
-                border:     "1px solid rgba(32, 227, 255, 0.12)",
+                border:     "1px solid rgba(var(--codedock-primary-rgb), 0.12)",
               }}
             >
               <div className="grid gap-0">{renderBody(body)}</div>
@@ -239,7 +241,7 @@ export function IssuePanel({ issueData, onClose, externalThreadMessages, onAddTh
                 className="rounded-2xl px-5 py-5"
                 style={{
                   background: "rgba(5, 11, 20, 0.46)",
-                  border:     "1px solid rgba(32, 227, 255, 0.12)",
+                  border:     "1px solid rgba(var(--codedock-primary-rgb), 0.12)",
                 }}
               >
                 <h3 className="m-0 mb-4 tracking-tight" style={{ color: "var(--white)", fontSize: 15, fontWeight: 950 }}>
@@ -251,8 +253,8 @@ export function IssuePanel({ issueData, onClose, externalThreadMessages, onAddTh
                       <span
                         className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-full"
                         style={{
-                          background: "rgba(32, 227, 255, 0.12)",
-                          border:     "1px solid rgba(32, 227, 255, 0.24)",
+                          background: "rgba(var(--codedock-primary-rgb), 0.12)",
+                          border:     "1px solid rgba(var(--codedock-primary-rgb), 0.24)",
                           color:      "var(--neon-cyan)",
                         }}
                       >
@@ -273,7 +275,7 @@ export function IssuePanel({ issueData, onClose, externalThreadMessages, onAddTh
                 className="rounded-2xl px-5 py-5"
                 style={{
                   background: "rgba(5, 11, 20, 0.46)",
-                  border:     "1px solid rgba(32, 227, 255, 0.12)",
+                  border:     "1px solid rgba(var(--codedock-primary-rgb), 0.12)",
                 }}
               >
                 <h3 className="m-0 mb-4 tracking-tight" style={{ color: "var(--white)", fontSize: 15, fontWeight: 950 }}>
@@ -285,8 +287,8 @@ export function IssuePanel({ issueData, onClose, externalThreadMessages, onAddTh
                       key={label.name}
                       className="rounded-lg px-3 py-1.5 tracking-tight"
                       style={{
-                        background: `${label.color}22`,
-                        border:     `1px solid ${label.color}88`,
+                        background: colorAlpha(label.color, 13),
+                        border:     `1px solid ${colorAlpha(label.color, 53)}`,
                         color:      label.color,
                         fontSize:   13,
                         fontWeight: 900,
@@ -306,10 +308,10 @@ export function IssuePanel({ issueData, onClose, externalThreadMessages, onAddTh
                 className="rounded-2xl px-5 py-4"
                 style={{
                   background: "rgba(5, 11, 20, 0.46)",
-                  border:     "1px solid rgba(32, 227, 255, 0.12)",
+                  border:     "1px solid rgba(var(--codedock-primary-rgb), 0.12)",
                 }}
               >
-                <p className="m-0 mb-1 tracking-tight" style={{ color: "var(--muted)", fontSize: 12, fontWeight: 900 }}>
+                <p className="m-0 mb-1 tracking-tight" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 900 }}>
                   타입
                 </p>
                 <p className="m-0 tracking-tight" style={{ color: "var(--white)", fontSize: 15, fontWeight: 950 }}>
@@ -322,10 +324,10 @@ export function IssuePanel({ issueData, onClose, externalThreadMessages, onAddTh
                 className="rounded-2xl px-5 py-4"
                 style={{
                   background: "rgba(5, 11, 20, 0.46)",
-                  border:     "1px solid rgba(32, 227, 255, 0.12)",
+                  border:     "1px solid rgba(var(--codedock-primary-rgb), 0.12)",
                 }}
               >
-                <p className="m-0 mb-1 tracking-tight" style={{ color: "var(--muted)", fontSize: 12, fontWeight: 900 }}>
+                <p className="m-0 mb-1 tracking-tight" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 900 }}>
                   우선순위
                 </p>
                 <p className="m-0 tracking-tight" style={{ color: priorityCfg.color, fontSize: 15, fontWeight: 950 }}>
@@ -338,10 +340,10 @@ export function IssuePanel({ issueData, onClose, externalThreadMessages, onAddTh
                 className="rounded-2xl px-5 py-4"
                 style={{
                   background: "rgba(5, 11, 20, 0.46)",
-                  border:     "1px solid rgba(32, 227, 255, 0.12)",
+                  border:     "1px solid rgba(var(--codedock-primary-rgb), 0.12)",
                 }}
               >
-                <p className="m-0 mb-1 tracking-tight" style={{ color: "var(--muted)", fontSize: 12, fontWeight: 900 }}>
+                <p className="m-0 mb-1 tracking-tight" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 900 }}>
                   상태
                 </p>
                 <p className="m-0 flex items-center gap-1.5 tracking-tight" style={{ color: statusCfg.color, fontSize: 15, fontWeight: 950 }}>
@@ -355,10 +357,10 @@ export function IssuePanel({ issueData, onClose, externalThreadMessages, onAddTh
                 className="rounded-2xl px-5 py-4"
                 style={{
                   background: "rgba(5, 11, 20, 0.46)",
-                  border:     "1px solid rgba(32, 227, 255, 0.12)",
+                  border:     "1px solid rgba(var(--codedock-primary-rgb), 0.12)",
                 }}
               >
-                <p className="m-0 mb-1 tracking-tight" style={{ color: "var(--muted)", fontSize: 12, fontWeight: 900 }}>
+                <p className="m-0 mb-1 tracking-tight" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 900 }}>
                   작성자
                 </p>
                 <p className="m-0 tracking-tight" style={{ color: "var(--white)", fontSize: 15, fontWeight: 950 }}>
@@ -378,7 +380,7 @@ export function IssuePanel({ issueData, onClose, externalThreadMessages, onAddTh
                 className="rounded-2xl px-5 py-6 text-center tracking-tight"
                 style={{
                   background: "rgba(5, 11, 20, 0.46)",
-                  border:     "1px dashed rgba(32, 227, 255, 0.18)",
+                  border:     "1px dashed rgba(var(--codedock-primary-rgb), 0.18)",
                   color:      "var(--muted)",
                   fontSize:   14,
                   fontWeight: 800,
@@ -396,14 +398,14 @@ export function IssuePanel({ issueData, onClose, externalThreadMessages, onAddTh
                     className="flex items-start gap-4 rounded-2xl px-5 py-4"
                     style={{
                       background: "rgba(5, 11, 20, 0.46)",
-                      border:     "1px solid rgba(32, 227, 255, 0.10)",
+                      border:     "1px solid rgba(var(--codedock-primary-rgb), 0.10)",
                     }}
                   >
                     <span
                       className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full"
                       style={{
-                        background: `${cfg.color}18`,
-                        border:     `1px solid ${cfg.color}44`,
+                        background: colorAlpha(cfg.color, 9),
+                        border:     `1px solid ${colorAlpha(cfg.color, 27)}`,
                         color:      cfg.color,
                       }}
                     >
@@ -417,7 +419,7 @@ export function IssuePanel({ issueData, onClose, externalThreadMessages, onAddTh
                         {event.action}
                       </p>
                     </div>
-                    <span className="flex-shrink-0 tracking-tight" style={{ color: "var(--muted)", fontSize: 12, fontWeight: 800 }}>
+                    <span className="flex-shrink-0 tracking-tight" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>
                       {event.time}
                     </span>
                   </div>
@@ -442,9 +444,9 @@ export function IssuePanel({ issueData, onClose, externalThreadMessages, onAddTh
             : "rgba(11, 22, 40, 0.88)",
           border: showThreadModal
             ? "1.5px solid var(--neon-cyan)"
-            : "1.5px solid rgba(32, 227, 255, 0.38)",
+            : "1.5px solid rgba(var(--codedock-primary-rgb), 0.38)",
           boxShadow: showThreadModal
-            ? "0 0 24px rgba(32, 227, 255, 0.38), 0 8px 24px rgba(0,0,0,0.38)"
+            ? "0 0 24px rgba(var(--codedock-primary-rgb), 0.38), 0 8px 24px rgba(0,0,0,0.38)"
             : "0 8px 24px rgba(0,0,0,0.38)",
           color: showThreadModal ? "#021014" : "var(--neon-cyan)",
           cursor: "pointer"
@@ -471,7 +473,7 @@ export function IssuePanel({ issueData, onClose, externalThreadMessages, onAddTh
               className="absolute bottom-0 right-0 top-0 z-20 flex w-[450px] flex-col"
               style={{
                 background: "rgba(8, 17, 31, 0.97)",
-                borderLeft: "1px solid rgba(32, 227, 255, 0.20)",
+                borderLeft: "1px solid rgba(var(--codedock-primary-rgb), 0.20)",
                 boxShadow: "-12px 0 40px rgba(0,0,0,0.42)"
               }}
               initial={{ x: "100%" }}
@@ -482,7 +484,7 @@ export function IssuePanel({ issueData, onClose, externalThreadMessages, onAddTh
               {/* 모달 헤더 */}
               <div
                 className="flex-shrink-0 px-4 py-3"
-                style={{ borderBottom: "1px solid rgba(32, 227, 255, 0.14)", background: "rgba(8, 17, 31, 0.96)", backdropFilter: "blur(14px)" }}
+                style={{ borderBottom: "1px solid rgba(var(--codedock-primary-rgb), 0.14)", background: "rgba(8, 17, 31, 0.96)", backdropFilter: "blur(14px)" }}
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-2">
@@ -494,7 +496,7 @@ export function IssuePanel({ issueData, onClose, externalThreadMessages, onAddTh
                   <div className="flex items-center gap-2">
                     <span
                       className="rounded-full px-2 py-1 font-mono"
-                      style={{ background: "rgba(57, 255, 136, 0.10)", border: "1px solid rgba(57, 255, 136, 0.24)", color: "var(--matrix-green)", fontSize: 9, fontWeight: 950 }}
+                      style={{ background: "rgba(var(--codedock-secondary-rgb), 0.10)", border: "1px solid rgba(var(--codedock-secondary-rgb), 0.24)", color: "var(--matrix-green)", fontSize: 9, fontWeight: 950 }}
                     >
                       ISSUE THREAD
                     </span>
@@ -502,7 +504,7 @@ export function IssuePanel({ issueData, onClose, externalThreadMessages, onAddTh
                       type="button"
                       onClick={() => setShowThreadModal(false)}
                       className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-full border-0 transition-all hover:scale-110"
-                      style={{ background: "rgba(234, 247, 255, 0.07)", border: "1px solid rgba(32, 227, 255, 0.18)", color: "var(--muted)", cursor: "pointer" }}
+                      style={{ background: "rgba(234, 247, 255, 0.07)", border: "1px solid rgba(var(--codedock-primary-rgb), 0.18)", color: "var(--muted)", cursor: "pointer" }}
                       aria-label="스레드 닫기"
                     >
                       <X size={14} />
@@ -516,7 +518,7 @@ export function IssuePanel({ issueData, onClose, externalThreadMessages, onAddTh
                 {threadComments.length === 0 ? (
                   <div
                     className="rounded-2xl px-4 py-5 text-center tracking-tight"
-                    style={{ background: "rgba(5, 11, 20, 0.46)", border: "1px dashed rgba(32, 227, 255, 0.18)", color: "var(--muted)", fontSize: 13, fontWeight: 800 }}
+                    style={{ background: "rgba(5, 11, 20, 0.46)", border: "1px dashed rgba(var(--codedock-primary-rgb), 0.18)", color: "var(--muted)", fontSize: 13, fontWeight: 800 }}
                   >
                     이슈에 대해 팀원들과 스레드를 시작하세요
                   </div>
@@ -529,24 +531,24 @@ export function IssuePanel({ issueData, onClose, externalThreadMessages, onAddTh
                           key={comment.id}
                           className="w-full rounded-2xl px-3 py-2"
                           style={{
-                            background: isMine ? "rgba(32, 227, 255, 0.10)" : "rgba(11, 22, 40, 0.78)",
-                            border: isMine ? "1px solid rgba(32, 227, 255, 0.28)" : "1px solid rgba(32, 227, 255, 0.12)"
+                            background: isMine ? "rgba(var(--codedock-primary-rgb), 0.10)" : "rgba(11, 22, 40, 0.78)",
+                            border: isMine ? "1px solid rgba(var(--codedock-primary-rgb), 0.28)" : "1px solid rgba(var(--codedock-primary-rgb), 0.12)"
                           }}
                         >
                           <div className="mb-1 flex items-center gap-2">
                             <span
                               className="h-6 w-6 flex-shrink-0 rounded-full text-center leading-6"
-                              style={{ background: isMine ? "linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))" : "rgba(32, 227, 255, 0.14)", color: isMine ? "#021014" : "var(--neon-cyan)", fontSize: 10, fontWeight: 950 }}
+                              style={{ background: isMine ? "linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))" : "rgba(var(--codedock-primary-rgb), 0.14)", color: isMine ? "#021014" : "var(--neon-cyan)", fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}
                             >
                               {comment.author.slice(0, 1)}
                             </span>
-                            <span className="tracking-tight" style={{ color: isMine ? "var(--neon-cyan)" : "var(--white)", fontSize: 12, fontWeight: 950 }}>{comment.author}</span>
+                            <span className="tracking-tight" style={{ color: isMine ? "var(--neon-cyan)" : "var(--white)", fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}>{comment.author}</span>
                             {isMine && (
-                              <span className="rounded px-1.5 py-0.5" style={{ background: "rgba(32, 227, 255, 0.14)", color: "var(--neon-cyan)", fontSize: 9, fontWeight: 950 }}>나</span>
+                              <span className="rounded px-1.5 py-0.5" style={{ background: "rgba(var(--codedock-primary-rgb), 0.14)", color: "var(--neon-cyan)", fontSize: 9, fontWeight: 950 }}>나</span>
                             )}
-                            <span className="tracking-tight" style={{ color: "var(--muted)", fontSize: 10, fontWeight: 800 }}>{comment.time}</span>
+                            <span className="tracking-tight" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>{comment.time}</span>
                           </div>
-                          <p className="m-0 whitespace-pre-wrap tracking-tight" style={{ color: "var(--soft-mint)", fontSize: 12, fontWeight: 800, lineHeight: 1.55 }}>
+                          <p className="m-0 whitespace-pre-wrap tracking-tight" style={{ color: "var(--soft-mint)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800, lineHeight: 1.55 }}>
                             {comment.text}
                           </p>
                         </div>
@@ -559,7 +561,7 @@ export function IssuePanel({ issueData, onClose, externalThreadMessages, onAddTh
               {/* 입력창 */}
               <div
                 className="flex-shrink-0 px-4 py-1"
-                style={{ background: "rgba(8, 17, 31, 0.96)", borderTop: "1px solid rgba(32, 227, 255, 0.14)" }}
+                style={{ background: "rgba(8, 17, 31, 0.96)", borderTop: "1px solid rgba(var(--codedock-primary-rgb), 0.14)" }}
               >
                 <div className="flex items-end gap-2">
                   <textarea
@@ -576,7 +578,7 @@ export function IssuePanel({ issueData, onClose, externalThreadMessages, onAddTh
                     placeholder="이슈 스레드에 댓글 남기기..."
                     className="min-w-0 flex-1 resize-none rounded-xl px-3 outline-none tracking-tight"
                     rows={1}
-                    style={{ background: "rgba(11, 22, 40, 0.86)", border: "1px solid rgba(32, 227, 255, 0.18)", color: "var(--white)", fontFamily: "inherit", fontSize: 12, fontWeight: 800, lineHeight: 1.55, minHeight: "36px", maxHeight: "96px", overflowY: "auto", paddingTop: "9px", paddingBottom: "9px" }}
+                    style={{ background: "rgba(11, 22, 40, 0.86)", border: "1px solid rgba(var(--codedock-primary-rgb), 0.18)", color: "var(--white)", fontFamily: "inherit", fontSize: "var(--krds-body-xsmall)", fontWeight: 800, lineHeight: 1.55, minHeight: "36px", maxHeight: "96px", overflowY: "auto", paddingTop: "9px", paddingBottom: "9px" }}
                   />
                   <button
                     type="button"
@@ -588,6 +590,8 @@ export function IssuePanel({ issueData, onClose, externalThreadMessages, onAddTh
                       color: "#021014",
                       cursor: threadDraft.trim() ? "pointer" : "not-allowed",
                       opacity: threadDraft.trim() ? 1 : 0.48,
+                      fontSize: "var(--krds-body-xsmall)",
+                      fontWeight: 950
                     }}
                   >
                     <Send size={14} />
