@@ -5,19 +5,12 @@ import { CoffeeLogo } from "./CoffeeLogo";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useTheme } from "../contexts/ThemeContext";
 
-const footerLinks = {
-  navigation: [
-    { ko: "팀 대시보드", en: "Team Dashboard", path: "/workspace" },
-    { ko: "협업 워크스페이스", en: "Collaboration Workspace", path: "/chat" },
-    { ko: "API 명세", en: "API Spec", path: "/api-spec" },
-    { ko: "ERD", en: "ERD", path: "/erd" },
-    { ko: "문서", en: "Docs", path: "/docs" }
-  ],
-  account: [
-    { ko: "프로필", en: "Profile", path: "/profile" },
-    { ko: "설정", en: "Settings", path: "/settings" }
-  ]
-};
+const footerLinks = [
+  { ko: "대시보드", en: "Dashboard", path: "/workspace" },
+  { ko: "프로필", en: "Profile", path: "/profile" },
+  { ko: "계정 설정", en: "Account Settings", path: "/settings" },
+  { ko: "워크스페이스 설정", en: "Workspace Settings", path: "/workspace-settings" },
+];
 
 const socialLinks = [
   { icon: Github, href: "https://github.com/prgrms-aibe-devcourse/AIBE5_FinalProject_Team1_FE", label: "GitHub" },
@@ -31,8 +24,6 @@ export function Footer() {
   const isKorean = language === "ko";
   const tone = (alpha: number) => `${colors.primary}, ${alpha})`;
   const copy = {
-    navigation: isKorean ? "메뉴" : "Menu",
-    account: isKorean ? "계정" : "Account",
     description: isKorean
       ? "PR 리뷰, 보안 점검, 문서화를 한 흐름으로 연결하는 AI 개발 워크스페이스입니다."
       : "An AI development workflow platform for reviews, docs, and team collaboration.",
@@ -40,26 +31,6 @@ export function Footer() {
     rights: isKorean ? "모든 권리 보유." : "All rights reserved.",
     madeWith: "Made with"
   };
-
-  const renderLinks = (links: typeof footerLinks.navigation) => (
-    <ul className="m-0 grid list-none gap-2 p-0">
-      {links.map((link) => (
-        <li key={link.path}>
-          <Link
-            to={link.path}
-            className="no-underline tracking-tight transition-colors hover:text-white"
-            style={{
-              fontSize: "13px",
-              fontWeight: 750,
-              color: "var(--muted)"
-            }}
-          >
-            {isKorean ? link.ko : link.en}
-          </Link>
-        </li>
-      ))}
-    </ul>
-  );
 
   return (
     <footer
@@ -73,35 +44,41 @@ export function Footer() {
         borderTop: `1px solid ${tone(0.14)}`
       }}
     >
-      <div className="relative mx-auto w-[min(1180px,calc(100vw-32px))] px-4 py-8 sm:px-6 sm:py-10">
-        <div className="mb-7 grid gap-7 md:grid-cols-[minmax(0,1.5fr)_minmax(150px,0.5fr)_minmax(130px,0.45fr)]">
-          <div>
+      <div className="relative mx-auto w-[min(1180px,calc(100vw-32px))] px-4 py-6 sm:px-6">
+        <div className="mb-5 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-5">
             <Link
               to="/"
-              className="mb-3 flex items-center gap-3 no-underline tracking-[-0.07em]"
-              style={{
-                fontWeight: 950,
-                fontSize: "24px",
-                color: "var(--white)"
-              }}
+              className="flex items-center gap-3 no-underline tracking-[-0.07em]"
+              style={{ fontWeight: 950, fontSize: "22px", color: "var(--white)" }}
             >
               <CoffeeLogo
-                className="h-12 w-12 flex-shrink-0"
+                className="h-10 w-10 flex-shrink-0"
                 style={{ filter: `drop-shadow(0 0 14px ${tone(0.3)})` }}
               />
               <CodeDockWordmark accentColor={colors.primaryHex} />
             </Link>
             <p
-              className="m-0 mb-4 leading-[1.55] tracking-tight"
-              style={{
-                fontSize: "13px",
-                fontWeight: 700,
-                color: "var(--muted)",
-                maxWidth: "420px"
-              }}
+              className="m-0 hidden leading-[1.55] tracking-tight md:block"
+              style={{ fontSize: "13px", fontWeight: 700, color: "var(--muted)", maxWidth: "340px" }}
             >
               {copy.description}
             </p>
+          </div>
+
+          <div className="flex items-center gap-5">
+            <nav className="flex items-center gap-4">
+              {footerLinks.map((link) => (
+                <Link
+                  key={link.path}
+                  to={link.path}
+                  className="no-underline tracking-tight transition-colors hover:text-white"
+                  style={{ fontSize: "13px", fontWeight: 750, color: "var(--muted)", whiteSpace: "nowrap" }}
+                >
+                  {isKorean ? link.ko : link.en}
+                </Link>
+              ))}
+            </nav>
             <div className="flex gap-2">
               {socialLinks.map((social) => {
                 const Icon = social.icon;
@@ -112,36 +89,18 @@ export function Footer() {
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label={social.label === "Email" && isKorean ? "이메일" : social.label}
-                    className="flex h-9 w-9 items-center justify-center rounded-lg transition-all hover:scale-110"
-                    style={{
-                      background: tone(0.08),
-                      border: `1px solid ${tone(0.22)}`,
-                      color: colors.primaryHex
-                    }}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg transition-all hover:scale-110"
+                    style={{ background: tone(0.08), border: `1px solid ${tone(0.22)}`, color: colors.primaryHex }}
                   >
-                    <Icon size={18} strokeWidth={2} />
+                    <Icon size={16} strokeWidth={2} />
                   </a>
                 );
               })}
             </div>
           </div>
-
-          <div>
-            <h3 className="m-0 mb-3 tracking-tight" style={{ fontSize: "13px", fontWeight: 950, color: "var(--white)" }}>
-              {copy.navigation}
-            </h3>
-            {renderLinks(footerLinks.navigation)}
-          </div>
-
-          <div>
-            <h3 className="m-0 mb-3 tracking-tight" style={{ fontSize: "13px", fontWeight: 950, color: "var(--white)" }}>
-              {copy.account}
-            </h3>
-            {renderLinks(footerLinks.account)}
-          </div>
         </div>
 
-        <div className="pt-5" style={{ borderTop: `1px solid ${tone(0.14)}` }}>
+        <div className="pt-4" style={{ borderTop: `1px solid ${tone(0.14)}` }}>
           <div className="flex flex-col items-center justify-between gap-3 md:flex-row">
             <p className="m-0 tracking-tight" style={{ fontSize: "12px", fontWeight: 700, color: "var(--muted)" }}>
               © {currentYear} CodeDock. {copy.rights}
