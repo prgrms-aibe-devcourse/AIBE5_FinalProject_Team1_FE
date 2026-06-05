@@ -386,6 +386,78 @@ const exactTranslations: Record<string, string> = {
   "이 작업은 되돌릴 수 없으며, 채널의 모든 메시지가 삭제됩니다.": "This action cannot be undone, and every message in the channel will be deleted.",
   "삭제": "Delete",
 
+  // WorkspacePage dashboard subtitle & card labels
+  "내 리뷰, PR, 이슈를 한눈에 확인합니다": "Review my PRs, issues, and pending reviews at a glance.",
+  "내 리뷰 대기:": "My reviews pending:",
+  "내 오픈 PR:": "My open PRs:",
+  "리뷰받은 PR:": "PRs reviewed:",
+  "미해결 이슈:": "Unresolved issues:",
+  "주요 이벤트": "Key Events",
+  // OverviewPanel integrated view
+  "통합 워크스페이스": "Unified Workspace",
+  "연결된 모든 리포지토리의 PR, 이슈, 위험 신호를 한 화면에서 먼저 확인합니다. 아래 리포지토리를 선택하면 해당 저장소만 따로 볼 수 있어요.": "Review PRs, issues, and risk signals from all connected repositories in one view. Select a repository below to see only its details.",
+  "리포지토리별 개요": "Repository Overview",
+  "저장소를 선택하면 상세 개요로 전환됩니다.": "Select a repository to switch to its detailed overview.",
+  "통합 우선순위": "Integrated Priorities",
+  "열린 이슈": "Open Issues",
+  "위험": "Risk",
+  "이슈": "Issues",
+  "명 접속 중": " online",
+  // OverviewPanel
+  "현재 선택": "Current Selection",
+  "동기화됨": "Synced",
+  "미리보기": "Preview",
+  "오늘 커밋": "Commits Today",
+  "진행 중인 PR": "Active PRs",
+  "높은 위험": "High Risk",
+  "접속 중인 팀원": "Active Members",
+  "접속 중": "Online",
+  "리뷰 대기 포함": "incl. awaiting review",
+  "전체 리뷰 대기": "All awaiting review",
+  "팀원 접속": "Members online",
+  "코드 품질": "Code Quality",
+  "성능": "Performance",
+  "리뷰 중": "In Review",
+  "승인됨": "Approved",
+  "변경 요청": "Changes Requested",
+  "보안 위험 PR 먼저 확인": "Check high-risk PRs first",
+  "리뷰 대기 PR 정리": "Clear PRs awaiting review",
+  "이슈 트리아지": "Issue triage",
+  // PRReviewPanel / IssuePanel
+  "사용자 PR": "User PR",
+  "AI 피드백": "AI Feedback",
+  "이력 관리": "History",
+  "추가됨": "Added",
+  "수정됨": "Modified",
+  "대기 중": "Pending",
+  "댓글 남김": "Commented",
+  "현재 코드": "Current Code",
+  "AI 추천 코드": "AI Recommended Code",
+  "이슈 내용": "Issue Content",
+  // SettingsPage
+  "블루 모드": "Blue Mode",
+  "그린 모드": "Green Mode",
+  // WorkspacePage
+  "팀 설정": "Team Settings",
+  "팀 설정 열기": "Open team settings",
+  "PR 올라옴": "PR opened",
+  "이슈 올라옴": "Issue opened",
+  "리뷰 받음": "Review received",
+  "멘션됨": "Mentioned",
+  "답장 받음": "Reply received",
+  "내 리뷰 대기": "My reviews pending",
+  "내 오픈 PR": "My open PRs",
+  "리뷰받은 PR": "PRs reviewed",
+  "미해결 이슈": "Unresolved Issues",
+  // WorkBoardPanel
+  "시스템": "System",
+  // ProfilePage developer roles
+  "프론트엔드": "Frontend",
+  "백엔드": "Backend",
+  "풀스택": "Full Stack",
+  "모바일": "Mobile",
+  "데이터": "Data",
+
   "사용자 정보": "User Information",
   "워크스페이스": "Workspace",
   "프로젝트": "Project",
@@ -496,6 +568,10 @@ const exactTranslations: Record<string, string> = {
   "기여자": "Contributors",
   "다음 버전 계획": "Next Version Plan",
 
+  "프로필 보기": "View Profile",
+  "계정 설정": "Account Settings",
+  "내 워크스페이스 설정": "My Workspace Settings",
+  "로그아웃": "Logout",
   "프로필": "Profile",
   "계정 정보를 관리하고 GitHub를 연동하세요": "Manage account information and connect GitHub.",
   "기본 정보": "Basic Information",
@@ -589,6 +665,116 @@ const exactTranslations: Record<string, string> = {
   "이름을 입력하세요": "Enter your name",
   "회원가입 요청이 준비되었습니다. 백엔드 연동 시 이 데이터로 계정을 생성하면 됩니다.": "Sign-up request is ready. Use this data to create the account when the backend is connected.",
   "GitHub OAuth 가입 연결 지점입니다.": "This is the GitHub OAuth sign-up connection point.",
+
+  // 뒤로 버튼
+  "뒤로": "Back",
+  // 상태 버튼 (ProfileContext)
+  "리뷰 가능": "Available",
+  "집중 중": "Focused",
+  "자리 비움": "Away",
+  // WorkspaceSettingsPage 연결 버튼
+  "연결됨 · 해제": "Connected · Disconnect",
+  // SignupPage — 단계 표시
+  "계정 정보": "Account Info",
+  "권한 연결": "Connect Permissions",
+  "1. 계정 정보": "1. Account Info",
+  "2. 권한 연결": "2. Connect Permissions",
+  "계정 정보 입력": "Enter Account Info",
+  // SignupPage — 왼쪽 패널
+  "1분이면 시작": "Start in 1 minute",
+  "코드가 안전하게": "Where code sails",
+  "출항하는 곳.": "safely.",
+  "코드의 항구, CodeDock입니다.": "CodeDock, the port for your code.",
+  "함께할 준비가 됐나요? 딱 1분이면 돼요.": "Ready to get started? It only takes 1 minute.",
+  // SignupPage — 체크리스트 항목
+  "이름 형식": "Name Format",
+  "로그인 이메일": "Login Email",
+  "비밀번호 형식": "Password Format",
+  "약관 동의": "Terms Agreement",
+  "가입 준비": "Sign-up Ready",
+  "가입 준비 완료": "All Set",
+  // SignupPage — 어시스턴트 상태 배지
+  "이름 입력 중": "Entering Name",
+  "연동 중": "Connecting",
+  "GitHub 연결": "Connect GitHub",
+  "준비 완료": "Ready",
+  // SignupPage — 어시스턴트 말풍선 제목
+  "계정 정보는 준비됐어요.": "Account info is ready.",
+  "이름을 확인하고 있어요.": "Checking your name.",
+  "저장소 권한을 확인하고 있어요.": "Checking repository permissions.",
+  "GitHub를 연결해볼까요?": "Ready to connect GitHub?",
+  // SignupPage — 어시스턴트 말풍선 본문
+  "이제 약관을 확인하고 GitHub 저장소를 연결하면 CodeDock이 PR과 이슈를 함께 정리할 수 있어요.": "Agree to the terms and connect GitHub so CodeDock can manage your PRs and issues.",
+  "연동이 끝나면 PR 리뷰와 이슈 흐름을 바로 가져올 수 있어요.": "Once connected, PR reviews and issue workflows will be available right away.",
+  "한글 조합이 끝나면 다음 단계가 부드럽게 열립니다.": "The next step will open smoothly when you're done.",
+  "GitHub 연동까지 끝났어요. 이제 회원가입을 완료하면 바로 작업 공간으로 들어갈 수 있어요.": "GitHub is connected. Finish signing up and go straight to your workspace.",
+  "가입 준비가 끝났어요. 이제 CodeDock에서 리뷰와 문서를 이어갈 수 있습니다.": "You're all set. Start reviews and docs in CodeDock.",
+  // SignupPage — 채팅 프롬프트
+  "안녕하세요! 계정에 사용할 이름을 알려주세요.": "Hi! Please tell us the name you'd like to use.",
+  "좋아요. 로그인에 사용할 이메일을 입력해주세요.": "Great. Enter the email you'll use to log in.",
+  // SignupPage — 버튼
+  "권한 연결로 이동": "Go to Permission Setup",
+  "계정 정보 수정": "Edit Account Info",
+  // SignupPage — 기타
+  "GitHub 연동이 완료되었습니다.": "GitHub integration is complete.",
+  // SignupPage — assistantFeedback 상태 배지
+  "확인 필요": "Check Required",
+  "이름 입력 완료": "Name Complete",
+  "이메일 입력 완료": "Email Complete",
+  "비밀번호 입력 완료": "Password Complete",
+  "입력 완료": "All Done",
+  "보강 필요": "Needs Improvement",
+  // SignupPage — assistantFeedback 제목
+  "이름 형식을 확인해주세요.": "Please check your name format.",
+  "성 입력 완료!": "First character entered!",
+  "로그인 이메일 형식이 어색해요.": "The email format looks off.",
+  "비밀번호를 조금 더 안전하게 만들어요.": "Let's make your password stronger.",
+  "비밀번호 확인이 달라요.": "Password confirmation doesn't match.",
+  "비밀번호도 안전해요.": "Your password looks good.",
+  "이메일 입력 완료!": "Email entered!",
+  // SignupPage — assistantFeedback 본문
+  "한글 또는 영문만 사용할 수 있어요. 숫자나 특수문자는 빼주세요.": "Only Korean or English letters allowed. Remove numbers or special characters.",
+  "이름을 한 글자 더 입력하면 이메일 단계가 열립니다.": "Enter one more character and the email step will open.",
+  "name@company.com처럼 @와 도메인이 모두 들어가야 합니다.": "Include both @ and a domain, like name@company.com.",
+  "8자 이상, 영문과 숫자를 함께 넣으면 다음 단계로 진행할 수 있어요.": "At least 8 characters with letters and numbers to proceed.",
+  "방금 입력한 비밀번호와 똑같이 한 번 더 입력해주세요.": "Please re-enter the exact same password.",
+  "이제 로그인에 사용할 이메일을 알려주세요.": "Now tell us the email you'd like to use for login.",
+  "좋아요. 이 주소로 CodeDock 계정을 만들게요. 이제 안전한 비밀번호를 입력해주세요.": "Great. We'll create your CodeDock account with this address. Now set a secure password.",
+  "마지막으로 같은 비밀번호를 한 번 더 입력하면 확인할 수 있어요.": "One last step — re-enter the same password to confirm.",
+  "입력이 모두 끝났어요. GitHub를 연결하면 PR 리뷰를 바로 시작할 수 있어요.": "All done. Connect GitHub to start PR reviews right away.",
+  // SignupPage — ChatPrompt (폼 내 말풍선)
+  "이메일 입력 완료! 이제 안전한 비밀번호를 만들어볼게요.": "Email entered! Now let's create a secure password.",
+  "비밀번호 확인 완료! 약관만 확인하면 가입 준비가 끝나요.": "Password confirmed! Just agree to the terms and you're all set.",
+  "마지막으로 약관 동의만 확인해주세요.": "One last thing — please agree to the terms.",
+  "모든 준비가 끝났어요. 아래 버튼을 눌러 CodeDock을 시작하세요.": "Everything's ready. Press the button below to start CodeDock.",
+  "좋아요. GitHub를 연결하면 PR 리뷰 준비까지 이어서 마무리할게요.": "Great. Connect GitHub and we'll finish setting up PR reviews.",
+  // SignupPage — GitHub 연동 단계 표시
+  "GitHub 로그인 확인": "Verifying GitHub login",
+  "계정 인증 창을 준비합니다.": "Preparing account authentication.",
+  "저장소 권한 요청": "Requesting repository permissions",
+  "PR, 이슈, 코드 리뷰 접근 권한을 확인합니다.": "Checking access to PRs, issues, and code reviews.",
+  "워크스페이스 동기화": "Syncing workspace",
+  "팀 저장소와 리뷰 흐름을 CodeDock에 연결합니다.": "Connecting team repositories and review workflows to CodeDock.",
+  "연동 완료": "Integration Complete",
+  "가입 후 바로 PR 리뷰를 시작할 수 있습니다.": "You can start PR reviews right after signing up.",
+  // Chat thread
+  "마지막 답글:": "Last reply:",
+  // Invite card
+  "님이 초대했습니다 ·": " invited you ·",
+  "명": " members",
+  // TeamPanel
+  "팀": "Team",
+  "팀원 역할 수정이 가능합니다.": "You can modify team member roles.",
+  "커밋": "Commits",
+  "코드 리뷰": "Code Reviews",
+  "명 ·": " members ·",
+  "역할": "Role",
+  "팀 활동": "Team Activity",
+  "일반 채널": "General Channel",
+  "리뷰 룸": "Review Room",
+  // TeamInviteModal
+  "초대할 팀원 (": "Members to invite (",
+  "명)": " members)",
 };
 
 const patternTranslations: Array<[RegExp, (match: RegExpMatchArray) => string]> = [
@@ -599,8 +785,10 @@ const patternTranslations: Array<[RegExp, (match: RegExpMatchArray) => string]> 
   [/^팀 만들기 \((\d+)명 초대\)$/, (match) => `Create Team (${match[1]} invites)`],
   [/^다음 \((\d+)개 연결\)$/, (match) => `Next (${match[1]} connected)`],
   [/^\(선택 사항 · (\d+)개 선택됨\)$/, (match) => `(optional · ${match[1]} selected)`],
-  [/^오늘 (.+)에 만료$/, (match) => `Expires today at ${match[1]}`],
-  [/^내일 (.+)에 만료$/, (match) => `Expires tomorrow at ${match[1]}`],
+  [/^(\d+)시 (\d+)분$/, (match) => `${match[1]}:${match[2]}`],
+  [/^(\d+)주 전$/, (match) => `${match[1]} weeks ago`],
+  [/^오늘 (.+)에 만료$/, (match) => `Expires today at ${translateCore(match[1])}`],
+  [/^내일 (.+)에 만료$/, (match) => `Expires tomorrow at ${translateCore(match[1])}`],
   [/^(\d+)일 후 만료$/, (match) => `Expires in ${match[1]} days`],
   [/^멤버 (\d+) · 리포지토리 (\d+)$/, (match) => `${match[1]} members · ${match[2]} repositories`],
   [/^연결됨 (\d+)\/(\d+)$/, (match) => `Connected ${match[1]}/${match[2]}`],
@@ -652,6 +840,17 @@ const patternTranslations: Array<[RegExp, (match: RegExpMatchArray) => string]> 
   [/^(.+) 채널을 삭제하시겠습니까\?$/, (match) => `Delete ${match[1]} channel?`],
   [/^(.+)을 승인하고 병합하시겠습니까\?$/, (match) => `Approve and merge ${match[1]}?`],
   [/^(.+) 테마로 전환$/, (match) => `Switch to ${match[1]} theme`],
+  [/^(\d+)건$/, (match) => `${match[1]} items`],
+  [/^리뷰어 (\d+)명$/, (match) => `${match[1]} reviewers`],
+  [/^댓글 (\d+)개$/, (match) => `${match[1]} comments`],
+  [/^GitHub 동기화: (.+)$/, (match) => `Last synced from GitHub: ${translateCore(match[1])}`],
+  [/^(.+)로 재설정 링크를 받아 새 비밀번호를 설정할 수 있습니다\.$/, (match) => `Receive a reset link at ${match[1]} to set a new password.`],
+  // SignupPage 동적 패턴
+  [/^(.+)님, 반가워요!$/, (match) => `Nice to meet you, ${match[1]}!`],
+  // TeamPanel patterns
+  [/^(\d+)명 초대하기$/, (match) => `Invite ${match[1]} members`],
+  [/^(.+) 역할을 (.+)\(으\)로 변경했습니다\.$/, (match) => `Changed ${translateCore(match[1])}'s role to ${match[2]}.`],
+  [/^(.+) 채팅방으로 이동합니다\.$/, (match) => `Moved to the ${translateCore(match[1])} channel.`],
 ];
 
 const hasKorean = /[가-힣]/;
@@ -796,7 +995,91 @@ const exactKoTranslations: Record<string, string> = {
   "members online": "명 접속 중",
   "Matrix Green 테마로 전환": "그린 테마로 전환",
   "Cyan 테마로 전환": "시안 테마로 전환",
-  "© 2026 CodeDock. All rights reserved.": "© 2026 CodeDock. 모든 권리 보유."
+  "© 2026 CodeDock. All rights reserved.": "© 2026 CodeDock. 모든 권리 보유.",
+  // WorkspacePage
+  "Review my PRs, issues, and pending reviews at a glance.": "내 리뷰, PR, 이슈를 한눈에 확인합니다",
+  "My reviews pending:": "내 리뷰 대기:",
+  "My open PRs:": "내 오픈 PR:",
+  "PRs reviewed:": "리뷰받은 PR:",
+  "Unresolved issues:": "미해결 이슈:",
+  "Key Events": "주요 이벤트",
+  // OverviewPanel
+  "Unified Workspace": "통합 워크스페이스",
+  "Integrated Priorities": "통합 우선순위",
+  // OverviewPanel
+  "Current Selection": "현재 선택",
+  "Active PRs": "진행 중인 PR",
+  "incl. awaiting review": "리뷰 대기 포함",
+  "All awaiting review": "전체 리뷰 대기",
+  "Members online": "팀원 접속",
+  "Check high-risk PRs first": "보안 위험 PR 먼저 확인",
+  "Clear PRs awaiting review": "리뷰 대기 PR 정리",
+  "Issue triage": "이슈 트리아지",
+  // PRReviewPanel / IssuePanel
+  "User PR": "사용자 PR",
+  "AI Feedback": "AI 피드백",
+  "History": "이력 관리",
+  "Added": "추가됨",
+  "Modified": "수정됨",
+  "Current Code": "현재 코드",
+  "AI Recommended Code": "AI 추천 코드",
+  "Issue Content": "이슈 내용",
+  // SettingsPage
+  "Blue Mode": "블루 모드",
+  "Green Mode": "그린 모드",
+  // WorkspacePage
+  "Team Settings": "팀 설정",
+  "Open team settings": "팀 설정 열기",
+  "PR opened": "PR 올라옴",
+  "Issue opened": "이슈 올라옴",
+  "Review received": "리뷰 받음",
+  "Mentioned": "멘션됨",
+  "Reply received": "답장 받음",
+  "My reviews pending": "내 리뷰 대기",
+  "My open PRs": "내 오픈 PR",
+  "PRs reviewed": "리뷰받은 PR",
+  "Open issues": "미해결 이슈",
+  // WorkBoardPanel
+  "System": "시스템",
+  // ProfilePage developer roles
+  "Frontend": "프론트엔드",
+  "Backend": "백엔드",
+  "Full Stack": "풀스택",
+  "Mobile": "모바일",
+  "Data": "데이터",
+  // TeamPanel
+  "Commits": "커밋",
+  "Reviews": "리뷰",
+  "Code Reviews": "코드 리뷰",
+  "Role": "역할",
+  "Team Activity": "팀 활동",
+  "General Channel": "일반 채널",
+  "members ·": "명 ·",
+  "Members to invite (": "초대할 팀원 (",
+  "members)": "명)",
+  "You can modify team member roles.": "팀원 역할 수정이 가능합니다.",
+  // Chat thread
+  "Last reply:": "마지막 답글:",
+  // Invite card
+  "invited you ·": "님이 초대했습니다 ·",
+  // 공통
+  "Back": "뒤로",
+  "Available": "리뷰 가능",
+  "Focused": "집중 중",
+  "Connected · Disconnect": "연결됨 · 해제",
+  // SignupPage
+  "Account Info": "계정 정보",
+  "Connect Permissions": "권한 연결",
+  "1. Account Info": "1. 계정 정보",
+  "2. Connect Permissions": "2. 권한 연결",
+  "Name Format": "이름 형식",
+  "Login Email": "로그인 이메일",
+  "Password Format": "비밀번호 형식",
+  "Terms Agreement": "약관 동의",
+  "Sign-up Ready": "가입 준비",
+  "All Set": "가입 준비 완료",
+  "Connecting": "연동 중",
+  "Ready": "준비 완료",
 };
 
 const koPatternTranslations: Array<[RegExp, (match: RegExpMatchArray) => string]> = [
@@ -822,7 +1105,20 @@ const koPatternTranslations: Array<[RegExp, (match: RegExpMatchArray) => string]
   [/^High Risk: (.+)$/, (match) => `높은 위험: ${match[1]}`],
   [/^Issues: (.+)$/, (match) => `이슈: ${match[1]}`],
   [/^Switch to (.+) theme$/, (match) => `${translateKoCore(match[1])} 테마로 변경`],
-  [/^Message #(.+)$/, (match) => `#${match[1]}에 메시지 보내기`]
+  [/^Message #(.+)$/, (match) => `#${match[1]}에 메시지 보내기`],
+  [/^(\d+) items$/, (match) => `${match[1]}건`],
+  [/^Last synced from GitHub: (.+)$/, (match) => `GitHub 동기화: ${match[1]}`],
+  [/^Receive a reset link at (.+) to set a new password\.$/, (match) => `${match[1]}로 재설정 링크를 받아 새 비밀번호를 설정할 수 있습니다.`],
+  // TeamPanel patterns
+  [/^Invite (\d+) members$/, (match) => `${match[1]}명 초대하기`],
+  [/^Changed (.+)'s role to (.+)\.$/, (match) => `${match[1]} 역할을 ${match[2]}(으)로 변경했습니다.`],
+  [/^Moved to the (.+) channel\.$/, (match) => `${translateKoCore(match[1])} 채팅방으로 이동합니다.`],
+  // Invite card / time format
+  [/^(\d+):(\d+)$/, (match) => `${match[1]}시 ${match[2]}분`],
+  [/^(\d+) weeks ago$/, (match) => `${match[1]}주 전`],
+  [/^Expires today at (.+)$/, (match) => `오늘 ${translateKoCore(match[1])}에 만료`],
+  [/^Expires tomorrow at (.+)$/, (match) => `내일 ${translateKoCore(match[1])}에 만료`],
+  [/^Last synced from GitHub: (.+)$/, (match) => `GitHub 동기화: ${translateKoCore(match[1])}`],
 ];
 
 function translateKoCore(core: string): string {

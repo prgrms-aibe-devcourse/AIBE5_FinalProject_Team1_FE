@@ -29,7 +29,7 @@ export function Footer() {
       : "An AI development workflow platform for reviews, docs, and team collaboration.",
     madeBy: "CodeDock Team",
     rights: isKorean ? "모든 권리 보유." : "All rights reserved.",
-    madeWith: "Made with"
+    madeWith: isKorean ? "제작" : "Made with"
   };
 
   return (

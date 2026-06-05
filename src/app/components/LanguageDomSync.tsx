@@ -2,13 +2,18 @@ import { useEffect } from "react";
 import { useLanguage } from "../contexts/LanguageContext";
 import { translateText } from "../i18n/translations";
 
-const translatedTextNodes = new WeakMap<Text, string>();
+interface TextNodeEntry {
+  original: string;
+  translated: string;
+}
+
+const translatedTextNodes = new WeakMap<Text, TextNodeEntry>();
 const translatedAttributes = new WeakMap<Element, Map<string, string>>();
 const translatableAttributes = ["placeholder", "title", "aria-label", "alt"];
 const ignoredTags = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "SVG", "PATH", "DEFS", "FILTER"]);
 
 function getRoot() {
-  return document.getElementById("root") ?? document.body;
+  return document.body;
 }
 
 function shouldSkipElement(element: Element | null) {
@@ -20,11 +25,26 @@ function syncTextNode(node: Text, language: "ko" | "en") {
     return;
   }
 
-  const original = translatedTextNodes.get(node) ?? node.nodeValue ?? "";
+  const current = node.nodeValue ?? "";
+  const entry = translatedTextNodes.get(node);
+
+  let original: string;
+  if (entry === undefined) {
+    // First time seeing this node
+    original = current;
+  } else if (current === entry.translated) {
+    // Current value is what we last set — use stored original
+    original = entry.original;
+  } else {
+    // Current value differs from our last translation — text was externally updated
+    // (e.g. typing animation, React state change). Treat current as the new original.
+    original = current;
+  }
+
   const translated = translateText(original, language);
 
-  if (translated !== original && !translatedTextNodes.has(node)) {
-    translatedTextNodes.set(node, original);
+  if (translated !== original) {
+    translatedTextNodes.set(node, { original, translated });
   }
 
   if (node.nodeValue !== translated) {
