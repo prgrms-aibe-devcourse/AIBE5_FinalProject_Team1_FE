@@ -17,6 +17,8 @@ import type { MessageAttachment } from "../components/messageAttachments";
 import { toggleMessageReaction, type MessageReaction } from "../components/MessageReactions";
 import { TeamInviteModal } from "../components/TeamInviteModal";
 import { TeamPanel } from "../components/TeamPanel";
+import { WorkspaceSettingsModal } from "../components/WorkspaceSettingsModal";
+import { type Org } from "./WorkspacePage";
 import { createPortal } from "react-dom";
 
 const REPOSITORY_IMPORTED_KEY = "codedock-repository-imported";
@@ -614,6 +616,7 @@ export function ChatPage() {
 
   const [userPresence, setUserPresence] = useState<UserPresence>('active');
   const [notificationMode, setNotificationMode] = useState<NotificationMode>('mentions');
+  const [workspaceSettingsOpen, setWorkspaceSettingsOpen] = useState(false);
 
   const [selectedWorkspace, setSelectedWorkspace] = useState<string>(DEFAULT_WORKSPACES[0].id);
   const [memberListOpen, setMemberListOpen] = useState(false);
@@ -1230,7 +1233,7 @@ export function ChatPage() {
               </button>
               <button
                 type="button"
-                onClick={() => { setProfileMenuOpen(false); navigate('/settings'); }}
+                onClick={() => { setProfileMenuOpen(false); setWorkspaceSettingsOpen(true); }}
                 className="flex items-center justify-center gap-2 rounded-xl border-0 px-3 py-2.5 tracking-tight"
                 style={{ background: 'rgba(234, 247, 255, 0.07)', border: '1px solid rgba(var(--codedock-primary-rgb), 0.14)', color: 'var(--white)', cursor: 'pointer', fontSize: "var(--krds-body-xsmall)", fontWeight: 900 }}
               >
@@ -2312,6 +2315,31 @@ export function ChatPage() {
         isOpen={teamInviteOpen}
         onClose={() => setTeamInviteOpen(false)}
       />
+
+      {workspaceSettingsOpen && (() => {
+        const currentOrg: Org = {
+          id: parseInt(selectedWorkspace.replace(/\D/g, '')) || 1,
+          name: currentWorkspace.name,
+          myPendingReviews: 0,
+          myOpenPRs: 0,
+          myReviewedPRs: 0,
+          myOpenIssues: 0,
+          memberCount: currentWorkspace.membersOnline,
+          repoCount: visibleRepositories.length,
+          myRole: currentWorkspace.myRole,
+          workspaceId: selectedWorkspace,
+        };
+        return (
+          <WorkspaceSettingsModal
+            org={currentOrg}
+            onClose={() => setWorkspaceSettingsOpen(false)}
+            onUpdate={() => {}}
+            onDelete={() => setWorkspaceSettingsOpen(false)}
+            onLeave={() => setWorkspaceSettingsOpen(false)}
+            onColorChange={() => {}}
+          />
+        );
+      })()}
 
       {/* Team member list — compact anchored popup near "X명 접속 중" */}
       {createPortal(
