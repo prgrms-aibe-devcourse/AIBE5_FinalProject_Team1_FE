@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from "react";
+import { useLocation } from "react-router";
 import { motion } from "motion/react";
 import {
   AlertTriangle,
@@ -131,8 +132,15 @@ const INITIAL_WORKSPACES: Workspace[] = [
 
 export function WorkspaceSettingsPage() {
   const { colors } = useTheme();
+  const location = useLocation();
+  const incomingWorkspaceId = (location.state as { workspaceId?: string } | null)?.workspaceId ?? null;
+  const isSingleMode = incomingWorkspaceId !== null;
+
   const [workspaces, setWorkspaces] = useState<Workspace[]>(INITIAL_WORKSPACES);
-  const [selectedId, setSelectedId] = useState<string>(INITIAL_WORKSPACES[0]?.id ?? "");
+  const [selectedId, setSelectedId] = useState<string>(
+    // isSingleMode일 때는 무조건 첫 번째 워크스페이스 선택 (ID 불일치 방지)
+    isSingleMode ? (INITIAL_WORKSPACES[0]?.id ?? "") : (INITIAL_WORKSPACES[0]?.id ?? "")
+  );
   const [toast, setToast] = useState<{ message: string; tone: "ok" | "warn" } | null>(null);
 
   const selected = workspaces.find((workspace) => workspace.id === selectedId) ?? null;
@@ -194,7 +202,9 @@ export function WorkspaceSettingsPage() {
           워크스페이스 설정
         </h1>
         <p className="m-0 mt-4 max-w-[680px] text-base font-bold leading-[1.65]" style={{ color: "var(--muted)" }}>
-          소속된 워크스페이스를 선택해 일반 정보, 연동, 소유권 이전, 나가기, 삭제를 권한에 맞게 관리합니다.
+          {isSingleMode
+            ? "일반 정보, 연동, 소유권 이전, 나가기, 삭제를 권한에 맞게 관리합니다."
+            : "소속된 워크스페이스를 선택해 일반 정보, 연동, 소유권 이전, 나가기, 삭제를 권한에 맞게 관리합니다."}
         </p>
       </motion.header>
 
@@ -214,8 +224,8 @@ export function WorkspaceSettingsPage() {
         </motion.div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[300px_1fr]">
-        <motion.aside
+      <div className={isSingleMode ? "grid gap-6" : "grid gap-6 lg:grid-cols-[300px_1fr]"}>
+        {!isSingleMode && <motion.aside
           initial={{ opacity: 0, x: -16 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.42, delay: 0.05, ease: "easeOut" }}
@@ -268,7 +278,7 @@ export function WorkspaceSettingsPage() {
               </button>
             );
           })}
-        </motion.aside>
+        </motion.aside>}
 
         <motion.main
           key={selected?.id ?? "empty"}

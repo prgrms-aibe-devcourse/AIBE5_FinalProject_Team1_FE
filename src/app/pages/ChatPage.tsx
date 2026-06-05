@@ -1230,7 +1230,7 @@ export function ChatPage() {
               </button>
               <button
                 type="button"
-                onClick={() => { setProfileMenuOpen(false); navigate('/settings'); }}
+                onClick={() => { setProfileMenuOpen(false); navigate('/workspace-settings', { state: { workspaceId: selectedWorkspace } }); }}
                 className="flex items-center justify-center gap-2 rounded-xl border-0 px-3 py-2.5 tracking-tight"
                 style={{ background: 'rgba(234, 247, 255, 0.07)', border: '1px solid rgba(var(--codedock-primary-rgb), 0.14)', color: 'var(--white)', cursor: 'pointer', fontSize: "var(--krds-body-xsmall)", fontWeight: 900 }}
               >
