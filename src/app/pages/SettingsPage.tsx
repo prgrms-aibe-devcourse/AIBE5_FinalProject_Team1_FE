@@ -1,10 +1,12 @@
 import { useState } from "react";
+import { useNavigate } from "react-router";
 import { motion } from "motion/react";
 import { Bell, Shield, Palette, Save } from "lucide-react";
 import { useTheme } from "../contexts/ThemeContext";
 import { useLanguage, type LanguageType } from "../contexts/LanguageContext";
 
 export function SettingsPage() {
+  const navigate = useNavigate();
   const { colors, theme, setTheme } = useTheme();
   const { language, setLanguage } = useLanguage();
   const [settings, setSettings] = useState({
@@ -35,6 +37,16 @@ export function SettingsPage() {
 
   return (
     <div className="w-[min(1400px,100%)] mx-auto px-4 py-12">
+      <button
+        onClick={() => navigate(-1)}
+        className="mb-6 flex items-center gap-1.5 tracking-tight transition-colors hover:text-white"
+        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: '14px', fontWeight: 800, padding: 0 }}
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M10 12L6 8L10 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+        뒤로
+      </button>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
-import { Link, useSearchParams } from "react-router";
+import { Link, useSearchParams, useNavigate } from "react-router";
 import {
   Calendar,
   Camera,
@@ -44,6 +44,7 @@ const SKILL_PRESETS = [
 ];
 
 export function ProfilePage() {
+  const navigate = useNavigate();
   const { colors } = useTheme();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialSection = getProfileSection(searchParams.get("section"));
@@ -147,6 +148,16 @@ export function ProfilePage() {
 
   return (
     <div className="mx-auto w-[min(1120px,calc(100vw-36px))] py-12 pb-20">
+      <button
+        onClick={() => navigate(-1)}
+        className="mb-6 flex items-center gap-1.5 tracking-tight transition-colors hover:text-white"
+        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: '14px', fontWeight: 800, padding: 0 }}
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M10 12L6 8L10 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+        뒤로
+      </button>
       <motion.header
         initial={{ opacity: 0, y: 18 }}
         animate={{ opacity: 1, y: 0 }}
