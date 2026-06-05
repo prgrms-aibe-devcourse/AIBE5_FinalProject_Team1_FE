@@ -66,6 +66,7 @@ const DEFAULT_WORKSPACES: WorkspaceItem[] = [
   { id: 'workspace-1', name: 'SecureFlow Workspace', connected: true, membersOnline: 5, myRole: '소유자' },
   { id: 'workspace-2', name: 'AI Chat Platform', connected: true, membersOnline: 8, myRole: '편집 가능' },
   { id: 'workspace-3', name: 'Dashboard UI Kit', connected: true, membersOnline: 3, myRole: '보기 가능' },
+  { id: 'workspace-4', name: 'Mobile App Beta', connected: true, membersOnline: 6, myRole: '보기 가능' },
 ];
 
 interface SidebarChannel {
@@ -1477,11 +1478,14 @@ export function ChatPage() {
               <AnimatePresence initial={false}>
                 {showRepoDropdown && (
                   <motion.div
-                    className="absolute top-full left-0 right-0 mt-2 rounded-lg overflow-hidden z-10"
+                    className="absolute top-full left-0 right-0 mt-2 rounded-lg z-10"
                     style={{
                       background: 'rgba(5, 11, 20, 0.95)',
                       border: '1px solid rgba(var(--codedock-primary-rgb), 0.3)',
-                      boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5)'
+                      boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5)',
+                      maxHeight: 'calc(3 * 72px)',
+                      overflowY: DEFAULT_WORKSPACES.length > 3 ? 'auto' : 'hidden',
+                      overflowX: 'hidden',
                     }}
                     initial={{ opacity: 0, y: -6 }}
                     animate={{ opacity: 1, y: 0 }}
