@@ -8,7 +8,7 @@ const translatableAttributes = ["placeholder", "title", "aria-label", "alt"];
 const ignoredTags = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "SVG", "PATH", "DEFS", "FILTER"]);
 
 function getRoot() {
-  return document.getElementById("root") ?? document.body;
+  return document.body;
 }
 
 function shouldSkipElement(element: Element | null) {
