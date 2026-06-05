@@ -1,10 +1,12 @@
 import { useState } from "react";
+import { useNavigate } from "react-router";
 import { motion } from "motion/react";
-import { Bell, Shield, Palette, Save } from "lucide-react";
+import { Bell, Shield, Palette, Save, Settings } from "lucide-react";
 import { useTheme } from "../contexts/ThemeContext";
 import { useLanguage, type LanguageType } from "../contexts/LanguageContext";
 
 export function SettingsPage() {
+  const navigate = useNavigate();
   const { colors, theme, setTheme } = useTheme();
   const { language, setLanguage } = useLanguage();
   const [settings, setSettings] = useState({
@@ -34,29 +36,39 @@ export function SettingsPage() {
   };
 
   return (
-    <div className="w-[min(1400px,100%)] mx-auto px-4 py-12">
+    <div className="mx-auto w-[min(1120px,calc(100vw-36px))] py-12 pb-20">
+      <button
+        onClick={() => navigate(-1)}
+        className="mb-6 flex items-center gap-1.5 tracking-tight transition-colors hover:text-white"
+        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: '14px', fontWeight: 800, padding: 0 }}
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M10 12L6 8L10 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+        뒤로
+      </button>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
       >
-        <div className="mb-8">
-          <h1 className="m-0 mb-2 leading-none tracking-[-0.08em]" style={{
-            fontSize: 'clamp(32px, 4vw, 42px)',
-            fontWeight: 950,
-            color: 'var(--white)',
-            textShadow: `0 0 22px ${colors.primary}, 0.18)`
-          }}>
+        <motion.header
+          initial={{ opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, ease: "easeOut" }}
+          className="mb-8"
+        >
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full px-4 py-2" style={{ background: `${colors.primary}, 0.10)`, color: colors.primaryHex }}>
+            <Settings size={15} />
+            <span className="text-sm font-black">Account Settings</span>
+          </div>
+          <h1 className="m-0 text-[clamp(40px,6vw,72px)] font-black leading-none" style={{ color: "var(--white)", textShadow: `0 0 22px ${colors.primary}, 0.18)` }}>
             설정
           </h1>
-          <p className="m-0 tracking-tight" style={{
-            fontSize: '16px',
-            fontWeight: 700,
-            color: 'var(--muted)'
-          }}>
-            계정 및 애플리케이션 설정을 관리하세요
+          <p className="m-0 mt-4 max-w-[680px] text-base font-bold leading-[1.65]" style={{ color: "var(--muted)" }}>
+            계정 및 애플리케이션 설정을 관리합니다.
           </p>
-        </div>
+        </motion.header>
 
         <div className="grid gap-6">
           {/* 알림 설정 */}
