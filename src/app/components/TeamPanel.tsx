@@ -1,6 +1,4 @@
 import {
-  ArrowRight,
-  Clock3,
   GitCommitHorizontal,
   GitPullRequest,
   Github,
@@ -8,9 +6,6 @@ import {
   Mail,
   MessageSquareText,
   ShieldCheck,
-  Trash2,
-  UserPlus,
-  Users,
   type LucideIcon
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -20,7 +15,6 @@ interface TeamPanelProps {
   workspaceId: string;
   currentUserId: string;
   currentUserOnline: boolean;   // true when presence is not 'offline'
-  onInvite: () => void;
   onOpenChannel?: (channelId: string) => void;
 }
 
@@ -207,7 +201,7 @@ export function ensureSeeded() {
   });
 }
 
-export function TeamPanel({ workspaceId, currentUserId, currentUserOnline, onInvite, onOpenChannel }: TeamPanelProps) {
+export function TeamPanel({ workspaceId, currentUserId, currentUserOnline, onOpenChannel }: TeamPanelProps) {
   ensureSeeded();   // no-op after first run
 
   const [members, setMembers] = useState<TeamMember[]>(() => {
@@ -215,8 +209,7 @@ export function TeamPanel({ workspaceId, currentUserId, currentUserOnline, onInv
     return all[workspaceId] ?? [ALL_MEMBERS[0]];  // fallback: 김재준 only
   });
   const [activeRoomId, setActiveRoomId] = useState(teamRooms[1].id);
-  const [notice, setNotice] = useState("팀원 역할 수정 및 삭제가 가능합니다.");
-  const [confirmTarget, setConfirmTarget] = useState<TeamMember | null>(null);
+  const [notice, setNotice] = useState("팀원 역할 수정이 가능합니다.");
 
   useEffect(() => {
     const all = loadAllTeams();
@@ -258,23 +251,6 @@ export function TeamPanel({ workspaceId, currentUserId, currentUserOnline, onInv
     setNotice(`${target?.name ?? "팀원"} 역할을 ${nextRole}(으)로 변경했습니다.`);
   };
 
-  const handleDeleteClick = (member: TeamMember) => {
-    if (member.protected) {
-      setNotice("팀 리드는 현재 화면에서 삭제할 수 없습니다.");
-      return;
-    }
-    setConfirmTarget(member);
-  };
-
-  const handleConfirmDelete = () => {
-    if (!confirmTarget) return;
-    const next = members.filter((m) => m.id !== confirmTarget.id);
-    setMembers(next);
-    persistMembers(next);
-    setNotice(`${confirmTarget.name} 팀원을 추방했습니다.`);
-    setConfirmTarget(null);
-  };
-
   return (
     <div
       className="codedock-scrollbar-hidden h-full overflow-y-auto px-7 py-7"
@@ -296,22 +272,6 @@ export function TeamPanel({ workspaceId, currentUserId, currentUserOnline, onInv
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={onInvite}
-          className="inline-flex items-center gap-2 rounded-2xl border-0 px-4 py-3 tracking-tight transition-all hover:translate-y-[-1px]"
-          style={{
-            background: "linear-gradient(135deg, var(--neon-cyan), var(--matrix-green))",
-            color: "#021014",
-            cursor: "pointer",
-            fontSize: 14,
-            fontWeight: 950,
-            boxShadow: "0 18px 38px rgba(var(--codedock-primary-rgb), 0.24)"
-          }}
-        >
-          <UserPlus size={18} />
-          팀원 추가
-        </button>
       </div>
 
       <div
@@ -366,24 +326,6 @@ export function TeamPanel({ workspaceId, currentUserId, currentUserOnline, onInv
                 </div>
               </div>
 
-              <div className="flex flex-shrink-0 items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => handleDeleteClick(member)}
-                  disabled={member.protected}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg transition-all hover:scale-105"
-                  style={{
-                    background: member.protected ? "rgba(234, 247, 255, 0.05)" : "rgba(239, 68, 68, 0.10)",
-                    border: member.protected ? "1px solid rgba(234, 247, 255, 0.08)" : "1px solid rgba(239, 68, 68, 0.24)",
-                    color: member.protected ? "var(--muted)" : "#FF8FA3",
-                    cursor: member.protected ? "not-allowed" : "pointer"
-                  }}
-                  title={member.protected ? "팀 리드는 삭제할 수 없습니다" : `${member.name} 삭제`}
-                  aria-label={`${member.name} 삭제`}
-                >
-                  <Trash2 size={15} />
-                </button>
-              </div>
             </div>
 
             <label className="mb-4 block tracking-tight" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 900 }}>
@@ -469,72 +411,6 @@ export function TeamPanel({ workspaceId, currentUserId, currentUserOnline, onInv
         </div>
       </section>
 
-      {confirmTarget && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center px-4"
-          style={{ background: "rgba(0, 0, 0, 0.65)", backdropFilter: "blur(8px)" }}
-          onClick={() => setConfirmTarget(null)}
-        >
-          <div
-            className="w-full max-w-[420px] rounded-[24px] px-8 py-8"
-            style={{
-              background: "linear-gradient(135deg, rgba(11, 22, 40, 0.98), rgba(5, 11, 20, 0.98))",
-              border: "1px solid rgba(255, 107, 107, 0.35)",
-              boxShadow: "0 28px 80px rgba(0, 0, 0, 0.55), 0 0 40px rgba(255, 107, 107, 0.10)",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl" style={{
-              background: "rgba(255, 107, 107, 0.12)",
-              border: "1px solid rgba(255, 107, 107, 0.30)"
-            }}>
-              <Trash2 size={26} style={{ color: "#FF6B6B" }} />
-            </div>
-
-            <h3 className="m-0 mb-2 tracking-tight" style={{ color: "var(--white)", fontSize: 20, fontWeight: 950 }}>
-              정말 추방하시겠어요?
-            </h3>
-            <p className="m-0 mb-7 tracking-tight" style={{ color: "var(--muted)", fontSize: 14, fontWeight: 800, lineHeight: 1.6 }}>
-              <span style={{ color: "var(--white)", fontWeight: 950 }}>{confirmTarget.name}</span> 팀원을 워크스페이스에서
-              추방합니다. 이 작업은 되돌릴 수 없습니다.
-            </p>
-
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setConfirmTarget(null)}
-                className="flex-1 rounded-xl border-0 py-3 tracking-tight transition-all hover:scale-[1.02]"
-                style={{
-                  background: "rgba(234, 247, 255, 0.07)",
-                  border: "1px solid rgba(234, 247, 255, 0.14)",
-                  color: "var(--muted)",
-                  cursor: "pointer",
-                  fontSize: 15,
-                  fontWeight: 900
-                }}
-              >
-                취소
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmDelete}
-                className="flex-1 rounded-xl border-0 py-3 tracking-tight transition-all hover:scale-[1.02]"
-                style={{
-                  background: "linear-gradient(135deg, #FF6B6B, #cc3333)",
-                  border: "none",
-                  color: "#fff",
-                  cursor: "pointer",
-                  fontSize: 15,
-                  fontWeight: 950,
-                  boxShadow: "0 0 24px rgba(255, 107, 107, 0.30)"
-                }}
-              >
-                추방하기
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
