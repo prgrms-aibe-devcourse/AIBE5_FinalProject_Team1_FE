@@ -23,6 +23,7 @@ import { ProfilePage } from "./pages/ProfilePage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { WorkspaceSettingsPage } from "./pages/WorkspaceSettingsPage";
 import { LegalPage } from "./pages/LegalPage";
+import { OAuthCallbackPage } from "./pages/OAuthCallbackPage";
 import { isAuthenticated } from "./auth";
 
 function HomeRoute() {
@@ -39,6 +40,7 @@ export default function App() {
           <Routes>
             <Route element={<PublicLayout />}>
               <Route path="/" element={<HomeRoute />} />
+              <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
               <Route path="/terms" element={<LegalPage kind="terms" />} />
               <Route path="/privacy" element={<LegalPage kind="privacy" />} />
             </Route>

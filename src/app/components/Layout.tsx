@@ -17,7 +17,7 @@ import {
 } from "./ui/dropdown-menu";
 import { useTheme } from "../contexts/ThemeContext";
 import { useProfile, STATUS_OPTIONS } from "../contexts/ProfileContext";
-import { clearAuthenticated } from "../auth";
+import { logout } from "../auth";
 
 
 export function Layout() {
@@ -30,8 +30,8 @@ export function Layout() {
 
   const isActive = (path: string) => location.pathname === path;
   const hideFooter = location.pathname === "/chat";
-  const handleLogout = () => {
-    clearAuthenticated();
+  const handleLogout = async () => {
+    await logout();
     navigate("/login");
   };
 
