@@ -17,7 +17,7 @@ import { CodeDockWordmark } from "../components/CodeDockWordmark";
 import { CoffeeLogo } from "../components/CoffeeLogo";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useTheme } from "../contexts/ThemeContext";
-import { setAuthenticated } from "../auth";
+import { loginWithGithub } from "../auth";
 
 const loginDemoMessagesKo = [
   { speaker: "CodeDock", text: "위험 파일 3개를 먼저 묶었어요.", tone: "var(--soft-mint)" },
@@ -192,13 +192,12 @@ export function LoginPage() {
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setAuthenticated();
+    // TODO: 이메일/비밀번호 로그인 API 연동
     navigate("/workspace");
   };
 
   const handleGithubLogin = () => {
-    setAuthenticated();
-    navigate("/workspace");
+    loginWithGithub();
   };
 
   return (
