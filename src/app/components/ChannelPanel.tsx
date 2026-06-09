@@ -22,11 +22,19 @@ interface ChannelPanelProps {
   channelId?: string;
   repoId?: string;
   repoName?: string;
+  threads?: Thread[];
   reactions?: Record<string, MessageReaction[]>;
   replyCounts?: Record<number, number>;
   onOpenThread?: (message: any) => void;
   selectedThreadId?: number | string;
   onOpenInvite?: () => void;
+  onSendThread?: (
+    message: string,
+    attachments?: MessageAttachment[],
+    replyTo?: { user: string; text: string }
+  ) => void;
+  onTypingChange?: (typing: boolean) => void;
+  remoteTypingLabel?: string;
   onToggleReaction?: (reactionKey: string, emoji: string) => void;
 }
 
@@ -106,12 +114,13 @@ function getDisplayUserName(user?: string) {
   return isSelfUser(trimmed) ? currentUserDisplayName : trimmed;
 }
 
-export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCounts = {}, onOpenThread, selectedThreadId, onOpenInvite, onToggleReaction }: ChannelPanelProps) {
+export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, replyCounts = {}, onOpenThread, selectedThreadId, onOpenInvite, onSendThread, onTypingChange, remoteTypingLabel, onToggleReaction }: ChannelPanelProps) {
   const channelStorageId = channelId ?? repoId ?? "general";
   const channelStorageKey = `${CHANNEL_THREADS_KEY_PREFIX}:${channelStorageId}`;
-  const [threads, setThreads] = useState<Thread[]>(() =>
+  const [localThreads, setLocalThreads] = useState<Thread[]>(() =>
     getSavedThreads(channelStorageKey, getDefaultThreads(repoId))
   );
+  const displayedThreads = threads ?? localThreads;
 
   const channelLabel = repoName ?? '일반';
   const [hoveredMessageId, setHoveredMessageId] = useState<number | null>(null);
@@ -149,7 +158,7 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
 
   useEffect(() => {
     skipThreadSaveRef.current = true;
-    setThreads(getSavedThreads(channelStorageKey, getDefaultThreads(repoId)));
+    setLocalThreads(getSavedThreads(channelStorageKey, getDefaultThreads(repoId)));
   }, [channelStorageKey, repoId]);
 
   useEffect(() => {
@@ -158,8 +167,8 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
       return;
     }
 
-    saveThreads(channelStorageKey, threads);
-  }, [channelStorageKey, threads]);
+    saveThreads(channelStorageKey, localThreads);
+  }, [channelStorageKey, localThreads]);
 
   useEffect(() => {
     const scrollContainer = scrollContainerRef.current;
@@ -173,7 +182,7 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
     });
 
     return () => window.cancelAnimationFrame(frameId);
-  }, [threads.length, responderTyping, messageText]);
+  }, [displayedThreads.length, responderTyping, messageText]);
 
   const triggerResponderTyping = () => {
     if (responderTypingTimerRef.current) {
@@ -193,13 +202,19 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
 
   const canSendMessage = messageText.trim().length > 0 || codeBlockText.trim().length > 0 || selectedAttachments.length > 0;
   const composerTyping = messageText.trim().length > 0;
-  const typingLabel = responderTyping
+  const localTypingLabel = responderTyping
     ? composerTyping
       ? `CodeDock AI, ${currentUserDisplayName} 입력 중입니다`
       : "CodeDock AI가 답변을 정리 중입니다"
     : composerTyping
       ? "내가 입력 중입니다"
       : "";
+  const typingLabel = remoteTypingLabel || localTypingLabel;
+
+  useEffect(() => {
+    onTypingChange?.(composerTyping);
+    return () => onTypingChange?.(false);
+  }, [composerTyping, onTypingChange]);
 
   const handleAttachmentToggle = (attachment: MessageAttachment) => {
     setSelectedAttachments((prev) =>
@@ -373,7 +388,11 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
       replyTo: replyTo ? { user: replyTo.user, text: replyTo.message } : undefined
     };
 
-    setThreads((prev) => [...prev, nextThread]);
+    if (onSendThread) {
+      onSendThread(nextThread.message, nextThread.attachments, nextThread.replyTo);
+    } else {
+      setLocalThreads((prev) => [...prev, nextThread]);
+    }
     setMessageText("");
     setCodeBlockText("");
     setSelectedAttachments([]);
@@ -443,7 +462,7 @@ export function ChannelPanel({ channelId, repoId, repoName, reactions, replyCoun
       {/* Thread List */}
       <div ref={scrollContainerRef} className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
         <div className="grid gap-4">
-          {threads.map((thread) => {
+          {displayedThreads.map((thread) => {
             const displayedReplyCount = replyCounts[thread.id] ?? thread.replies;
             const isOwnThread = isSelfUser(thread.user);
 
