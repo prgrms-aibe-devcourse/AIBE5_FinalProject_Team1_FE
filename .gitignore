@@ -40,3 +40,6 @@ Thumbs.db
 
 # 로컬 도구 설정
 .claude/
+
+# 로컬 인수인계 메모
+CODEDOCK_HANDOFF_CONTEXT.md
