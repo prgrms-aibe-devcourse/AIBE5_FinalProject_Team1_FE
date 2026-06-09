@@ -25,19 +25,6 @@ export type ChannelMessageCreateRequest = {
   content: string;
 };
 
-export type ThreadReply = {
-  id: number;
-  threadId: number;
-  senderMemberId: number;
-  senderName: string;
-  content: string;
-  createdAt: ISODateTime;
-};
-
-export type ThreadReplyCreateRequest = {
-  content: string;
-};
-
 export type ReactionToggleRequest = {
   workspaceMemberId: number;
   targetType: ReactionTargetType;
@@ -55,15 +42,14 @@ export type ReactionToggleResponse = {
   count: number;
 };
 
-export type ReactionSummary = {
-  targetType: ReactionTargetType;
-  targetId: number;
-  emoji: string;
-  count: number;
-};
-
 export type TypingEvent = {
   channelId: number;
+  workspaceMemberId: number;
+  senderName: string;
+  typing: boolean;
+};
+
+export type TypingEventRequest = {
   workspaceMemberId: number;
   senderName: string;
   typing: boolean;
@@ -86,7 +72,6 @@ export type ChatEvent<T> = {
 export type ChannelEventPayload =
   | ChannelMessage
   | ReactionToggleResponse
-  | ThreadReply
   | TypingEvent;
 
 export type ChannelMessagesQuery = {
@@ -100,6 +85,12 @@ export const chatWebSocketDestinations = {
   },
   subscribeChannelEvents(channelId: number) {
     return `/topic/channels/${channelId}/events`;
+  },
+  sendChannelTyping(channelId: number) {
+    return `/app/channels/${channelId}/typing`;
+  },
+  subscribeChannelTyping(channelId: number) {
+    return `/topic/channels/${channelId}/typing`;
   }
 };
 
@@ -116,18 +107,6 @@ export function getChannelMessages(channelId: number, query: ChannelMessagesQuer
       ...options?.query
     }
   });
-}
-
-export function getThreadReplies(threadId: number, options?: ApiRequestOptions) {
-  return apiClient.get<ThreadReply[]>(`/api/threads/${threadId}/replies`, options);
-}
-
-export function createThreadReply(threadId: number, request: ThreadReplyCreateRequest, options?: ApiRequestOptions) {
-  return apiClient.post<ThreadReply>(`/api/threads/${threadId}/replies`, request, options);
-}
-
-export function getChannelReactions(channelId: number, options?: ApiRequestOptions) {
-  return apiClient.get<ReactionSummary[]>(`/api/channels/${channelId}/reactions`, options);
 }
 
 export function toggleChannelReaction(channelId: number, request: ReactionToggleRequest, options?: ApiRequestOptions) {
