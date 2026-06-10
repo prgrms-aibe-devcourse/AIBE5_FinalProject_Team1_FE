@@ -1068,7 +1068,7 @@ export function WorkspacePage() {
     // 방금 만든 워크스페이스를 slug으로 찾아 확실한 ID를 사용
     const newWorkspace = list.find((w) => w.slug === slug);
     if (newWorkspace && selectedRepos.length > 0) {
-      const CHAT_REPOS_KEY = "codedock-repositories-v2";
+      const CHAT_REPOS_KEY = "codedock-workspace-repos-v1";
       const REPO_URLS_KEY = "codedock-repo-urls-v1";
       const wsId = String(newWorkspace.id);
       const raw = localStorage.getItem(CHAT_REPOS_KEY);

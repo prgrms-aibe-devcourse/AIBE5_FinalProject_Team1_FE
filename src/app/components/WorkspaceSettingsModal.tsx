@@ -13,7 +13,7 @@ import { fetchMyGithubRepos, type GithubRepo } from "../api/github";
 // ─── localStorage helpers (mirrors TeamPanel pattern) ───────────────────────
 const WORKSPACE_TEAMS_KEY  = "codedock-workspace-teams-v1";
 const WORKSPACE_COLORS_KEY = "codedock-workspace-colors-v1";
-const CHAT_REPOS_KEY       = "codedock-repositories-v2";   // same key as ChatPage
+const CHAT_REPOS_KEY       = "codedock-workspace-repos-v1"; // workspace-specific, separate from ChatPage
 const REPO_URLS_KEY        = "codedock-repo-urls-v1";       // repoId → full GitHub URL
 const GITHUB_SYNC_KEY      = "codedock-github-sync-v1";     // workspaceId → last sync timestamp (ms)
 
