@@ -40,7 +40,7 @@ export async function refreshAccessToken(): Promise<boolean> {
   if (!refreshToken) return false;
 
   try {
-    const res = await fetch("/api/auth/refresh", {
+    const res = await fetch("/api/v1/auth/refresh", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refreshToken }),
@@ -60,7 +60,7 @@ export async function refreshAccessToken(): Promise<boolean> {
 
 export async function logout() {
   try {
-    await fetch("/api/auth/logout", {
+    await fetch("/api/v1/auth/logout", {
       method: "POST",
       headers: authHeader(),
     });

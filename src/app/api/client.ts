@@ -1,6 +1,7 @@
 import type { ApiErrorResponse, ApiResponse } from "./types";
+import { authHeader, refreshAccessToken, clearTokens, getAccessToken } from "../auth";
 
-type HttpMethod = "GET" | "POST" | "PATCH" | "DELETE";
+type HttpMethod = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 type TemporaryUserId = number | string;
 
 export type ApiRequestOptions = {
@@ -94,15 +95,22 @@ export function createApiClient(options: ApiClientOptions = {}) {
   const baseUrl = options.baseUrl ?? getDefaultBaseUrl();
   const fetcher = options.fetcher ?? fetch;
 
-  async function request<T>(method: HttpMethod, path: string, body?: unknown, requestOptions: ApiRequestOptions = {}) {
-    const userId = requestOptions.userId ?? options.getUserId?.() ?? temporaryUserId;
+  async function request<T>(
+      method: HttpMethod,
+      path: string,
+      body?: unknown,
+      requestOptions: ApiRequestOptions = {},
+      isRetry = false
+  ): Promise<T> {
     const headers = mergeHeaders(
-      { Accept: "application/json" },
-      body !== undefined ? { "Content-Type": "application/json" } : undefined,
-      options.defaultHeaders,
-      requestOptions.headers
+        { Accept: "application/json" },
+        body !== undefined ? { "Content-Type": "application/json" } : undefined,
+        authHeader(),
+        options.defaultHeaders,
+        requestOptions.headers
     );
 
+    const userId = requestOptions.userId ?? options.getUserId?.() ?? temporaryUserId;
     if (userId !== null && userId !== undefined) {
       headers.set("X-User-Id", String(userId));
     }
@@ -114,14 +122,25 @@ export function createApiClient(options: ApiClientOptions = {}) {
       body: body === undefined ? undefined : JSON.stringify(body)
     });
 
+    if (response.status === 401 && !isRetry && getAccessToken()) {
+      const refreshed = await refreshAccessToken();
+      if (refreshed) {
+        return request<T>(method, path, body, requestOptions, true);
+      }
+      clearTokens();
+      if (typeof window !== "undefined") {
+        window.location.href = "/login";
+      }
+    }
+
     const payload = await parseJsonResponse<T>(response);
 
     if (!response.ok || payload?.success === false) {
       const errorPayload = payload as ApiErrorResponse | null;
       throw new ApiClientError(
-        getResponseMessage(response.status, errorPayload?.message),
-        response.status,
-        errorPayload ?? undefined
+          getResponseMessage(response.status, errorPayload?.message),
+          response.status,
+          errorPayload ?? undefined
       );
     }
 
@@ -137,6 +156,9 @@ export function createApiClient(options: ApiClientOptions = {}) {
     },
     patch<T>(path: string, body?: unknown, options?: ApiRequestOptions) {
       return request<T>("PATCH", path, body, options);
+    },
+    put<T>(path: string, body?: unknown, options?: ApiRequestOptions) {
+      return request<T>("PUT", path, body, options);
     },
     delete<T>(path: string, options?: ApiRequestOptions) {
       return request<T>("DELETE", path, undefined, options);
