@@ -5,7 +5,7 @@ import { WorkspaceSettingsModal } from "../components/WorkspaceSettingsModal";
 import { DndProvider, useDrag, useDrop, useDragLayer } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { fetchMyGithubRepos, fetchRepoCollaborators, type GithubCollaborator, type GithubRepo } from "../api/github";
-import { fetchMyWorkspaces, createWorkspace, type WorkspaceDto } from "../api/workspace";
+import { fetchMyWorkspaces, createWorkspace, deleteWorkspace, type WorkspaceDto } from "../api/workspace";
 
 const DRAG_TYPE = "TEAM_CARD";
 const WORKSPACE_COLORS_KEY = "codedock-workspace-colors-v1";
@@ -73,14 +73,22 @@ function AutoScrollContainer({ children, itemCount }: { children: React.ReactNod
   const prevIsDraggingRef = useRef(false);
 
   useLayoutEffect(() => {
-    if (!ref.current || lockedHeight !== null) return;
-    if (itemCount > 0 && itemCount <= 3) {
-      setLockedHeight(ref.current.scrollHeight);
-    } else if (itemCount >= 4) {
-      const perItem = ref.current.scrollHeight / itemCount;
+    if (!ref.current) return;
+    const el = ref.current;
+    // 일시적으로 height 제한 해제 후 자연 높이 측정
+    el.style.maxHeight = "none";
+    const fullHeight = el.scrollHeight;
+    if (itemCount === 0) {
+      setLockedHeight(null);
+      return;
+    }
+    if (itemCount <= 3) {
+      setLockedHeight(fullHeight);
+    } else {
+      const perItem = fullHeight / itemCount;
       setLockedHeight(Math.round(perItem * 3));
     }
-  }, [itemCount, lockedHeight]);
+  }, [itemCount]);
 
   useLayoutEffect(() => {
     if (!ref.current) return;
@@ -305,7 +313,7 @@ function CreateTeamModal({
   onCreate,
 }: {
   onClose: () => void;
-  onCreate: (name: string, repos: GithubRepo[], invitedMembers: TeamInviteDraft[]) => void;
+  onCreate: (name: string, repos: GithubRepo[], invitedMembers: TeamInviteDraft[]) => Promise<void>;
 }) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [name, setName] = useState("");
@@ -407,10 +415,19 @@ function CreateTeamModal({
     setSelectedMembers((prev) => prev.map((m) => (m.email === email ? { ...m, role } : m)));
   };
 
-  const handleFinish = () => {
+  const [creating, setCreating] = useState(false);
+  const handleFinish = async () => {
     const selectedRepoObjs = repos.filter((r) => selectedRepos.includes(r.id));
-    onCreate(name.trim(), selectedRepoObjs, selectedMembers);
-    onClose();
+    setCreating(true);
+    try {
+      await onCreate(name.trim(), selectedRepoObjs, selectedMembers);
+      onClose();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "팀 생성에 실패했습니다.";
+      alert(msg);
+    } finally {
+      setCreating(false);
+    }
   };
 
   // Header with step indicator (shared)
@@ -792,13 +809,14 @@ function CreateTeamModal({
                 style={{ background: "rgba(255,255,255,0.06)", color: "var(--muted)", fontSize: "14px", fontWeight: 900, cursor: "pointer" }}>
                 이전
               </button>
-              <button onClick={handleFinish} className="flex-1 rounded-xl border-0 py-3 tracking-tight transition-all"
+              <button onClick={handleFinish} disabled={creating} className="flex-1 rounded-xl border-0 py-3 tracking-tight transition-all"
                 style={{
                   background: "linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))",
-                  color: "#021014", fontSize: "14px", fontWeight: 900, cursor: "pointer",
+                  color: "#021014", fontSize: "14px", fontWeight: 900, cursor: creating ? "not-allowed" : "pointer",
                   boxShadow: "0 4px 14px rgba(var(--codedock-primary-rgb), 0.28)",
+                  opacity: creating ? 0.7 : 1,
                 }}>
-                {selectedMembers.length > 0 ? `팀 만들기 (${selectedMembers.length}명 초대)` : "팀 만들기"}
+                {creating ? "생성 중..." : selectedMembers.length > 0 ? `팀 만들기 (${selectedMembers.length}명 초대)` : "팀 만들기"}
               </button>
             </div>
           </div>
@@ -1023,9 +1041,17 @@ export function WorkspacePage() {
     setSettingsOrg((prev) => (prev && prev.id === updated.id ? { ...prev, ...updated } : prev));
   };
 
-  const handleDeleteOrg = (orgId: number) => {
-    setOrgs((prev) => prev.filter((o) => o.id !== orgId));
-    setSettingsOrg(null);
+  const handleDeleteOrg = async (orgId: number) => {
+    const org = orgs.find((o) => o.id === orgId);
+    if (!org?.workspaceId) return;
+    try {
+      await deleteWorkspace(Number(org.workspaceId));
+      setOrgs((prev) => prev.filter((o) => o.id !== orgId));
+      setSettingsOrg(null);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "팀 삭제에 실패했습니다.";
+      alert(msg);
+    }
   };
 
   const handleLeaveOrg = (orgId: number) => {
@@ -1033,18 +1059,32 @@ export function WorkspacePage() {
     setSettingsOrg(null);
   };
 
-  const handleCreateTeam = async (name: string, _repos: GithubRepo[], _invitedMembers: TeamInviteDraft[]) => {
+  const handleCreateTeam = async (name: string, selectedRepos: GithubRepo[], _invitedMembers: TeamInviteDraft[]) => {
     const base = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
     const slug = (base || "team") + "-" + Date.now().toString(36);
-    try {
-      await createWorkspace({ name: name.trim(), slug });
-      // 생성 후 서버에서 최신 목록을 다시 로드
-      const list = await fetchMyWorkspaces();
-      setOrgs(list.map(workspaceDtoToOrg));
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "팀 생성에 실패했습니다.";
-      alert(msg);
+    await createWorkspace({ name: name.trim(), slug });
+    // 생성 후 서버에서 최신 목록을 다시 로드
+    const list = await fetchMyWorkspaces();
+    // 방금 만든 워크스페이스를 slug으로 찾아 확실한 ID를 사용
+    const newWorkspace = list.find((w) => w.slug === slug);
+    if (newWorkspace && selectedRepos.length > 0) {
+      const CHAT_REPOS_KEY = "codedock-repositories-v2";
+      const REPO_URLS_KEY = "codedock-repo-urls-v1";
+      const wsId = String(newWorkspace.id);
+      const raw = localStorage.getItem(CHAT_REPOS_KEY);
+      const allRepos: { id: string; name: string; workspaceId?: string }[] = raw ? JSON.parse(raw) : [];
+      const newEntries = selectedRepos.map((r) => ({ id: `${r.owner}-${r.name}-${wsId}`, name: r.name, workspaceId: wsId }));
+      const merged = [...allRepos, ...newEntries.filter((nr) => !allRepos.some((r) => r.id === nr.id))];
+      localStorage.setItem(CHAT_REPOS_KEY, JSON.stringify(merged));
+      const urlsRaw = localStorage.getItem(REPO_URLS_KEY);
+      const urls: Record<string, string> = urlsRaw ? JSON.parse(urlsRaw) : {};
+      for (const entry of newEntries) {
+        const src = selectedRepos.find((r) => `${r.owner}-${r.name}-${wsId}` === entry.id);
+        if (src) urls[entry.id] = src.htmlUrl;
+      }
+      localStorage.setItem(REPO_URLS_KEY, JSON.stringify(urls));
     }
+    setOrgs(list.map(workspaceDtoToOrg));
   };
 
   const handleAcceptInvite = (invite: Invite) => {
