@@ -11,7 +11,7 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -28,6 +28,9 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { CoffeeLogo } from "../components/CoffeeLogo";
 import { useTheme } from "../contexts/ThemeContext";
+import { useProfile } from "../contexts/ProfileContext";
+import { setTokens } from "../auth";
+import { apiClient, ApiClientError } from "../api/client";
 
 const strengthLabels = ["매우 약함", "약함", "보통", "좋음", "안전함"];
 type SignupMascotMood = "idle" | "focus" | "cta" | "risk" | "success";
@@ -45,6 +48,8 @@ const toneAlpha = (color: string, percent: number) => `color-mix(in srgb, ${colo
 
 export function SignupPage() {
   const { colors } = useTheme();
+  const navigate = useNavigate();
+  const { reloadProfile } = useProfile();
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -61,6 +66,7 @@ export function SignupPage() {
   const [signupFinalStage, setSignupFinalStage] = useState(0);
   const [githubConnectStatus, setGithubConnectStatus] = useState<GithubConnectStatus>("idle");
   const [message, setMessage] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const emailInputRef = useRef<HTMLInputElement>(null);
   const passwordInputRef = useRef<HTMLInputElement>(null);
@@ -411,7 +417,7 @@ export function SignupPage() {
     }
   };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!validateAccountStep()) {
@@ -434,7 +440,30 @@ export function SignupPage() {
       return;
     }
 
-    setMessage("회원가입 요청이 준비되었습니다. 백엔드 연동 시 이 데이터와 GitHub 권한으로 계정을 생성하면 됩니다.");
+    if (isSubmitting) return;
+    setMessage("");
+    setIsSubmitting(true);
+    try {
+      await apiClient.post("/api/v1/auth/signup", {
+        email: trimmedEmail,
+        displayName: trimmedName,
+        password: formData.password,
+      });
+      const tokens = await apiClient.post<{ accessToken: string; refreshToken: string }>(
+          "/api/v1/auth/login",
+          { email: trimmedEmail, password: formData.password }
+      );
+      setTokens(tokens.accessToken, tokens.refreshToken);
+      await reloadProfile();
+      navigate("/workspace");
+    } catch (error) {
+      const failed =
+          error instanceof ApiClientError && error.status === 409
+              ? "이미 사용 중인 이메일입니다. 이메일을 다시 확인해주세요."
+              : "회원가입에 실패했습니다. 잠시 후 다시 확인해주세요.";
+      setMessage(failed);
+      setIsSubmitting(false);
+    }
   };
 
   const handleGithubSignup = () => {
@@ -933,6 +962,7 @@ export function SignupPage() {
                           fontSize: "16px",
                           fontWeight: 950,
                         }}
+                        disabled={isSubmitting}
                       >
                         <AnimatePresence mode="wait" initial={false}>
                           {/* Do not localize: brand/developer easter-egg hover microcopy must stay in English. */}

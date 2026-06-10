@@ -1,7 +1,7 @@
 import type { ApiErrorResponse, ApiResponse } from "./types";
 import { authHeader, refreshAccessToken, clearTokens, getAccessToken } from "../auth";
 
-type HttpMethod = "GET" | "POST" | "PATCH" | "DELETE";
+type HttpMethod = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 type TemporaryUserId = number | string;
 
 export type ApiRequestOptions = {
@@ -156,6 +156,9 @@ export function createApiClient(options: ApiClientOptions = {}) {
     },
     patch<T>(path: string, body?: unknown, options?: ApiRequestOptions) {
       return request<T>("PATCH", path, body, options);
+    },
+    put<T>(path: string, body?: unknown, options?: ApiRequestOptions) {
+      return request<T>("PUT", path, body, options);
     },
     delete<T>(path: string, options?: ApiRequestOptions) {
       return request<T>("DELETE", path, undefined, options);

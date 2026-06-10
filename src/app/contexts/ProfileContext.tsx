@@ -1,5 +1,6 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useState,
@@ -7,6 +8,9 @@ import {
   type ReactNode,
   type SetStateAction,
 } from "react";
+
+import { apiClient } from "../api/client";
+import { isAuthenticated } from "../auth";
 
 export type ProfileStatus = "available" | "focus" | "away";
 
@@ -34,20 +38,20 @@ export const STATUS_OPTIONS: { id: ProfileStatus; label: string; color: string }
 ];
 
 export const DEFAULT_PROFILE: ProfileUser = {
-  name: "김재준",
-  nickname: "CodeDocker",
-  email: "jaejun@codedock.dev",
-  workspace: "CodeDock Team",
-  role: "프론트엔드",
-  skills: ["React", "TypeScript"],
-  bio: "프론트엔드 중심으로 PR 리뷰와 문서화를 함께 챙깁니다.",
+  name: "",
+  nickname: "",
+  email: "",
+  workspace: "",
+  role: "",
+  skills: [],
+  bio: "",
   status: "available",
   avatarUrl: "",
-  recoveryEmail: "jaejun@codedock.dev",
-  githubConnected: true,
-  githubUsername: "jean2077",
-  githubEmail: "jean2077@github.com",
-  connectedAt: "2026-05-21",
+  recoveryEmail: "",
+  githubConnected: false,
+  githubUsername: "",
+  githubEmail: "",
+  connectedAt: "",
 };
 
 const PROFILE_STORAGE_KEY = "codedock-profile-v1";
@@ -83,21 +87,74 @@ function saveProfile(profile: ProfileUser) {
   }
 }
 
+type MeResponse = {
+  email: string | null;
+  displayName: string | null;
+  nickname: string | null;
+  developerType: string | null;
+  bio: string | null;
+  avatarUrl: string | null;
+  githubConnected: boolean;
+  githubUsername: string | null;
+  githubEmail: string | null;
+  githubConnectedAt: string | null;
+};
+
 interface ProfileContextValue {
   profile: ProfileUser;
   setProfile: Dispatch<SetStateAction<ProfileUser>>;
+  loading: boolean;
+  reloadProfile: () => Promise<void>;
 }
 
 const ProfileContext = createContext<ProfileContextValue | null>(null);
 
 export function ProfileProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<ProfileUser>(() => getSavedProfile(DEFAULT_PROFILE));
+  const [loading, setLoading] = useState<boolean>(() => isAuthenticated());
+
+  const reloadProfile = useCallback(async () => {
+    if (!isAuthenticated()) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    try {
+      const me = await apiClient.get<MeResponse>("/api/v1/auth/me");
+      const skills = await apiClient.get<string[]>("/api/v1/users/me/skills");
+      setProfile((prev) => ({
+        ...prev,
+        name: me.displayName ?? "",
+        nickname: me.nickname ?? "",
+        email: me.email ?? "",
+        role: me.developerType ?? "",
+        bio: me.bio ?? "",
+        avatarUrl: me.avatarUrl ?? "",
+        skills: skills ?? [],
+        githubConnected: me.githubConnected,
+        githubUsername: me.githubUsername ?? "",
+        githubEmail: me.githubEmail ?? "",
+        connectedAt: me.githubConnectedAt ? String(me.githubConnectedAt) : "",
+      }));
+    } catch {
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void reloadProfile();
+  }, [reloadProfile]);
 
   useEffect(() => {
     saveProfile(profile);
   }, [profile]);
 
-  return <ProfileContext.Provider value={{ profile, setProfile }}>{children}</ProfileContext.Provider>;
+  return (
+      <ProfileContext.Provider value={{ profile, setProfile, loading, reloadProfile }}>
+        {children}
+      </ProfileContext.Provider>
+  );
 }
 
 export function useProfile(): ProfileContextValue {

@@ -23,6 +23,7 @@ import {
 import { motion } from "motion/react";
 import { useTheme } from "../contexts/ThemeContext";
 import { useProfile, STATUS_OPTIONS, type ProfileUser, type ProfileStatus } from "../contexts/ProfileContext";
+import { apiClient } from "../api/client";
 
 type ProfileSection = "profile" | "account" | "github";
 
@@ -51,6 +52,7 @@ export function ProfilePage() {
   const [activeSection, setActiveSection] = useState<ProfileSection>(initialSection);
   const { profile: user, setProfile: setUser } = useProfile();
   const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({
     name: user.name,
     nickname: user.nickname,
@@ -60,6 +62,20 @@ export function ProfilePage() {
     skills: user.skills,
     bio: user.bio,
   });
+
+  useEffect(() => {
+    if (!isEditing) {
+      setFormData({
+        name: user.name,
+        nickname: user.nickname,
+        email: user.email,
+        workspace: user.workspace,
+        role: user.role,
+        skills: user.skills,
+        bio: user.bio,
+      });
+    }
+  }, [user, isEditing]);
 
   useEffect(() => {
     setActiveSection(getProfileSection(searchParams.get("section")));
@@ -79,14 +95,41 @@ export function ProfilePage() {
     setSearchParams(section === "profile" ? {} : { section });
   };
 
-  const handleSave = (event: FormEvent<HTMLFormElement>) => {
+  const handleSave = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setUser((current) => ({
-      ...current,
-      ...formData,
-      recoveryEmail: formData.email,
-    }));
-    setIsEditing(false);
+    if (isSaving) return;
+    setIsSaving(true);
+    try {
+      const updated = await apiClient.patch<{
+        displayName: string | null;
+        nickname: string | null;
+        developerType: string | null;
+        bio: string | null;
+        avatarUrl: string | null;
+      }>("/api/v1/users/me", {
+        displayName: formData.name,
+        nickname: formData.nickname,
+        developerType: formData.role,
+        bio: formData.bio,
+        avatarUrl: user.avatarUrl,
+      });
+      const savedSkills = await apiClient.put<string[]>("/api/v1/users/me/skills", {
+        skills: formData.skills,
+      });
+      setUser((current) => ({
+        ...current,
+        name: updated.displayName ?? "",
+        nickname: updated.nickname ?? "",
+        role: updated.developerType ?? "",
+        bio: updated.bio ?? "",
+        avatarUrl: updated.avatarUrl ?? "",
+        skills: savedSkills ?? [],
+      }));
+      setIsEditing(false);
+    } catch {
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleCancel = () => {
@@ -126,25 +169,9 @@ export function ProfilePage() {
     }));
   };
 
-  const handleGithubConnect = () => {
-    setUser((current) => ({
-      ...current,
-      githubConnected: true,
-      githubUsername: "jean2077",
-      githubEmail: "jean2077@github.com",
-      connectedAt: "2026-06-01",
-    }));
-  };
+  const handleGithubConnect = () => {};
 
-  const handleGithubDisconnect = () => {
-    setUser((current) => ({
-      ...current,
-      githubConnected: false,
-      githubUsername: "",
-      githubEmail: "",
-      connectedAt: "",
-    }));
-  };
+  const handleGithubDisconnect = () => {};
 
   return (
     <div className="mx-auto w-[min(1120px,calc(100vw-36px))] py-12 pb-20">
@@ -358,7 +385,7 @@ function ProfileInfoSection({
           <div className="grid gap-5 md:grid-cols-2">
             <ProfileField icon={User} label="이름" value={formData.name} disabled={!isEditing} onChange={(name) => onChange({ ...formData, name })} />
             <ProfileField icon={UserRound} label="닉네임" value={formData.nickname} disabled={!isEditing} onChange={(nickname) => onChange({ ...formData, nickname })} />
-            <ProfileField icon={Mail} label="이메일" value={formData.email} disabled={!isEditing} onChange={(email) => onChange({ ...formData, email })} type="email" />
+            <ProfileField icon={Mail} label="이메일" value={formData.email} disabled onChange={(email) => onChange({ ...formData, email })} type="email" />
             <ProfileField icon={UsersRound} label="워크스페이스" value={formData.workspace} disabled={!isEditing} onChange={(workspace) => onChange({ ...formData, workspace })} />
             <DeveloperRoleField value={formData.role} disabled={!isEditing} onChange={(role) => onChange({ ...formData, role })} colors={colors} />
             <SkillTagsField value={formData.skills} disabled={!isEditing} onChange={(skills) => onChange({ ...formData, skills })} colors={colors} />
