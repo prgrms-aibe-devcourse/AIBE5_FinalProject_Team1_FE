@@ -1,4 +1,4 @@
-import { Hash, MessageSquare, Send, Bookmark, Reply, AtSign, X, Paperclip, Smile, UserPlus, FileUp, Code } from "lucide-react";
+import { Hash, MessageSquare, Send, Bookmark, Reply, AtSign, X, Paperclip, Smile, UserPlus, FileUp, Code, Pencil, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import { createFileMessageAttachment, createLinkMessageAttachment, createLinkMessageAttachmentFromText, messageAttachmentGroups, messageAttachmentTypeLabels, type MessageAttachment, type MessageAttachmentType } from "./messageAttachments";
 import { EmojiPicker } from "./EmojiPicker";
@@ -8,6 +8,8 @@ import { TypingIndicatorBar } from "./TypingIndicatorBar";
 
 interface Thread {
   id: number;
+  backendMessageId?: number;
+  backendChannelId?: number;
   user: string;
   avatar: string;
   message: string;
@@ -16,6 +18,8 @@ interface Thread {
   lastReply?: string;
   attachments?: MessageAttachment[];
   replyTo?: { user: string; text: string };
+  pending?: boolean;
+  deleted?: boolean;
 }
 
 interface ChannelPanelProps {
@@ -24,7 +28,7 @@ interface ChannelPanelProps {
   repoName?: string;
   threads?: Thread[];
   reactions?: Record<string, MessageReaction[]>;
-  replyCounts?: Record<number, number>;
+  replyCounts?: Record<number | string, number>;
   onOpenThread?: (message: any) => void;
   selectedThreadId?: number | string;
   onOpenInvite?: () => void;
@@ -36,6 +40,8 @@ interface ChannelPanelProps {
   onTypingChange?: (typing: boolean) => void;
   remoteTypingLabel?: string;
   onToggleReaction?: (reactionKey: string, emoji: string) => void;
+  onEditThread?: (thread: Thread, nextMessage: string) => void;
+  onDeleteThread?: (thread: Thread) => void;
 }
 
 const CHANNEL_THREADS_KEY_PREFIX = "codedock-channel-threads-v1";
@@ -114,7 +120,7 @@ function getDisplayUserName(user?: string) {
   return isSelfUser(trimmed) ? currentUserDisplayName : trimmed;
 }
 
-export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, replyCounts = {}, onOpenThread, selectedThreadId, onOpenInvite, onSendThread, onTypingChange, remoteTypingLabel, onToggleReaction }: ChannelPanelProps) {
+export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, replyCounts = {}, onOpenThread, selectedThreadId, onOpenInvite, onSendThread, onTypingChange, remoteTypingLabel, onToggleReaction, onEditThread, onDeleteThread }: ChannelPanelProps) {
   const channelStorageId = channelId ?? repoId ?? "general";
   const channelStorageKey = `${CHANNEL_THREADS_KEY_PREFIX}:${channelStorageId}`;
   const [localThreads, setLocalThreads] = useState<Thread[]>(() =>
@@ -142,6 +148,8 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
   const [emojiPickerMsgId, setEmojiPickerMsgId] = useState<number | null>(null);
   const [emojiPickerPos, setEmojiPickerPos] = useState<{ top: number; right: number } | null>(null);
   const [replyTo, setReplyTo] = useState<Thread | null>(null);
+  const [editingThreadId, setEditingThreadId] = useState<number | null>(null);
+  const [editingMessageText, setEditingMessageText] = useState("");
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const skipThreadSaveRef = useRef(false);
   const responderTypingTimerRef = useRef<number | null>(null);
@@ -279,8 +287,48 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
     setReplyTo(thread);
   };
 
+  const handleStartEditThread = (thread: Thread) => {
+    setEditingThreadId(thread.id);
+    setEditingMessageText(thread.message);
+  };
+
+  const handleCancelEditThread = () => {
+    setEditingThreadId(null);
+    setEditingMessageText("");
+  };
+
+  const handleSubmitEditThread = (thread: Thread) => {
+    const nextMessage = editingMessageText.trim();
+    if (!nextMessage) return;
+
+    if (onEditThread) {
+      onEditThread(thread, nextMessage);
+    } else {
+      setLocalThreads((prev) =>
+        prev.map((item) => item.id === thread.id ? { ...item, message: nextMessage } : item)
+      );
+    }
+
+    handleCancelEditThread();
+  };
+
+  const handleDeleteThread = (thread: Thread) => {
+    if (onDeleteThread) {
+      onDeleteThread(thread);
+    } else {
+      setLocalThreads((prev) =>
+        prev.map((item) =>
+          item.id === thread.id
+            ? { ...item, message: "삭제된 메시지입니다.", deleted: true }
+            : item
+        )
+      );
+    }
+  };
+
   const renderHoverMenu = (thread: Thread) => {
     const isBookmarked = bookmarkedThreadIds[thread.id];
+    const canManageThread = isSelfUser(thread.user) && !thread.deleted;
     const bk = (label: string) => `${thread.id}:${label}`;
     const isHvr = (label: string) => hoveredBtn === bk(label);
     const currentLabel = hoveredBtn?.startsWith(`${thread.id}:`)
@@ -349,6 +397,24 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
               setMessageText((prev) => `${prev}${prev && !prev.endsWith(" ") ? " " : ""}@${thread.user} `);
             }}
           ><AtSign size={14} /></button>
+
+          {canManageThread && (
+            <>
+              <button className="w-7 h-7 rounded flex items-center justify-center"
+                style={btnStyle('수정')}
+                onMouseEnter={() => setHoveredBtn(bk('수정'))}
+                onMouseLeave={() => setHoveredBtn(null)}
+                onClick={(e) => { e.stopPropagation(); handleStartEditThread(thread); }}
+              ><Pencil size={14} /></button>
+
+              <button className="w-7 h-7 rounded flex items-center justify-center"
+                style={btnStyle('삭제')}
+                onMouseEnter={() => setHoveredBtn(bk('삭제'))}
+                onMouseLeave={() => setHoveredBtn(null)}
+                onClick={(e) => { e.stopPropagation(); handleDeleteThread(thread); }}
+              ><Trash2 size={14} /></button>
+            </>
+          )}
         </div>
 
         {currentLabel && (
@@ -465,6 +531,7 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
           {displayedThreads.map((thread) => {
             const displayedReplyCount = replyCounts[thread.id] ?? thread.replies;
             const isOwnThread = isSelfUser(thread.user);
+            const isEditingThread = editingThreadId === thread.id;
 
             return (
             <div
@@ -535,14 +602,51 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
                         </div>
                       </div>
                     )}
-                    <p className="m-0 mb-3 tracking-tight" style={{
-                      fontSize: '14px',
-                      fontWeight: 700,
-                      color: 'var(--white)',
-                      lineHeight: '1.5'
-                    }}>
-                      {thread.message}
-                    </p>
+                    {isEditingThread ? (
+                      <div className="mb-3 grid gap-2" onClick={(event) => event.stopPropagation()}>
+                        <textarea
+                          value={editingMessageText}
+                          onChange={(event) => setEditingMessageText(event.target.value)}
+                          className="w-full resize-none rounded-lg px-3 py-2 tracking-tight outline-none"
+                          rows={3}
+                          style={{
+                            background: 'rgba(5, 11, 20, 0.68)',
+                            border: '1px solid rgba(var(--codedock-primary-rgb), 0.24)',
+                            color: 'var(--white)',
+                            fontSize: '14px',
+                            fontWeight: 700,
+                            lineHeight: 1.5
+                          }}
+                        />
+                        <div className="flex justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={handleCancelEditThread}
+                            className="rounded-lg border-0 px-3 py-1.5 tracking-tight"
+                            style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--muted)', cursor: 'pointer', fontSize: '12px', fontWeight: 900 }}
+                          >
+                            취소
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleSubmitEditThread(thread)}
+                            className="rounded-lg border-0 px-3 py-1.5 tracking-tight"
+                            style={{ background: 'rgba(var(--codedock-primary-rgb), 0.18)', color: 'var(--neon-cyan)', cursor: 'pointer', fontSize: '12px', fontWeight: 900 }}
+                          >
+                            저장
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="m-0 mb-3 tracking-tight" style={{
+                        fontSize: '14px',
+                        fontWeight: 700,
+                        color: thread.deleted ? 'var(--muted)' : 'var(--white)',
+                        lineHeight: '1.5'
+                      }}>
+                        {thread.message}
+                      </p>
+                    )}
                     {thread.attachments && thread.attachments.length > 0 && (
                       <div className="grid gap-2 mb-3">
                         {thread.attachments.map((attachment) => (
