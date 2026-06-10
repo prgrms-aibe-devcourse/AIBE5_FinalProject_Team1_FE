@@ -20,13 +20,20 @@ import { TeamPanel } from "../components/TeamPanel";
 import { createPortal } from "react-dom";
 import {
   chatWebSocketDestinations,
+  createThreadReply,
+  deleteChannelMessage,
   getChannelMessages,
+  getChannelReactions,
+  getThreadReplies,
   getWorkspaceChannels,
   toggleChannelReaction,
+  updateChannelMessage,
   type Channel,
   type ChannelMessage,
   type ChatEvent,
+  type ReactionSummary,
   type ReactionToggleResponse,
+  type ThreadReply,
   type TypingEvent
 } from "../api";
 import type { ChatStompClient } from "../api/stomp";
@@ -292,6 +299,27 @@ function mapChannelMessageToWorkspaceMessage(message: ChannelMessage) {
     text: message.content,
     time: formatApiDateTime(message.createdAt),
     replies: 0
+  };
+}
+
+function mapThreadReplyToWorkspaceMessage(reply: ThreadReply) {
+  return {
+    id: reply.id,
+    backendReplyId: reply.id,
+    backendThreadId: reply.threadId,
+    user: reply.senderName,
+    avatar: reply.senderName?.charAt(0).toUpperCase() || "U",
+    text: reply.content,
+    message: reply.content,
+    time: formatApiDateTime(reply.createdAt)
+  };
+}
+
+function mapReactionSummaryToMessageReaction(summary: ReactionSummary): MessageReaction {
+  return {
+    emoji: summary.emoji,
+    count: summary.count,
+    reacted: false
   };
 }
 
@@ -942,6 +970,66 @@ export function ChatPage() {
     });
   }, []);
 
+  const replaceServerMessage = useCallback((channelId: string, message: ChannelMessage) => {
+    const mappedMessage = mapChannelMessageToWorkspaceMessage(message);
+
+    setMessages((prev) => ({
+      ...prev,
+      [channelId]: (prev[channelId] || []).map((item) =>
+        item.backendMessageId === message.id || item.id === message.id
+          ? { ...item, ...mappedMessage }
+          : item
+      )
+    }));
+    setSelectedThread((prevThread: any) =>
+      prevThread && Number(prevThread.backendMessageId ?? prevThread.id) === message.id
+        ? { ...prevThread, ...mappedMessage }
+        : prevThread
+    );
+  }, []);
+
+  const applyReactionSummaries = useCallback((summaries: ReactionSummary[], channelId = selectedChannel) => {
+    if (summaries.length === 0) return;
+
+    setMessageReactions((prev) => {
+      const next = { ...prev };
+
+      summaries.forEach((summary) => {
+        const reaction = mapReactionSummaryToMessageReaction(summary);
+
+        if (summary.targetType === "thread") {
+          const keys = [
+            `channel:${channelId}:thread:${summary.targetId}`,
+            selectedThread && Number(selectedThread.backendMessageId ?? selectedThread.id) === summary.targetId
+              ? `thread:${channelId}:${selectedThread.id}:original`
+              : null
+          ].filter((key): key is string => Boolean(key));
+
+          keys.forEach((key) => {
+            const existing = next[key]?.filter((item) => item.emoji !== summary.emoji) ?? [];
+            next[key] = summary.count > 0 ? [...existing, reaction] : existing;
+          });
+          return;
+        }
+
+        if (summary.targetType === "thread_reply" && selectedThread) {
+          const selectedThreadKey = getThreadKey(selectedThread);
+          const replies = threadReplies[selectedThreadKey] ?? [];
+          const matchesReply = replies.some((reply) =>
+            Number(reply.backendReplyId ?? reply.id) === summary.targetId
+          );
+          if (!matchesReply) return;
+
+          const key = `thread:${channelId}:${selectedThread.id}:reply:${summary.targetId}`;
+          const existing = next[key]?.filter((item) => item.emoji !== summary.emoji) ?? [];
+          next[key] = summary.count > 0 ? [...existing, reaction] : existing;
+        }
+      });
+
+      return next;
+    });
+  }, [selectedChannel, selectedThread, threadReplies]);
+
   const applyReactionResponse = useCallback((response: ReactionToggleResponse, channelId = selectedChannel) => {
     const keys = response.targetType === "thread"
       ? [
@@ -1003,6 +1091,64 @@ export function ChatPage() {
   }, [activeApiChannelId, selectedChannel]);
 
   useEffect(() => {
+    if (!activeApiChannelId) return;
+
+    const controller = new AbortController();
+
+    getChannelReactions(activeApiChannelId, {
+      signal: controller.signal,
+      userId: TEMPORARY_API_USER_ID
+    })
+      .then((summaries) => applyReactionSummaries(summaries, selectedChannel))
+      .catch(() => {
+        // Keep local reactions when the backend is unavailable.
+      });
+
+    return () => controller.abort();
+  }, [activeApiChannelId, applyReactionSummaries, selectedChannel]);
+
+  useEffect(() => {
+    if (!selectedThread || !activeApiChannelId) return;
+
+    const threadId = Number(selectedThread.backendMessageId ?? selectedThread.id);
+    if (!Number.isFinite(threadId)) return;
+
+    const controller = new AbortController();
+    const threadKey = getThreadKey(selectedThread);
+
+    getThreadReplies(threadId, {
+      signal: controller.signal,
+      userId: TEMPORARY_API_USER_ID
+    })
+      .then((serverReplies) => {
+        const mappedReplies = serverReplies.map(mapThreadReplyToWorkspaceMessage);
+
+        setThreadReplies((prev) => ({
+          ...prev,
+          [threadKey]: mappedReplies
+        }));
+        setThreadReplyCounts((prev) => ({
+          ...prev,
+          [selectedThread.id]: mappedReplies.length
+        }));
+        setSelectedThread((prevThread: any) =>
+          prevThread && prevThread.id === selectedThread.id
+            ? {
+                ...prevThread,
+                replies: mappedReplies.length,
+                lastReply: mappedReplies.at(-1)?.user ?? prevThread.lastReply
+              }
+            : prevThread
+        );
+      })
+      .catch(() => {
+        // Keep local/mock replies when the backend is unavailable.
+      });
+
+    return () => controller.abort();
+  }, [activeApiChannelId, selectedThread?.backendMessageId, selectedThread?.id]);
+
+  useEffect(() => {
     if (!activeApiChannelId) {
       chatStompRef.current?.disconnect();
       chatStompRef.current = null;
@@ -1025,6 +1171,11 @@ export function ChatPage() {
         (event) => {
           if (event.type === "MESSAGE_CREATED") {
             appendServerMessage(selectedChannel, event.payload as ChannelMessage);
+            return;
+          }
+
+          if (event.type === "MESSAGE_UPDATED" || event.type === "MESSAGE_DELETED") {
+            replaceServerMessage(selectedChannel, event.payload as ChannelMessage);
             return;
           }
 
@@ -1093,7 +1244,7 @@ export function ChatPage() {
         [selectedChannel]: []
       }));
     };
-  }, [activeApiChannelId, applyReactionResponse, appendServerMessage, selectedChannel]);
+  }, [activeApiChannelId, applyReactionResponse, appendServerMessage, replaceServerMessage, selectedChannel]);
 
   const handleChannelTypingChange = useCallback((typing: boolean) => {
     if (!activeApiChannelId) return;
@@ -1628,6 +1779,14 @@ export function ChatPage() {
       };
     }
 
+    const replyMatch = reactionKey.match(/:reply:(\d+)$/);
+    if (replyMatch) {
+      return {
+        targetType: "thread_reply" as const,
+        targetId: Number(replyMatch[1])
+      };
+    }
+
     const threadMatch = reactionKey.match(/:thread:(\d+)$/);
     if (threadMatch) {
       return {
@@ -1760,6 +1919,61 @@ export function ChatPage() {
     }));
   };
 
+  const updateThreadMessageInState = (thread: any, patch: Record<string, unknown>) => {
+    setMessages((prev) => ({
+      ...prev,
+      [selectedChannel]: (prev[selectedChannel] || []).map((item) =>
+        item.id === thread.id || item.backendMessageId === thread.backendMessageId
+          ? { ...item, ...patch }
+          : item
+      )
+    }));
+    setSelectedThread((prevThread: any) =>
+      prevThread && (prevThread.id === thread.id || prevThread.backendMessageId === thread.backendMessageId)
+        ? { ...prevThread, ...patch }
+        : prevThread
+    );
+  };
+
+  const handleEditThreadMessage = (thread: any, nextMessage: string) => {
+    updateThreadMessageInState(thread, {
+      message: nextMessage,
+      text: nextMessage
+    });
+
+    const backendMessageId = Number(thread.backendMessageId ?? thread.id);
+    if (!activeApiChannelId || !Number.isFinite(backendMessageId)) return;
+
+    updateChannelMessage(activeApiChannelId, backendMessageId, { content: nextMessage }, {
+      userId: TEMPORARY_API_USER_ID
+    })
+      .then((serverMessage) => replaceServerMessage(selectedChannel, serverMessage))
+      .catch(() => {
+        // Keep the optimistic edit so the local mock workflow is not interrupted.
+      });
+  };
+
+  const handleDeleteThreadMessage = (thread: any) => {
+    const deletedMessage = "삭제된 메시지입니다.";
+
+    updateThreadMessageInState(thread, {
+      message: deletedMessage,
+      text: deletedMessage,
+      deleted: true
+    });
+
+    const backendMessageId = Number(thread.backendMessageId ?? thread.id);
+    if (!activeApiChannelId || !Number.isFinite(backendMessageId)) return;
+
+    deleteChannelMessage(activeApiChannelId, backendMessageId, {
+      userId: TEMPORARY_API_USER_ID
+    })
+      .then((serverMessage) => replaceServerMessage(selectedChannel, serverMessage))
+      .catch(() => {
+        // Keep the optimistic delete so the local mock workflow is not interrupted.
+      });
+  };
+
   const handleSendReply = (text: string) => {
     if (selectedThread) {
       const key = getThreadKey(selectedThread);
@@ -1791,6 +2005,79 @@ export function ChatPage() {
           : prevThread
       );
     }
+  };
+
+  const handleSendThreadReply = (text: string) => {
+    if (!selectedThread) return;
+
+    const trimmedText = text.trim();
+    if (!trimmedText) return;
+
+    const key = getThreadKey(selectedThread);
+    const optimisticReply: any = {
+      id: Date.now(),
+      user: myProfile.name,
+      text: trimmedText,
+      message: trimmedText,
+      time: '諛⑷툑'
+    };
+
+    const appendReply = (reply: any) => {
+      setThreadReplies(prev => ({
+        ...prev,
+        [key]: [...(prev[key] || []), reply]
+      }));
+      setThreadReplyCounts(prev => {
+        const nextCount = (prev[selectedThread.id] ?? selectedThread.replies ?? 0) + 1;
+        return {
+          ...prev,
+          [selectedThread.id]: nextCount
+        };
+      });
+      setSelectedThread((prevThread: any) =>
+        prevThread
+          ? {
+              ...prevThread,
+              replies: (prevThread.replies ?? 0) + 1,
+              lastReply: reply.user
+            }
+          : prevThread
+      );
+    };
+
+    const replaceOptimisticReply = (reply: ThreadReply) => {
+      const mappedReply = mapThreadReplyToWorkspaceMessage(reply);
+
+      setThreadReplies(prev => ({
+        ...prev,
+        [key]: (prev[key] || []).map((item) =>
+          item.id === optimisticReply.id ? mappedReply : item
+        )
+      }));
+      setSelectedThread((prevThread: any) =>
+        prevThread
+          ? {
+              ...prevThread,
+              lastReply: mappedReply.user
+            }
+          : prevThread
+      );
+    };
+
+    const backendThreadId = Number(selectedThread.backendMessageId ?? selectedThread.id);
+    if (activeApiChannelId && Number.isFinite(backendThreadId)) {
+      appendReply({ ...optimisticReply, pending: true });
+      createThreadReply(backendThreadId, { content: trimmedText }, {
+        userId: TEMPORARY_API_USER_ID
+      })
+        .then(replaceOptimisticReply)
+        .catch(() => {
+          // Keep the optimistic reply so the local mock workflow is not interrupted.
+        });
+      return;
+    }
+
+    appendReply(optimisticReply);
   };
 
   const handleAddPrThreadReply = (msg: any) => {
@@ -2594,6 +2881,8 @@ export function ChatPage() {
                 onTypingChange={activeApiChannelId ? handleChannelTypingChange : undefined}
                 remoteTypingLabel={activeRemoteTypingLabel}
                 onToggleReaction={handleToggleReaction}
+                onEditThread={activeApiChannelId ? handleEditThreadMessage : undefined}
+                onDeleteThread={activeApiChannelId ? handleDeleteThreadMessage : undefined}
               />
             ) : REPO_CHANNEL_IDS_REVERSE[selectedChannel] !== undefined ? (
               <ChannelPanel
@@ -2610,6 +2899,8 @@ export function ChatPage() {
                 onTypingChange={activeApiChannelId ? handleChannelTypingChange : undefined}
                 remoteTypingLabel={activeRemoteTypingLabel}
                 onToggleReaction={handleToggleReaction}
+                onEditThread={activeApiChannelId ? handleEditThreadMessage : undefined}
+                onDeleteThread={activeApiChannelId ? handleDeleteThreadMessage : undefined}
               />
             ) : repositories.find(r => r.id === selectedChannel) ? (
               <ChannelPanel
@@ -2626,6 +2917,8 @@ export function ChatPage() {
                 onTypingChange={activeApiChannelId ? handleChannelTypingChange : undefined}
                 remoteTypingLabel={activeRemoteTypingLabel}
                 onToggleReaction={handleToggleReaction}
+                onEditThread={activeApiChannelId ? handleEditThreadMessage : undefined}
+                onDeleteThread={activeApiChannelId ? handleDeleteThreadMessage : undefined}
               />
             ) : selectedChannel === 'work-board' ? (
               <WorkBoardPanel
@@ -2701,7 +2994,7 @@ export function ChatPage() {
               reactionScope={`thread:${selectedChannel}:${selectedThread.id}`}
               reactions={messageReactions}
               onClose={handleCloseThread}
-              onSendReply={handleSendReply}
+              onSendReply={handleSendThreadReply}
               onToggleReaction={handleToggleReaction}
             />
           </section>

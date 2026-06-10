@@ -25,6 +25,23 @@ export type ChannelMessageCreateRequest = {
   content: string;
 };
 
+export type ChannelMessageUpdateRequest = {
+  content: string;
+};
+
+export type ThreadReply = {
+  id: number;
+  threadId: number;
+  senderMemberId: number;
+  senderName: string;
+  content: string;
+  createdAt: ISODateTime;
+};
+
+export type ThreadReplyCreateRequest = {
+  content: string;
+};
+
 export type ReactionToggleRequest = {
   workspaceMemberId: number;
   targetType: ReactionTargetType;
@@ -39,6 +56,13 @@ export type ReactionToggleResponse = {
   targetId: number;
   emoji: string;
   reacted: boolean;
+  count: number;
+};
+
+export type ReactionSummary = {
+  targetType: ReactionTargetType;
+  targetId: number;
+  emoji: string;
   count: number;
 };
 
@@ -107,6 +131,31 @@ export function getChannelMessages(channelId: number, query: ChannelMessagesQuer
       ...options?.query
     }
   });
+}
+
+export function updateChannelMessage(
+  channelId: number,
+  messageId: number,
+  request: ChannelMessageUpdateRequest,
+  options?: ApiRequestOptions
+) {
+  return apiClient.patch<ChannelMessage>(`/api/channels/${channelId}/messages/${messageId}`, request, options);
+}
+
+export function deleteChannelMessage(channelId: number, messageId: number, options?: ApiRequestOptions) {
+  return apiClient.delete<ChannelMessage>(`/api/channels/${channelId}/messages/${messageId}`, options);
+}
+
+export function getThreadReplies(threadId: number, options?: ApiRequestOptions) {
+  return apiClient.get<ThreadReply[]>(`/api/threads/${threadId}/replies`, options);
+}
+
+export function createThreadReply(threadId: number, request: ThreadReplyCreateRequest, options?: ApiRequestOptions) {
+  return apiClient.post<ThreadReply>(`/api/threads/${threadId}/replies`, request, options);
+}
+
+export function getChannelReactions(channelId: number, options?: ApiRequestOptions) {
+  return apiClient.get<ReactionSummary[]>(`/api/channels/${channelId}/reactions`, options);
 }
 
 export function toggleChannelReaction(channelId: number, request: ReactionToggleRequest, options?: ApiRequestOptions) {
