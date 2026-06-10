@@ -1,10 +1,11 @@
 import { useState, useRef, useCallback, useEffect, useLayoutEffect } from "react";
 import { useNavigate } from "react-router";
-import { ArrowRight, AtSign, Check, CircleDot, CornerDownRight, GitFork, GitPullRequest, MessageSquare, Plus, Settings2, Users, X } from "lucide-react";
+import { ArrowRight, AtSign, Check, CircleDot, CornerDownRight, GitFork, GitPullRequest, Loader2, MessageSquare, Plus, Settings2, Users, X } from "lucide-react";
 import { WorkspaceSettingsModal } from "../components/WorkspaceSettingsModal";
-import { ensureSeeded } from "../components/TeamPanel";
 import { DndProvider, useDrag, useDrop, useDragLayer } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
+import { fetchMyGithubRepos, fetchRepoCollaborators, type GithubCollaborator, type GithubRepo } from "../api/github";
+import { fetchMyWorkspaces, createWorkspace, type WorkspaceDto } from "../api/workspace";
 
 const DRAG_TYPE = "TEAM_CARD";
 const WORKSPACE_COLORS_KEY = "codedock-workspace-colors-v1";
@@ -52,26 +53,6 @@ type TeamInviteDraft = {
   email: string;
   role: string;
 };
-
-const MOCK_GITHUB_REPOS = [
-  { id: 1,  name: "secure-flow-api",       owner: "my_github",    relation: "owner",        isPrivate: true,  language: "TypeScript" },
-  { id: 2,  name: "auth-middleware",        owner: "my_github",    relation: "owner",        isPrivate: true,  language: "TypeScript" },
-  { id: 3,  name: "codedock-frontend",      owner: "my_github",    relation: "owner",        isPrivate: false, language: "TypeScript" },
-  { id: 4,  name: "dashboard-ui-kit",       owner: "my_github",    relation: "owner",        isPrivate: false, language: "CSS"        },
-  { id: 5,  name: "ai-chat-platform",       owner: "AIBE5-Team1", relation: "collaborator", isPrivate: true,  language: "Python"     },
-  { id: 6,  name: "infra-terraform",        owner: "AIBE5-Team1", relation: "collaborator", isPrivate: true,  language: "HCL"        },
-  { id: 7,  name: "design-system",          owner: "AIBE5-Team1", relation: "collaborator", isPrivate: false, language: "TypeScript" },
-  { id: 8,  name: "backend-api-gateway",    owner: "AIBE5-Team1", relation: "collaborator", isPrivate: true,  language: "Java"       },
-  { id: 9,  name: "mobile-app",             owner: "some-org",    relation: "collaborator", isPrivate: false, language: "Kotlin"     },
-  { id: 10, name: "data-pipeline",          owner: "some-org",    relation: "collaborator", isPrivate: true,  language: "Python"     },
-];
-
-const SUGGESTED_TEAM_MEMBERS: TeamInviteDraft[] = [
-  { id: 1, name: "김재준", email: "jaejun@codedock.dev", role: "Tech Lead" },
-  { id: 2, name: "김진필", email: "jinah@codedock.dev", role: "Backend Developer" },
-  { id: 3, name: "김진현", email: "jinhyun@codedock.dev", role: "DevOps Engineer" },
-  { id: 4, name: "안현", email: "hyun@codedock.dev", role: "QA Engineer" },
-];
 
 const TEAM_ROLE_OPTIONS = [
   "Tech Lead",
@@ -324,19 +305,66 @@ function CreateTeamModal({
   onCreate,
 }: {
   onClose: () => void;
-  onCreate: (name: string, repoIds: number[], invitedMembers: TeamInviteDraft[]) => void;
+  onCreate: (name: string, repos: GithubRepo[], invitedMembers: TeamInviteDraft[]) => void;
 }) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [name, setName] = useState("");
+
+  // Step 2: repos
+  const [repos, setRepos] = useState<GithubRepo[]>([]);
+  const [reposLoading, setReposLoading] = useState(false);
+  const [reposError, setReposError] = useState<string | null>(null);
   const [selectedRepos, setSelectedRepos] = useState<number[]>([]);
   const [repoSearch, setRepoSearch] = useState("");
+
+  // Step 3: members
+  const [collaborators, setCollaborators] = useState<GithubCollaborator[]>([]);
+  const [collaboratorsLoading, setCollaboratorsLoading] = useState(false);
   const [selectedMembers, setSelectedMembers] = useState<TeamInviteDraft[]>([]);
   const [memberEmail, setMemberEmail] = useState("");
   const [memberRole, setMemberRole] = useState(TEAM_ROLE_OPTIONS[0]);
 
   const canProceed = name.trim().length > 0;
 
-  const filteredRepos = MOCK_GITHUB_REPOS.filter((r) =>
+  // Fetch repos when entering step 2
+  useEffect(() => {
+    if (step !== 2) return;
+    setReposLoading(true);
+    setReposError(null);
+    fetchMyGithubRepos()
+      .then(setRepos)
+      .catch((err: Error) => setReposError(err.message))
+      .finally(() => setReposLoading(false));
+  }, [step]);
+
+  // Fetch collaborators from all selected repos when entering step 3
+  useEffect(() => {
+    if (step !== 3 || selectedRepos.length === 0) {
+      setCollaborators([]);
+      return;
+    }
+    setCollaboratorsLoading(true);
+    const selectedRepoObjs = repos.filter((r) => selectedRepos.includes(r.id));
+    Promise.all(
+      selectedRepoObjs.map((r) => fetchRepoCollaborators(r.owner, r.name).catch(() => [] as GithubCollaborator[]))
+    )
+      .then((results) => {
+        const seen = new Set<string>();
+        const merged: GithubCollaborator[] = [];
+        for (const list of results) {
+          for (const c of list) {
+            if (!seen.has(c.login)) {
+              seen.add(c.login);
+              merged.push(c);
+            }
+          }
+        }
+        setCollaborators(merged);
+      })
+      .finally(() => setCollaboratorsLoading(false));
+  }, [step, selectedRepos, repos]);
+
+  const filteredRepos = repos.filter((r) =>
     `${r.owner}/${r.name}`.toLowerCase().includes(repoSearch.toLowerCase())
   );
 
@@ -346,44 +374,85 @@ function CreateTeamModal({
     );
   };
 
-  const toggleSuggestedMember = (member: TeamInviteDraft) => {
+  const toggleCollaborator = (collab: GithubCollaborator) => {
+    if (!collab.email) return;
+    const draft: TeamInviteDraft = {
+      id: collab.userId ?? Date.now(),
+      name: collab.displayName ?? collab.login,
+      email: collab.email,
+      role: TEAM_ROLE_OPTIONS[1],
+    };
     setSelectedMembers((prev) =>
-      prev.some((item) => item.email === member.email)
-        ? prev.filter((item) => item.email !== member.email)
-        : [...prev, member]
+      prev.some((m) => m.email === collab.email)
+        ? prev.filter((m) => m.email !== collab.email)
+        : [...prev, draft]
     );
   };
 
   const handleAddMemberByEmail = () => {
     const email = memberEmail.trim();
-    if (!email || !email.includes("@") || selectedMembers.some((member) => member.email === email)) return;
-
+    if (!email || !email.includes("@") || selectedMembers.some((m) => m.email === email)) return;
     setSelectedMembers((prev) => [
       ...prev,
-      {
-        id: Date.now(),
-        name: email.split("@")[0],
-        email,
-        role: memberRole,
-      },
+      { id: Date.now(), name: email.split("@")[0], email, role: memberRole },
     ]);
     setMemberEmail("");
   };
 
   const handleRemoveMember = (email: string) => {
-    setSelectedMembers((prev) => prev.filter((member) => member.email !== email));
+    setSelectedMembers((prev) => prev.filter((m) => m.email !== email));
   };
 
   const handleChangeMemberRole = (email: string, role: string) => {
-    setSelectedMembers((prev) =>
-      prev.map((member) => (member.email === email ? { ...member, role } : member))
-    );
+    setSelectedMembers((prev) => prev.map((m) => (m.email === email ? { ...m, role } : m)));
   };
 
   const handleFinish = () => {
-    onCreate(name.trim(), selectedRepos, selectedMembers);
+    const selectedRepoObjs = repos.filter((r) => selectedRepos.includes(r.id));
+    onCreate(name.trim(), selectedRepoObjs, selectedMembers);
     onClose();
   };
+
+  // Header with step indicator (shared)
+  const stepHeader = (
+    <div className="flex items-center justify-between px-7 pt-7 pb-5">
+      <div>
+        <h2 className="m-0 tracking-[-0.06em]" style={{ fontSize: "22px", fontWeight: 950, color: "var(--white)" }}>
+          팀 생성하기
+        </h2>
+        <div className="flex items-center gap-2 mt-2">
+          {([1, 2, 3] as const).map((s) => (
+            <div key={s} className="flex items-center gap-1.5">
+              <div
+                style={{
+                  width: "20px", height: "20px", borderRadius: "50%",
+                  background: step === s ? "var(--neon-cyan)" : step > s ? "rgba(var(--codedock-primary-rgb), 0.35)" : "rgba(255,255,255,0.10)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: "var(--krds-body-xsmall)", fontWeight: 950,
+                  color: step >= s ? "#021014" : "var(--muted)", transition: "all 0.2s",
+                }}
+              >
+                {s}
+              </div>
+              <span style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 800, color: step === s ? "var(--white)" : "var(--muted)" }}>
+                {s === 1 ? "팀 이름" : s === 2 ? "리포지토리" : "팀원 추가"}
+              </span>
+              {s < 3 && (
+                <div style={{ width: "20px", height: "1.5px", background: step > s ? "rgba(var(--codedock-primary-rgb), 0.4)" : "rgba(255,255,255,0.10)", marginLeft: "2px" }} />
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+      <button
+        onClick={onClose}
+        className="flex h-8 w-8 items-center justify-center rounded-full border-0"
+        style={{ background: "rgba(255,255,255,0.06)", color: "var(--muted)", cursor: "pointer" }}
+      >
+        <X size={16} />
+      </button>
+    </div>
+  );
 
   return (
     <div
@@ -400,60 +469,9 @@ function CreateTeamModal({
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-7 pt-7 pb-5">
-          <div>
-            <h2
-              className="m-0 tracking-[-0.06em]"
-              style={{ fontSize: "22px", fontWeight: 950, color: "var(--white)" }}
-            >
-              팀 생성하기
-            </h2>
-            <div className="flex items-center gap-2 mt-2">
-              {([1, 2, 3] as const).map((s) => (
-                <div key={s} className="flex items-center gap-1.5">
-                  <div
-                    style={{
-                      width: "20px",
-                      height: "20px",
-                      borderRadius: "50%",
-                      background: step === s ? "var(--neon-cyan)" : step > s ? "rgba(var(--codedock-primary-rgb), 0.35)" : "rgba(255,255,255,0.10)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "var(--krds-body-xsmall)",
-                      fontWeight: 950,
-                      color: step >= s ? "#021014" : "var(--muted)",
-                      transition: "all 0.2s",
-                    }}
-                  >
-                    {s}
-                  </div>
-                  <span style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 800, color: step === s ? "var(--white)" : "var(--muted)" }}>
-                    {s === 1 ? "팀 이름" : s === 2 ? "리포지토리" : "팀원 추가"}
-                  </span>
-                  {s < 3 && (
-                    <div
-                      style={{
-                        width: "20px",
-                        height: "1.5px",
-                        background: step > s ? "rgba(var(--codedock-primary-rgb), 0.4)" : "rgba(255,255,255,0.10)",
-                        marginLeft: "2px",
-                      }}
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-full border-0"
-            style={{ background: "rgba(255,255,255,0.06)", color: "var(--muted)", cursor: "pointer" }}
-          >
-            <X size={16} />
-          </button>
-        </div>
+        {stepHeader}
 
+        {/* ── Step 1: 팀 이름 ── */}
         {step === 1 && (
           <div className="px-7 pb-7">
             <label className="block mb-2 tracking-tight" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 900, color: "var(--muted)" }}>
@@ -469,56 +487,48 @@ function CreateTeamModal({
               style={{
                 background: "rgba(255,255,255,0.05)",
                 border: "1.5px solid rgba(var(--codedock-primary-rgb), 0.25)",
-                color: "var(--white)",
-                fontSize: "15px",
-                fontWeight: 700,
+                color: "var(--white)", fontSize: "15px", fontWeight: 700,
               }}
               onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(var(--codedock-primary-rgb), 0.6)")}
               onBlur={(e) => (e.currentTarget.style.borderColor = "rgba(var(--codedock-primary-rgb), 0.25)")}
             />
             <div className="flex gap-3 mt-6">
-              <button
-                onClick={onClose}
-                className="flex-1 rounded-xl border-0 py-3 tracking-tight"
-                style={{ background: "rgba(255,255,255,0.06)", color: "var(--muted)", fontSize: "14px", fontWeight: 900, cursor: "pointer" }}
-              >
+              <button onClick={onClose} className="flex-1 rounded-xl border-0 py-3 tracking-tight"
+                style={{ background: "rgba(255,255,255,0.06)", color: "var(--muted)", fontSize: "14px", fontWeight: 900, cursor: "pointer" }}>
                 취소
               </button>
-              <button
-                onClick={() => setStep(2)}
-                disabled={!canProceed}
-                className="flex-1 rounded-xl border-0 py-3 tracking-tight transition-all"
+              <button onClick={() => setStep(2)} disabled={!canProceed} className="flex-1 rounded-xl border-0 py-3 tracking-tight transition-all"
                 style={{
                   background: canProceed ? "linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))" : "rgba(255,255,255,0.08)",
-                  color: canProceed ? "#021014" : "var(--muted)",
-                  fontSize: "14px",
-                  fontWeight: 900,
+                  color: canProceed ? "#021014" : "var(--muted)", fontSize: "14px", fontWeight: 900,
                   cursor: canProceed ? "pointer" : "not-allowed",
                   boxShadow: canProceed ? "0 4px 14px rgba(var(--codedock-primary-rgb), 0.28)" : "none",
-                }}
-              >
+                }}>
                 다음
               </button>
             </div>
           </div>
         )}
 
+        {/* ── Step 2: 리포지토리 선택 ── */}
         {step === 2 && (
           <div className="px-7 pb-7">
-            <div
-              className="flex items-center gap-2 mb-4 px-3 py-2 rounded-xl"
-              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)", display: "inline-flex" }}
-            >
+            <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-xl"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)", display: "inline-flex" }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style={{ color: "var(--white)", flexShrink: 0 }}>
                 <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
               </svg>
-              <span style={{ fontSize: "13px", fontWeight: 800, color: "var(--white)" }}>my_github</span>
-              <span
-                className="px-1.5 py-0.5 rounded"
-                style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 900, background: "rgba(var(--codedock-secondary-rgb), 0.15)", color: "var(--matrix-green)" }}
-              >
-                연결됨
-              </span>
+              <span style={{ fontSize: "13px", fontWeight: 800, color: "var(--white)" }}>GitHub</span>
+              {reposLoading ? (
+                <span style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 900, color: "var(--muted)" }}>불러오는 중…</span>
+              ) : reposError ? (
+                <span style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 900, color: "#FF6B6B" }}>연결 오류</span>
+              ) : (
+                <span className="px-1.5 py-0.5 rounded"
+                  style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 900, background: "rgba(var(--codedock-secondary-rgb), 0.15)", color: "var(--matrix-green)" }}>
+                  연결됨
+                </span>
+              )}
             </div>
 
             <p className="m-0 mb-3 tracking-tight" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 900, color: "var(--muted)" }}>
@@ -536,59 +546,61 @@ function CreateTeamModal({
                 style={{
                   background: "rgba(255,255,255,0.05)",
                   border: "1.5px solid rgba(var(--codedock-primary-rgb), 0.18)",
-                  color: "var(--white)",
-                  fontSize: "13px",
-                  fontWeight: 700,
+                  color: "var(--white)", fontSize: "13px", fontWeight: 700,
                 }}
                 onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(var(--codedock-primary-rgb), 0.5)")}
                 onBlur={(e) => (e.currentTarget.style.borderColor = "rgba(var(--codedock-primary-rgb), 0.18)")}
               />
               {repoSearch.length > 0 && (
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => setRepoSearch("")}
+                <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setRepoSearch("")}
                   className="absolute right-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full border-0"
-                  style={{
-                    background: "rgba(255,255,255,0.08)",
-                    color: "var(--muted)",
-                    cursor: "pointer",
-                  }}
-                  aria-label="검색어 지우기"
-                >
+                  style={{ background: "rgba(255,255,255,0.08)", color: "var(--muted)", cursor: "pointer" }}
+                  aria-label="검색어 지우기">
                   <X size={14} />
                 </button>
               )}
             </div>
 
             <div className="grid gap-1.5 overflow-y-auto" style={{ maxHeight: "260px" }}>
-              {filteredRepos.map((repo) => {
+              {reposLoading && (
+                <div className="flex items-center justify-center py-10 gap-2" style={{ color: "var(--muted)" }}>
+                  <Loader2 size={18} className="animate-spin" />
+                  <span style={{ fontSize: "13px", fontWeight: 700 }}>리포지토리 불러오는 중…</span>
+                </div>
+              )}
+              {!reposLoading && reposError && (
+                <div className="flex flex-col items-center justify-center py-10 gap-2">
+                  <p className="m-0" style={{ fontSize: "13px", fontWeight: 700, color: "#FF6B6B" }}>
+                    GitHub 레포지토리를 불러올 수 없습니다.
+                  </p>
+                  <p className="m-0" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 700, color: "var(--muted)", textAlign: "center", maxWidth: "340px" }}>
+                    {reposError}
+                  </p>
+                </div>
+              )}
+              {!reposLoading && !reposError && filteredRepos.length === 0 && (
+                <div className="flex items-center justify-center py-10">
+                  <p className="m-0" style={{ fontSize: "13px", fontWeight: 700, color: "var(--muted)" }}>
+                    {repoSearch ? "검색 결과가 없습니다." : "연결된 리포지토리가 없습니다."}
+                  </p>
+                </div>
+              )}
+              {!reposLoading && filteredRepos.map((repo) => {
                 const isSelected = selectedRepos.includes(repo.id);
                 return (
-                  <button
-                    key={repo.id}
-                    type="button"
-                    onClick={() => toggleRepo(repo.id)}
+                  <button key={repo.id} type="button" onClick={() => toggleRepo(repo.id)}
                     className="flex items-center gap-3 w-full rounded-xl px-4 py-3 text-left border-0 transition-all"
                     style={{
                       background: isSelected ? "rgba(var(--codedock-primary-rgb), 0.10)" : "rgba(255,255,255,0.03)",
                       border: isSelected ? "1px solid rgba(var(--codedock-primary-rgb), 0.35)" : "1px solid rgba(255,255,255,0.07)",
                       cursor: "pointer",
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: "16px",
-                        height: "16px",
-                        borderRadius: "4px",
-                        border: isSelected ? "none" : "1.5px solid rgba(255,255,255,0.25)",
-                        background: isSelected ? "var(--neon-cyan)" : "transparent",
-                        flexShrink: 0,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
+                    }}>
+                    <div style={{
+                      width: "16px", height: "16px", borderRadius: "4px",
+                      border: isSelected ? "none" : "1.5px solid rgba(255,255,255,0.25)",
+                      background: isSelected ? "var(--neon-cyan)" : "transparent",
+                      flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
+                    }}>
                       {isSelected && (
                         <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
                           <path d="M1 4L3.5 6.5L9 1" stroke="#021014" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
@@ -597,41 +609,27 @@ function CreateTeamModal({
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="m-0 truncate tracking-tight" style={{ fontSize: "13px", fontWeight: 900, color: "var(--white)" }}>
-                        <span style={{ color: "var(--muted)" }}>{repo.owner}/</span>
-                        {repo.name}
+                        <span style={{ color: "var(--muted)" }}>{repo.owner}/</span>{repo.name}
                       </p>
                       <p className="m-0 mt-0.5 tracking-tight" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 700, color: "var(--muted)" }}>
-                        {repo.language}
+                        {repo.language ?? "Unknown"}
                       </p>
                     </div>
                     <div className="flex items-center gap-1.5 flex-shrink-0">
-                      <span
-                        className="py-0.5 rounded tracking-tight"
+                      <span className="py-0.5 rounded tracking-tight"
                         style={{
-                          fontSize: "var(--krds-body-xsmall)",
-                          fontWeight: 900,
-                          width: "48px",
-                          textAlign: "center",
-                          display: "inline-block",
+                          fontSize: "var(--krds-body-xsmall)", fontWeight: 900, width: "48px", textAlign: "center", display: "inline-block",
                           background: repo.relation === "owner" ? "rgba(var(--codedock-primary-rgb), 0.10)" : "rgba(255, 200, 50, 0.10)",
                           color: repo.relation === "owner" ? "var(--neon-cyan)" : "#FFD93D",
                           border: repo.relation === "owner" ? "1px solid rgba(var(--codedock-primary-rgb), 0.22)" : "1px solid rgba(255, 200, 50, 0.22)",
-                        }}
-                      >
+                        }}>
                         {repo.relation === "owner" ? "소유자" : "협업자"}
                       </span>
-                      <span
-                        className="py-0.5 rounded tracking-tight"
+                      <span className="py-0.5 rounded tracking-tight"
                         style={{
-                          fontSize: "var(--krds-body-xsmall)",
-                          fontWeight: 900,
-                          width: "72px",
-                          textAlign: "center",
-                          display: "inline-block",
-                          background: "rgba(255,255,255,0.06)",
-                          color: "var(--muted)",
-                        }}
-                      >
+                          fontSize: "var(--krds-body-xsmall)", fontWeight: 900, width: "72px", textAlign: "center", display: "inline-block",
+                          background: "rgba(255,255,255,0.06)", color: "var(--muted)",
+                        }}>
                         {repo.isPrivate ? "🔒 Private" : "🌐 Public"}
                       </span>
                     </div>
@@ -641,122 +639,107 @@ function CreateTeamModal({
             </div>
 
             <div className="flex gap-3 mt-5">
-              <button
-                onClick={() => setStep(1)}
-                className="flex-1 rounded-xl border-0 py-3 tracking-tight"
-                style={{ background: "rgba(255,255,255,0.06)", color: "var(--muted)", fontSize: "14px", fontWeight: 900, cursor: "pointer" }}
-              >
+              <button onClick={() => setStep(1)} className="flex-1 rounded-xl border-0 py-3 tracking-tight"
+                style={{ background: "rgba(255,255,255,0.06)", color: "var(--muted)", fontSize: "14px", fontWeight: 900, cursor: "pointer" }}>
                 이전
               </button>
-              <button
-                onClick={() => setStep(3)}
-                className="flex-1 rounded-xl border-0 py-3 tracking-tight transition-all"
+              <button onClick={() => setStep(3)} className="flex-1 rounded-xl border-0 py-3 tracking-tight transition-all"
                 style={{
                   background: "linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))",
-                  color: "#021014",
-                  fontSize: "14px",
-                  fontWeight: 900,
-                  cursor: "pointer",
+                  color: "#021014", fontSize: "14px", fontWeight: 900, cursor: "pointer",
                   boxShadow: "0 4px 14px rgba(var(--codedock-primary-rgb), 0.28)",
-                }}
-              >
+                }}>
                 {selectedRepos.length > 0 ? `다음 (${selectedRepos.length}개 연결)` : "다음"}
               </button>
             </div>
           </div>
         )}
 
+        {/* ── Step 3: 팀원 초대 ── */}
         {step === 3 && (
           <div className="px-7 pb-7">
-            <div className="mb-5 rounded-2xl px-4 py-3" style={{ background: "rgba(var(--codedock-primary-rgb), 0.08)", border: "1px solid rgba(var(--codedock-primary-rgb), 0.18)" }}>
-              <p className="m-0 tracking-tight" style={{ color: "var(--white)", fontSize: "14px", fontWeight: 950 }}>
-                팀원을 초대하세요
-              </p>
+            <div className="mb-5 rounded-2xl px-4 py-3"
+              style={{ background: "rgba(var(--codedock-primary-rgb), 0.08)", border: "1px solid rgba(var(--codedock-primary-rgb), 0.18)" }}>
+              <p className="m-0 tracking-tight" style={{ color: "var(--white)", fontSize: "14px", fontWeight: 950 }}>팀원을 초대하세요</p>
               <p className="m-0 mt-1 tracking-tight" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 750, lineHeight: 1.5 }}>
                 팀 생성 후 초대 메일을 발송합니다. 지금 건너뛰고 나중에 팀 관리에서 추가할 수도 있습니다.
               </p>
             </div>
 
             <div className="mb-4 grid grid-cols-[1fr_150px_auto] gap-2">
-              <input
-                value={memberEmail}
-                onChange={(e) => setMemberEmail(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    handleAddMemberByEmail();
-                  }
-                }}
-                autoFocus
-                placeholder="teammate@company.com"
+              <input value={memberEmail} onChange={(e) => setMemberEmail(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddMemberByEmail(); } }}
+                autoFocus placeholder="teammate@company.com"
                 className="min-w-0 rounded-xl px-4 py-3 outline-none tracking-tight"
                 style={{
                   background: "rgba(255,255,255,0.05)",
                   border: "1.5px solid rgba(var(--codedock-primary-rgb), 0.20)",
-                  color: "var(--white)",
-                  fontSize: "13px",
-                  fontWeight: 800,
-                }}
-              />
-              <select
-                value={memberRole}
-                onChange={(e) => setMemberRole(e.target.value)}
+                  color: "var(--white)", fontSize: "13px", fontWeight: 800,
+                }} />
+              <select value={memberRole} onChange={(e) => setMemberRole(e.target.value)}
                 className="rounded-xl px-3 py-3 outline-none tracking-tight"
                 style={{
                   background: "rgba(255,255,255,0.05)",
                   border: "1.5px solid rgba(var(--codedock-primary-rgb), 0.20)",
-                  color: "var(--white)",
-                  fontSize: "var(--krds-body-xsmall)",
-                  fontWeight: 850,
-                }}
-              >
+                  color: "var(--white)", fontSize: "var(--krds-body-xsmall)", fontWeight: 850,
+                }}>
                 {TEAM_ROLE_OPTIONS.map((role) => (
-                  <option key={role} value={role} style={{ background: "#121827", color: "#EAF7FF" }}>
-                    {role}
-                  </option>
+                  <option key={role} value={role} style={{ background: "#121827", color: "#EAF7FF" }}>{role}</option>
                 ))}
               </select>
-              <button
-                type="button"
-                onClick={handleAddMemberByEmail}
-                className="rounded-xl border-0 px-4 py-3 tracking-tight"
+              <button type="button" onClick={handleAddMemberByEmail} className="rounded-xl border-0 px-4 py-3 tracking-tight"
                 style={{
                   background: "rgba(var(--codedock-primary-rgb), 0.12)",
                   border: "1px solid rgba(var(--codedock-primary-rgb), 0.24)",
-                  color: "var(--neon-cyan)",
-                  cursor: "pointer",
-                  fontSize: "13px",
-                  fontWeight: 950,
-                }}
-              >
+                  color: "var(--neon-cyan)", cursor: "pointer", fontSize: "13px", fontWeight: 950,
+                }}>
                 추가
               </button>
             </div>
 
+            {/* GitHub 협업자 추천 */}
             <p className="m-0 mb-2 tracking-tight" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 900 }}>
-              추천 팀원
+              {selectedRepos.length > 0 ? "GitHub 협업자 (이 사이트에 가입된 사용자)" : "추천 팀원"}
             </p>
             <div className="mb-4 grid gap-2 overflow-y-auto pr-1" style={{ maxHeight: "248px" }}>
-              {SUGGESTED_TEAM_MEMBERS.map((member) => {
-                const selected = selectedMembers.some((item) => item.email === member.email);
+              {collaboratorsLoading && (
+                <div className="flex items-center justify-center py-6 gap-2" style={{ color: "var(--muted)" }}>
+                  <Loader2 size={16} className="animate-spin" />
+                  <span style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 700 }}>협업자 불러오는 중…</span>
+                </div>
+              )}
+              {!collaboratorsLoading && selectedRepos.length > 0 && collaborators.length === 0 && (
+                <p className="m-0 text-center py-4" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 700, color: "var(--muted)" }}>
+                  이 사이트에 가입된 협업자가 없습니다.
+                </p>
+              )}
+              {!collaboratorsLoading && collaborators.filter((c) => c.email).map((collab) => {
+                const selected = selectedMembers.some((m) => m.email === collab.email);
+                const displayName = collab.displayName ?? collab.login;
                 return (
-                  <button
-                    key={member.email}
-                    type="button"
-                    onClick={() => toggleSuggestedMember(member)}
+                  <button key={collab.login} type="button" onClick={() => toggleCollaborator(collab)}
                     className="flex w-full items-center gap-3 rounded-xl border-0 px-4 py-3 text-left transition-all"
                     style={{
                       background: selected ? "rgba(var(--codedock-secondary-rgb), 0.10)" : "rgba(255,255,255,0.03)",
                       border: selected ? "1px solid rgba(var(--codedock-secondary-rgb), 0.30)" : "1px solid rgba(255,255,255,0.07)",
                       cursor: "pointer",
-                    }}
-                  >
-                    <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full" style={{ background: "linear-gradient(135deg, var(--neon-cyan), var(--matrix-green))", color: "#021014", fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}>
-                      {member.name.slice(0, 1)}
-                    </span>
+                    }}>
+                    {collab.avatarUrl ? (
+                      <img src={collab.avatarUrl} alt={displayName} className="h-9 w-9 rounded-full flex-shrink-0 object-cover" />
+                    ) : (
+                      <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full"
+                        style={{ background: "linear-gradient(135deg, var(--neon-cyan), var(--matrix-green))", color: "#021014", fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}>
+                        {displayName.slice(0, 1).toUpperCase()}
+                      </span>
+                    )}
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate" style={{ color: "var(--white)", fontSize: "13px", fontWeight: 950 }}>{member.name}</span>
-                      <span className="block truncate" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 750 }}>{member.email} · {member.role}</span>
+                      <span className="block truncate" style={{ color: "var(--white)", fontSize: "13px", fontWeight: 950 }}>
+                        {displayName}
+                        <span style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 700 }}> @{collab.login}</span>
+                      </span>
+                      <span className="block truncate" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 750 }}>
+                        {collab.email}
+                      </span>
                     </span>
                     <span style={{ color: selected ? "var(--matrix-green)" : "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}>
                       {selected ? "선택됨" : "초대"}
@@ -769,55 +752,34 @@ function CreateTeamModal({
             {selectedMembers.length > 0 && (
               <div className="mb-5 grid gap-2 overflow-y-auto pr-1" style={{ maxHeight: "228px" }}>
                 {selectedMembers.map((member) => (
-                  <div
-                    key={member.email}
-                    className="grid items-center gap-3 rounded-xl px-4 py-3 tracking-tight"
+                  <div key={member.email} className="grid items-center gap-3 rounded-xl px-4 py-3 tracking-tight"
                     style={{
                       background: "rgba(234, 247, 255, 0.08)",
                       border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)",
                       gridTemplateColumns: "minmax(0, 1fr) 190px auto",
-                    }}
-                  >
+                    }}>
                     <div className="min-w-0">
-                      <p className="m-0 truncate" style={{ color: "var(--white)", fontSize: "13px", fontWeight: 950 }}>
-                        {member.name}
-                      </p>
-                      <p className="m-0 truncate" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 750 }}>
-                        {member.email}
-                      </p>
+                      <p className="m-0 truncate" style={{ color: "var(--white)", fontSize: "13px", fontWeight: 950 }}>{member.name}</p>
+                      <p className="m-0 truncate" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 750 }}>{member.email}</p>
                     </div>
-                    <select
-                      value={member.role}
-                      onChange={(e) => handleChangeMemberRole(member.email, e.target.value)}
+                    <select value={member.role} onChange={(e) => handleChangeMemberRole(member.email, e.target.value)}
                       className="rounded-xl px-3 py-2 outline-none tracking-tight"
                       style={{
                         background: "rgba(255,255,255,0.06)",
                         border: "1px solid rgba(var(--codedock-primary-rgb), 0.20)",
-                        color: "var(--white)",
-                        fontSize: "var(--krds-body-xsmall)",
-                        fontWeight: 850,
-                      }}
-                    >
+                        color: "var(--white)", fontSize: "var(--krds-body-xsmall)", fontWeight: 850,
+                      }}>
                       {TEAM_ROLE_OPTIONS.map((role) => (
-                        <option key={role} value={role} style={{ background: "#121827", color: "#EAF7FF" }}>
-                          {role}
-                        </option>
+                        <option key={role} value={role} style={{ background: "#121827", color: "#EAF7FF" }}>{role}</option>
                       ))}
                     </select>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveMember(member.email)}
-                      className="h-9 w-9 rounded-xl border-0"
+                    <button type="button" onClick={() => handleRemoveMember(member.email)} className="h-9 w-9 rounded-xl border-0"
                       style={{
                         background: "rgba(255, 107, 107, 0.12)",
                         border: "1px solid rgba(255, 107, 107, 0.24)",
-                        color: "#FF6B6B",
-                        cursor: "pointer",
-                        fontSize: "14px",
-                        fontWeight: 950,
+                        color: "#FF6B6B", cursor: "pointer", fontSize: "14px", fontWeight: 950,
                       }}
-                      aria-label={`${member.name} 제거`}
-                    >
+                      aria-label={`${member.name} 제거`}>
                       x
                     </button>
                   </div>
@@ -826,25 +788,16 @@ function CreateTeamModal({
             )}
 
             <div className="flex gap-3 mt-5">
-              <button
-                onClick={() => setStep(2)}
-                className="flex-1 rounded-xl border-0 py-3 tracking-tight"
-                style={{ background: "rgba(255,255,255,0.06)", color: "var(--muted)", fontSize: "14px", fontWeight: 900, cursor: "pointer" }}
-              >
+              <button onClick={() => setStep(2)} className="flex-1 rounded-xl border-0 py-3 tracking-tight"
+                style={{ background: "rgba(255,255,255,0.06)", color: "var(--muted)", fontSize: "14px", fontWeight: 900, cursor: "pointer" }}>
                 이전
               </button>
-              <button
-                onClick={handleFinish}
-                className="flex-1 rounded-xl border-0 py-3 tracking-tight transition-all"
+              <button onClick={handleFinish} className="flex-1 rounded-xl border-0 py-3 tracking-tight transition-all"
                 style={{
                   background: "linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))",
-                  color: "#021014",
-                  fontSize: "14px",
-                  fontWeight: 900,
-                  cursor: "pointer",
+                  color: "#021014", fontSize: "14px", fontWeight: 900, cursor: "pointer",
                   boxShadow: "0 4px 14px rgba(var(--codedock-primary-rgb), 0.28)",
-                }}
-              >
+                }}>
                 {selectedMembers.length > 0 ? `팀 만들기 (${selectedMembers.length}명 초대)` : "팀 만들기"}
               </button>
             </div>
@@ -996,35 +949,47 @@ function InvitationsModal({
   );
 }
 
+function roleToKorean(role: string): string {
+  switch (role) {
+    case "owner":  return "소유자";
+    case "admin":  return "관리자";
+    case "editor": return "편집 가능";
+    case "viewer": return "보기 가능";
+    default:       return role;
+  }
+}
+
+function workspaceDtoToOrg(w: WorkspaceDto): Org {
+  return {
+    id: w.id,
+    name: w.name,
+    description: w.description ?? undefined,
+    myPendingReviews: 0,
+    myOpenPRs: 0,
+    myReviewedPRs: 0,
+    myOpenIssues: 0,
+    memberCount: w.memberCount,
+    repoCount: 0,
+    myRole: roleToKorean(w.myRole),
+    workspaceId: String(w.id),
+  };
+}
+
 export function WorkspacePage() {
   const navigate = useNavigate();
   const teamSectionRef = useRef<HTMLDivElement>(null);
 
-  const [orgs, setOrgs] = useState<Org[]>([
-    { id: 1, name: "SecureFlow Workspace", myPendingReviews: 4, myOpenPRs: 2, myReviewedPRs: 1, myOpenIssues: 5, memberCount: 5, repoCount: 3, myRole: "소유자", workspaceId: "workspace-1" },
-    { id: 2, name: "AI Chat Platform", myPendingReviews: 2, myOpenPRs: 1, myReviewedPRs: 1, myOpenIssues: 1, memberCount: 8, repoCount: 2, myRole: "관리자", workspaceId: "workspace-2" },
-    { id: 3, name: "Dashboard UI Kit", myPendingReviews: 1, myOpenPRs: 1, myReviewedPRs: 0, myOpenIssues: 0, memberCount: 3, repoCount: 1, myRole: "편집 가능", workspaceId: "workspace-3" },
-    { id: 4, name: "Mobile App Beta", myPendingReviews: 1, myOpenPRs: 0, myReviewedPRs: 0, myOpenIssues: 0, memberCount: 6, repoCount: 2, myRole: "보기 가능", workspaceId: "workspace-4" },
-  ]);
+  const [orgs, setOrgs] = useState<Org[]>([]);
+  const [orgsLoading, setOrgsLoading] = useState(true);
 
   const [settingsOrg, setSettingsOrg] = useState<Org | null>(null);
 
-  // Sync memberCount from localStorage on mount so it reflects actual stored data
+  // 실제 워크스페이스 목록을 API에서 로드
   useEffect(() => {
-    ensureSeeded(); // writes seed data if localStorage has never been initialised
-    try {
-      const stored = localStorage.getItem("codedock-workspace-teams-v1");
-      if (!stored) return;
-      const all: Record<string, unknown[]> = JSON.parse(stored);
-      setOrgs((prev) =>
-        prev.map((o) => {
-          const key = o.workspaceId ?? String(o.id);
-          const members = all[key];
-          if (!Array.isArray(members)) return o;
-          return { ...o, memberCount: members.length };
-        })
-      );
-    } catch { /* ignore */ }
+    fetchMyWorkspaces()
+      .then((list) => setOrgs(list.map(workspaceDtoToOrg)))
+      .catch(() => setOrgs([]))
+      .finally(() => setOrgsLoading(false));
   }, []);
 
   const [orgColors, setOrgColors] = useState<Record<string, string>>(() => {
@@ -1038,10 +1003,7 @@ export function WorkspacePage() {
     localStorage.setItem(WORKSPACE_COLORS_KEY, JSON.stringify(all));
   };
 
-  const [invites, setInvites] = useState<Invite[]>([
-    { id: 1, teamName: "Backend Infra Team", inviterName: "김재준", role: "편집 가능", time: "3일 전", memberCount: 8, repoCount: 4, myPendingReviews: 3, myOpenPRs: 2, myReviewedPRs: 1, myOpenIssues: 4, expiresInDays: 1, expiresTime: "23시 59분" },
-    { id: 2, teamName: "Design System Squad", inviterName: "안현", role: "보기 가능", time: "1주 전", memberCount: 3, repoCount: 2, myPendingReviews: 1, myOpenPRs: 0, myReviewedPRs: 1, myOpenIssues: 2, expiresInDays: 6, expiresTime: "09시 00분" },
-  ]);
+  const [invites, setInvites] = useState<Invite[]>([]);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showInvitesModal, setShowInvitesModal] = useState(false);
@@ -1071,42 +1033,18 @@ export function WorkspacePage() {
     setSettingsOrg(null);
   };
 
-  const handleCreateTeam = (name: string, repoIds: number[], invitedMembers: TeamInviteDraft[]) => {
-    const newId = Date.now();   // capture once so org ID and storage key match
-    setOrgs((prev) => [
-      ...prev,
-      { id: newId, name, myPendingReviews: 0, myOpenPRs: 0, myReviewedPRs: 0, myOpenIssues: 0, memberCount: invitedMembers.length + 1, repoCount: repoIds.length, myRole: "소유자", workspaceId: String(newId) },
-    ]);
-
-    // Persist workspace team to localStorage
-    const memberPool: Record<string, object> = {
-      "jaejun@codedock.dev":  { id: "jaejun",  initials: "JJ", name: "김재준",  role: "Tech Lead",          email: "jaejun@codedock.dev",  github: "kimjaejun",  score: 95, online: true,  statusColor: "var(--matrix-green)", commits: 247, prs: 42, reviews: 68, protected: true },
-      "jinpil@codedock.dev":  { id: "jinpil",  initials: "JP", name: "김진필",  role: "Backend Developer",  email: "jinpil@codedock.dev",  github: "kimjinpil",  score: 88, online: true,  statusColor: "var(--matrix-green)", commits: 189, prs: 35, reviews: 52 },
-      "junwoo@codedock.dev":  { id: "junwoo",  initials: "JW", name: "김준우",  role: "Frontend Developer", email: "junwoo@codedock.dev",  github: "kimjunwoo",  score: 82, online: true,  statusColor: "var(--matrix-green)", commits: 156, prs: 28, reviews: 45 },
-      "jinhyun@codedock.dev": { id: "jinhyun", initials: "JH", name: "김진현",  role: "DevOps Engineer",    email: "jinhyun@codedock.dev", github: "kimjinhyun", score: 74, online: false, statusColor: "#8B94A7", commits: 98,  prs: 18, reviews: 31 },
-      "hyun@codedock.dev":    { id: "hyun",    initials: "AH", name: "안현",    role: "QA Engineer",        email: "hyun@codedock.dev",    github: "ahnhyun",    score: 79, online: false, statusColor: "#8B94A7", commits: 45,  prs: 12, reviews: 87 },
-    };
-
-    const creator = memberPool["jaejun@codedock.dev"];
-    const invitedAsFull = invitedMembers.map((draft) =>
-      memberPool[draft.email] ?? {
-        id: `invited-${draft.id}`,
-        initials: draft.name.slice(0, 2).toUpperCase(),
-        name: draft.name,
-        role: draft.role,
-        email: draft.email,
-        github: draft.email.split("@")[0],
-        score: 50, online: false, statusColor: "#8B94A7",
-        commits: 0, prs: 0, reviews: 0,
-      }
-    );
-
+  const handleCreateTeam = async (name: string, _repos: GithubRepo[], _invitedMembers: TeamInviteDraft[]) => {
+    const base = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    const slug = (base || "team") + "-" + Date.now().toString(36);
     try {
-      const stored = localStorage.getItem("codedock-workspace-teams-v1");
-      const all: Record<string, unknown[]> = stored ? JSON.parse(stored) : {};
-      all[String(newId)] = [creator, ...invitedAsFull];
-      localStorage.setItem("codedock-workspace-teams-v1", JSON.stringify(all));
-    } catch { /* ignore */ }
+      await createWorkspace({ name: name.trim(), slug });
+      // 생성 후 서버에서 최신 목록을 다시 로드
+      const list = await fetchMyWorkspaces();
+      setOrgs(list.map(workspaceDtoToOrg));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "팀 생성에 실패했습니다.";
+      alert(msg);
+    }
   };
 
   const handleAcceptInvite = (invite: Invite) => {
@@ -1240,7 +1178,12 @@ export function WorkspacePage() {
             </div>
           </div>
 
-          {orgs.length === 0 ? (
+          {orgsLoading ? (
+            <div className="flex items-center justify-center gap-3 py-12" style={{ color: "var(--muted)" }}>
+              <Loader2 size={20} className="animate-spin" />
+              <span style={{ fontSize: "15px", fontWeight: 700 }}>팀 목록 불러오는 중…</span>
+            </div>
+          ) : orgs.length === 0 ? (
             <div
               className="flex flex-col items-center justify-center py-12 tracking-tight"
               style={{ color: "var(--muted)", fontSize: "15px", fontWeight: 700 }}
