@@ -10,7 +10,7 @@ import { ErrorBoundary } from "../components/ErrorBoundary";
 import { APISpecPage } from "./APISpecPage";
 import { ERDPage } from "./ERDPage";
 import { DocsPage } from "./DocsPage";
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { AnimatePresence, motion } from "motion/react";
 import type { MessageAttachment } from "../components/messageAttachments";
@@ -18,6 +18,18 @@ import { toggleMessageReaction, type MessageReaction } from "../components/Messa
 import { TeamInviteModal } from "../components/TeamInviteModal";
 import { TeamPanel } from "../components/TeamPanel";
 import { createPortal } from "react-dom";
+import {
+  chatWebSocketDestinations,
+  getChannelMessages,
+  getWorkspaceChannels,
+  toggleChannelReaction,
+  type Channel,
+  type ChannelMessage,
+  type ChatEvent,
+  type ReactionToggleResponse,
+  type TypingEvent
+} from "../api";
+import type { ChatStompClient } from "../api/stomp";
 
 const REPOSITORY_IMPORTED_KEY = "codedock-repository-imported";
 const REPOSITORY_LIST_KEY = "codedock-repositories-v2";
@@ -26,6 +38,9 @@ const CHAT_THREAD_REPLIES_KEY = "codedock-chat-thread-replies-v1";
 const CHAT_THREAD_REPLY_COUNTS_KEY = "codedock-chat-thread-reply-counts-v1";
 const CHAT_REACTIONS_KEY = "codedock-chat-reactions-v1";
 const WORKSPACE_TEAMS_KEY = "codedock-workspace-teams-v1";
+const API_CHANNEL_ID_PREFIX = "api-channel-";
+const TEMPORARY_API_USER_ID = 1;
+const TEMPORARY_WORKSPACE_MEMBER_ID = 1;
 const ROLE_PRIVILEGE_ORDER = [
   "Tech Lead", "Backend Developer", "Frontend Developer", "DevOps Engineer",
   "QA Engineer", "Product Manager", "Designer", "Viewer"
@@ -75,6 +90,12 @@ interface SidebarChannel {
   icon: LucideIcon;
   badge?: string;
 }
+
+type CustomChannelItem = {
+  id: string;
+  label: string;
+  apiChannelId?: number;
+};
 
 const DEFAULT_REPOSITORIES: RepositoryItem[] = [
   { id: 'secureflow', name: 'BE', openPRs: 7, highRisk: 2, activeIssues: 12, connected: true, membersOnline: 8, workspaceId: 'workspace-1' },
@@ -228,6 +249,71 @@ function saveJson(key: string, value: unknown) {
   } catch {
     // Storage can be unavailable in embedded previews; the in-memory state still updates.
   }
+}
+
+function getWorkspaceApiId(workspaceId: string) {
+  const numericSuffix = workspaceId.match(/\d+$/)?.[0];
+  return numericSuffix ? Number(numericSuffix) : 1;
+}
+
+function normalizeChannelName(name: string) {
+  return name.trim().toLowerCase().replace(/[\s_-]+/g, "");
+}
+
+function getApiChannelUiId(channel: Channel) {
+  const channelType = String(channel.channelType ?? "").toLowerCase();
+  const normalizedName = normalizeChannelName(channel.name);
+
+  if (channelType === "general" || normalizedName === "general" || normalizedName === "일반") {
+    return "general";
+  }
+
+  return `${API_CHANNEL_ID_PREFIX}${channel.id}`;
+}
+
+function formatApiDateTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return new Intl.DateTimeFormat("ko-KR", {
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(date);
+}
+
+function mapChannelMessageToWorkspaceMessage(message: ChannelMessage) {
+  return {
+    id: message.id,
+    backendMessageId: message.id,
+    backendChannelId: message.channelId,
+    user: message.senderName,
+    avatar: message.senderName?.charAt(0).toUpperCase() || "U",
+    message: message.content,
+    text: message.content,
+    time: formatApiDateTime(message.createdAt),
+    replies: 0
+  };
+}
+
+function upsertReactionSummary(
+  reactions: MessageReaction[] | undefined,
+  response: ReactionToggleResponse
+): MessageReaction[] {
+  const currentReactions = reactions ?? [];
+  const hasReaction = currentReactions.some((reaction) => reaction.emoji === response.emoji);
+  const nextReaction: MessageReaction = {
+    emoji: response.emoji,
+    count: response.count,
+    reacted: response.reacted
+  };
+
+  if (!hasReaction) {
+    return response.count > 0 ? [...currentReactions, nextReaction] : currentReactions;
+  }
+
+  return currentReactions
+    .map((reaction) => reaction.emoji === response.emoji ? nextReaction : reaction)
+    .filter((reaction) => reaction.count > 0);
 }
 
 const initialMessages: Record<string, any[]> = {
@@ -579,7 +665,11 @@ export function ChatPage() {
   });
   const [expandedRepoSubmenus, setExpandedRepoSubmenus] = useState<Record<string, boolean>>({});
   const [repoMenuOpenId, setRepoMenuOpenId] = useState<string | null>(null);
-  const [customChannels, setCustomChannels] = useState<{ id: string; label: string }[]>([]);
+  const [apiChannels, setApiChannels] = useState<Channel[]>([]);
+  const [remoteTypingByChannel, setRemoteTypingByChannel] = useState<Record<string, string[]>>({});
+  const remoteTypingTimeoutsRef = useRef<Record<string, number>>({});
+  const chatStompRef = useRef<ChatStompClient | null>(null);
+  const [customChannels, setCustomChannels] = useState<CustomChannelItem[]>([]);
   const [channelMenuOpenId, setChannelMenuOpenId] = useState<string | null>(null);
   const [editingCustomChannelId, setEditingCustomChannelId] = useState<string | null>(null);
   const [editingCustomChannelLabel, setEditingCustomChannelLabel] = useState('');
@@ -629,6 +719,30 @@ export function ChatPage() {
   const currentWorkspace = DEFAULT_WORKSPACES.find(ws => ws.id === selectedWorkspace) ?? DEFAULT_WORKSPACES[0];
   const visibleRepositories = repositories.filter(r => !r.workspaceId || r.workspaceId === selectedWorkspace);
   const firstVisibleRepositoryId = visibleRepositories[0]?.id ?? null;
+  const currentWorkspaceApiId = useMemo(() => getWorkspaceApiId(selectedWorkspace), [selectedWorkspace]);
+  const apiChannelIdByUiChannel = useMemo(() => {
+    return apiChannels.reduce<Record<string, number>>((acc, channel) => {
+      acc[getApiChannelUiId(channel)] = channel.id;
+      return acc;
+    }, {});
+  }, [apiChannels]);
+  const activeApiChannelId = apiChannelIdByUiChannel[selectedChannel];
+  const apiCustomChannels = useMemo<CustomChannelItem[]>(() => {
+    return apiChannels
+      .filter((channel) => getApiChannelUiId(channel) !== "general")
+      .map((channel) => ({
+        id: getApiChannelUiId(channel),
+        label: channel.name,
+        apiChannelId: channel.id
+      }));
+  }, [apiChannels]);
+  const allCustomChannels = useMemo(
+    () => [...apiCustomChannels, ...customChannels],
+    [apiCustomChannels, customChannels]
+  );
+  const activeRemoteTypingLabel = remoteTypingByChannel[selectedChannel]?.length
+    ? `${remoteTypingByChannel[selectedChannel].join(", ")} 입력 중입니다`
+    : "";
 
   const getChannelBadge = (channelId: string): string | undefined => {
     const count = channelUnreadCounts[channelId];
@@ -661,7 +775,7 @@ export function ChatPage() {
     ? "grid h-full min-h-0 gap-4 overflow-hidden"
     : "grid h-[calc(100svh-128px)] min-h-0 gap-[clamp(16px,1.8vw,24px)] overflow-hidden";
   const selectedChannelMeta = ALL_SIDEBAR_CHANNELS.find((channel) => channel.id === selectedChannel);
-  const selectedCustomChannel = customChannels.find(ch => ch.id === selectedChannel);
+  const selectedCustomChannel = allCustomChannels.find(ch => ch.id === selectedChannel);
   const selectedChannelTitle = selectedChannel === 'pull-requests'
     ? `${currentRepo?.name ?? '레포'} - PR`
     : selectedChannel === 'issues'
@@ -803,6 +917,197 @@ export function ChatPage() {
     });
   }, [selectedChannel]);
 
+  const appendServerMessage = useCallback((channelId: string, message: ChannelMessage) => {
+    const mappedMessage = mapChannelMessageToWorkspaceMessage(message);
+
+    setMessages((prev) => {
+      const currentChannelMessages = prev[channelId] || [];
+      const alreadyExists = currentChannelMessages.some((item) =>
+        item.backendMessageId === message.id || (
+          item.backendChannelId === message.channelId
+          && item.id === message.id
+        )
+      );
+
+      if (alreadyExists) return prev;
+
+      const withoutMatchingPending = currentChannelMessages.filter((item) =>
+        !(item.pending && item.text === message.content && item.user === message.senderName)
+      );
+
+      return {
+        ...prev,
+        [channelId]: [...withoutMatchingPending, mappedMessage]
+      };
+    });
+  }, []);
+
+  const applyReactionResponse = useCallback((response: ReactionToggleResponse, channelId = selectedChannel) => {
+    const keys = response.targetType === "thread"
+      ? [
+          `channel:${channelId}:thread:${response.targetId}`,
+          selectedThread && Number(selectedThread.backendMessageId ?? selectedThread.id) === response.targetId
+            ? `thread:${channelId}:${selectedThread.id}:original`
+            : null
+        ].filter((key): key is string => Boolean(key))
+      : selectedThread
+        ? [`thread:${channelId}:${selectedThread.id}:reply:${response.targetId}`]
+        : [];
+
+    if (keys.length === 0) return;
+
+    setMessageReactions((prev) => {
+      const next = { ...prev };
+      keys.forEach((key) => {
+        next[key] = upsertReactionSummary(next[key], response);
+      });
+      return next;
+    });
+  }, [selectedChannel, selectedThread]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    getWorkspaceChannels(currentWorkspaceApiId, {
+      signal: controller.signal,
+      userId: TEMPORARY_API_USER_ID
+    })
+      .then(setApiChannels)
+      .catch(() => {
+        if (!controller.signal.aborted) setApiChannels([]);
+      });
+
+    return () => controller.abort();
+  }, [currentWorkspaceApiId]);
+
+  useEffect(() => {
+    if (!activeApiChannelId) return;
+
+    const controller = new AbortController();
+
+    getChannelMessages(activeApiChannelId, { limit: 50 }, {
+      signal: controller.signal,
+      userId: TEMPORARY_API_USER_ID
+    })
+      .then((serverMessages) => {
+        setMessages((prev) => ({
+          ...prev,
+          [selectedChannel]: serverMessages.map(mapChannelMessageToWorkspaceMessage)
+        }));
+      })
+      .catch(() => {
+        // Keep the existing mock/local messages when the backend is unavailable.
+      });
+
+    return () => controller.abort();
+  }, [activeApiChannelId, selectedChannel]);
+
+  useEffect(() => {
+    if (!activeApiChannelId) {
+      chatStompRef.current?.disconnect();
+      chatStompRef.current = null;
+      return;
+    }
+
+    let cancelled = false;
+    let client: ChatStompClient | null = null;
+    let eventSubscription: { unsubscribe: () => void } | null = null;
+    let typingSubscription: { unsubscribe: () => void } | null = null;
+
+    void import("../api/stomp").then(({ createChatStompClient }) => {
+      if (cancelled) return;
+
+      client = createChatStompClient();
+      chatStompRef.current = client;
+
+      eventSubscription = client.subscribe<ChatEvent<ChannelMessage | ReactionToggleResponse>>(
+        chatWebSocketDestinations.subscribeChannelEvents(activeApiChannelId),
+        (event) => {
+          if (event.type === "MESSAGE_CREATED") {
+            appendServerMessage(selectedChannel, event.payload as ChannelMessage);
+            return;
+          }
+
+          if (event.type === "REACTION_UPDATED") {
+            applyReactionResponse(event.payload as ReactionToggleResponse, selectedChannel);
+          }
+        }
+      );
+
+      typingSubscription = client.subscribe<ChatEvent<TypingEvent>>(
+        chatWebSocketDestinations.subscribeChannelTyping(activeApiChannelId),
+        (event) => {
+          if (event.type !== "TYPING") return;
+          const typingPayload = event.payload;
+          if (typingPayload.workspaceMemberId === TEMPORARY_WORKSPACE_MEMBER_ID) return;
+          const typingKey = `${selectedChannel}:${typingPayload.workspaceMemberId}`;
+
+          if (remoteTypingTimeoutsRef.current[typingKey]) {
+            window.clearTimeout(remoteTypingTimeoutsRef.current[typingKey]);
+            delete remoteTypingTimeoutsRef.current[typingKey];
+          }
+
+          if (typingPayload.typing) {
+            remoteTypingTimeoutsRef.current[typingKey] = window.setTimeout(() => {
+              setRemoteTypingByChannel((prev) => ({
+                ...prev,
+                [selectedChannel]: (prev[selectedChannel] ?? []).filter((name) => name !== typingPayload.senderName)
+              }));
+              delete remoteTypingTimeoutsRef.current[typingKey];
+            }, 3200);
+          }
+
+          setRemoteTypingByChannel((prev) => {
+            const currentTypers = prev[selectedChannel] ?? [];
+            const nextTypers = typingPayload.typing
+              ? Array.from(new Set([...currentTypers, typingPayload.senderName]))
+              : currentTypers.filter((name) => name !== typingPayload.senderName);
+
+            return {
+              ...prev,
+              [selectedChannel]: nextTypers
+            };
+          });
+        }
+      );
+
+      client.connect();
+    });
+
+    return () => {
+      cancelled = true;
+      eventSubscription?.unsubscribe();
+      typingSubscription?.unsubscribe();
+      client?.disconnect();
+      if (chatStompRef.current === client) {
+        chatStompRef.current = null;
+      }
+      Object.entries(remoteTypingTimeoutsRef.current)
+        .filter(([key]) => key.startsWith(`${selectedChannel}:`))
+        .forEach(([key, timeoutId]) => {
+          window.clearTimeout(timeoutId);
+          delete remoteTypingTimeoutsRef.current[key];
+        });
+      setRemoteTypingByChannel((prev) => ({
+        ...prev,
+        [selectedChannel]: []
+      }));
+    };
+  }, [activeApiChannelId, applyReactionResponse, appendServerMessage, selectedChannel]);
+
+  const handleChannelTypingChange = useCallback((typing: boolean) => {
+    if (!activeApiChannelId) return;
+
+    chatStompRef.current?.send(
+      chatWebSocketDestinations.sendChannelTyping(activeApiChannelId),
+      {
+        workspaceMemberId: TEMPORARY_WORKSPACE_MEMBER_ID,
+        senderName: myProfile.name,
+        typing
+      }
+    );
+  }, [activeApiChannelId]);
+
   const parseRepoNameFromUrl = (url: string): string | null => {
     try {
       const trimmed = url.trim().replace(/\.git$/, '');
@@ -922,7 +1227,7 @@ export function ChatPage() {
     setChannelMenuOpenId(null);
   };
 
-  const handleStartRenameCustomChannel = (channel: { id: string; label: string }) => {
+  const handleStartRenameCustomChannel = (channel: CustomChannelItem) => {
     setEditingCustomChannelId(channel.id);
     setEditingCustomChannelLabel(channel.label);
     setChannelMenuOpenId(null);
@@ -1315,11 +1620,55 @@ export function ChatPage() {
     setSelectedThread(null);
   };
 
+  const getReactionTarget = (reactionKey: string) => {
+    if (reactionKey.endsWith(":original") && selectedThread) {
+      return {
+        targetType: "thread" as const,
+        targetId: Number(selectedThread.backendMessageId ?? selectedThread.id)
+      };
+    }
+
+    const threadMatch = reactionKey.match(/:thread:(\d+)$/);
+    if (threadMatch) {
+      return {
+        targetType: "thread" as const,
+        targetId: Number(threadMatch[1])
+      };
+    }
+
+    const messageMatch = reactionKey.match(/:message:(\d+)$/);
+    if (messageMatch) {
+      return {
+        targetType: "thread" as const,
+        targetId: Number(messageMatch[1])
+      };
+    }
+
+    return null;
+  };
+
   const handleToggleReaction = (reactionKey: string, emoji: string) => {
-    setMessageReactions((prev) => ({
-      ...prev,
-      [reactionKey]: toggleMessageReaction(prev[reactionKey], emoji)
-    }));
+    const applyLocalReaction = () => {
+      setMessageReactions((prev) => ({
+        ...prev,
+        [reactionKey]: toggleMessageReaction(prev[reactionKey], emoji)
+      }));
+    };
+    const target = getReactionTarget(reactionKey);
+
+    if (!activeApiChannelId || !target || !Number.isFinite(target.targetId)) {
+      applyLocalReaction();
+      return;
+    }
+
+    toggleChannelReaction(activeApiChannelId, {
+      workspaceMemberId: TEMPORARY_WORKSPACE_MEMBER_ID,
+      targetType: target.targetType,
+      targetId: target.targetId,
+      emoji
+    })
+      .then((response) => applyReactionResponse(response))
+      .catch(applyLocalReaction);
   };
 
   const handleSharePR = (prData: any, shareText: string, channelIds: string[]) => {
@@ -1369,8 +1718,9 @@ export function ChatPage() {
   const handleSendMessage = (text: string, attachments: MessageAttachment[] = [], replyTo?: { user: string; text: string }) => {
     const trimmedText = text.trim();
     if (!trimmedText && attachments.length === 0) return;
+    const messageText = trimmedText || `${attachments.length}개 항목을 공유합니다.`;
 
-    const nextMessage = {
+    const nextMessage: any = {
       id: Date.now(),
       user: myProfile.name,
       text: trimmedText || `${attachments.length}개 항목을 공유합니다.`,
@@ -1378,6 +1728,31 @@ export function ChatPage() {
       attachments,
       replyTo
     };
+    nextMessage.text = messageText;
+    nextMessage.message = messageText;
+
+    if (activeApiChannelId) {
+      setMessages((prev) => ({
+        ...prev,
+        [selectedChannel]: [
+          ...(prev[selectedChannel] || []),
+          {
+            ...nextMessage,
+            pending: true,
+            backendChannelId: activeApiChannelId
+          }
+        ]
+      }));
+
+      chatStompRef.current?.send(
+        chatWebSocketDestinations.sendChannelMessage(activeApiChannelId),
+        {
+          senderMemberId: TEMPORARY_WORKSPACE_MEMBER_ID,
+          content: messageText
+        }
+      );
+      return;
+    }
 
     setMessages((prev) => ({
       ...prev,
@@ -1388,7 +1763,7 @@ export function ChatPage() {
   const handleSendReply = (text: string) => {
     if (selectedThread) {
       const key = getThreadKey(selectedThread);
-      const newReply = {
+      const newReply: any = {
         id: Date.now(),
         user: myProfile.name,
         text: text,
@@ -1804,10 +2179,11 @@ export function ChatPage() {
               >
               {renderSidebarChannel({ id: 'general', label: '일반', icon: Hash, badge: getChannelBadge('general') })}
 
-              {customChannels.map((ch) => {
+              {allCustomChannels.map((ch) => {
                 const isActive = selectedChannel === ch.id;
                 const isEditing = editingCustomChannelId === ch.id;
                 const isMenuOpen = channelMenuOpenId === ch.id;
+                const isApiChannel = Boolean(ch.apiChannelId);
                 return (
                   <div key={ch.id} className="grid gap-0.5">
                     <div className="relative isolate flex w-full items-center rounded-full">
@@ -1868,6 +2244,7 @@ export function ChatPage() {
                           )}
                         </button>
                       )}
+                      {!isApiChannel && (
                       <button
                         type="button"
                         onClick={() => setChannelMenuOpenId(isMenuOpen ? null : ch.id)}
@@ -1877,9 +2254,10 @@ export function ChatPage() {
                       >
                         <MoreVertical size={13} style={{ color: 'var(--muted)' }} />
                       </button>
+                      )}
                       <div className="mr-2" />
                     </div>
-                    {isMenuOpen && (
+                    {isMenuOpen && !isApiChannel && (
                       <div className="mx-2 overflow-hidden rounded-lg" style={{
                         background: 'rgba(5, 11, 20, 0.92)',
                         border: '1px solid rgba(var(--codedock-primary-rgb), 0.18)',
@@ -2202,15 +2580,19 @@ export function ChatPage() {
               <EmbeddedPanelBoundary key="docs">
                 <DocsPage embedded />
               </EmbeddedPanelBoundary>
-            ) : selectedChannel === 'general' || customChannels.some(ch => ch.id === selectedChannel) ? (
+            ) : selectedChannel === 'general' || allCustomChannels.some(ch => ch.id === selectedChannel) ? (
               <ChannelPanel
                 channelId={selectedChannel}
-                repoName={customChannels.find(ch => ch.id === selectedChannel)?.label}
+                repoName={allCustomChannels.find(ch => ch.id === selectedChannel)?.label}
+                threads={activeApiChannelId ? currentMessages : undefined}
                 reactions={messageReactions}
                 replyCounts={mergedReplyCounts}
                 onOpenThread={handleOpenThread}
                 selectedThreadId={selectedThread?.id}
                 onOpenInvite={() => setTeamInviteOpen(true)}
+                onSendThread={activeApiChannelId ? handleSendMessage : undefined}
+                onTypingChange={activeApiChannelId ? handleChannelTypingChange : undefined}
+                remoteTypingLabel={activeRemoteTypingLabel}
                 onToggleReaction={handleToggleReaction}
               />
             ) : REPO_CHANNEL_IDS_REVERSE[selectedChannel] !== undefined ? (
@@ -2218,11 +2600,15 @@ export function ChatPage() {
                 channelId={selectedChannel}
                 repoId={selectedRepository}
                 repoName={currentRepo?.name}
+                threads={activeApiChannelId ? currentMessages : undefined}
                 reactions={messageReactions}
                 replyCounts={mergedReplyCounts}
                 onOpenThread={handleOpenThread}
                 selectedThreadId={selectedThread?.id}
                 onOpenInvite={() => setTeamInviteOpen(true)}
+                onSendThread={activeApiChannelId ? handleSendMessage : undefined}
+                onTypingChange={activeApiChannelId ? handleChannelTypingChange : undefined}
+                remoteTypingLabel={activeRemoteTypingLabel}
                 onToggleReaction={handleToggleReaction}
               />
             ) : repositories.find(r => r.id === selectedChannel) ? (
@@ -2230,11 +2616,15 @@ export function ChatPage() {
                 channelId={selectedChannel}
                 repoId={selectedChannel}
                 repoName={repositories.find(r => r.id === selectedChannel)?.name}
+                threads={activeApiChannelId ? currentMessages : undefined}
                 reactions={messageReactions}
                 replyCounts={mergedReplyCounts}
                 onOpenThread={handleOpenThread}
                 selectedThreadId={selectedThread?.id}
                 onOpenInvite={() => setTeamInviteOpen(true)}
+                onSendThread={activeApiChannelId ? handleSendMessage : undefined}
+                onTypingChange={activeApiChannelId ? handleChannelTypingChange : undefined}
+                remoteTypingLabel={activeRemoteTypingLabel}
                 onToggleReaction={handleToggleReaction}
               />
             ) : selectedChannel === 'work-board' ? (
