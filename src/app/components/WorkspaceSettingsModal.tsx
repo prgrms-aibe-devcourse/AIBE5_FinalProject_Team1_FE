@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import {
@@ -8,6 +8,7 @@ import {
 import type { Org } from "../pages/WorkspacePage";
 import { TeamInviteModal } from "./TeamInviteModal";
 import type { InviteDraft } from "./TeamInviteModal";
+import { fetchMyGithubRepos, type GithubRepo } from "../api/github";
 
 // ─── localStorage helpers (mirrors TeamPanel pattern) ───────────────────────
 const WORKSPACE_TEAMS_KEY  = "codedock-workspace-teams-v1";
@@ -75,6 +76,14 @@ function addRepoToStorage(repo: WorkspaceRepo) {
     if (!all.some(r => r.id === repo.id)) {
       localStorage.setItem(CHAT_REPOS_KEY, JSON.stringify([...all, repo]));
     }
+  } catch { /* ignore */ }
+}
+
+function removeRepoFromStorage(repoId: string) {
+  try {
+    const raw = localStorage.getItem(CHAT_REPOS_KEY);
+    const all: WorkspaceRepo[] = raw ? JSON.parse(raw) : [];
+    localStorage.setItem(CHAT_REPOS_KEY, JSON.stringify(all.filter(r => r.id !== repoId)));
   } catch { /* ignore */ }
 }
 
@@ -943,6 +952,52 @@ function ReposTab({ org, isAdmin, onUpdate }: { org: Org; isAdmin: boolean; onUp
   const [repoUrl, setRepoUrl] = useState("");
   const [urlError, setUrlError] = useState("");
 
+  // GitHub 레포지토리 선택 모드
+  const [showGithubPicker, setShowGithubPicker] = useState(false);
+  const [githubRepos, setGithubRepos] = useState<GithubRepo[]>([]);
+  const [githubLoading, setGithubLoading] = useState(false);
+  const [githubError, setGithubError] = useState<string | null>(null);
+  const [githubSearch, setGithubSearch] = useState("");
+  const [pickerSelected, setPickerSelected] = useState<number[]>([]);
+
+  const openGithubPicker = useCallback(async () => {
+    setShowGithubPicker(true);
+    setPickerSelected([]);
+    setGithubSearch("");
+    if (githubRepos.length > 0) return;
+    setGithubLoading(true);
+    setGithubError(null);
+    try {
+      const list = await fetchMyGithubRepos();
+      setGithubRepos(list);
+    } catch {
+      setGithubError("GitHub 레포지토리를 불러오지 못했습니다.");
+    } finally {
+      setGithubLoading(false);
+    }
+  }, [githubRepos.length]);
+
+  const handleAddFromGithub = () => {
+    const selected = githubRepos.filter(r => pickerSelected.includes(r.id));
+    const currentWsUrls = new Set(repos.map(repo => getGithubUrl(repo, repoUrls)));
+    const newRepos: WorkspaceRepo[] = [];
+    const newUrls: Record<string, string> = {};
+    for (const r of selected) {
+      if (currentWsUrls.has(r.htmlUrl)) continue;
+      const repoId = `${r.owner}-${r.name}-${wsKey}`;
+      newRepos.push({ id: repoId, name: r.name, workspaceId: wsKey });
+      newUrls[repoId] = r.htmlUrl;
+      addRepoToStorage({ id: repoId, name: r.name, workspaceId: wsKey });
+      saveRepoUrl(repoId, r.htmlUrl);
+    }
+    const nextRepos = [...repos, ...newRepos];
+    setRepos(nextRepos);
+    setRepoUrls(prev => ({ ...prev, ...newUrls }));
+    onUpdate({ id: org.id, repoCount: nextRepos.length });
+    setShowGithubPicker(false);
+    setPickerSelected([]);
+  };
+
   // Real timestamp of last successful sync (persisted to localStorage)
   const [lastSync, setLastSync] = useState<number | null>(() => loadLastSync(wsKey));
   // Live "now" ticks every minute so the elapsed-time label stays accurate
@@ -1015,23 +1070,126 @@ function ReposTab({ org, isAdmin, onUpdate }: { org: Org; isAdmin: boolean; onUp
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <SectionHeader icon={GitFork} label="연결된 리포지토리" />
-        <button
-          onClick={() => { setShowAddInput(v => !v); setUrlError(""); }}
-          style={{
-            display: "flex", alignItems: "center", gap: "6px",
-            padding: "6px 12px", borderRadius: "8px",
-            border: "1px solid rgba(32,227,255,0.28)",
-            background: "transparent", color: "var(--neon-cyan)",
-            fontSize: "12px", fontWeight: 900,
-            cursor: "pointer", transition: "background 0.15s", flexShrink: 0,
-          }}
-          onMouseEnter={e => (e.currentTarget.style.background = "rgba(32,227,255,0.08)")}
-          onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-        >
-          <UserPlus size={13} />
-          리포지토리 추가
-        </button>
+        <div style={{ display: "flex", gap: "8px" }}>
+          <button
+            onClick={openGithubPicker}
+            style={{
+              display: "flex", alignItems: "center", gap: "6px",
+              padding: "6px 12px", borderRadius: "8px",
+              border: "1px solid rgba(32,227,255,0.28)",
+              background: "transparent", color: "var(--neon-cyan)",
+              fontSize: "12px", fontWeight: 900,
+              cursor: "pointer", transition: "background 0.15s", flexShrink: 0,
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = "rgba(32,227,255,0.08)")}
+            onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+          >
+            <UserPlus size={13} />
+            GitHub에서 선택
+          </button>
+          <button
+            onClick={() => { setShowAddInput(v => !v); setUrlError(""); }}
+            style={{
+              display: "flex", alignItems: "center", gap: "6px",
+              padding: "6px 12px", borderRadius: "8px",
+              border: "1px solid rgba(145,175,196,0.2)",
+              background: "transparent", color: "var(--muted)",
+              fontSize: "12px", fontWeight: 900,
+              cursor: "pointer", transition: "background 0.15s", flexShrink: 0,
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = "rgba(145,175,196,0.07)")}
+            onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+          >
+            URL 입력
+          </button>
+        </div>
       </div>
+
+      {/* GitHub repo picker */}
+      {showGithubPicker && (
+        <div style={{
+          borderRadius: "12px", overflow: "hidden",
+          border: "1px solid rgba(32,227,255,0.2)",
+          background: "rgba(5,11,20,0.7)",
+        }}>
+          <div style={{ padding: "12px", borderBottom: "1px solid rgba(32,227,255,0.1)" }}>
+            <input
+              autoFocus
+              value={githubSearch}
+              onChange={e => setGithubSearch(e.target.value)}
+              placeholder="레포지토리 검색..."
+              style={{
+                width: "100%", boxSizing: "border-box",
+                background: "rgba(255,255,255,0.05)", border: "1px solid rgba(32,227,255,0.18)",
+                borderRadius: "8px", padding: "7px 11px",
+                color: "var(--white)", fontSize: "12px", fontWeight: 800,
+                outline: "none", fontFamily: "inherit",
+              }}
+            />
+          </div>
+          <div style={{ maxHeight: "200px", overflowY: "auto" }}>
+            {githubLoading ? (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", padding: "20px", color: "var(--muted)" }}>
+                <Loader2 size={16} className="animate-spin" />
+                <span style={{ fontSize: "12px", fontWeight: 700 }}>불러오는 중...</span>
+              </div>
+            ) : githubError ? (
+              <p style={{ margin: 0, padding: "16px", fontSize: "12px", color: "#FF8FA3", fontWeight: 700, textAlign: "center" }}>{githubError}</p>
+            ) : githubRepos.filter(r => r.name.toLowerCase().includes(githubSearch.toLowerCase())).length === 0 ? (
+              <p style={{ margin: 0, padding: "16px", fontSize: "12px", color: "var(--muted)", fontWeight: 700, textAlign: "center" }}>레포지토리가 없습니다</p>
+            ) : (
+              githubRepos
+                .filter(r => r.name.toLowerCase().includes(githubSearch.toLowerCase()))
+                .map(r => {
+                  // 현재 워크스페이스에 이미 연결된 레포인지만 체크
+                  const currentWsUrls = new Set(repos.map(repo => getGithubUrl(repo, repoUrls)));
+                  const alreadyAdded = currentWsUrls.has(r.htmlUrl);
+                  const isSelected = pickerSelected.includes(r.id);
+                  return (
+                    <div
+                      key={r.id}
+                      onClick={() => !alreadyAdded && setPickerSelected(prev => isSelected ? prev.filter(id => id !== r.id) : [...prev, r.id])}
+                      style={{
+                        display: "flex", alignItems: "center", gap: "10px",
+                        padding: "9px 12px", cursor: alreadyAdded ? "default" : "pointer",
+                        background: isSelected ? "rgba(32,227,255,0.08)" : "transparent",
+                        opacity: alreadyAdded ? 0.45 : 1,
+                        transition: "background 0.12s",
+                      }}
+                      onMouseEnter={e => { if (!alreadyAdded && !isSelected) e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
+                      onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = "transparent"; }}
+                    >
+                      <div style={{
+                        width: "16px", height: "16px", borderRadius: "4px", flexShrink: 0,
+                        border: `1.5px solid ${isSelected ? "var(--neon-cyan)" : "rgba(145,175,196,0.3)"}`,
+                        background: isSelected ? "var(--neon-cyan)" : "transparent",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                      }}>
+                        {isSelected && <Check size={10} color="#021014" strokeWidth={3} />}
+                      </div>
+                      <GitFork size={13} style={{ color: "var(--muted)", flexShrink: 0 }} />
+                      <span style={{ fontSize: "12px", fontWeight: 800, color: "var(--white)", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {r.fullName}
+                      </span>
+                      {alreadyAdded && <span style={{ fontSize: "10px", color: "var(--neon-cyan)", fontWeight: 900 }}>연결됨</span>}
+                    </div>
+                  );
+                })
+            )}
+          </div>
+          <div style={{ padding: "10px 12px", borderTop: "1px solid rgba(32,227,255,0.1)", display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+            <button onClick={() => setShowGithubPicker(false)} style={{ padding: "6px 14px", borderRadius: "8px", border: "1px solid rgba(145,175,196,0.2)", background: "transparent", color: "var(--muted)", fontSize: "12px", fontWeight: 900, cursor: "pointer" }}>
+              취소
+            </button>
+            <button
+              disabled={pickerSelected.length === 0}
+              onClick={handleAddFromGithub}
+              style={{ padding: "6px 14px", borderRadius: "8px", border: "none", background: pickerSelected.length > 0 ? "var(--neon-cyan)" : "rgba(32,227,255,0.15)", color: pickerSelected.length > 0 ? "#021014" : "rgba(32,227,255,0.4)", fontSize: "12px", fontWeight: 900, cursor: pickerSelected.length > 0 ? "pointer" : "not-allowed" }}>
+              {pickerSelected.length > 0 ? `${pickerSelected.length}개 추가` : "추가"}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Add repo URL input */}
       {showAddInput && (
@@ -1078,7 +1236,7 @@ function ReposTab({ org, isAdmin, onUpdate }: { org: Org; isAdmin: boolean; onUp
             연결된 리포지토리가 없습니다
           </p>
           <p style={{ margin: "4px 0 0", fontSize: "11px", color: "rgba(145,175,196,0.5)", fontWeight: 700 }}>
-            위 버튼으로 GitHub 리포지토리를 추가하세요
+            "GitHub에서 선택" 버튼으로 레포지토리를 연결하세요
           </p>
         </div>
       ) : (
@@ -1152,6 +1310,36 @@ function ReposTab({ org, isAdmin, onUpdate }: { org: Org; isAdmin: boolean; onUp
                 >
                   <ExternalLink size={13} />
                 </a>
+
+                {/* Disconnect */}
+                <button
+                  title="연결 해제"
+                  onClick={() => {
+                    removeRepoFromStorage(repo.id);
+                    const nextRepos = repos.filter(r => r.id !== repo.id);
+                    setRepos(nextRepos);
+                    onUpdate({ id: org.id, repoCount: nextRepos.length });
+                  }}
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    width: "30px", height: "30px", borderRadius: "8px", flexShrink: 0,
+                    border: "1px solid rgba(255,107,107,0.18)",
+                    background: "transparent", color: "rgba(255,107,107,0.5)",
+                    cursor: "pointer", transition: "all 0.15s",
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.background = "rgba(255,107,107,0.10)";
+                    e.currentTarget.style.color = "#FF6B6B";
+                    e.currentTarget.style.borderColor = "rgba(255,107,107,0.40)";
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.background = "transparent";
+                    e.currentTarget.style.color = "rgba(255,107,107,0.5)";
+                    e.currentTarget.style.borderColor = "rgba(255,107,107,0.18)";
+                  }}
+                >
+                  <X size={13} />
+                </button>
               </div>
             );
           })}

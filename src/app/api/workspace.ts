@@ -20,6 +20,10 @@ export type WorkspaceCreatePayload = {
   description?: string;
 };
 
+export function deleteWorkspace(workspaceId: number): Promise<void> {
+  return fetchWithAuth<void>(`/api/v1/workspaces/${workspaceId}`, { method: "DELETE" });
+}
+
 export function createWorkspace(payload: WorkspaceCreatePayload): Promise<WorkspaceDto> {
   return fetchWithAuth<WorkspaceDto>("/api/v1/workspaces", {
     method: "POST",
