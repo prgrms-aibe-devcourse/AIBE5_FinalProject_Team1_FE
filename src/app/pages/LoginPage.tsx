@@ -17,7 +17,9 @@ import { CodeDockWordmark } from "../components/CodeDockWordmark";
 import { CoffeeLogo } from "../components/CoffeeLogo";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useTheme } from "../contexts/ThemeContext";
-import { loginWithGithub } from "../auth";
+import { useProfile } from "../contexts/ProfileContext";
+import { loginWithGithub, setTokens } from "../auth";
+import { apiClient, ApiClientError } from "../api/client";
 
 const loginDemoMessagesKo = [
   { speaker: "CodeDock", text: "위험 파일 3개를 먼저 묶었어요.", tone: "var(--soft-mint)" },
@@ -88,12 +90,14 @@ const loginTabDemosKo = [
 export function LoginPage() {
   const { colors } = useTheme();
   const { language } = useLanguage();
+  const { reloadProfile } = useProfile();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [message, setMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const [isLoginButtonHovering, setIsLoginButtonHovering] = useState(false);
   const [isGithubLoginHovering, setIsGithubLoginHovering] = useState(false);
   const [activeDemoIndex, setActiveDemoIndex] = useState(0);
@@ -190,10 +194,28 @@ export function LoginPage() {
     return () => window.clearTimeout(demoTimer);
   }, [demoCount, activeDemoIndex]);
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    // TODO: 이메일/비밀번호 로그인 API 연동
-    navigate("/workspace");
+    if (isLoading) return;
+    setMessage("");
+    setIsLoading(true);
+    try {
+      const data = await apiClient.post<{
+        accessToken: string;
+        refreshToken: string;
+        user: { id: number; email: string; username: string; avatarUrl: string };
+      }>("/api/v1/auth/login", { email: trimmedEmail, password });
+      setTokens(data.accessToken, data.refreshToken);
+      await reloadProfile();
+      navigate("/workspace");
+    } catch (error) {
+      const failed =
+          error instanceof ApiClientError && error.status === 401
+              ? (isEnglish ? "Incorrect email or password." : "이메일 또는 비밀번호가 올바르지 않습니다.")
+              : (isEnglish ? "Login failed. Please try again." : "로그인에 실패했습니다. 다시 시도해주세요.");
+      setMessage(failed);
+      setIsLoading(false);
+    }
   };
 
   const handleGithubLogin = () => {
@@ -761,6 +783,7 @@ export function LoginPage() {
                       fontSize: "16px",
                       fontWeight: 950,
                     }}
+                    disabled={isLoading}
                   >
                     <LoginSubmitLabel isHovering={isLoginButtonHovering} defaultLabel={loginCopy.submit} />
                   </button>
