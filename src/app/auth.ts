@@ -59,11 +59,15 @@ export async function refreshAccessToken(): Promise<boolean> {
 }
 
 export async function logout() {
+  const refreshToken = getRefreshToken();
   try {
-    await fetch("/api/v1/auth/logout", {
-      method: "POST",
-      headers: authHeader(),
-    });
+    if (refreshToken) {
+      await fetch("/api/v1/auth/logout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken }),
+      });
+    }
   } finally {
     clearTokens();
   }
