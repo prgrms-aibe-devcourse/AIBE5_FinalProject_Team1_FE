@@ -35,6 +35,7 @@ import {
   type ReactionSummary,
   type ReactionToggleResponse,
   type ThreadReply,
+  type ThreadEventPayload,
   type TypingEvent
 } from "../api";
 import type { ChatStompClient } from "../api/stomp";
@@ -673,6 +674,7 @@ export function ChatPage() {
   const [threadReplies, setThreadReplies] = useState<Record<number | string, any[]>>(() =>
     getSavedJson(CHAT_THREAD_REPLIES_KEY, initialThreadReplies)
   );
+  const threadRepliesRef = useRef<Record<number | string, any[]>>(threadReplies);
   const [threadReplyCounts, setThreadReplyCounts] = useState<Record<number | string, number>>(() =>
     getSavedJson(CHAT_THREAD_REPLY_COUNTS_KEY, {})
   );
@@ -697,6 +699,7 @@ export function ChatPage() {
   const [remoteTypingByChannel, setRemoteTypingByChannel] = useState<Record<string, string[]>>({});
   const remoteTypingTimeoutsRef = useRef<Record<string, number>>({});
   const chatStompRef = useRef<ChatStompClient | null>(null);
+  const [chatStompReadyKey, setChatStompReadyKey] = useState(0);
   const [customChannels, setCustomChannels] = useState<CustomChannelItem[]>([]);
   const [channelMenuOpenId, setChannelMenuOpenId] = useState<string | null>(null);
   const [editingCustomChannelId, setEditingCustomChannelId] = useState<string | null>(null);
@@ -923,6 +926,7 @@ export function ChatPage() {
   }, [messages]);
 
   useEffect(() => {
+    threadRepliesRef.current = threadReplies;
     saveJson(CHAT_THREAD_REPLIES_KEY, threadReplies);
   }, [threadReplies]);
 
@@ -984,6 +988,50 @@ export function ChatPage() {
     setSelectedThread((prevThread: any) =>
       prevThread && Number(prevThread.backendMessageId ?? prevThread.id) === message.id
         ? { ...prevThread, ...mappedMessage }
+        : prevThread
+    );
+  }, []);
+
+  const appendServerThreadReply = useCallback((thread: any, reply: ThreadReply) => {
+    const threadKey = getThreadKey(thread);
+    const mappedReply = mapThreadReplyToWorkspaceMessage(reply);
+    const currentReplies = threadRepliesRef.current[threadKey] ?? [];
+    const alreadyExists = currentReplies.some((item) =>
+      Number(item.backendReplyId ?? item.id) === reply.id
+    );
+
+    if (alreadyExists) return;
+
+    const pendingIndex = currentReplies.findIndex((item) =>
+      item.pending
+      && item.text === reply.content
+      && (
+        item.user === reply.senderName
+        || reply.senderMemberId === TEMPORARY_WORKSPACE_MEMBER_ID
+      )
+    );
+    const nextReplies = pendingIndex >= 0
+      ? currentReplies.map((item, index) => index === pendingIndex ? mappedReply : item)
+      : [...currentReplies, mappedReply];
+
+    const nextThreadReplies = {
+      ...threadRepliesRef.current,
+      [threadKey]: nextReplies
+    };
+
+    threadRepliesRef.current = nextThreadReplies;
+    setThreadReplies(nextThreadReplies);
+    setThreadReplyCounts((prev) => ({
+      ...prev,
+      [thread.id]: Math.max(prev[thread.id] ?? 0, nextReplies.length)
+    }));
+    setSelectedThread((prevThread: any) =>
+      prevThread && prevThread.id === thread.id
+        ? {
+            ...prevThread,
+            replies: Math.max(prevThread.replies ?? 0, nextReplies.length),
+            lastReply: mappedReply.user
+          }
         : prevThread
     );
   }, []);
@@ -1161,6 +1209,7 @@ export function ChatPage() {
 
       client = createChatStompClient();
       chatStompRef.current = client;
+      setChatStompReadyKey((key) => key + 1);
 
       eventSubscription = client.subscribe<ChatEvent<ChannelEventPayload>>(
         chatWebSocketDestinations.subscribeChannelEvents(activeApiChannelId),
@@ -1241,6 +1290,37 @@ export function ChatPage() {
       }));
     };
   }, [activeApiChannelId, applyReactionResponse, appendServerMessage, replaceServerMessage, selectedChannel]);
+
+  useEffect(() => {
+    if (!selectedThread || !activeApiChannelId) return;
+
+    const threadId = Number(selectedThread.backendMessageId ?? selectedThread.id);
+    if (!Number.isFinite(threadId)) return;
+
+    const client = chatStompRef.current;
+    if (!client) return;
+
+    const threadSnapshot = selectedThread;
+    const subscription = client.subscribe<ChatEvent<ThreadEventPayload>>(
+      chatWebSocketDestinations.subscribeThreadEvents(threadId),
+      (event) => {
+        if (event.type !== "THREAD_REPLY_CREATED") return;
+        const reply = event.payload as ThreadReply;
+        if (Number(reply.threadId) !== threadId) return;
+        appendServerThreadReply(threadSnapshot, reply);
+      }
+    );
+
+    client.connect();
+
+    return () => subscription.unsubscribe();
+  }, [
+    activeApiChannelId,
+    appendServerThreadReply,
+    chatStompReadyKey,
+    selectedThread?.backendMessageId,
+    selectedThread?.id
+  ]);
 
   const handleChannelTypingChange = useCallback((typing: boolean) => {
     if (!activeApiChannelId) return;
@@ -2059,6 +2139,18 @@ export function ChatPage() {
     const backendThreadId = Number(selectedThread.backendMessageId ?? selectedThread.id);
     if (activeApiChannelId && Number.isFinite(backendThreadId)) {
       appendReply({ ...optimisticReply, pending: true });
+      const stompClient = chatStompRef.current;
+      if (stompClient) {
+        stompClient.send(
+          chatWebSocketDestinations.sendThreadReply(backendThreadId),
+          {
+            userId: TEMPORARY_API_USER_ID,
+            content: trimmedText
+          }
+        );
+        return;
+      }
+
       createThreadReply(backendThreadId, { content: trimmedText }, {})
         .then(replaceOptimisticReply)
         .catch(() => {
@@ -2978,8 +3070,11 @@ export function ChatPage() {
               originalMessage={selectedThread}
               replies={threadReplies[getThreadKey(selectedThread)] || []}
               displayReplyCount={
-                threadReplyCounts[selectedThread.id]
-                ?? Math.max((threadReplies[getThreadKey(selectedThread)] || []).length, selectedThread.replies ?? 0)
+                Math.max(
+                  (threadReplies[getThreadKey(selectedThread)] || []).length,
+                  threadReplyCounts[selectedThread.id] ?? 0,
+                  selectedThread.replies ?? 0
+                )
               }
               reactionScope={`thread:${selectedChannel}:${selectedThread.id}`}
               reactions={messageReactions}
