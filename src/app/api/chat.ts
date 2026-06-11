@@ -42,6 +42,11 @@ export type ThreadReplyCreateRequest = {
   content: string;
 };
 
+export type ThreadReplyWebSocketCreateRequest = {
+  userId: number;
+  content: string;
+};
+
 export type ReactionToggleRequest = {
   workspaceMemberId: number;
   targetType: ReactionTargetType;
@@ -79,14 +84,18 @@ export type TypingEventRequest = {
   typing: boolean;
 };
 
+export const CHAT_EVENT_TYPES = [
+  "MESSAGE_CREATED",
+  "MESSAGE_UPDATED",
+  "MESSAGE_DELETED",
+  "THREAD_REPLY_CREATED",
+  "REACTION_UPDATED",
+  "TYPING",
+  "NOTIFICATION_CREATED"
+] as const;
+
 export type ChatEventType =
-  | "MESSAGE_CREATED"
-  | "MESSAGE_UPDATED"
-  | "MESSAGE_DELETED"
-  | "THREAD_REPLY_CREATED"
-  | "REACTION_UPDATED"
-  | "TYPING"
-  | "NOTIFICATION_CREATED";
+  typeof CHAT_EVENT_TYPES[number];
 
 export type ChatEvent<T> = {
   type: ChatEventType;
@@ -97,6 +106,8 @@ export type ChannelEventPayload =
   | ChannelMessage
   | ReactionToggleResponse
   | TypingEvent;
+
+export type ThreadEventPayload = ThreadReply;
 
 export type ChannelMessagesQuery = {
   cursor?: number | null;
@@ -115,6 +126,12 @@ export const chatWebSocketDestinations = {
   },
   subscribeChannelTyping(channelId: number) {
     return `/topic/channels/${channelId}/typing`;
+  },
+  sendThreadReply(threadId: number) {
+    return `/app/threads/${threadId}/replies`;
+  },
+  subscribeThreadEvents(threadId: number) {
+    return `/topic/threads/${threadId}/events`;
   }
 };
 

@@ -29,6 +29,7 @@ import {
   toggleChannelReaction,
   updateChannelMessage,
   type Channel,
+  type ChannelEventPayload,
   type ChannelMessage,
   type ChatEvent,
   type ReactionSummary,
@@ -1161,7 +1162,7 @@ export function ChatPage() {
       client = createChatStompClient();
       chatStompRef.current = client;
 
-      eventSubscription = client.subscribe<ChatEvent<ChannelMessage | ReactionToggleResponse>>(
+      eventSubscription = client.subscribe<ChatEvent<ChannelEventPayload>>(
         chatWebSocketDestinations.subscribeChannelEvents(activeApiChannelId),
         (event) => {
           if (event.type === "MESSAGE_CREATED") {
