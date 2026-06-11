@@ -741,7 +741,7 @@ function GithubSection({ user, colors, onConnect, onDisconnect }: { user: Profil
 
           <div className="grid gap-3 md:grid-cols-3">
             <InfoTile icon={Github} label="GitHub 사용자명" value={`@${user.githubUsername}`} colors={colors} />
-            <InfoTile icon={Mail} label="GitHub 이메일" value={user.githubEmail} colors={colors} />
+            <InfoTile icon={Mail} label="GitHub 이메일" value={user.githubEmail || "비공개"} colors={colors} />
             <InfoTile icon={Calendar} label="연동일" value={user.connectedAt} colors={colors} />
           </div>
 
@@ -1181,7 +1181,7 @@ function InfoTile({ icon: Icon, label, value, colors }: { icon: LucideIcon; labe
       <p className="m-0 mt-3 text-xs font-black" style={{ color: "var(--muted)" }}>
         {label}
       </p>
-      <p className="m-0 mt-1 truncate text-sm font-black" style={{ color: "var(--white)" }}>
+      <p className="m-0 mt-1 truncate text-sm font-black" style={{ color: value === "비공개" ? "var(--muted)" : "var(--white)" }}>
         {value}
       </p>
     </div>
