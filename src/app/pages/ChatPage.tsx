@@ -665,6 +665,7 @@ export function ChatPage() {
   const [showRepoForm, setShowRepoForm] = useState(false);
   const [repoUrlInput, setRepoUrlInput] = useState('');
   const [selectedChannel, setSelectedChannel] = useState<string>('overview');
+  const selectedChannelRef = useRef(selectedChannel);
   const [messages, setMessages] = useState<Record<string, any[]>>(() =>
     getSavedJson(CHAT_MESSAGES_KEY, initialMessages)
   );
@@ -781,6 +782,28 @@ export function ChatPage() {
   };
 
   const currentMessages = messages[selectedChannel] || [];
+  const apiThreadTargets = useMemo(() => {
+    const threadTargets = new Map<number, { channelId: string; thread: any }>();
+
+    Object.entries(messages).forEach(([channelId, channelMessages]) => {
+      if (!apiChannelIdByUiChannel[channelId]) return;
+
+      channelMessages.forEach((message) => {
+        const threadId = Number(message.backendMessageId ?? message.id);
+        if (!Number.isFinite(threadId) || !message.backendMessageId) return;
+
+        threadTargets.set(threadId, {
+          channelId,
+          thread: message
+        });
+      });
+    });
+
+    return Array.from(threadTargets.entries()).map(([threadId, target]) => ({
+      threadId,
+      ...target
+    }));
+  }, [apiChannelIdByUiChannel, messages]);
   const isRepository = ['pull-requests', 'ai-review'].includes(selectedChannel);
   const sidebarColumn = "clamp(280px, 21vw, 340px)";
   const threadColumn = "clamp(320px, 26vw, 400px)";
@@ -943,11 +966,25 @@ export function ChatPage() {
   }, [messageReactions]);
 
   useEffect(() => {
+    selectedChannelRef.current = selectedChannel;
+  }, [selectedChannel]);
+
+  useEffect(() => {
     setChannelUnreadCounts(prev => {
       if (!prev[selectedChannel]) return prev;
       return { ...prev, [selectedChannel]: 0 };
     });
   }, [selectedChannel]);
+
+  const incrementUnreadCount = useCallback((channelId: string, senderMemberId?: number | null) => {
+    if (channelId === selectedChannelRef.current) return;
+    if (senderMemberId === TEMPORARY_WORKSPACE_MEMBER_ID) return;
+
+    setChannelUnreadCounts((prev) => ({
+      ...prev,
+      [channelId]: (prev[channelId] ?? 0) + 1
+    }));
+  }, []);
 
   const appendServerMessage = useCallback((channelId: string, message: ChannelMessage) => {
     const mappedMessage = mapChannelMessageToWorkspaceMessage(message);
@@ -1193,7 +1230,7 @@ export function ChatPage() {
   }, [activeApiChannelId, selectedThread?.backendMessageId, selectedThread?.id]);
 
   useEffect(() => {
-    if (!activeApiChannelId) {
+    if (apiChannels.length === 0) {
       chatStompRef.current?.disconnect();
       chatStompRef.current = null;
       return;
@@ -1201,7 +1238,7 @@ export function ChatPage() {
 
     let cancelled = false;
     let client: ChatStompClient | null = null;
-    let eventSubscription: { unsubscribe: () => void } | null = null;
+    let eventSubscriptions: Array<{ unsubscribe: () => void }> = [];
     let typingSubscription: { unsubscribe: () => void } | null = null;
 
     void import("../api/stomp").then(({ createChatStompClient }) => {
@@ -1211,68 +1248,76 @@ export function ChatPage() {
       chatStompRef.current = client;
       setChatStompReadyKey((key) => key + 1);
 
-      eventSubscription = client.subscribe<ChatEvent<ChannelEventPayload>>(
-        chatWebSocketDestinations.subscribeChannelEvents(activeApiChannelId),
-        (event) => {
-          if (event.type === "MESSAGE_CREATED") {
-            appendServerMessage(selectedChannel, event.payload as ChannelMessage);
-            return;
+      eventSubscriptions = apiChannels.map((channel) => {
+        const uiChannelId = getApiChannelUiId(channel);
+
+        return client!.subscribe<ChatEvent<ChannelEventPayload>>(
+          chatWebSocketDestinations.subscribeChannelEvents(channel.id),
+          (event) => {
+            if (event.type === "MESSAGE_CREATED") {
+              const messagePayload = event.payload as ChannelMessage;
+              appendServerMessage(uiChannelId, messagePayload);
+              incrementUnreadCount(uiChannelId, messagePayload.senderMemberId);
+              return;
+            }
+
+            if (event.type === "MESSAGE_UPDATED" || event.type === "MESSAGE_DELETED") {
+              replaceServerMessage(uiChannelId, event.payload as ChannelMessage);
+              return;
+            }
+
+            if (event.type === "REACTION_UPDATED") {
+              applyReactionResponse(event.payload as ReactionToggleResponse, uiChannelId);
+            }
           }
+        );
+      });
 
-          if (event.type === "MESSAGE_UPDATED" || event.type === "MESSAGE_DELETED") {
-            replaceServerMessage(selectedChannel, event.payload as ChannelMessage);
-            return;
-          }
+      if (activeApiChannelId) {
+        typingSubscription = client.subscribe<ChatEvent<TypingEvent>>(
+          chatWebSocketDestinations.subscribeChannelTyping(activeApiChannelId),
+          (event) => {
+            if (event.type !== "TYPING") return;
+            const typingPayload = event.payload;
+            if (typingPayload.workspaceMemberId === TEMPORARY_WORKSPACE_MEMBER_ID) return;
+            const typingKey = `${selectedChannel}:${typingPayload.workspaceMemberId}`;
 
-          if (event.type === "REACTION_UPDATED") {
-            applyReactionResponse(event.payload as ReactionToggleResponse, selectedChannel);
-          }
-        }
-      );
-
-      typingSubscription = client.subscribe<ChatEvent<TypingEvent>>(
-        chatWebSocketDestinations.subscribeChannelTyping(activeApiChannelId),
-        (event) => {
-          if (event.type !== "TYPING") return;
-          const typingPayload = event.payload;
-          if (typingPayload.workspaceMemberId === TEMPORARY_WORKSPACE_MEMBER_ID) return;
-          const typingKey = `${selectedChannel}:${typingPayload.workspaceMemberId}`;
-
-          if (remoteTypingTimeoutsRef.current[typingKey]) {
-            window.clearTimeout(remoteTypingTimeoutsRef.current[typingKey]);
-            delete remoteTypingTimeoutsRef.current[typingKey];
-          }
-
-          if (typingPayload.typing) {
-            remoteTypingTimeoutsRef.current[typingKey] = window.setTimeout(() => {
-              setRemoteTypingByChannel((prev) => ({
-                ...prev,
-                [selectedChannel]: (prev[selectedChannel] ?? []).filter((name) => name !== typingPayload.senderName)
-              }));
+            if (remoteTypingTimeoutsRef.current[typingKey]) {
+              window.clearTimeout(remoteTypingTimeoutsRef.current[typingKey]);
               delete remoteTypingTimeoutsRef.current[typingKey];
-            }, 3200);
+            }
+
+            if (typingPayload.typing) {
+              remoteTypingTimeoutsRef.current[typingKey] = window.setTimeout(() => {
+                setRemoteTypingByChannel((prev) => ({
+                  ...prev,
+                  [selectedChannel]: (prev[selectedChannel] ?? []).filter((name) => name !== typingPayload.senderName)
+                }));
+                delete remoteTypingTimeoutsRef.current[typingKey];
+              }, 3200);
+            }
+
+            setRemoteTypingByChannel((prev) => {
+              const currentTypers = prev[selectedChannel] ?? [];
+              const nextTypers = typingPayload.typing
+                ? Array.from(new Set([...currentTypers, typingPayload.senderName]))
+                : currentTypers.filter((name) => name !== typingPayload.senderName);
+
+              return {
+                ...prev,
+                [selectedChannel]: nextTypers
+              };
+            });
           }
-
-          setRemoteTypingByChannel((prev) => {
-            const currentTypers = prev[selectedChannel] ?? [];
-            const nextTypers = typingPayload.typing
-              ? Array.from(new Set([...currentTypers, typingPayload.senderName]))
-              : currentTypers.filter((name) => name !== typingPayload.senderName);
-
-            return {
-              ...prev,
-              [selectedChannel]: nextTypers
-            };
-          });
-        }
-      );
+        );
+      }
 
       client.connect();
     });
 
     return () => {
       cancelled = true;
-      eventSubscription?.unsubscribe();
+      eventSubscriptions.forEach((subscription) => subscription.unsubscribe());
       typingSubscription?.unsubscribe();
       client?.disconnect();
       if (chatStompRef.current === client) {
@@ -1289,37 +1334,45 @@ export function ChatPage() {
         [selectedChannel]: []
       }));
     };
-  }, [activeApiChannelId, applyReactionResponse, appendServerMessage, replaceServerMessage, selectedChannel]);
+  }, [
+    activeApiChannelId,
+    apiChannels,
+    applyReactionResponse,
+    appendServerMessage,
+    incrementUnreadCount,
+    replaceServerMessage,
+    selectedChannel
+  ]);
 
   useEffect(() => {
-    if (!selectedThread || !activeApiChannelId) return;
-
-    const threadId = Number(selectedThread.backendMessageId ?? selectedThread.id);
-    if (!Number.isFinite(threadId)) return;
-
     const client = chatStompRef.current;
     if (!client) return;
+    if (apiThreadTargets.length === 0) return;
 
-    const threadSnapshot = selectedThread;
-    const subscription = client.subscribe<ChatEvent<ThreadEventPayload>>(
-      chatWebSocketDestinations.subscribeThreadEvents(threadId),
-      (event) => {
-        if (event.type !== "THREAD_REPLY_CREATED") return;
-        const reply = event.payload as ThreadReply;
-        if (Number(reply.threadId) !== threadId) return;
-        appendServerThreadReply(threadSnapshot, reply);
-      }
+    const threadSubscriptions = apiThreadTargets.map(({ channelId, thread, threadId }) =>
+      client.subscribe<ChatEvent<ThreadEventPayload>>(
+        chatWebSocketDestinations.subscribeThreadEvents(threadId),
+        (event) => {
+          if (event.type !== "THREAD_REPLY_CREATED") return;
+          const reply = event.payload as ThreadReply;
+          if (Number(reply.threadId) !== threadId) return;
+
+          appendServerThreadReply(thread, reply);
+          incrementUnreadCount(channelId, reply.senderMemberId);
+        }
+      )
     );
 
     client.connect();
 
-    return () => subscription.unsubscribe();
+    return () => {
+      threadSubscriptions.forEach((subscription) => subscription.unsubscribe());
+    };
   }, [
-    activeApiChannelId,
     appendServerThreadReply,
+    apiThreadTargets,
     chatStompReadyKey,
-    selectedThread?.backendMessageId,
-    selectedThread?.id
+    incrementUnreadCount
   ]);
 
   const handleChannelTypingChange = useCallback((typing: boolean) => {
