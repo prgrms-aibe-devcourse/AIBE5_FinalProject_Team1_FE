@@ -65,6 +65,7 @@ const PRESENCE_META: Record<PresenceKey, { label: string; color: string }> = {
 type SidebarGroupId = 'documentation';
 type UserPresence = 'active' | 'away' | 'busy' | 'offline';
 type NotificationMode = 'all' | 'mentions' | 'muted';
+type RemoteTypingMembers = Record<number, string>;
 
 interface RepositoryItem {
   id: string;
@@ -322,6 +323,14 @@ function mapReactionSummaryToMessageReaction(summary: ReactionSummary): MessageR
     count: summary.count,
     reacted: false
   };
+}
+
+function formatRemoteTypingLabel(names: string[]) {
+  if (names.length === 0) return "";
+  if (names.length === 1) return `${names[0]} 입력 중입니다`;
+  if (names.length === 2) return `${names[0]}, ${names[1]} 입력 중입니다`;
+
+  return `${names[0]} 외 ${names.length - 1}명 입력 중입니다`;
 }
 
 function upsertReactionSummary(
@@ -697,7 +706,7 @@ export function ChatPage() {
   const [expandedRepoSubmenus, setExpandedRepoSubmenus] = useState<Record<string, boolean>>({});
   const [repoMenuOpenId, setRepoMenuOpenId] = useState<string | null>(null);
   const [apiChannels, setApiChannels] = useState<Channel[]>([]);
-  const [remoteTypingByChannel, setRemoteTypingByChannel] = useState<Record<string, string[]>>({});
+  const [remoteTypingByChannel, setRemoteTypingByChannel] = useState<Record<string, RemoteTypingMembers>>({});
   const remoteTypingTimeoutsRef = useRef<Record<string, number>>({});
   const chatStompRef = useRef<ChatStompClient | null>(null);
   const [chatStompReadyKey, setChatStompReadyKey] = useState(0);
@@ -772,9 +781,8 @@ export function ChatPage() {
     () => [...apiCustomChannels, ...customChannels],
     [apiCustomChannels, customChannels]
   );
-  const activeRemoteTypingLabel = remoteTypingByChannel[selectedChannel]?.length
-    ? `${remoteTypingByChannel[selectedChannel].join(", ")} 입력 중입니다`
-    : "";
+  const activeRemoteTypingNames = Object.values(remoteTypingByChannel[selectedChannel] ?? {});
+  const activeRemoteTypingLabel = formatRemoteTypingLabel(activeRemoteTypingNames);
 
   const getChannelBadge = (channelId: string): string | undefined => {
     const count = channelUnreadCounts[channelId];
@@ -1097,23 +1105,23 @@ export function ChatPage() {
           return;
         }
 
-        if (summary.targetType === "thread_reply" && selectedThread) {
-          const selectedThreadKey = getThreadKey(selectedThread);
-          const replies = threadReplies[selectedThreadKey] ?? [];
-          const matchesReply = replies.some((reply) =>
-            Number(reply.backendReplyId ?? reply.id) === summary.targetId
-          );
-          if (!matchesReply) return;
+        if (summary.targetType === "thread_reply") {
+          Object.entries(threadRepliesRef.current).forEach(([threadKey, replies]) => {
+            const matchesReply = replies.some((reply) =>
+              Number(reply.backendReplyId ?? reply.id) === summary.targetId
+            );
+            if (!matchesReply) return;
 
-          const key = `thread:${channelId}:${selectedThread.id}:reply:${summary.targetId}`;
-          const existing = next[key]?.filter((item) => item.emoji !== summary.emoji) ?? [];
-          next[key] = summary.count > 0 ? [...existing, reaction] : existing;
+            const key = `thread:${channelId}:${threadKey}:reply:${summary.targetId}`;
+            const existing = next[key]?.filter((item) => item.emoji !== summary.emoji) ?? [];
+            next[key] = summary.count > 0 ? [...existing, reaction] : existing;
+          });
         }
       });
 
       return next;
     });
-  }, [selectedChannel, selectedThread, threadReplies]);
+  }, [selectedChannel, selectedThread]);
 
   const applyReactionResponse = useCallback((response: ReactionToggleResponse, channelId = selectedChannel) => {
     const keys = response.targetType === "thread"
@@ -1123,9 +1131,11 @@ export function ChatPage() {
             ? `thread:${channelId}:${selectedThread.id}:original`
             : null
         ].filter((key): key is string => Boolean(key))
-      : selectedThread
-        ? [`thread:${channelId}:${selectedThread.id}:reply:${response.targetId}`]
-        : [];
+      : Object.entries(threadRepliesRef.current)
+        .filter(([, replies]) =>
+          replies.some((reply) => Number(reply.backendReplyId ?? reply.id) === response.targetId)
+        )
+        .map(([threadKey]) => `thread:${channelId}:${threadKey}:reply:${response.targetId}`);
 
     if (keys.length === 0) return;
 
@@ -1291,21 +1301,31 @@ export function ChatPage() {
               remoteTypingTimeoutsRef.current[typingKey] = window.setTimeout(() => {
                 setRemoteTypingByChannel((prev) => ({
                   ...prev,
-                  [selectedChannel]: (prev[selectedChannel] ?? []).filter((name) => name !== typingPayload.senderName)
+                  [selectedChannel]: Object.fromEntries(
+                    Object.entries(prev[selectedChannel] ?? {}).filter(
+                      ([memberId]) => Number(memberId) !== typingPayload.workspaceMemberId
+                    )
+                  )
                 }));
                 delete remoteTypingTimeoutsRef.current[typingKey];
               }, 3200);
             }
 
             setRemoteTypingByChannel((prev) => {
-              const currentTypers = prev[selectedChannel] ?? [];
-              const nextTypers = typingPayload.typing
-                ? Array.from(new Set([...currentTypers, typingPayload.senderName]))
-                : currentTypers.filter((name) => name !== typingPayload.senderName);
+              const currentTypers = prev[selectedChannel] ?? {};
+              const {
+                [typingPayload.workspaceMemberId]: _removedTypingMember,
+                ...withoutTypingMember
+              } = currentTypers;
 
               return {
                 ...prev,
-                [selectedChannel]: nextTypers
+                [selectedChannel]: typingPayload.typing
+                  ? {
+                      ...currentTypers,
+                      [typingPayload.workspaceMemberId]: typingPayload.senderName
+                    }
+                  : withoutTypingMember
               };
             });
           }
@@ -1331,7 +1351,7 @@ export function ChatPage() {
         });
       setRemoteTypingByChannel((prev) => ({
         ...prev,
-        [selectedChannel]: []
+        [selectedChannel]: {}
       }));
     };
   }, [
