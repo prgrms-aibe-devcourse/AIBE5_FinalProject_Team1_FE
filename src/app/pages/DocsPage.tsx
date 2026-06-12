@@ -4,6 +4,7 @@ import { useLanguage } from "../contexts/LanguageContext";
 
 interface DocsPageProps {
   embedded?: boolean;
+  workspaceId?: number;
 }
 
 type DocumentCategoryId = 'pr-summary' | 'manual' | 'meeting' | 'release';
@@ -69,7 +70,7 @@ function getSavedCreatedDocs() {
   }
 }
 
-export function DocsPage({ embedded = false }: DocsPageProps) {
+export function DocsPage({ embedded = false, workspaceId }: DocsPageProps) {
   const { language } = useLanguage();
   const [selectedDoc, setSelectedDoc] = useState<number | null>(1);
   const [createdDocs, setCreatedDocs] = useState<DocumentItem[]>(() => getSavedCreatedDocs());

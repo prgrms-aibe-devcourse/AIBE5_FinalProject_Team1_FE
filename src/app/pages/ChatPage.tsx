@@ -46,7 +46,6 @@ const CHAT_THREAD_REPLY_COUNTS_KEY = "codedock-chat-thread-reply-counts-v1";
 const CHAT_REACTIONS_KEY = "codedock-chat-reactions-v1";
 const WORKSPACE_TEAMS_KEY = "codedock-workspace-teams-v1";
 const API_CHANNEL_ID_PREFIX = "api-channel-";
-const TEMPORARY_API_USER_ID = 1;
 const TEMPORARY_WORKSPACE_MEMBER_ID = 1;
 const ROLE_PRIVILEGE_ORDER = [
   "Tech Lead", "Backend Developer", "Frontend Developer", "DevOps Engineer",
@@ -1057,8 +1056,7 @@ export function ChatPage() {
     const controller = new AbortController();
 
     getWorkspaceChannels(currentWorkspaceApiId, {
-      signal: controller.signal,
-      userId: TEMPORARY_API_USER_ID
+      signal: controller.signal
     })
       .then(setApiChannels)
       .catch(() => {
@@ -1074,8 +1072,7 @@ export function ChatPage() {
     const controller = new AbortController();
 
     getChannelMessages(activeApiChannelId, { limit: 50 }, {
-      signal: controller.signal,
-      userId: TEMPORARY_API_USER_ID
+      signal: controller.signal
     })
       .then((serverMessages) => {
         setMessages((prev) => ({
@@ -1096,8 +1093,7 @@ export function ChatPage() {
     const controller = new AbortController();
 
     getChannelReactions(activeApiChannelId, {
-      signal: controller.signal,
-      userId: TEMPORARY_API_USER_ID
+      signal: controller.signal
     })
       .then((summaries) => applyReactionSummaries(summaries, selectedChannel))
       .catch(() => {
@@ -1117,8 +1113,7 @@ export function ChatPage() {
     const threadKey = getThreadKey(selectedThread);
 
     getThreadReplies(threadId, {
-      signal: controller.signal,
-      userId: TEMPORARY_API_USER_ID
+      signal: controller.signal
     })
       .then((serverReplies) => {
         const mappedReplies = serverReplies.map(mapThreadReplyToWorkspaceMessage);
@@ -1944,9 +1939,7 @@ export function ChatPage() {
     const backendMessageId = Number(thread.backendMessageId ?? thread.id);
     if (!activeApiChannelId || !Number.isFinite(backendMessageId)) return;
 
-    updateChannelMessage(activeApiChannelId, backendMessageId, { content: nextMessage }, {
-      userId: TEMPORARY_API_USER_ID
-    })
+    updateChannelMessage(activeApiChannelId, backendMessageId, { content: nextMessage }, {})
       .then((serverMessage) => replaceServerMessage(selectedChannel, serverMessage))
       .catch(() => {
         // Keep the optimistic edit so the local mock workflow is not interrupted.
@@ -1965,9 +1958,7 @@ export function ChatPage() {
     const backendMessageId = Number(thread.backendMessageId ?? thread.id);
     if (!activeApiChannelId || !Number.isFinite(backendMessageId)) return;
 
-    deleteChannelMessage(activeApiChannelId, backendMessageId, {
-      userId: TEMPORARY_API_USER_ID
-    })
+    deleteChannelMessage(activeApiChannelId, backendMessageId, {})
       .then((serverMessage) => replaceServerMessage(selectedChannel, serverMessage))
       .catch(() => {
         // Keep the optimistic delete so the local mock workflow is not interrupted.
@@ -2067,9 +2058,7 @@ export function ChatPage() {
     const backendThreadId = Number(selectedThread.backendMessageId ?? selectedThread.id);
     if (activeApiChannelId && Number.isFinite(backendThreadId)) {
       appendReply({ ...optimisticReply, pending: true });
-      createThreadReply(backendThreadId, { content: trimmedText }, {
-        userId: TEMPORARY_API_USER_ID
-      })
+      createThreadReply(backendThreadId, { content: trimmedText }, {})
         .then(replaceOptimisticReply)
         .catch(() => {
           // Keep the optimistic reply so the local mock workflow is not interrupted.
@@ -2857,15 +2846,15 @@ export function ChatPage() {
               />
             ) : selectedChannel === 'api-spec' ? (
               <EmbeddedPanelBoundary key="api-spec">
-                <APISpecPage embedded />
+                <APISpecPage embedded workspaceId={currentWorkspaceApiId} />
               </EmbeddedPanelBoundary>
             ) : selectedChannel === 'erd' ? (
               <EmbeddedPanelBoundary key={`erd-${selectedRepository}`}>
-                <ERDPage embedded repositoryId={selectedRepository} repositoryName={selectedRepositoryName} />
+                <ERDPage embedded repositoryId={selectedRepository} repositoryName={selectedRepositoryName} workspaceId={currentWorkspaceApiId} />
               </EmbeddedPanelBoundary>
             ) : selectedChannel === 'docs' ? (
               <EmbeddedPanelBoundary key="docs">
-                <DocsPage embedded />
+                <DocsPage embedded workspaceId={currentWorkspaceApiId} />
               </EmbeddedPanelBoundary>
             ) : selectedChannel === 'general' || allCustomChannels.some(ch => ch.id === selectedChannel) ? (
               <ChannelPanel

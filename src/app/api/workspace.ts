@@ -1,3 +1,4 @@
+import { apiClient, type ApiRequestOptions } from "./client";
 import { fetchWithAuth } from "./fetchWithAuth";
 
 export type WorkspaceDto = {
@@ -30,4 +31,15 @@ export function createWorkspace(payload: WorkspaceCreatePayload): Promise<Worksp
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
+}
+
+export type WorkspaceMember = {
+  id: number;
+  userId: number;
+  name: string;
+  role: string;
+};
+
+export function getWorkspaceMembers(workspaceId: number, options?: ApiRequestOptions) {
+  return apiClient.get<WorkspaceMember[]>(`/api/v1/workspaces/${workspaceId}/members`, options);
 }

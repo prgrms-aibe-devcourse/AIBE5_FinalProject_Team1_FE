@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Routes, Route } from "react-router";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import { ProfileProvider } from "./contexts/ProfileContext";
+import { WorkspaceProvider } from "./contexts/WorkspaceContext";
 import { Layout } from "./components/Layout";
 import { AuthLayout } from "./components/AuthLayout";
 import { PublicLayout } from "./components/PublicLayout";
@@ -36,6 +37,7 @@ export default function App() {
     <ThemeProvider>
       <LanguageProvider>
         <ProfileProvider>
+        <WorkspaceProvider>
         <BrowserRouter>
           <LanguageDomSync />
           <Routes>
@@ -66,6 +68,7 @@ export default function App() {
             </Route>
           </Routes>
         </BrowserRouter>
+        </WorkspaceProvider>
         </ProfileProvider>
       </LanguageProvider>
     </ThemeProvider>

@@ -2,20 +2,17 @@ import type { ApiErrorResponse, ApiResponse } from "./types";
 import { authHeader, refreshAccessToken, clearTokens, getAccessToken } from "../auth";
 
 type HttpMethod = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
-type TemporaryUserId = number | string;
 
 export type ApiRequestOptions = {
   headers?: HeadersInit;
   query?: Record<string, boolean | number | string | null | undefined>;
   signal?: AbortSignal;
-  userId?: TemporaryUserId | null;
 };
 
 export type ApiClientOptions = {
   baseUrl?: string;
   defaultHeaders?: HeadersInit;
   fetcher?: typeof fetch;
-  getUserId?: () => TemporaryUserId | null | undefined;
 };
 
 export class ApiClientError extends Error {
@@ -30,16 +27,6 @@ export class ApiClientError extends Error {
     this.code = response?.code;
     this.response = response;
   }
-}
-
-let temporaryUserId: TemporaryUserId | null = null;
-
-export function setTemporaryApiUserId(userId: TemporaryUserId | null) {
-  temporaryUserId = userId;
-}
-
-export function getTemporaryApiUserId() {
-  return temporaryUserId;
 }
 
 function getDefaultBaseUrl() {
@@ -109,11 +96,6 @@ export function createApiClient(options: ApiClientOptions = {}) {
         options.defaultHeaders,
         requestOptions.headers
     );
-
-    const userId = requestOptions.userId ?? options.getUserId?.() ?? temporaryUserId;
-    if (userId !== null && userId !== undefined) {
-      headers.set("X-User-Id", String(userId));
-    }
 
     const response = await fetcher(buildUrl(baseUrl, path, requestOptions.query), {
       method,
