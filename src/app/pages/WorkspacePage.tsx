@@ -160,8 +160,7 @@ function AutoScrollContainer({ children, itemCount }: { children: React.ReactNod
   );
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function DotHandle({ dragRef }: { dragRef: any }) {
+function DotHandle({ dragRef }: { dragRef: React.Ref<HTMLDivElement> }) {
   return (
     <div
       ref={dragRef}
