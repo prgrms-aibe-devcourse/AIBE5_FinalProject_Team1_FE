@@ -5,6 +5,7 @@ import { EmojiPicker } from "./EmojiPicker";
 import { MessageReactions, toggleMessageReaction, type MessageReaction } from "./MessageReactions";
 import { MessageAttachmentCard } from "./MessageAttachmentCard";
 import { TypingIndicatorBar } from "./TypingIndicatorBar";
+import { appendMention, extractMentionNames, readBookmarkMap, saveBookmarkMap, toggleBookmark, type MessageMetadata } from "./chatInteractionUtils";
 
 export interface IssueLabel {
   name: string;
@@ -66,7 +67,7 @@ interface ChatPanelProps {
   messages: Message[];
   reactions?: Record<string, MessageReaction[]>;
   replyCounts?: Record<number, number>;
-  onSendMessage?: (message: string, attachments?: MessageAttachment[], replyTo?: { user: string; text: string }) => void;
+  onSendMessage?: (message: string, attachments?: MessageAttachment[], replyTo?: { user: string; text: string }, metadata?: MessageMetadata) => void;
   onSharePR?: (prData: any, message: string, channelIds: string[]) => void;
   showAISummary?: boolean;
   onMergePR?: (messageId: number) => void;
@@ -122,6 +123,7 @@ function getUserInitial(user?: string) {
 }
 
 export function ChatPanel({ channelId = "general", title, messages, reactions, replyCounts = {}, onSendMessage, onSharePR, showAISummary = true, onMergePR, onReviewPR, onViewIssue, onOpenThread, selectedThreadId, onToggleReaction, isRepository = false }: ChatPanelProps) {
+  const bookmarkStorageKey = `codedock-chat-bookmarks:${channelId}`;
   const [message, setMessage] = useState('');
   const [codeBlockText, setCodeBlockText] = useState('');
   type ActivePanel = 'code' | 'attachment' | 'emoji' | 'link' | null;
@@ -130,7 +132,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
     setActivePanel((prev) => (prev === panel ? null : panel));
   const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'completed'>('all');
   const [hoveredMessageId, setHoveredMessageId] = useState<number | null>(null);
-  const [bookmarkedMessageIds, setBookmarkedMessageIds] = useState<Record<number, boolean>>({});
+  const [bookmarkedMessageIds, setBookmarkedMessageIds] = useState<Record<number, boolean>>(() => readBookmarkMap(bookmarkStorageKey));
   const [hoveredBtn, setHoveredBtn] = useState<string | null>(null);
   const [emojiPickerMsgId, setEmojiPickerMsgId] = useState<number | null>(null);
   const [hoveredToolBtn, setHoveredToolBtn] = useState<string | null>(null);
@@ -147,6 +149,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
   const [responderTyping, setResponderTyping] = useState(false);
   const [localMessageReactions, setLocalMessageReactions] = useState<Record<string, MessageReaction[]>>({});
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const skipBookmarkSaveRef = useRef(false);
   const responderTypingTimerRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
@@ -158,6 +161,20 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
       }
     };
   }, []);
+
+  useEffect(() => {
+    skipBookmarkSaveRef.current = true;
+    setBookmarkedMessageIds(readBookmarkMap(bookmarkStorageKey));
+  }, [bookmarkStorageKey]);
+
+  useEffect(() => {
+    if (skipBookmarkSaveRef.current) {
+      skipBookmarkSaveRef.current = false;
+      return;
+    }
+
+    saveBookmarkMap(bookmarkStorageKey, bookmarkedMessageIds);
+  }, [bookmarkStorageKey, bookmarkedMessageIds]);
 
   const triggerResponderTyping = () => {
     if (responderTypingTimerRef.current) {
@@ -185,7 +202,8 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
       const replyToPayload = replyTo
         ? { user: replyTo.user, text: replyTo.text || replyTo.prTitle || replyTo.issueTitle || replyTo.code || '' }
         : undefined;
-      onSendMessage(outgoingMessage, outgoingAttachments, replyToPayload);
+      const mentions = extractMentionNames(outgoingMessage);
+      onSendMessage(outgoingMessage, outgoingAttachments, replyToPayload, mentions.length ? { mentions } : undefined);
       setMessage('');
       setCodeBlockText('');
       setActivePanel(null);
@@ -294,15 +312,11 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
   };
 
   const handleMentionClick = (user?: string) => {
-    const mention = user ? `@${user} ` : "@";
-    setMessage((prev) => `${prev}${prev && !prev.endsWith(" ") ? " " : ""}${mention}`);
+    setMessage((prev) => appendMention(prev, user));
   };
 
   const handleBookmarkToggle = (messageId: number) => {
-    setBookmarkedMessageIds((prev) => ({
-      ...prev,
-      [messageId]: !prev[messageId]
-    }));
+    setBookmarkedMessageIds((prev) => toggleBookmark(prev, messageId));
   };
 
   const handleShareMessage = (msg: Message) => {

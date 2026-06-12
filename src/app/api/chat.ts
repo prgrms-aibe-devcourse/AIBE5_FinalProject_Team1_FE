@@ -9,6 +9,10 @@ export type Channel = {
   channelType: ChannelType;
   isDeletable: boolean;
   description: string | null;
+  lastMessage: string | null;
+  lastMessageAt: ISODateTime | null;
+  messageCount: number;
+  unreadCount: number;
 };
 
 export type ChannelMessage = {
@@ -22,6 +26,10 @@ export type ChannelMessage = {
 
 export type ChannelMessageCreateRequest = {
   senderMemberId: number;
+  content: string;
+};
+
+export type ChannelMessageRestCreateRequest = {
   content: string;
 };
 
@@ -39,6 +47,11 @@ export type ThreadReply = {
 };
 
 export type ThreadReplyCreateRequest = {
+  content: string;
+};
+
+export type ThreadReplyWebSocketCreateRequest = {
+  userId: number;
   content: string;
 };
 
@@ -66,6 +79,45 @@ export type ReactionSummary = {
   count: number;
 };
 
+export type BookmarkToggleResponse = {
+  channelId: number;
+  messageId: number;
+  workspaceMemberId: number;
+  bookmarked: boolean;
+};
+
+export type BookmarkResponse = {
+  bookmarkId: number;
+  channelId: number;
+  messageId: number;
+  senderMemberId: number;
+  senderName: string;
+  content: string;
+  messageCreatedAt: ISODateTime;
+  bookmarkedAt: ISODateTime;
+};
+
+export type MentionResponse = {
+  id: number;
+  workspaceId: number;
+  channelId: number;
+  threadId: number;
+  threadReplyId: number | null;
+  mentionedMemberId: number;
+  mentionedByMemberId: number;
+  mentionedByName: string;
+  content: string;
+  read: boolean;
+  createdAt: ISODateTime;
+};
+
+export type ChannelReadStatusResponse = {
+  channelId: number;
+  workspaceMemberId: number;
+  lastReadThreadId: number | null;
+  lastReadAt: ISODateTime;
+};
+
 export type TypingEvent = {
   channelId: number;
   workspaceMemberId: number;
@@ -79,14 +131,19 @@ export type TypingEventRequest = {
   typing: boolean;
 };
 
-export type ChatEventType =
-  | "MESSAGE_CREATED"
-  | "MESSAGE_UPDATED"
-  | "MESSAGE_DELETED"
-  | "THREAD_REPLY_CREATED"
-  | "REACTION_UPDATED"
-  | "TYPING"
-  | "NOTIFICATION_CREATED";
+export const CHAT_EVENT_TYPE = {
+  MESSAGE_CREATED: "MESSAGE_CREATED",
+  MESSAGE_UPDATED: "MESSAGE_UPDATED",
+  MESSAGE_DELETED: "MESSAGE_DELETED",
+  THREAD_REPLY_CREATED: "THREAD_REPLY_CREATED",
+  REACTION_UPDATED: "REACTION_UPDATED",
+  TYPING: "TYPING",
+  NOTIFICATION_CREATED: "NOTIFICATION_CREATED"
+} as const;
+
+export type ChatEventType = typeof CHAT_EVENT_TYPE[keyof typeof CHAT_EVENT_TYPE];
+
+export const CHAT_EVENT_TYPES = Object.values(CHAT_EVENT_TYPE) as ChatEventType[];
 
 export type ChatEvent<T> = {
   type: ChatEventType;
@@ -97,6 +154,17 @@ export type ChannelEventPayload =
   | ChannelMessage
   | ReactionToggleResponse
   | TypingEvent;
+
+export type ThreadEventPayload = ThreadReply;
+
+export type PersonalNotification = {
+  id?: number;
+  workspaceId?: number;
+  channelId?: number;
+  threadId?: number;
+  mentionedMemberId?: number;
+  message: string;
+};
 
 export type ChannelMessagesQuery = {
   cursor?: number | null;
@@ -115,8 +183,34 @@ export const chatWebSocketDestinations = {
   },
   subscribeChannelTyping(channelId: number) {
     return `/topic/channels/${channelId}/typing`;
+  },
+  sendThreadReply(threadId: number) {
+    return `/app/threads/${threadId}/replies`;
+  },
+  subscribeThreadEvents(threadId: number) {
+    return `/topic/threads/${threadId}/events`;
+  },
+  subscribePersonalNotifications() {
+    return "/user/queue/notifications";
   }
 };
+
+const chatEventTypeSet = new Set<string>(CHAT_EVENT_TYPES);
+
+export function isChatEventType(value: unknown): value is ChatEventType {
+  return typeof value === "string" && chatEventTypeSet.has(value);
+}
+
+export function isChatEventEnvelope(value: unknown): value is ChatEvent<unknown> {
+  if (!value || typeof value !== "object") return false;
+  const maybeEvent = value as Partial<ChatEvent<unknown>>;
+  return isChatEventType(maybeEvent.type) && Object.prototype.hasOwnProperty.call(maybeEvent, "payload");
+}
+
+export function getChatEventPayload<T>(event: unknown, expectedType: ChatEventType): T | null {
+  if (!isChatEventEnvelope(event) || event.type !== expectedType) return null;
+  return event.payload as T;
+}
 
 export function getWorkspaceChannels(workspaceId: number, options?: ApiRequestOptions) {
   return apiClient.get<Channel[]>(`/api/workspaces/${workspaceId}/channels`, options);
@@ -131,6 +225,14 @@ export function getChannelMessages(channelId: number, query: ChannelMessagesQuer
       ...options?.query
     }
   });
+}
+
+export function createChannelMessage(
+  channelId: number,
+  request: ChannelMessageRestCreateRequest,
+  options?: ApiRequestOptions
+) {
+  return apiClient.post<ChannelMessage>(`/api/channels/${channelId}/messages`, request, options);
 }
 
 export function updateChannelMessage(
@@ -160,5 +262,25 @@ export function getChannelReactions(channelId: number, options?: ApiRequestOptio
 
 export function toggleChannelReaction(channelId: number, request: ReactionToggleRequest, options?: ApiRequestOptions) {
   return apiClient.post<ReactionToggleResponse>(`/api/channels/${channelId}/reactions/toggle`, request, options);
+}
+
+export function toggleMessageBookmark(channelId: number, messageId: number, options?: ApiRequestOptions) {
+  return apiClient.post<BookmarkToggleResponse>(`/api/channels/${channelId}/messages/${messageId}/bookmark`, undefined, options);
+}
+
+export function getWorkspaceBookmarks(workspaceId: number, options?: ApiRequestOptions) {
+  return apiClient.get<BookmarkResponse[]>(`/api/workspaces/${workspaceId}/bookmarks`, options);
+}
+
+export function getWorkspaceMentions(workspaceId: number, options?: ApiRequestOptions) {
+  return apiClient.get<MentionResponse[]>(`/api/workspaces/${workspaceId}/mentions`, options);
+}
+
+export function markMentionAsRead(mentionId: number, options?: ApiRequestOptions) {
+  return apiClient.patch<MentionResponse>(`/api/mentions/${mentionId}/read`, undefined, options);
+}
+
+export function markChannelAsRead(channelId: number, options?: ApiRequestOptions) {
+  return apiClient.put<ChannelReadStatusResponse>(`/api/channels/${channelId}/read`, undefined, options);
 }
 

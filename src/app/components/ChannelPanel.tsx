@@ -5,6 +5,7 @@ import { EmojiPicker } from "./EmojiPicker";
 import { MessageReactions, toggleMessageReaction, type MessageReaction } from "./MessageReactions";
 import { MessageAttachmentCard } from "./MessageAttachmentCard";
 import { TypingIndicatorBar } from "./TypingIndicatorBar";
+import { appendMention, extractMentionNames, readBookmarkMap, saveBookmarkMap, toggleBookmark, type MessageMetadata } from "./chatInteractionUtils";
 
 interface Thread {
   id: number;
@@ -18,6 +19,7 @@ interface Thread {
   lastReply?: string;
   attachments?: MessageAttachment[];
   replyTo?: { user: string; text: string };
+  mentions?: string[];
   pending?: boolean;
   deleted?: boolean;
 }
@@ -35,11 +37,14 @@ interface ChannelPanelProps {
   onSendThread?: (
     message: string,
     attachments?: MessageAttachment[],
-    replyTo?: { user: string; text: string }
+    replyTo?: { user: string; text: string },
+    metadata?: MessageMetadata
   ) => void;
   onTypingChange?: (typing: boolean) => void;
   remoteTypingLabel?: string;
   onToggleReaction?: (reactionKey: string, emoji: string) => void;
+  bookmarkedThreadIds?: Record<number, boolean>;
+  onToggleBookmark?: (thread: Thread, nextBookmarked: boolean) => void;
   onEditThread?: (thread: Thread, nextMessage: string) => void;
   onDeleteThread?: (thread: Thread) => void;
 }
@@ -120,9 +125,10 @@ function getDisplayUserName(user?: string) {
   return isSelfUser(trimmed) ? currentUserDisplayName : trimmed;
 }
 
-export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, replyCounts = {}, onOpenThread, selectedThreadId, onOpenInvite, onSendThread, onTypingChange, remoteTypingLabel, onToggleReaction, onEditThread, onDeleteThread }: ChannelPanelProps) {
+export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, replyCounts = {}, onOpenThread, selectedThreadId, onOpenInvite, onSendThread, onTypingChange, remoteTypingLabel, onToggleReaction, bookmarkedThreadIds, onToggleBookmark, onEditThread, onDeleteThread }: ChannelPanelProps) {
   const channelStorageId = channelId ?? repoId ?? "general";
   const channelStorageKey = `${CHANNEL_THREADS_KEY_PREFIX}:${channelStorageId}`;
+  const bookmarkStorageKey = `codedock-channel-bookmarks:${channelStorageId}`;
   const [localThreads, setLocalThreads] = useState<Thread[]>(() =>
     getSavedThreads(channelStorageKey, getDefaultThreads(repoId))
   );
@@ -142,7 +148,7 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
   const [linkTitle, setLinkTitle] = useState("");
   const [responderTyping, setResponderTyping] = useState(false);
   const [localThreadReactions, setLocalThreadReactions] = useState<Record<string, MessageReaction[]>>({});
-  const [bookmarkedThreadIds, setBookmarkedThreadIds] = useState<Record<number, boolean>>({});
+  const [localBookmarkedThreadIds, setLocalBookmarkedThreadIds] = useState<Record<number, boolean>>(() => readBookmarkMap(bookmarkStorageKey));
   const [hoveredBtn, setHoveredBtn] = useState<string | null>(null);
   const [hoveredToolBtn, setHoveredToolBtn] = useState<string | null>(null);
   const [emojiPickerMsgId, setEmojiPickerMsgId] = useState<number | null>(null);
@@ -152,6 +158,7 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
   const [editingMessageText, setEditingMessageText] = useState("");
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const skipThreadSaveRef = useRef(false);
+  const skipBookmarkSaveRef = useRef(false);
   const responderTypingTimerRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
@@ -177,6 +184,20 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
 
     saveThreads(channelStorageKey, localThreads);
   }, [channelStorageKey, localThreads]);
+
+  useEffect(() => {
+    skipBookmarkSaveRef.current = true;
+    setLocalBookmarkedThreadIds(readBookmarkMap(bookmarkStorageKey));
+  }, [bookmarkStorageKey]);
+
+  useEffect(() => {
+    if (skipBookmarkSaveRef.current) {
+      skipBookmarkSaveRef.current = false;
+      return;
+    }
+
+    saveBookmarkMap(bookmarkStorageKey, localBookmarkedThreadIds);
+  }, [bookmarkStorageKey, localBookmarkedThreadIds]);
 
   useEffect(() => {
     const scrollContainer = scrollContainerRef.current;
@@ -276,11 +297,28 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
     }));
   };
 
-  const handleBookmarkToggle = (threadId: number) => {
-    setBookmarkedThreadIds((prev) => ({
-      ...prev,
-      [threadId]: !prev[threadId]
-    }));
+  const usesServerBookmarks = Boolean(bookmarkedThreadIds && onToggleBookmark);
+  const activeBookmarkedThreadIds = usesServerBookmarks
+    ? bookmarkedThreadIds ?? {}
+    : localBookmarkedThreadIds;
+
+  const getBookmarkKey = (thread: Thread) => Number(thread.backendMessageId ?? thread.id);
+
+  const isThreadBookmarked = (thread: Thread) => {
+    const bookmarkKey = getBookmarkKey(thread);
+    return Boolean(activeBookmarkedThreadIds[bookmarkKey] ?? activeBookmarkedThreadIds[thread.id]);
+  };
+
+  const handleBookmarkToggle = (thread: Thread) => {
+    const bookmarkKey = getBookmarkKey(thread);
+    const nextBookmarked = !isThreadBookmarked(thread);
+
+    if (usesServerBookmarks && onToggleBookmark && Number.isFinite(bookmarkKey)) {
+      onToggleBookmark(thread, nextBookmarked);
+      return;
+    }
+
+    setLocalBookmarkedThreadIds((prev) => toggleBookmark(prev, thread.id));
   };
 
   const handleShareThread = (thread: Thread) => {
@@ -327,7 +365,7 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
   };
 
   const renderHoverMenu = (thread: Thread) => {
-    const isBookmarked = bookmarkedThreadIds[thread.id];
+    const isBookmarked = isThreadBookmarked(thread);
     const canManageThread = isSelfUser(thread.user) && !thread.deleted;
     const bk = (label: string) => `${thread.id}:${label}`;
     const isHvr = (label: string) => hoveredBtn === bk(label);
@@ -378,7 +416,7 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
             style={btnStyle('북마크', isBookmarked)}
             onMouseEnter={() => setHoveredBtn(bk('북마크'))}
             onMouseLeave={() => setHoveredBtn(null)}
-            onClick={(e) => { e.stopPropagation(); handleBookmarkToggle(thread.id); }}
+            onClick={(e) => { e.stopPropagation(); handleBookmarkToggle(thread); }}
           ><Bookmark size={14} /></button>
 
           <button className="w-7 h-7 rounded flex items-center justify-center"
@@ -394,7 +432,7 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
             onMouseLeave={() => setHoveredBtn(null)}
             onClick={(e) => {
               e.stopPropagation();
-              setMessageText((prev) => `${prev}${prev && !prev.endsWith(" ") ? " " : ""}@${thread.user} `);
+              setMessageText((prev) => appendMention(prev, thread.user));
             }}
           ><AtSign size={14} /></button>
 
@@ -442,6 +480,7 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
     const outgoingAttachments = detectedLinkAttachment && !selectedAttachments.some((a) => a.url === detectedLinkAttachment.url)
       ? [...selectedAttachments, detectedLinkAttachment]
       : selectedAttachments;
+    const mentions = extractMentionNames(outgoingMessage);
 
     const nextThread: Thread = {
       id: Date.now(),
@@ -451,11 +490,12 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
       time: '방금',
       replies: 0,
       attachments: outgoingAttachments,
-      replyTo: replyTo ? { user: replyTo.user, text: replyTo.message } : undefined
+      replyTo: replyTo ? { user: replyTo.user, text: replyTo.message } : undefined,
+      mentions: mentions.length ? mentions : undefined
     };
 
     if (onSendThread) {
-      onSendThread(nextThread.message, nextThread.attachments, nextThread.replyTo);
+      onSendThread(nextThread.message, nextThread.attachments, nextThread.replyTo, mentions.length ? { mentions } : undefined);
     } else {
       setLocalThreads((prev) => [...prev, nextThread]);
     }
@@ -646,6 +686,20 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
                       }}>
                         {thread.message}
                       </p>
+                    )}
+                    {thread.mentions && thread.mentions.length > 0 && (
+                      <div className="mb-3 flex flex-wrap gap-2">
+                        {thread.mentions.map((mention, idx) => (
+                          <span key={idx} className="px-2 py-0.5 rounded tracking-tight" style={{
+                            background: 'rgba(var(--codedock-secondary-rgb), 0.15)',
+                            fontSize: "var(--krds-body-xsmall)",
+                            fontWeight: 900,
+                            color: 'var(--matrix-green)'
+                          }}>
+                            @{mention}
+                          </span>
+                        ))}
+                      </div>
                     )}
                     {thread.attachments && thread.attachments.length > 0 && (
                       <div className="grid gap-2 mb-3">
