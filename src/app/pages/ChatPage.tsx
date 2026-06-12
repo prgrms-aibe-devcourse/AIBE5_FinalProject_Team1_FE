@@ -60,6 +60,7 @@ const CHAT_REACTIONS_KEY = "codedock-chat-reactions-v1";
 const WORKSPACE_TEAMS_KEY = "codedock-workspace-teams-v1";
 const API_CHANNEL_ID_PREFIX = "api-channel-";
 const TEMPORARY_WORKSPACE_MEMBER_ID = 1;
+const TEMPORARY_API_USER_ID = 1;
 const ROLE_PRIVILEGE_ORDER = [
   "Tech Lead", "Backend Developer", "Frontend Developer", "DevOps Engineer",
   "QA Engineer", "Product Manager", "Designer", "Viewer"
