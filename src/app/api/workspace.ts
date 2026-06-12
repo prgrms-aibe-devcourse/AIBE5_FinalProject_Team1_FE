@@ -33,19 +33,6 @@ export function createWorkspace(payload: WorkspaceCreatePayload): Promise<Worksp
   });
 }
 
-export type WorkspaceMemberDto = {
-  memberId: number;
-  userId: number;
-  email: string;
-  username: string;
-  role: string;
-  joinedAt: string;
-};
-
-export function fetchWorkspaceMembers(workspaceId: string | number): Promise<WorkspaceMemberDto[]> {
-  return fetchWithAuth<WorkspaceMemberDto[]>(`/api/v1/workspaces/${workspaceId}/members`);
-}
-
 export type WorkspaceMember = {
   id: number;
   userId: number;
