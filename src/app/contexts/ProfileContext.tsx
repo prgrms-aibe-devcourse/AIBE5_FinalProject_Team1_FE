@@ -88,6 +88,7 @@ function saveProfile(profile: ProfileUser) {
 }
 
 type MeResponse = {
+  id: number;
   email: string | null;
   displayName: string | null;
   nickname: string | null;
@@ -104,6 +105,7 @@ interface ProfileContextValue {
   profile: ProfileUser;
   setProfile: Dispatch<SetStateAction<ProfileUser>>;
   loading: boolean;
+  userId: number | null;
   reloadProfile: () => Promise<void>;
 }
 
@@ -112,6 +114,7 @@ const ProfileContext = createContext<ProfileContextValue | null>(null);
 export function ProfileProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<ProfileUser>(() => getSavedProfile(DEFAULT_PROFILE));
   const [loading, setLoading] = useState<boolean>(() => isAuthenticated());
+  const [userId, setUserId] = useState<number | null>(null);
 
   const reloadProfile = useCallback(async () => {
     if (!isAuthenticated()) {
@@ -122,6 +125,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     try {
       const me = await apiClient.get<MeResponse>("/api/v1/auth/me");
       const skills = await apiClient.get<string[]>("/api/v1/users/me/skills");
+      setUserId(me.id);
       setProfile((prev) => ({
         ...prev,
         name: me.displayName ?? "",
@@ -151,7 +155,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   }, [profile]);
 
   return (
-      <ProfileContext.Provider value={{ profile, setProfile, loading, reloadProfile }}>
+      <ProfileContext.Provider value={{ profile, setProfile, loading, userId, reloadProfile }}>
         {children}
       </ProfileContext.Provider>
   );

@@ -529,9 +529,10 @@ function createOpenApiSpec(apiList: ApiSpec[]): OpenApiDocument {
 
 interface APISpecPageProps {
   embedded?: boolean;
+  workspaceId?: number;
 }
 
-export function APISpecPage({ embedded = false }: APISpecPageProps) {
+export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps) {
   const [selectedAPI, setSelectedAPI] = useState<number>(3);
 
   const selectedAPIData = apis.find((api) => api.id === selectedAPI) ?? apis[0];

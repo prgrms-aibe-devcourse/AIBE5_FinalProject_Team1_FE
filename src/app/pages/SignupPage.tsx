@@ -65,6 +65,7 @@ export function SignupPage() {
   const [signupStep, setSignupStep] = useState<SignupStep>("account");
   const [signupFinalStage, setSignupFinalStage] = useState(0);
   const [githubConnectStatus, setGithubConnectStatus] = useState<GithubConnectStatus>("idle");
+  const [githubLinkToken, setGithubLinkToken] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -137,28 +138,26 @@ export function SignupPage() {
   }, [isConnectStep, showFinalStep]);
 
   useEffect(() => {
-    const nextStatus: Record<GithubConnectStatus, GithubConnectStatus | null> = {
-      idle: null,
-      connecting: "authorizing",
-      authorizing: "syncing",
-      syncing: "connected",
-      connected: null,
-    };
-    const next = nextStatus[githubConnectStatus];
+    const handler = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      const data = event.data;
+      if (!data || data.type !== "github-link") return;
 
-    if (!next) {
-      return;
-    }
-
-    const githubTimer = window.setTimeout(() => {
-      setGithubConnectStatus(next);
-      if (next === "connected") {
-        setMessage("GitHub 연동이 완료되었습니다.");
+      if (data.error || !data.token) {
+        setMessage("GitHub 연동에 실패했습니다. 다시 시도해주세요.");
+        setGithubLinkToken(null);
+        setGithubConnectStatus("idle");
+        return;
       }
-    }, 760);
 
-    return () => window.clearTimeout(githubTimer);
-  }, [githubConnectStatus]);
+      setGithubLinkToken(data.token);
+      setGithubConnectStatus("connected");
+      setMessage("GitHub 연동이 완료되었습니다.");
+    };
+
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, []);
 
   const assistantFeedback = useMemo(() => {
     if (isConnectStep) {
@@ -448,6 +447,7 @@ export function SignupPage() {
         email: trimmedEmail,
         displayName: trimmedName,
         password: formData.password,
+        githubLinkToken,
       });
       const tokens = await apiClient.post<{ accessToken: string; refreshToken: string }>(
           "/api/v1/auth/login",
@@ -473,7 +473,27 @@ export function SignupPage() {
     }
 
     setMessage("");
+    setGithubLinkToken(null);
+
+    const popup = window.open(
+        "/oauth2/authorization/github?mode=link",
+        "gh-oauth",
+        "width=600,height=720"
+    );
+
+    if (!popup) {
+      setMessage("팝업을 허용해주세요.");
+      return;
+    }
+
     setGithubConnectStatus("connecting");
+
+    const timer = window.setInterval(() => {
+      if (popup.closed) {
+        window.clearInterval(timer);
+        setGithubConnectStatus((prev) => (prev === "connected" ? prev : "idle"));
+      }
+    }, 500);
   };
 
   return (

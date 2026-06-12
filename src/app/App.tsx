@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Routes, Route } from "react-router";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import { ProfileProvider } from "./contexts/ProfileContext";
+import { WorkspaceProvider } from "./contexts/WorkspaceContext";
 import { Layout } from "./components/Layout";
 import { AuthLayout } from "./components/AuthLayout";
 import { PublicLayout } from "./components/PublicLayout";
@@ -24,6 +25,7 @@ import { SettingsPage } from "./pages/SettingsPage";
 import { WorkspaceSettingsPage } from "./pages/WorkspaceSettingsPage";
 import { LegalPage } from "./pages/LegalPage";
 import { OAuthCallbackPage } from "./pages/OAuthCallbackPage";
+import { OAuthPopupCallbackPage } from "./pages/OAuthPopupCallbackPage";
 import { isAuthenticated } from "./auth";
 
 function HomeRoute() {
@@ -35,12 +37,14 @@ export default function App() {
     <ThemeProvider>
       <LanguageProvider>
         <ProfileProvider>
+        <WorkspaceProvider>
         <BrowserRouter>
           <LanguageDomSync />
           <Routes>
             <Route element={<PublicLayout />}>
               <Route path="/" element={<HomeRoute />} />
               <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
+              <Route path="/oauth/popup-callback" element={<OAuthPopupCallbackPage />} />
               <Route path="/terms" element={<LegalPage kind="terms" />} />
               <Route path="/privacy" element={<LegalPage kind="privacy" />} />
             </Route>
@@ -64,6 +68,7 @@ export default function App() {
             </Route>
           </Routes>
         </BrowserRouter>
+        </WorkspaceProvider>
         </ProfileProvider>
       </LanguageProvider>
     </ThemeProvider>

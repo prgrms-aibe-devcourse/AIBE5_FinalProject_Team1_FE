@@ -6,6 +6,7 @@ interface ERDPageProps {
   embedded?: boolean;
   repositoryId?: string;
   repositoryName?: string;
+  workspaceId?: number;
 }
 
 interface DiagramColumn {
@@ -469,7 +470,7 @@ function saveErdDocuments(documentsByRepository: Record<string, ErdDocument[]>) 
   }
 }
 
-export function ERDPage({ embedded = false, repositoryName = defaultRepositoryName, repositoryId }: ERDPageProps) {
+export function ERDPage({ embedded = false, repositoryName = defaultRepositoryName, repositoryId, workspaceId }: ERDPageProps) {
   const diagramViewportRef = useRef<HTMLDivElement>(null);
   const downloadMenuRef = useRef<HTMLDivElement>(null);
   const hasAutoFitCanvasRef = useRef(false);
