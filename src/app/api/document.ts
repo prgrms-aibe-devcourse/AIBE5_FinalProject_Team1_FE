@@ -1,29 +1,30 @@
 import { apiClient, type ApiRequestOptions } from "./client";
 
-export type DocumentCategory = 'pr-summary' | 'manual' | 'meeting' | 'release';
-export type DocumentGeneratedBy = 'AI' | 'MANUAL';
+export type DocumentCategory = 'manual' | 'faq' | 'release';
+export type DocumentGeneratedBy = 'AI' | 'Manual';
 export type DocumentVisibility = 'workspace' | 'private' | 'public';
 
 export type DocumentResponse = {
   id: number;
   workspaceId: number;
   title: string;
-  content: string;
-  category: DocumentCategory;
+  content: string | null;
+  category: DocumentCategory | null;
   visibility: DocumentVisibility;
   generatedBy: DocumentGeneratedBy;
   createdByMemberId: number;
+  relatedPrId: number | null;
   createdAt: string;
   updatedAt: string;
 };
 
 export type DocumentCreateRequest = {
+  createdByMemberId: number;
   title: string;
-  content: string;
-  category: DocumentCategory;
-  visibility: DocumentVisibility;
-  generatedBy: DocumentGeneratedBy;
-  relatedPrId: null;
+  content?: string;
+  category?: DocumentCategory;
+  visibility?: DocumentVisibility;
+  relatedPrId?: number | null;
 };
 
 export type DocumentUpdateRequest = {
@@ -33,6 +34,13 @@ export type DocumentUpdateRequest = {
 
 export function getDocuments(workspaceId: number, options?: ApiRequestOptions) {
   return apiClient.get<DocumentResponse[]>(`/api/workspaces/${workspaceId}/documents`, options);
+}
+
+export function getDocumentsByCategory(workspaceId: number, category: DocumentCategory, options?: ApiRequestOptions) {
+  return apiClient.get<DocumentResponse[]>(`/api/workspaces/${workspaceId}/documents`, {
+    ...options,
+    query: { category },
+  });
 }
 
 export function createDocument(workspaceId: number, request: DocumentCreateRequest, options?: ApiRequestOptions) {
