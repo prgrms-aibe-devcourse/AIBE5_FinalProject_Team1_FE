@@ -1,6 +1,15 @@
 import { FileText, Sparkles, BookOpen, FileCode, MessageSquare, Package, Plus, Pencil, Trash2, Check, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useLanguage } from "../contexts/LanguageContext";
+import { useWorkspace } from "../contexts/WorkspaceContext";
+import {
+  getDocuments,
+  createDocument,
+  updateDocument,
+  deleteDocument,
+  aiGenerateDocument,
+  type DocumentResponse,
+} from "../api/document";
 
 interface DocsPageProps {
   embedded?: boolean;
@@ -8,21 +17,43 @@ interface DocsPageProps {
 }
 
 type DocumentCategoryId = 'pr-summary' | 'manual' | 'meeting' | 'release';
-type DocumentSource = 'AI' | 'Template';
 
 interface DocumentItem {
   id: number;
   category: DocumentCategoryId;
   title: string;
-  titleEn?: string;
-  generatedBy: DocumentSource;
+  generatedBy: 'AI' | 'MANUAL';
   createdAt: string;
   updatedAt: string;
   author: string;
-  authorEn?: string;
-  relatedPR: number | null;
+  createdByMemberId: number;
   content: string;
-  contentEn?: string;
+}
+
+function formatRelativeTime(isoString: string): string {
+  const date = new Date(isoString);
+  const diffMin = Math.floor((Date.now() - date.getTime()) / 60000);
+  if (diffMin < 1) return '방금';
+  if (diffMin < 60) return `${diffMin}분 전`;
+  const diffHours = Math.floor(diffMin / 60);
+  if (diffHours < 24) return `${diffHours}시간 전`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) return `${diffDays}일 전`;
+  return new Intl.DateTimeFormat('ko-KR').format(date);
+}
+
+function mapDocumentResponse(doc: DocumentResponse, getMemberName: (id: number) => string): DocumentItem {
+  return {
+    id: doc.id,
+    category: doc.category as DocumentCategoryId,
+    title: doc.title,
+    generatedBy: doc.generatedBy,
+    createdAt: formatRelativeTime(doc.createdAt),
+    updatedAt: formatRelativeTime(doc.updatedAt),
+    author: getMemberName(doc.createdByMemberId),
+    createdByMemberId: doc.createdByMemberId,
+    content: doc.content,
+  };
 }
 
 interface DocumentTemplate {
@@ -40,40 +71,15 @@ interface DocumentTemplate {
   contentEn: string;
 }
 
-const CREATED_DOCS_STORAGE_KEY = "codedock-created-docs";
-
-function getSavedCreatedDocs() {
-  if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
-    return [];
-  }
-
-  try {
-    const storedValue = window.localStorage.getItem(CREATED_DOCS_STORAGE_KEY);
-    if (!storedValue) return [];
-
-    const parsed = JSON.parse(storedValue);
-    if (!Array.isArray(parsed)) return [];
-
-    return parsed.filter((doc): doc is DocumentItem =>
-      doc
-      && typeof doc.id === "number"
-      && typeof doc.category === "string"
-      && typeof doc.title === "string"
-      && (doc.generatedBy === "AI" || doc.generatedBy === "Template")
-      && typeof doc.createdAt === "string"
-      && typeof doc.updatedAt === "string"
-      && typeof doc.author === "string"
-      && typeof doc.content === "string"
-    );
-  } catch {
-    return [];
-  }
-}
-
-export function DocsPage({ embedded = false, workspaceId }: DocsPageProps) {
+export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: DocsPageProps) {
   const { language } = useLanguage();
-  const [selectedDoc, setSelectedDoc] = useState<number | null>(1);
-  const [createdDocs, setCreatedDocs] = useState<DocumentItem[]>(() => getSavedCreatedDocs());
+  const { workspaceId: contextWorkspaceId, getMemberName } = useWorkspace();
+  const workspaceId = workspaceIdProp ?? contextWorkspaceId;
+
+  const [docs, setDocs] = useState<DocumentItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isAiGenerating, setIsAiGenerating] = useState(false);
+  const [selectedDoc, setSelectedDoc] = useState<number | null>(null);
   const [draftTemplate, setDraftTemplate] = useState<DocumentTemplate | null>(null);
   const [draftTitle, setDraftTitle] = useState("");
   const [draftContent, setDraftContent] = useState("");
@@ -82,23 +88,29 @@ export function DocsPage({ embedded = false, workspaceId }: DocsPageProps) {
   const [editTitle, setEditTitle] = useState("");
   const [editContent, setEditContent] = useState("");
 
-  useEffect(() => {
-    if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
-      return;
-    }
-
+  const loadDocs = useCallback(async () => {
+    setIsLoading(true);
     try {
-      window.localStorage.setItem(CREATED_DOCS_STORAGE_KEY, JSON.stringify(createdDocs));
+      const data = await getDocuments(workspaceId);
+      const mapped = data.map((d) => mapDocumentResponse(d, getMemberName));
+      setDocs(mapped);
+      setSelectedDoc((prev) => prev ?? mapped[0]?.id ?? null);
     } catch {
-      // Local edits still work in memory if storage is unavailable.
+      setDocs([]);
+    } finally {
+      setIsLoading(false);
     }
-  }, [createdDocs]);
+  }, [workspaceId, getMemberName]);
+
+  useEffect(() => {
+    void loadDocs();
+  }, [loadDocs]);
 
   const categories = [
-    { id: 'pr-summary', name: 'PR 요약', nameEn: 'PR Summary', icon: FileCode, color: 'var(--neon-cyan)', count: 8 },
-    { id: 'manual', name: '기술 문서', nameEn: 'Technical Docs', icon: BookOpen, color: 'var(--matrix-green)', count: 5 },
-    { id: 'meeting', name: '회의록', nameEn: 'Meetings', icon: MessageSquare, color: '#FFD93D', count: 12 },
-    { id: 'release', name: '운영/릴리즈', nameEn: 'Ops & Release', icon: Package, color: 'var(--electric-blue)', count: 3 }
+    { id: 'pr-summary', name: 'PR 요약', nameEn: 'PR Summary', icon: FileCode, color: 'var(--neon-cyan)' },
+    { id: 'manual', name: '기술 문서', nameEn: 'Technical Docs', icon: BookOpen, color: 'var(--matrix-green)' },
+    { id: 'meeting', name: '회의록', nameEn: 'Meetings', icon: MessageSquare, color: '#FFD93D' },
+    { id: 'release', name: '운영/릴리즈', nameEn: 'Ops & Release', icon: Package, color: 'var(--electric-blue)' }
   ];
 
   const documentTemplates: DocumentTemplate[] = [
@@ -610,217 +622,7 @@ METHOD /api/example
     }
   ];
 
-  const baseDocs: DocumentItem[] = [
-    {
-      id: 1,
-      category: 'pr-summary',
-      title: 'PR #234 인증 미들웨어 추가 요약',
-      generatedBy: 'AI',
-      createdAt: '2시간 전',
-      updatedAt: '1시간 전',
-      author: 'AI 자동생성',
-      relatedPR: 234,
-      content: `# PR #234: 인증 미들웨어 추가
 
-## 변경 요약
-이 PR은 JWT 기반 인증 미들웨어를 추가하고 사용자 관련 API 라우트에 적용합니다.
-
-## 주요 변경사항
-- \`src/middleware/auth.ts\`: JWT 토큰 검증 미들웨어 추가
-- \`src/routes/user.ts\`: 인증 미들웨어 적용
-- \`src/routes/profile.ts\`: 인증 미들웨어 적용
-- \`src/config/security.ts\`: 보안 설정 업데이트
-
-## 보안 이슈
-⚠️ **높음**: refresh token 재발급 API에 요청 제한 미적용
-⚠️ **보통**: 토큰 검증 실패 시 에러 메시지에 민감한 정보 포함 가능성
-
-## 리뷰 체크리스트
-- [ ] refresh token API에 요청 제한 적용
-- [ ] 에러 메시지에서 민감한 정보 제거
-- [x] 토큰 만료 시간 환경변수로 관리
-- [x] HTTPS 연결에서만 쿠키 전송하도록 설정
-- [ ] 테스트 커버리지 80% 이상으로 개선
-
-## 결정사항
-- 요청 제한을 사용자 ID당 분당 5회로 설정
-- 토큰 검증 실패 시 에러 메시지는 "Invalid token"으로 통일
-
-## 다음 단계
-1. 요청 제한 미들웨어 추가 (담당: 김진필)
-2. 에러 메시지 검토 및 수정 (담당: 김진필)
-3. 테스트 케이스 추가 (담당: 김진필)`
-    },
-    {
-      id: 2,
-      category: 'manual',
-      title: '관리자 페이지 상품 등록 가이드',
-      generatedBy: 'AI',
-      createdAt: '1일 전',
-      updatedAt: '12시간 전',
-      author: 'AI 자동생성',
-      relatedPR: null,
-      content: `# 관리자 페이지 상품 등록 가이드
-
-## 개요
-이 매뉴얼은 관리자 페이지에서 새로운 상품을 등록하는 방법을 단계별로 설명합니다.
-
-## 사전 준비
-- 관리자 계정 로그인 필요
-- 상품 이미지 파일 (JPG, PNG, 최대 5MB)
-- 상품 상세 정보
-
-## 등록 절차
-
-### 1단계: 상품 목록 페이지 이동
-1. 왼쪽 사이드바에서 "상품 관리" 클릭
-2. "상품 목록" 메뉴 선택
-
-### 2단계: 새 상품 등록 시작
-1. 우측 상단의 "새 상품 등록" 버튼 클릭
-2. 상품 등록 폼이 표시됩니다
-
-### 3단계: 기본 정보 입력
-1. **상품명**: 고객에게 표시될 상품 이름 입력
-2. **카테고리**: 드롭다운에서 적절한 카테고리 선택
-3. **가격**: 판매 가격 입력 (원화 기준)
-4. **재고**: 초기 재고 수량 입력
-
-### 4단계: 상품 이미지 업로드
-1. "이미지 선택" 버튼 클릭
-2. 파일 선택 대화상자에서 이미지 선택
-3. 미리보기에서 이미지 확인
-4. 추가 이미지가 있다면 "이미지 추가" 버튼으로 최대 5장까지 등록 가능
-
-### 5단계: 상세 정보 입력
-1. **상품 설명**: 고객에게 제공할 상세 설명 입력
-2. **옵션 설정**: 사이즈, 색상 등의 옵션이 있다면 추가
-3. **배송 정보**: 배송비, 배송 기간 입력
-
-### 6단계: 저장
-1. 모든 정보 입력 후 "저장" 버튼 클릭
-2. 확인 메시지가 표시되면 "확인" 클릭
-3. 상품 목록 페이지로 자동 이동
-
-## 주의사항
-⚠️ 상품명과 가격은 필수 입력 항목입니다
-⚠️ 이미지는 JPG 또는 PNG 형식만 지원합니다
-⚠️ 재고가 0이면 자동으로 "품절" 상태로 표시됩니다
-
-## 문제 해결
-**Q: 이미지 업로드가 안 돼요**
-A: 파일 크기가 5MB를 초과하는지 확인하세요. JPG 또는 PNG 형식인지도 확인하세요.
-
-**Q: 저장 버튼이 비활성화되어 있어요**
-A: 필수 입력 항목(상품명, 가격)을 모두 입력했는지 확인하세요.`
-    },
-    {
-      id: 3,
-      category: 'meeting',
-      title: '2024-05-15 스프린트 회고',
-      generatedBy: 'AI',
-      createdAt: '5시간 전',
-      updatedAt: '5시간 전',
-      author: 'AI 자동생성',
-      relatedPR: null,
-      content: `# 2024-05-15 스프린트 회고
-
-**일시**: 2024년 5월 15일 14:00 - 15:30
-**참석자**: 김재준, 김진필, 김준우, 김진현, 안현
-
-## 진행 상황
-- 인증 시스템 구현 완료 (PR #234)
-- API 명세 문서화 80% 완료
-- ERD 설계 완료
-
-## 잘한 점
-✅ PR 리뷰 속도가 이전 스프린트 대비 30% 향상
-✅ 팀원 간 코드 리뷰 코멘트 품질 개선
-✅ CI/CD 파이프라인 안정화
-
-## 개선할 점
-⚠️ 테스트 커버리지가 목표치(80%)에 미달 (현재 67%)
-⚠️ API 문서화가 코드 변경에 비해 지연됨
-⚠️ 보안 리뷰 프로세스가 체계화되지 않음
-
-## 결정사항
-1. **보안 룰 엔진 도입**: refresh token API에 요청 제한 적용 (담당: 김진필)
-2. **문서 자동화**: API 변경 시 자동으로 문서 갱신되도록 프로세스 개선 (담당: 김준우)
-3. **테스트 강화**: PR 머지 기준을 커버리지 75% 이상으로 상향 (전체)
-
-## 액션아이템
-- [ ] 요청 제한 미들웨어 구현 및 적용 (김진필, ~5/20)
-- [ ] API 문서 자동 생성 스크립트 작성 (김준우, ~5/22)
-- [ ] 테스트 커버리지 75% 달성 (전체, ~5/25)
-- [ ] 보안 체크리스트 문서 작성 (김재준, ~5/18)
-
-## 다음 스프린트 목표
-- 사용자 프로필 기능 완료
-- API 문서화 100% 달성
-- 테스트 커버리지 75% 이상 유지
-- 보안 리뷰 프로세스 정립`
-    },
-    {
-      id: 4,
-      category: 'release',
-      title: 'v1.2.0 릴리즈 노트',
-      generatedBy: 'AI',
-      createdAt: '3일 전',
-      updatedAt: '3일 전',
-      author: 'AI 자동생성',
-      relatedPR: null,
-      content: `# v1.2.0 릴리즈 노트
-
-**릴리즈 일자**: 2024년 5월 12일
-**버전**: 1.2.0
-
-## 🎉 새로운 기능
-- **JWT 인증 시스템**: 보안 강화를 위한 JWT 기반 인증 미들웨어 추가
-- **사용자 프로필 API**: 사용자 정보 조회 및 수정 기능 추가
-- **PR 자동 분석**: AI 기반 PR 위험도 분석 기능 도입
-
-## 🐛 버그 수정
-- CORS 설정 오류로 인한 프론트엔드 요청 실패 문제 해결
-- 사용자 세션 만료 시 무한 로딩 문제 수정
-- API 응답 시간 개선 (평균 200ms → 120ms)
-
-## 🔧 개선사항
-- API 문서 자동 생성 기능 추가
-- ERD 다이어그램 자동 갱신
-- 테스트 커버리지 67% 달성
-
-## ⚠️ 호환성 변경
-없음
-
-## 📦 의존성 업데이트
-- express: 4.18.2 → 4.19.0
-- jsonwebtoken: 9.0.0 → 9.0.2
-- typescript: 5.2.0 → 5.4.5
-
-## 🔐 보안
-- refresh token 재발급 API에 요청 제한 적용
-- 민감한 정보가 에러 메시지에 노출되지 않도록 개선
-- HTTPS 전용 쿠키 설정 강제
-
-## 📝 문서
-- API 명세 문서 업데이트
-- ERD 다이어그램 갱신
-- 배포 가이드 추가
-
-## 🙏 기여자
-- 김진필 (인증 시스템)
-- 김준우 (API 문서화)
-- 김진현 (CORS 수정)
-- 김재준 (릴리즈 관리)
-
-## 다음 버전 계획 (v1.3.0)
-- 실시간 알림 시스템
-- 팀 채팅 기능 강화
-- AI 매뉴얼 자동 생성`
-    }
-  ];
-
-  const docs = [...createdDocs, ...baseDocs];
   const selectedDocData = docs.find(doc => doc.id === selectedDoc);
   const docContentEn: Record<number, string> = {
     1: `# PR #234: Add authentication middleware
@@ -991,24 +793,11 @@ None
 - Stronger team chat features
 - Automatic AI manual generation`,
   };
-  const selectedDocContent = selectedDocData
-    ? language === "en"
-      ? selectedDocData.contentEn ?? docContentEn[selectedDocData.id] ?? selectedDocData.content
-      : selectedDocData.content
-    : "";
+  const selectedDocContent = selectedDocData?.content ?? "";
 
   const getCategoryLabel = (category: typeof categories[number]) => (
     language === "en" ? category.nameEn : category.name
   );
-
-  const getDocTitle = (doc: DocumentItem) => (
-    language === "en" ? doc.titleEn ?? doc.title : doc.title
-  );
-
-  const getDocAuthor = (doc: DocumentItem) => {
-    if (language !== "en") return doc.author;
-    return doc.authorEn ?? (doc.author === "AI 자동생성" ? "AI generated" : doc.author);
-  };
 
   const handleSelectTemplate = (template: DocumentTemplate) => {
     setEditingDocId(null);
@@ -1027,88 +816,55 @@ None
     setSelectedDoc(docs[0]?.id ?? null);
   };
 
-  const handleRegisterDraft = () => {
+  const handleRegisterDraft = async () => {
     if (!draftTemplate || !draftTitle.trim() || !draftContent.trim()) return;
 
-    const nextId = Date.now();
-    const newDoc: DocumentItem = {
-      id: nextId,
-      category: draftTemplate.category,
-      title: language === "en" ? draftTemplate.title : draftTitle.trim(),
-      titleEn: language === "en" ? draftTitle.trim() : draftTemplate.titleEn,
-      generatedBy: 'Template',
-      createdAt: language === "en" ? "Just now" : "방금",
-      updatedAt: language === "en" ? "Just now" : "방금",
-      author: "사용자 작성",
-      authorEn: "User draft",
-      relatedPR: null,
-      content: language === "en" ? draftTemplate.content : draftContent.trim(),
-      contentEn: language === "en" ? draftContent.trim() : draftTemplate.contentEn
-    };
-
-    setCreatedDocs((prevDocs) => [newDoc, ...prevDocs]);
-    setSelectedDoc(nextId);
-    setDocListTab("documents");
-    setEditingDocId(null);
-    setDraftTemplate(null);
-    setDraftTitle("");
-    setDraftContent("");
+    try {
+      const created = await createDocument(workspaceId, {
+        title: draftTitle.trim(),
+        content: draftContent.trim(),
+        category: draftTemplate.category,
+        visibility: 'workspace',
+        generatedBy: 'MANUAL',
+        relatedPrId: null,
+      });
+      const newDoc = mapDocumentResponse(created, getMemberName);
+      setDocs((prev) => [newDoc, ...prev]);
+      setSelectedDoc(created.id);
+      setDocListTab("documents");
+      setEditingDocId(null);
+      setDraftTemplate(null);
+      setDraftTitle("");
+      setDraftContent("");
+    } catch {
+      // 실패 시 상태 유지
+    }
   };
 
-  const handleGenerateAiDocument = (template: DocumentTemplate) => {
-    const nextId = Date.now();
-    const generatedTitle = `${template.title} AI 자동 생성`;
-    const generatedTitleEn = `AI Generated ${template.titleEn}`;
-    const generatedContent = `# ${generatedTitle}
-
-## AI 자동 생성 초안
-- 선택한 템플릿: ${template.title}
-- 문서 유형: ${categories.find((category) => category.id === template.category)?.name ?? "문서"}
-- 생성 상태: 검토 필요
-
-${template.content}`;
-    const generatedContentEn = `# ${generatedTitleEn}
-
-## AI Generated Draft
-- Template: ${template.titleEn}
-- Document type: ${categories.find((category) => category.id === template.category)?.nameEn ?? "Document"}
-- Status: Needs review
-
-${template.contentEn}`;
-
-    const newDoc: DocumentItem = {
-      id: nextId,
-      category: template.category,
-      title: generatedTitle,
-      titleEn: generatedTitleEn,
-      generatedBy: 'AI',
-      createdAt: language === "en" ? "Just now" : "방금",
-      updatedAt: language === "en" ? "Just now" : "방금",
-      author: "AI 자동 생성",
-      authorEn: "AI generated",
-      relatedPR: template.category === "pr-summary" ? 234 : null,
-      content: generatedContent,
-      contentEn: generatedContentEn
-    };
-
-    setCreatedDocs((prevDocs) => [newDoc, ...prevDocs]);
-    setSelectedDoc(nextId);
-    setDocListTab("documents");
-    setEditingDocId(null);
-    setDraftTemplate(null);
-    setDraftTitle("");
-    setDraftContent("");
+  const handleGenerateAiDocument = async () => {
+    setIsAiGenerating(true);
+    try {
+      const created = await aiGenerateDocument(workspaceId);
+      const newDoc = mapDocumentResponse(created, getMemberName);
+      setDocs((prev) => [newDoc, ...prev]);
+      setSelectedDoc(created.id);
+      setDocListTab("documents");
+      setEditingDocId(null);
+      setDraftTemplate(null);
+      setDraftTitle("");
+      setDraftContent("");
+    } catch {
+      // 실패 시 상태 유지
+    } finally {
+      setIsAiGenerating(false);
+    }
   };
-
-  const isCreatedDoc = (docId: number) => createdDocs.some((doc) => doc.id === docId);
 
   const handleStartEditDocument = (doc: DocumentItem) => {
-    if (!isCreatedDoc(doc.id)) return;
-
     setDraftTemplate(null);
     setEditingDocId(doc.id);
-    setEditTitle(language === "en" ? doc.titleEn ?? doc.title : doc.title);
-    setEditContent(language === "en" ? doc.contentEn ?? doc.content : doc.content);
+    setEditTitle(doc.title);
+    setEditContent(doc.content);
   };
 
   const handleCancelEditDocument = () => {
@@ -1117,41 +873,35 @@ ${template.contentEn}`;
     setEditContent("");
   };
 
-  const handleSaveEditDocument = () => {
+  const handleSaveEditDocument = async () => {
     if (!editingDocId || !editTitle.trim() || !editContent.trim()) return;
 
-    setCreatedDocs((prevDocs) =>
-      prevDocs.map((doc) =>
-        doc.id === editingDocId
-          ? {
-              ...doc,
-              title: language === "en" ? doc.title : editTitle.trim(),
-              titleEn: language === "en" ? editTitle.trim() : doc.titleEn,
-              content: language === "en" ? doc.content : editContent.trim(),
-              contentEn: language === "en" ? editContent.trim() : doc.contentEn,
-              updatedAt: language === "en" ? "Just now" : "방금",
-            }
-          : doc,
-      ),
-    );
-    handleCancelEditDocument();
+    try {
+      const updated = await updateDocument(workspaceId, editingDocId, {
+        title: editTitle.trim(),
+        content: editContent.trim(),
+      });
+      const updatedDoc = mapDocumentResponse(updated, getMemberName);
+      setDocs((prev) => prev.map((d) => d.id === editingDocId ? updatedDoc : d));
+      handleCancelEditDocument();
+    } catch {
+      // 실패 시 상태 유지
+    }
   };
 
-  const handleDeleteDocument = (docId: number) => {
-    if (!isCreatedDoc(docId)) return;
-
-    setCreatedDocs((prevDocs) => {
-      const nextCreatedDocs = prevDocs.filter((doc) => doc.id !== docId);
-      const nextDocs = [...nextCreatedDocs, ...baseDocs];
-
-      if (selectedDoc === docId) {
-        setSelectedDoc(nextDocs[0]?.id ?? null);
-      }
-
-      return nextCreatedDocs;
-    });
-    handleCancelEditDocument();
-    setDocListTab("documents");
+  const handleDeleteDocument = async (docId: number) => {
+    try {
+      await deleteDocument(workspaceId, docId);
+      setDocs((prev) => {
+        const next = prev.filter((d) => d.id !== docId);
+        if (selectedDoc === docId) setSelectedDoc(next[0]?.id ?? null);
+        return next;
+      });
+      handleCancelEditDocument();
+      setDocListTab("documents");
+    } catch {
+      // 실패 시 상태 유지
+    }
   };
 
   const getCategoryIcon = (categoryId: string) => {
@@ -1269,7 +1019,7 @@ ${template.contentEn}`;
       <div className={embedded ? "grid grid-cols-2 gap-3 mb-5 xl:grid-cols-4" : "grid md:grid-cols-4 gap-4 mb-9"}>
         {categories.map((category) => {
           const Icon = category.icon;
-          const addedCount = createdDocs.filter((doc) => doc.category === category.id).length;
+          const categoryCount = docs.filter((doc) => doc.category === category.id).length;
           return (
             <div key={category.id} className={embedded ? "px-4 py-4 rounded-2xl" : "px-5 py-5 rounded-3xl"} style={{
               background: 'rgba(11, 22, 40, 0.82)',
@@ -1290,7 +1040,7 @@ ${template.contentEn}`;
                 fontWeight: 950,
                 color: category.color
               }}>
-                {category.count + addedCount}
+                {categoryCount}
               </p>
             </div>
           );
@@ -1496,7 +1246,7 @@ ${template.contentEn}`;
                     fontWeight: 900,
                     color: 'var(--white)'
                   }}>
-                    {getDocTitle(doc)}
+                    {doc.title}
                   </p>
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="tracking-tight" style={{
@@ -1504,7 +1254,7 @@ ${template.contentEn}`;
                       fontWeight: 700,
                       color: 'var(--muted)'
                     }}>
-                      {getDocAuthor(doc)}
+                      {getMemberName(doc.createdByMemberId)}
                     </span>
                     <span style={{ color: 'var(--muted)' }}>•</span>
                     <span className="tracking-tight" style={{
@@ -1515,16 +1265,6 @@ ${template.contentEn}`;
                       {doc.createdAt}
                     </span>
                   </div>
-                  {doc.relatedPR && (
-                    <span className="inline-block mt-2 px-2 py-0.5 rounded tracking-tight" style={{
-                      background: 'rgba(var(--codedock-secondary-rgb), 0.15)',
-                      fontSize: "var(--krds-body-xsmall)",
-                      fontWeight: 900,
-                      color: 'var(--matrix-green)'
-                    }}>
-                      PR #{doc.relatedPR}
-                    </span>
-                  )}
                 </button>
               );
             })}
@@ -1658,7 +1398,8 @@ ${template.contentEn}`;
               </button>
               <button
                 type="button"
-                onClick={() => handleGenerateAiDocument(draftTemplate)}
+                onClick={() => void handleGenerateAiDocument()}
+                disabled={isAiGenerating}
                 className="inline-flex items-center gap-2 rounded-xl border-0 px-5 py-3 tracking-tight transition-all hover:scale-[1.01]"
                 style={{
                   background: 'linear-gradient(135deg, rgba(var(--codedock-primary-rgb), 0.20), rgba(var(--codedock-secondary-rgb), 0.12)), rgba(234, 247, 255, 0.055)',
@@ -1740,7 +1481,7 @@ ${template.contentEn}`;
                   fontWeight: 950,
                   color: 'var(--white)'
                 }}>
-                  {getDocTitle(selectedDocData)}
+                  {selectedDocData.title}
                 </h2>
                 <div className="flex items-center gap-3 flex-wrap">
                   <span className="tracking-tight" style={{
@@ -1748,7 +1489,7 @@ ${template.contentEn}`;
                     fontWeight: 800,
                     color: 'var(--muted)'
                   }}>
-                    {language === "en" ? "Author" : "작성"}: {getDocAuthor(selectedDocData)}
+                    {language === "en" ? "Author" : "작성"}: {getMemberName(selectedDocData.createdByMemberId)}
                   </span>
                   <span style={{ color: 'var(--muted)' }}>•</span>
                   <span className="tracking-tight" style={{
@@ -1772,8 +1513,7 @@ ${template.contentEn}`;
                   )}
                 </div>
               </div>
-              {isCreatedDoc(selectedDocData.id) && (
-                <div className="ml-4 flex flex-shrink-0 flex-wrap justify-end gap-2">
+              <div className="ml-4 flex flex-shrink-0 flex-wrap justify-end gap-2">
                   {editingDocId === selectedDocData.id ? (
                     <>
                       <button
@@ -1847,23 +1587,7 @@ ${template.contentEn}`;
                     </>
                   )}
                 </div>
-              )}
             </div>
-
-            {selectedDocData.relatedPR && (
-              <div className="px-5 py-4 mb-6 rounded-2xl" style={{
-                background: 'rgba(var(--codedock-secondary-rgb), 0.08)',
-                border: '1px solid rgba(var(--codedock-secondary-rgb), 0.22)'
-              }}>
-                <p className="m-0 tracking-tight" style={{
-                  fontSize: '13px',
-                  fontWeight: 900,
-                  color: 'var(--matrix-green)'
-                }}>
-                  관련 PR #{selectedDocData.relatedPR}
-                </p>
-              </div>
-            )}
 
             {editingDocId === selectedDocData.id ? (
               <div className={embedded ? "codedock-scrollbar-hidden min-h-0 flex-1 overflow-y-auto pr-1" : ""}>
