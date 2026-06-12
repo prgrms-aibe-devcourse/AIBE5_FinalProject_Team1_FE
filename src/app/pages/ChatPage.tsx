@@ -14,24 +14,35 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } fro
 import { useNavigate } from "react-router";
 import { AnimatePresence, motion } from "motion/react";
 import type { MessageAttachment } from "../components/messageAttachments";
+import type { MessageMetadata } from "../components/chatInteractionUtils";
 import { toggleMessageReaction, type MessageReaction } from "../components/MessageReactions";
 import { TeamInviteModal } from "../components/TeamInviteModal";
 import { TeamPanel } from "../components/TeamPanel";
 import { createPortal } from "react-dom";
 import {
+  CHAT_EVENT_TYPE,
   chatWebSocketDestinations,
+  createChannelMessage,
   createThreadReply,
   deleteChannelMessage,
+  getChatEventPayload,
   getChannelMessages,
   getChannelReactions,
+  getWorkspaceBookmarks,
   getThreadReplies,
+  getWorkspaceMentions,
   getWorkspaceChannels,
+  markChannelAsRead,
+  markMentionAsRead,
   toggleChannelReaction,
+  toggleMessageBookmark,
   updateChannelMessage,
   type Channel,
   type ChannelEventPayload,
   type ChannelMessage,
   type ChatEvent,
+  type MentionResponse,
+  type PersonalNotification,
   type ReactionSummary,
   type ReactionToggleResponse,
   type ThreadReply,
@@ -710,6 +721,8 @@ export function ChatPage() {
   const remoteTypingTimeoutsRef = useRef<Record<string, number>>({});
   const chatStompRef = useRef<ChatStompClient | null>(null);
   const [chatStompReadyKey, setChatStompReadyKey] = useState(0);
+  const [serverBookmarkedThreadsByChannel, setServerBookmarkedThreadsByChannel] = useState<Record<string, Record<number, boolean>>>({});
+  const [workspaceMentions, setWorkspaceMentions] = useState<MentionResponse[]>([]);
   const [customChannels, setCustomChannels] = useState<CustomChannelItem[]>([]);
   const [channelMenuOpenId, setChannelMenuOpenId] = useState<string | null>(null);
   const [editingCustomChannelId, setEditingCustomChannelId] = useState<string | null>(null);
@@ -767,6 +780,12 @@ export function ChatPage() {
       return acc;
     }, {});
   }, [apiChannels]);
+  const apiChannelUiById = useMemo(() => {
+    return apiChannels.reduce<Record<number, string>>((acc, channel) => {
+      acc[channel.id] = getApiChannelUiId(channel);
+      return acc;
+    }, {});
+  }, [apiChannels]);
   const activeApiChannelId = apiChannelIdByUiChannel[selectedChannel];
   const apiCustomChannels = useMemo<CustomChannelItem[]>(() => {
     return apiChannels
@@ -783,11 +802,25 @@ export function ChatPage() {
   );
   const activeRemoteTypingNames = Object.values(remoteTypingByChannel[selectedChannel] ?? {});
   const activeRemoteTypingLabel = formatRemoteTypingLabel(activeRemoteTypingNames);
+  const activeServerBookmarkedThreadIds = serverBookmarkedThreadsByChannel[selectedChannel] ?? {};
+  const unreadMentionCount = workspaceMentions.filter((mention) => !mention.read).length;
 
   const getChannelBadge = (channelId: string): string | undefined => {
     const count = channelUnreadCounts[channelId];
     return count && count > 0 ? String(count) : undefined;
   };
+
+  useEffect(() => {
+    if (apiChannels.length === 0) return;
+
+    setChannelUnreadCounts((prev) => {
+      const nextCounts = { ...prev };
+      apiChannels.forEach((channel) => {
+        nextCounts[getApiChannelUiId(channel)] = channel.unreadCount ?? 0;
+      });
+      return nextCounts;
+    });
+  }, [apiChannels]);
 
   const currentMessages = messages[selectedChannel] || [];
   const apiThreadTargets = useMemo(() => {
@@ -984,6 +1017,57 @@ export function ChatPage() {
     });
   }, [selectedChannel]);
 
+  useEffect(() => {
+    if (!activeApiChannelId) return;
+
+    markChannelAsRead(activeApiChannelId, {
+      userId: TEMPORARY_API_USER_ID
+    }).catch(() => {
+      // The local unread count is already cleared; server read status waits for auth/API availability.
+    });
+  }, [activeApiChannelId]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    getWorkspaceBookmarks(currentWorkspaceApiId, {
+      signal: controller.signal,
+      userId: TEMPORARY_API_USER_ID
+    })
+      .then((bookmarks) => {
+        const nextBookmarks = bookmarks.reduce<Record<string, Record<number, boolean>>>((acc, bookmark) => {
+          const uiChannelId = apiChannelUiById[bookmark.channelId] ?? String(bookmark.channelId);
+          acc[uiChannelId] = {
+            ...(acc[uiChannelId] ?? {}),
+            [bookmark.messageId]: true
+          };
+          return acc;
+        }, {});
+
+        setServerBookmarkedThreadsByChannel(nextBookmarks);
+      })
+      .catch(() => {
+        // Keep local bookmark state when the backend is unavailable.
+      });
+
+    return () => controller.abort();
+  }, [apiChannelUiById, currentWorkspaceApiId]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    getWorkspaceMentions(currentWorkspaceApiId, {
+      signal: controller.signal,
+      userId: TEMPORARY_API_USER_ID
+    })
+      .then(setWorkspaceMentions)
+      .catch(() => {
+        // Mentions are an enhancement; the chat flow should continue without them.
+      });
+
+    return () => controller.abort();
+  }, [currentWorkspaceApiId]);
+
   const incrementUnreadCount = useCallback((channelId: string, senderMemberId?: number | null) => {
     if (channelId === selectedChannelRef.current) return;
     if (senderMemberId === TEMPORARY_WORKSPACE_MEMBER_ID) return;
@@ -992,6 +1076,65 @@ export function ChatPage() {
       ...prev,
       [channelId]: (prev[channelId] ?? 0) + 1
     }));
+  }, []);
+
+  const setServerBookmarkState = useCallback((uiChannelId: string, messageId: number, bookmarked: boolean) => {
+    setServerBookmarkedThreadsByChannel((prev) => {
+      const nextChannelBookmarks = { ...(prev[uiChannelId] ?? {}) };
+
+      if (bookmarked) {
+        nextChannelBookmarks[messageId] = true;
+      } else {
+        delete nextChannelBookmarks[messageId];
+      }
+
+      return {
+        ...prev,
+        [uiChannelId]: nextChannelBookmarks
+      };
+    });
+  }, []);
+
+  const handleToggleThreadBookmark = useCallback((thread: any, nextBookmarked: boolean) => {
+    const channelId = Number(thread.backendChannelId ?? activeApiChannelId);
+    const messageId = Number(thread.backendMessageId ?? thread.id);
+    const uiChannelId = Number.isFinite(channelId)
+      ? apiChannelUiById[channelId] ?? selectedChannel
+      : selectedChannel;
+
+    if (!Number.isFinite(channelId) || !Number.isFinite(messageId)) return;
+
+    setServerBookmarkState(uiChannelId, messageId, nextBookmarked);
+
+    toggleMessageBookmark(channelId, messageId, {
+      userId: TEMPORARY_API_USER_ID
+    })
+      .then((response) => {
+        setServerBookmarkState(uiChannelId, response.messageId, response.bookmarked);
+      })
+      .catch(() => {
+        setServerBookmarkState(uiChannelId, messageId, !nextBookmarked);
+      });
+  }, [activeApiChannelId, apiChannelUiById, selectedChannel, setServerBookmarkState]);
+
+  const handleMarkMentionAsRead = useCallback((mentionId: number) => {
+    setWorkspaceMentions((prev) =>
+      prev.map((mention) => mention.id === mentionId ? { ...mention, read: true } : mention)
+    );
+
+    markMentionAsRead(mentionId, {
+      userId: TEMPORARY_API_USER_ID
+    })
+      .then((updatedMention) => {
+        setWorkspaceMentions((prev) =>
+          prev.map((mention) => mention.id === mentionId ? updatedMention : mention)
+        );
+      })
+      .catch(() => {
+        setWorkspaceMentions((prev) =>
+          prev.map((mention) => mention.id === mentionId ? { ...mention, read: false } : mention)
+        );
+      });
   }, []);
 
   const appendServerMessage = useCallback((channelId: string, message: ChannelMessage) => {
@@ -1250,6 +1393,7 @@ export function ChatPage() {
     let client: ChatStompClient | null = null;
     let eventSubscriptions: Array<{ unsubscribe: () => void }> = [];
     let typingSubscription: { unsubscribe: () => void } | null = null;
+    let personalNotificationSubscription: { unsubscribe: () => void } | null = null;
 
     void import("../api/stomp").then(({ createChatStompClient }) => {
       if (cancelled) return;
@@ -1264,20 +1408,25 @@ export function ChatPage() {
         return client!.subscribe<ChatEvent<ChannelEventPayload>>(
           chatWebSocketDestinations.subscribeChannelEvents(channel.id),
           (event) => {
-            if (event.type === "MESSAGE_CREATED") {
-              const messagePayload = event.payload as ChannelMessage;
+            const createdMessagePayload = getChatEventPayload<ChannelMessage>(event, CHAT_EVENT_TYPE.MESSAGE_CREATED);
+            if (createdMessagePayload) {
+              const messagePayload = createdMessagePayload;
               appendServerMessage(uiChannelId, messagePayload);
               incrementUnreadCount(uiChannelId, messagePayload.senderMemberId);
               return;
             }
 
-            if (event.type === "MESSAGE_UPDATED" || event.type === "MESSAGE_DELETED") {
-              replaceServerMessage(uiChannelId, event.payload as ChannelMessage);
+            const updatedMessagePayload =
+              getChatEventPayload<ChannelMessage>(event, CHAT_EVENT_TYPE.MESSAGE_UPDATED)
+              ?? getChatEventPayload<ChannelMessage>(event, CHAT_EVENT_TYPE.MESSAGE_DELETED);
+            if (updatedMessagePayload) {
+              replaceServerMessage(uiChannelId, updatedMessagePayload);
               return;
             }
 
-            if (event.type === "REACTION_UPDATED") {
-              applyReactionResponse(event.payload as ReactionToggleResponse, uiChannelId);
+            const reactionPayload = getChatEventPayload<ReactionToggleResponse>(event, CHAT_EVENT_TYPE.REACTION_UPDATED);
+            if (reactionPayload) {
+              applyReactionResponse(reactionPayload, uiChannelId);
             }
           }
         );
@@ -1287,8 +1436,8 @@ export function ChatPage() {
         typingSubscription = client.subscribe<ChatEvent<TypingEvent>>(
           chatWebSocketDestinations.subscribeChannelTyping(activeApiChannelId),
           (event) => {
-            if (event.type !== "TYPING") return;
-            const typingPayload = event.payload;
+            const typingPayload = getChatEventPayload<TypingEvent>(event, CHAT_EVENT_TYPE.TYPING);
+            if (!typingPayload) return;
             if (typingPayload.workspaceMemberId === TEMPORARY_WORKSPACE_MEMBER_ID) return;
             const typingKey = `${selectedChannel}:${typingPayload.workspaceMemberId}`;
 
@@ -1332,6 +1481,34 @@ export function ChatPage() {
         );
       }
 
+      personalNotificationSubscription = client.subscribe<ChatEvent<PersonalNotification> | PersonalNotification>(
+        chatWebSocketDestinations.subscribePersonalNotifications(),
+        (event) => {
+          const notification = getChatEventPayload<PersonalNotification>(event, CHAT_EVENT_TYPE.NOTIFICATION_CREATED)
+            ?? (
+              event && typeof event === "object" && !("type" in event)
+                ? event as PersonalNotification
+                : null
+            );
+          if (!notification) return;
+
+          if (notification.channelId) {
+            const uiChannelId = apiChannelUiById[notification.channelId] ?? String(notification.channelId);
+            incrementUnreadCount(uiChannelId, notification.mentionedMemberId);
+          }
+
+          if (notification.workspaceId === undefined || notification.workspaceId === currentWorkspaceApiId) {
+            getWorkspaceMentions(currentWorkspaceApiId, {
+              userId: TEMPORARY_API_USER_ID
+            })
+              .then(setWorkspaceMentions)
+              .catch(() => {
+                // The notification badge stays driven by local unread state if mention refresh fails.
+              });
+          }
+        }
+      );
+
       client.connect();
     });
 
@@ -1339,6 +1516,7 @@ export function ChatPage() {
       cancelled = true;
       eventSubscriptions.forEach((subscription) => subscription.unsubscribe());
       typingSubscription?.unsubscribe();
+      personalNotificationSubscription?.unsubscribe();
       client?.disconnect();
       if (chatStompRef.current === client) {
         chatStompRef.current = null;
@@ -1356,9 +1534,11 @@ export function ChatPage() {
     };
   }, [
     activeApiChannelId,
+    apiChannelUiById,
     apiChannels,
     applyReactionResponse,
     appendServerMessage,
+    currentWorkspaceApiId,
     incrementUnreadCount,
     replaceServerMessage,
     selectedChannel
@@ -1373,8 +1553,8 @@ export function ChatPage() {
       client.subscribe<ChatEvent<ThreadEventPayload>>(
         chatWebSocketDestinations.subscribeThreadEvents(threadId),
         (event) => {
-          if (event.type !== "THREAD_REPLY_CREATED") return;
-          const reply = event.payload as ThreadReply;
+          const reply = getChatEventPayload<ThreadReply>(event, CHAT_EVENT_TYPE.THREAD_REPLY_CREATED);
+          if (!reply) return;
           if (Number(reply.threadId) !== threadId) return;
 
           appendServerThreadReply(thread, reply);
@@ -1728,11 +1908,23 @@ export function ChatPage() {
             </span>
           </span>
         </span>
-        <span className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full" style={{
+        <span className="relative grid h-8 w-8 flex-shrink-0 place-items-center rounded-full" style={{
           background: notificationMode === 'muted' ? 'rgba(255, 107, 107, 0.10)' : 'rgba(var(--codedock-primary-rgb), 0.10)',
           border: notificationMode === 'muted' ? '1px solid rgba(255, 107, 107, 0.22)' : '1px solid rgba(var(--codedock-primary-rgb), 0.16)'
         }}>
           <CurrentNotificationIcon size={14} style={{ color: notificationMode === 'muted' ? '#FF8FA3' : 'var(--neon-cyan)' }} />
+          {unreadMentionCount > 0 && (
+            <span className="absolute -right-1 -top-1 grid min-w-[16px] place-items-center rounded-full px-1" style={{
+              height: '16px',
+              background: 'var(--matrix-green)',
+              color: '#021014',
+              fontSize: '10px',
+              fontWeight: 950,
+              lineHeight: 1
+            }}>
+              {unreadMentionCount > 9 ? '9+' : unreadMentionCount}
+            </span>
+          )}
         </span>
       </button>
       <AnimatePresence initial={false}>
@@ -1820,6 +2012,55 @@ export function ChatPage() {
                 );
               })}
             </div>
+
+            {workspaceMentions.length > 0 && (
+              <>
+                <div className="my-3" style={{ borderTop: '1px solid rgba(var(--codedock-primary-rgb), 0.14)' }} />
+
+                <div className="mb-2 px-1">
+                  <p className="m-0 tracking-tight" style={{ color: 'var(--white)', fontSize: '13px', fontWeight: 950 }}>
+                    최근 멘션
+                  </p>
+                </div>
+
+                <div className="grid gap-1.5">
+                  {workspaceMentions.slice(0, 4).map((mention) => (
+                    <button
+                      key={mention.id}
+                      type="button"
+                      onClick={() => {
+                        if (!mention.read) {
+                          handleMarkMentionAsRead(mention.id);
+                        }
+                        const uiChannelId = apiChannelUiById[mention.channelId];
+                        if (uiChannelId) {
+                          setSelectedChannel(uiChannelId);
+                        }
+                        setProfileMenuOpen(false);
+                      }}
+                      className="flex w-full items-start gap-3 rounded-xl border-0 px-3 py-2.5 text-left tracking-tight"
+                      style={{
+                        background: mention.read ? 'transparent' : 'rgba(var(--codedock-primary-rgb), 0.10)',
+                        border: mention.read ? '1px solid transparent' : '1px solid rgba(var(--codedock-primary-rgb), 0.18)',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <span className="mt-1 h-2 w-2 flex-shrink-0 rounded-full" style={{
+                        background: mention.read ? 'rgba(234, 247, 255, 0.22)' : 'var(--matrix-green)'
+                      }} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate" style={{ color: 'var(--white)', fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}>
+                          {mention.mentionedByName}
+                        </span>
+                        <span className="block truncate" style={{ color: 'var(--muted)', fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>
+                          {mention.content}
+                        </span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
 
             <div className="my-3" style={{ borderTop: '1px solid rgba(var(--codedock-primary-rgb), 0.14)' }} />
 
@@ -2023,9 +2264,10 @@ export function ChatPage() {
     });
   };
 
-  const handleSendMessage = (text: string, attachments: MessageAttachment[] = [], replyTo?: { user: string; text: string }) => {
+  const handleSendMessage = (text: string, attachments: MessageAttachment[] = [], replyTo?: { user: string; text: string }, metadata?: MessageMetadata) => {
     const trimmedText = text.trim();
     if (!trimmedText && attachments.length === 0) return;
+    const mentions = metadata?.mentions?.filter(Boolean) ?? [];
     const messageText = trimmedText || `${attachments.length}개 항목을 공유합니다.`;
 
     const nextMessage: any = {
@@ -2034,7 +2276,8 @@ export function ChatPage() {
       text: trimmedText || `${attachments.length}개 항목을 공유합니다.`,
       time: '방금',
       attachments,
-      replyTo
+      replyTo,
+      ...(mentions.length ? { mentions } : {})
     };
     nextMessage.text = messageText;
     nextMessage.message = messageText;
@@ -2052,13 +2295,25 @@ export function ChatPage() {
         ]
       }));
 
-      chatStompRef.current?.send(
-        chatWebSocketDestinations.sendChannelMessage(activeApiChannelId),
-        {
-          senderMemberId: TEMPORARY_WORKSPACE_MEMBER_ID,
-          content: messageText
-        }
-      );
+      const stompClient = chatStompRef.current;
+      if (stompClient) {
+        stompClient.send(
+          chatWebSocketDestinations.sendChannelMessage(activeApiChannelId),
+          {
+            senderMemberId: TEMPORARY_WORKSPACE_MEMBER_ID,
+            content: messageText
+          }
+        );
+        return;
+      }
+
+      createChannelMessage(activeApiChannelId, { content: messageText }, {
+        userId: TEMPORARY_API_USER_ID
+      })
+        .then((serverMessage) => appendServerMessage(selectedChannel, serverMessage))
+        .catch(() => {
+          // Keep the optimistic message visible when the backend is unavailable.
+        });
       return;
     }
 
@@ -2164,7 +2419,7 @@ export function ChatPage() {
       user: myProfile.name,
       text: trimmedText,
       message: trimmedText,
-      time: '諛⑷툑'
+      time: '방금'
     };
 
     const appendReply = (reply: any) => {
@@ -3036,6 +3291,8 @@ export function ChatPage() {
                 onTypingChange={activeApiChannelId ? handleChannelTypingChange : undefined}
                 remoteTypingLabel={activeRemoteTypingLabel}
                 onToggleReaction={handleToggleReaction}
+                bookmarkedThreadIds={activeApiChannelId ? activeServerBookmarkedThreadIds : undefined}
+                onToggleBookmark={activeApiChannelId ? handleToggleThreadBookmark : undefined}
                 onEditThread={activeApiChannelId ? handleEditThreadMessage : undefined}
                 onDeleteThread={activeApiChannelId ? handleDeleteThreadMessage : undefined}
               />
@@ -3054,6 +3311,8 @@ export function ChatPage() {
                 onTypingChange={activeApiChannelId ? handleChannelTypingChange : undefined}
                 remoteTypingLabel={activeRemoteTypingLabel}
                 onToggleReaction={handleToggleReaction}
+                bookmarkedThreadIds={activeApiChannelId ? activeServerBookmarkedThreadIds : undefined}
+                onToggleBookmark={activeApiChannelId ? handleToggleThreadBookmark : undefined}
                 onEditThread={activeApiChannelId ? handleEditThreadMessage : undefined}
                 onDeleteThread={activeApiChannelId ? handleDeleteThreadMessage : undefined}
               />
@@ -3072,6 +3331,8 @@ export function ChatPage() {
                 onTypingChange={activeApiChannelId ? handleChannelTypingChange : undefined}
                 remoteTypingLabel={activeRemoteTypingLabel}
                 onToggleReaction={handleToggleReaction}
+                bookmarkedThreadIds={activeApiChannelId ? activeServerBookmarkedThreadIds : undefined}
+                onToggleBookmark={activeApiChannelId ? handleToggleThreadBookmark : undefined}
                 onEditThread={activeApiChannelId ? handleEditThreadMessage : undefined}
                 onDeleteThread={activeApiChannelId ? handleDeleteThreadMessage : undefined}
               />
