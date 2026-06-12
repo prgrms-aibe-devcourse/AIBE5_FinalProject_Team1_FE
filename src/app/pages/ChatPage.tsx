@@ -12,6 +12,7 @@ import { ERDPage } from "./ERDPage";
 import { DocsPage } from "./DocsPage";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
+import { useProfile } from "../contexts/ProfileContext";
 import { AnimatePresence, motion } from "motion/react";
 import type { MessageAttachment } from "../components/messageAttachments";
 import { toggleMessageReaction, type MessageReaction } from "../components/MessageReactions";
@@ -37,6 +38,7 @@ import {
   type TypingEvent
 } from "../api";
 import type { ChatStompClient } from "../api/stomp";
+import { fetchMyWorkspaces } from "../api/workspace";
 
 const REPOSITORY_IMPORTED_KEY = "codedock-repository-imported";
 const REPOSITORY_LIST_KEY = "codedock-repositories-v2";
@@ -146,13 +148,6 @@ const ALL_SIDEBAR_CHANNELS = [
   ...DOCUMENTATION_CHANNELS
 ];
 
-const myProfile = {
-  id: "jaejun",
-  name: "김재준",
-  role: "Tech Lead",
-  email: "jaejun@codedock.dev",
-  initials: "JJ"
-};
 
 const presenceOptions: Array<{ id: UserPresence; label: string; description: string; color: string }> = [
   { id: 'active', label: '활동중', description: '바로 응답 가능', color: 'var(--matrix-green)' },
@@ -733,19 +728,70 @@ export function ChatPage() {
   const [userPresence, setUserPresence] = useState<UserPresence>('active');
   const [notificationMode, setNotificationMode] = useState<NotificationMode>('mentions');
 
+  const [workspaces, setWorkspaces] = useState<WorkspaceItem[]>(DEFAULT_WORKSPACES);
   const [selectedWorkspace, setSelectedWorkspace] = useState<string>(DEFAULT_WORKSPACES[0].id);
+
+  useEffect(() => {
+    fetchMyWorkspaces().then((list) => {
+      const mapped: WorkspaceItem[] = list.map((w) => ({
+        id: String(w.id),
+        name: w.name,
+        connected: true,
+        membersOnline: w.memberCount,
+        myRole: (() => {
+          switch (w.myRole) {
+            case "owner":  return "소유자";
+            case "admin":  return "관리자";
+            case "editor": return "편집 가능";
+            case "viewer": return "보기 가능";
+            default:       return w.myRole;
+          }
+        })(),
+      }));
+      if (mapped.length > 0) {
+        setWorkspaces(mapped);
+        setSelectedWorkspace(mapped[0].id);
+      }
+    }).catch(() => {});
+  }, []);
   const [memberListOpen, setMemberListOpen] = useState(false);
   const memberListButtonRef = useRef<HTMLButtonElement>(null);
   const memberListPopupRef = useRef<HTMLDivElement>(null);
   const [memberListPos, setMemberListPos] = useState<{ top: number; left: number; width: number } | null>(null);
 
   const navigate = useNavigate();
+  const { profile } = useProfile();
 
 
   const hasRepositories = repositoriesImported && repositories.length > 0;
   const currentRepo = repositories.find(repo => repo.id === selectedRepository);
-  const currentWorkspace = DEFAULT_WORKSPACES.find(ws => ws.id === selectedWorkspace) ?? DEFAULT_WORKSPACES[0];
-  const visibleRepositories = repositories.filter(r => !r.workspaceId || r.workspaceId === selectedWorkspace);
+  const currentWorkspace = workspaces.find(ws => ws.id === selectedWorkspace) ?? workspaces[0] ?? DEFAULT_WORKSPACES[0];
+
+  // codedock-workspace-repos-v1 에서 현재 워크스페이스에 연결된 레포 목록을 읽어온다
+  const visibleRepositories = useMemo<RepositoryItem[]>(() => {
+    try {
+      const raw = localStorage.getItem("codedock-workspace-repos-v1");
+      const saved: { id: string; name: string; workspaceId?: string }[] = raw ? JSON.parse(raw) : [];
+      const wsRepos = saved.filter((r) => r.workspaceId === selectedWorkspace);
+      if (wsRepos.length > 0) {
+        return wsRepos.map((r) => ({
+          id: r.id,
+          name: r.name,
+          openPRs: 0,
+          highRisk: 0,
+          activeIssues: 0,
+          connected: true,
+          membersOnline: 0,
+          workspaceId: r.workspaceId,
+        }));
+      }
+    } catch {
+      // ignore
+    }
+    // fallback: 기존 repositories 상태에서 필터
+    return repositories.filter(r => !r.workspaceId || r.workspaceId === selectedWorkspace);
+  }, [selectedWorkspace, repositories]);
+
   const firstVisibleRepositoryId = visibleRepositories[0]?.id ?? null;
   const currentWorkspaceApiId = useMemo(() => getWorkspaceApiId(selectedWorkspace), [selectedWorkspace]);
   const apiChannelIdByUiChannel = useMemo(() => {
@@ -842,7 +888,7 @@ export function ChatPage() {
       const all: Record<string, Array<{ id: string; name: string; role: string; online: boolean; initials: string; statusColor: string }>> = JSON.parse(stored);
       const members = all[selectedWorkspace] ?? [];
       const resolvePresence = (m: { id: string; online: boolean; statusColor: string }): PresenceKey => {
-        if (m.id === myProfile.id) return userPresence as PresenceKey;
+        if (m.id === profile.email) return userPresence as PresenceKey;
         if (!m.online) return 'offline';
         if (m.statusColor === '#FFD166') return 'away';
         if (m.statusColor === '#FF6B6B') return 'busy';
@@ -877,7 +923,7 @@ export function ChatPage() {
       const all: Record<string, Array<{ id: string; online: boolean }>> = JSON.parse(stored);
       const selfOnline = userPresence !== 'offline';
       for (const [wsId, members] of Object.entries(all)) {
-        const othersOnline = members.filter((m) => m.id !== myProfile.id && m.online).length;
+        const othersOnline = members.filter((m) => m.id !== profile.email && m.online).length;
         counts[wsId] = othersOnline + (selfOnline ? 1 : 0);
       }
     } catch { /* ignore */ }
@@ -1253,7 +1299,7 @@ export function ChatPage() {
       chatWebSocketDestinations.sendChannelTyping(activeApiChannelId),
       {
         workspaceMemberId: TEMPORARY_WORKSPACE_MEMBER_ID,
-        senderName: myProfile.name,
+        senderName: profile.name,
         typing
       }
     );
@@ -1562,7 +1608,9 @@ export function ChatPage() {
           fontSize: '13px',
           fontWeight: 950
         }}>
-          {myProfile.initials}
+          {profile.avatarUrl
+            ? <img src={profile.avatarUrl} alt="" className="h-full w-full rounded-full object-cover" />
+            : (profile.name.trim().slice(0, 1) || "?").toUpperCase()}
           <span className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full" style={{
             background: currentPresence.color,
             border: '2px solid #07111f'
@@ -1570,7 +1618,7 @@ export function ChatPage() {
         </span>
         <span className="min-w-0 flex-1">
           <span className="block truncate" style={{ color: 'var(--white)', fontSize: '13px', fontWeight: 950 }}>
-            {myProfile.name}
+            {profile.name || profile.email}
           </span>
           <span className="mt-0.5 flex min-w-0 items-center gap-1.5">
             <Clock3 size={11} style={{ color: currentPresence.color, flexShrink: 0 }} />
@@ -1881,7 +1929,7 @@ export function ChatPage() {
 
     const nextMessage: any = {
       id: Date.now(),
-      user: myProfile.name,
+      user: profile.name,
       text: trimmedText || `${attachments.length}개 항목을 공유합니다.`,
       time: '방금',
       attachments,
@@ -1979,7 +2027,7 @@ export function ChatPage() {
       const key = getThreadKey(selectedThread);
       const newReply: any = {
         id: Date.now(),
-        user: myProfile.name,
+        user: profile.name,
         text: text,
         time: '방금'
       };
@@ -2016,7 +2064,7 @@ export function ChatPage() {
     const key = getThreadKey(selectedThread);
     const optimisticReply: any = {
       id: Date.now(),
-      user: myProfile.name,
+      user: profile.name,
       text: trimmedText,
       message: trimmedText,
       time: '諛⑷툑'
@@ -2156,7 +2204,7 @@ export function ChatPage() {
                       border: '1px solid rgba(var(--codedock-primary-rgb), 0.3)',
                       boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5)',
                       maxHeight: 'calc(3 * 72px)',
-                      overflowY: DEFAULT_WORKSPACES.length > 3 ? 'auto' : 'hidden',
+                      overflowY: workspaces.length > 3 ? 'auto' : 'hidden',
                       overflowX: 'hidden',
                     }}
                     initial={{ opacity: 0, y: -6 }}
@@ -2164,7 +2212,7 @@ export function ChatPage() {
                     exit={{ opacity: 0, y: -6 }}
                     transition={{ type: 'spring', stiffness: 360, damping: 32 }}
                   >
-                    {DEFAULT_WORKSPACES.map((ws) => (
+                    {workspaces.map((ws) => (
                       <button
                         key={ws.id}
                         type="button"
@@ -2238,8 +2286,7 @@ export function ChatPage() {
             </div>
           )}
 
-          {visibleRepositories.length > 0 ? (
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <div className="codedock-scrollbar-hidden flex min-w-0 flex-1 flex-col gap-2 overflow-y-auto pr-1">
               {renderSidebarChannel({ id: 'overview', label: '통합 개요', icon: Home })}
 
@@ -2575,6 +2622,7 @@ export function ChatPage() {
               })}
               </div>
 
+              {visibleRepositories.length > 0 && (<>
               <div
                 aria-hidden="true"
                 className="mx-3 my-2 h-px"
@@ -2788,6 +2836,8 @@ export function ChatPage() {
                   </div>
                 );
               })}
+              </div>
+              </>)}
 
               <div className="my-1" style={{ borderTop: '1px solid rgba(var(--codedock-primary-rgb), 0.14)' }}></div>
 
@@ -2801,22 +2851,6 @@ export function ChatPage() {
               {renderSidebarChannel({ id: 'team', label: '팀', icon: Users })}
               {renderProfileDock()}
             </div>
-          </div>
-          ) : (
-            <div className="flex-1 rounded-2xl px-4 py-5" style={{
-              background: 'rgba(5, 11, 20, 0.28)',
-              border: '1px dashed rgba(var(--codedock-primary-rgb), 0.18)'
-            }}>
-              <p className="m-0 tracking-tight" style={{
-                color: 'var(--muted)',
-                fontSize: '13px',
-                fontWeight: 800,
-                lineHeight: 1.6
-              }}>
-                이 팀에는 아직 연결된 리포지토리가 없습니다
-              </p>
-            </div>
-          )}
         </section>
         )}
 
@@ -2928,7 +2962,7 @@ export function ChatPage() {
             ) : selectedChannel === 'team' ? (
               <TeamPanel
                 workspaceId={selectedWorkspace}
-                currentUserId={myProfile.id}
+                currentUserId={profile.email}
                 currentUserOnline={userPresence !== 'offline'}
                 onInvite={() => setTeamInviteOpen(true)}
                 onOpenChannel={(channelId) => {

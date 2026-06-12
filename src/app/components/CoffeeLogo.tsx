@@ -21,10 +21,10 @@ export function CoffeeLogo({ className = "", style, alive = false, eyeX, eyeY, m
   const transformStyle = { transformBox: "fill-box", transformOrigin: "center" } as const;
   const eyeRadius = 7;
   const earTransition = isRiskMood
-    ? { duration: 1.75, repeat: Infinity, ease: "easeInOut", times: [0, 0.24, 0.4, 0.6, 1] }
+    ? { duration: 1.75, repeat: Infinity, ease: "easeInOut" as const, times: [0, 0.24, 0.4, 0.6, 1] }
     : isCtaMood
-      ? { duration: 2.05, repeat: Infinity, ease: "easeInOut", times: [0, 0.2, 0.42, 0.62, 1] }
-      : { duration: isSuccessMood ? 3.4 : 5.6, repeat: Infinity, ease: "easeInOut", times: [0, 0.22, 0.4, 0.52, 0.66, 0.78, 1] };
+      ? { duration: 2.05, repeat: Infinity, ease: "easeInOut" as const, times: [0, 0.2, 0.42, 0.62, 1] }
+      : { duration: isSuccessMood ? 3.4 : 5.6, repeat: Infinity, ease: "easeInOut" as const, times: [0, 0.22, 0.4, 0.52, 0.66, 0.78, 1] };
   const leftEarAnimation = isRiskMood
     ? { rotate: [0, -9, 2.5, -5, 0], y: [0, -3, 0, -1, 0], scale: [1, 1.055, 1, 1.03, 1] }
     : isCtaMood
@@ -121,7 +121,7 @@ export function CoffeeLogo({ className = "", style, alive = false, eyeX, eyeY, m
               fill="var(--soft-mint)"
               opacity="0.92"
               animate={alive ? { opacity: [0.8, 1, 0.86, 0.98, 0.88] } : undefined}
-              transition={{ duration: isRiskMood ? 1.75 : 3.1, repeat: Infinity, ease: "easeInOut" }}
+              transition={{ duration: isRiskMood ? 1.75 : 3.1, repeat: Infinity, ease: "easeInOut" as const }}
             />
           </motion.g>
 

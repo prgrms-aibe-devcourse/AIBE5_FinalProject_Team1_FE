@@ -4,6 +4,7 @@ interface CodeDockWordmarkProps {
   accentColor?: string;
   className?: string;
   style?: CSSProperties;
+  size?: string;
 }
 
 export function CodeDockWordmark({
