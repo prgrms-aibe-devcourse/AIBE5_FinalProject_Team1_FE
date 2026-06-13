@@ -5,6 +5,7 @@ import {
   type StompHeaders,
   type StompSubscription
 } from "@stomp/stompjs";
+import { getAccessToken } from "../auth";
 
 type StompMessageHandler<T = unknown> = (payload: T, frame: IMessage) => void;
 
@@ -67,6 +68,11 @@ function parseJsonBody(body: string) {
   }
 }
 
+function getAuthorizationConnectHeaders(): StompHeaders {
+  const accessToken = getAccessToken();
+  return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+}
+
 export function createChatStompClient(options: ChatStompClientOptions = {}): ChatStompClient {
   const subscriptions = new Map<string, SubscriptionEntry>();
   const pendingSends: PendingSend[] = [];
@@ -76,6 +82,7 @@ export function createChatStompClient(options: ChatStompClientOptions = {}): Cha
 
   const stompClient = new Client({
     brokerURL: url,
+    connectHeaders: getAuthorizationConnectHeaders(),
     reconnectDelay: options.reconnectDelay ?? 5000,
     heartbeatIncoming: 10000,
     heartbeatOutgoing: 10000,
@@ -128,6 +135,7 @@ export function createChatStompClient(options: ChatStompClientOptions = {}): Cha
 
   const connect = () => {
     if (stompClient.active) return;
+    stompClient.connectHeaders = getAuthorizationConnectHeaders();
     stompClient.activate();
   };
 
