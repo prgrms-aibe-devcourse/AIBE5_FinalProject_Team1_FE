@@ -68,9 +68,9 @@ function parseJsonBody(body: string) {
   }
 }
 
-function getAuthorizationConnectHeaders(): StompHeaders {
+function getAuthorizationConnectHeaders(): StompHeaders | null {
   const accessToken = getAccessToken();
-  return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+  return accessToken ? { Authorization: `Bearer ${accessToken}` } : null;
 }
 
 export function createChatStompClient(options: ChatStompClientOptions = {}): ChatStompClient {
@@ -82,7 +82,7 @@ export function createChatStompClient(options: ChatStompClientOptions = {}): Cha
 
   const stompClient = new Client({
     brokerURL: url,
-    connectHeaders: getAuthorizationConnectHeaders(),
+    connectHeaders: getAuthorizationConnectHeaders() ?? {},
     reconnectDelay: options.reconnectDelay ?? 5000,
     heartbeatIncoming: 10000,
     heartbeatOutgoing: 10000,
@@ -135,7 +135,12 @@ export function createChatStompClient(options: ChatStompClientOptions = {}): Cha
 
   const connect = () => {
     if (stompClient.active) return;
-    stompClient.connectHeaders = getAuthorizationConnectHeaders();
+    const connectHeaders = getAuthorizationConnectHeaders();
+    if (!connectHeaders) {
+      pendingSends.length = 0;
+      return;
+    }
+    stompClient.connectHeaders = connectHeaders;
     stompClient.activate();
   };
 
@@ -162,6 +167,7 @@ export function createChatStompClient(options: ChatStompClientOptions = {}): Cha
 
   const send = (destination: string, body?: unknown, headers?: StompHeaders) => {
     if (!stompClient.connected) {
+      if (!getAccessToken()) return;
       pendingSends.push({ destination, body, headers });
       connect();
       return;
