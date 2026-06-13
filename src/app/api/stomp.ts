@@ -73,17 +73,41 @@ function getAuthorizationConnectHeaders(): StompHeaders | null {
   return accessToken ? { Authorization: `Bearer ${accessToken}` } : null;
 }
 
+function isAuthenticationErrorFrame(frame: IFrame) {
+  const errorText = [
+    frame.headers.message,
+    frame.body
+  ]
+    .filter((value): value is string => Boolean(value))
+    .join(" ")
+    .toLowerCase();
+
+  return [
+    "accessdenied",
+    "authorization",
+    "authenticate",
+    "authentication",
+    "forbidden",
+    "unauthorized",
+    "401",
+    "403",
+    "인증",
+    "토큰"
+  ].some((keyword) => errorText.includes(keyword));
+}
+
 export function createChatStompClient(options: ChatStompClientOptions = {}): ChatStompClient {
   const subscriptions = new Map<string, SubscriptionEntry>();
   const pendingSends: PendingSend[] = [];
   const url = options.url ?? getDefaultStompUrl();
+  const reconnectDelay = options.reconnectDelay ?? 5000;
 
   let subscriptionSequence = 0;
 
   const stompClient = new Client({
     brokerURL: url,
     connectHeaders: getAuthorizationConnectHeaders() ?? {},
-    reconnectDelay: options.reconnectDelay ?? 5000,
+    reconnectDelay,
     heartbeatIncoming: 10000,
     heartbeatOutgoing: 10000,
     debug: () => undefined,
@@ -96,6 +120,11 @@ export function createChatStompClient(options: ChatStompClientOptions = {}): Cha
       options.onDisconnect?.();
     },
     onStompError: (frame) => {
+      if (isAuthenticationErrorFrame(frame)) {
+        pendingSends.length = 0;
+        stompClient.reconnectDelay = 0;
+        void stompClient.deactivate();
+      }
       options.onError?.(frame);
     },
     onWebSocketError: (event) => {
@@ -141,6 +170,7 @@ export function createChatStompClient(options: ChatStompClientOptions = {}): Cha
       return;
     }
     stompClient.connectHeaders = connectHeaders;
+    stompClient.reconnectDelay = reconnectDelay;
     stompClient.activate();
   };
 
