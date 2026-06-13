@@ -11,7 +11,7 @@ import { APISpecPage } from "./APISpecPage";
 import { ERDPage } from "./ERDPage";
 import { DocsPage } from "./DocsPage";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useLocation } from "react-router";
 import { AnimatePresence, motion } from "motion/react";
 import type { MessageAttachment } from "../components/messageAttachments";
 import type { MessageMetadata } from "../components/chatInteractionUtils";
@@ -50,9 +50,12 @@ import {
   type TypingEvent
 } from "../api";
 import type { ChatStompClient } from "../api/stomp";
+import { useProfile } from "../contexts/ProfileContext";
+import { fetchMyWorkspaces, updatePresence, type WorkspaceDto } from "../api/workspace";
 
 const REPOSITORY_IMPORTED_KEY = "codedock-repository-imported";
 const REPOSITORY_LIST_KEY = "codedock-repositories-v2";
+const WORKSPACE_REPOS_KEY = "codedock-workspace-repos-v1";
 const CHAT_MESSAGES_KEY = "codedock-chat-messages-v1";
 const CHAT_THREAD_REPLIES_KEY = "codedock-chat-thread-replies-v1";
 const CHAT_THREAD_REPLY_COUNTS_KEY = "codedock-chat-thread-reply-counts-v1";
@@ -275,6 +278,18 @@ function saveJson(key: string, value: unknown) {
 function getWorkspaceApiId(workspaceId: string) {
   const numericSuffix = workspaceId.match(/\d+$/)?.[0];
   return numericSuffix ? Number(numericSuffix) : 1;
+}
+
+// "Seoilhyeon AIBE5_Algorithm_Study 10" → "AIBE5_Algorithm_Study"
+// trailing 숫자 토큰이 제거됐을 때만 첫 토큰(owner)도 제거
+function cleanChannelLabel(name: string): string {
+  const trimmed = name.trim();
+  const withoutTrailing = trimmed.replace(/\s+\d+$/, '');
+  if (withoutTrailing !== trimmed) {
+    const parts = withoutTrailing.trim().split(/\s+/);
+    if (parts.length >= 2) return parts.slice(1).join(' ');
+  }
+  return withoutTrailing.trim() || trimmed;
 }
 
 function normalizeChannelName(name: string) {
@@ -657,6 +672,28 @@ const initialThreadReplies: Record<number | string, any[]> = {
 };
 
 export function ChatPage() {
+  const { profile } = useProfile();
+  const [apiWorkspaces, setApiWorkspaces] = useState<WorkspaceDto[]>([]);
+
+  useEffect(() => {
+    fetchMyWorkspaces()
+      .then((workspaces) => {
+        setApiWorkspaces(workspaces);
+        if (workspaces.length > 0) {
+          const incomingId = (location.state as { workspaceId?: string } | null)?.workspaceId;
+          const target = incomingId
+            ? workspaces.find((w) => String(w.id) === incomingId)
+            : null;
+          setSelectedWorkspace(target ? `workspace-${target.id}` : `workspace-${workspaces[0].id}`);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const workspaceList = apiWorkspaces.length > 0
+    ? apiWorkspaces.map(ws => ({ id: `workspace-${ws.id}`, name: ws.name, myRole: ws.myRole, membersOnline: ws.memberCount, connected: true }))
+    : DEFAULT_WORKSPACES;
+
   const [repositoriesImported, setRepositoriesImported] = useState(true);
   const [repositories, setRepositories] = useState<RepositoryItem[]>(() =>
     getSavedRepositories() ?? DEFAULT_REPOSITORIES
@@ -718,6 +755,7 @@ export function ChatPage() {
   const [expandedRepoSubmenus, setExpandedRepoSubmenus] = useState<Record<string, boolean>>({});
   const [repoMenuOpenId, setRepoMenuOpenId] = useState<string | null>(null);
   const [apiChannels, setApiChannels] = useState<Channel[]>([]);
+  const [presenceOverrides, setPresenceOverrides] = useState<Record<string, string>>({});
   const [remoteTypingByChannel, setRemoteTypingByChannel] = useState<Record<string, RemoteTypingMembers>>({});
   const remoteTypingTimeoutsRef = useRef<Record<string, number>>({});
   const chatStompRef = useRef<ChatStompClient | null>(null);
@@ -760,21 +798,50 @@ export function ChatPage() {
   const [userPresence, setUserPresence] = useState<UserPresence>('active');
   const [notificationMode, setNotificationMode] = useState<NotificationMode>('mentions');
 
-  const [selectedWorkspace, setSelectedWorkspace] = useState<string>(DEFAULT_WORKSPACES[0].id);
+  const [selectedWorkspace, setSelectedWorkspace] = useState<string>(() => workspaceList[0]?.id ?? DEFAULT_WORKSPACES[0].id);
   const [memberListOpen, setMemberListOpen] = useState(false);
   const memberListButtonRef = useRef<HTMLButtonElement>(null);
   const memberListPopupRef = useRef<HTMLDivElement>(null);
   const [memberListPos, setMemberListPos] = useState<{ top: number; left: number; width: number } | null>(null);
 
   const navigate = useNavigate();
+  const location = useLocation();
 
 
   const hasRepositories = repositoriesImported && repositories.length > 0;
   const currentRepo = repositories.find(repo => repo.id === selectedRepository);
-  const currentWorkspace = DEFAULT_WORKSPACES.find(ws => ws.id === selectedWorkspace) ?? DEFAULT_WORKSPACES[0];
-  const visibleRepositories = repositories.filter(r => !r.workspaceId || r.workspaceId === selectedWorkspace);
-  const firstVisibleRepositoryId = visibleRepositories[0]?.id ?? null;
+  const currentWorkspace = workspaceList.find(ws => ws.id === selectedWorkspace) ?? workspaceList[0];
   const currentWorkspaceApiId = useMemo(() => getWorkspaceApiId(selectedWorkspace), [selectedWorkspace]);
+  const visibleRepositories = useMemo(() => {
+    try {
+      const raw = window.localStorage.getItem(WORKSPACE_REPOS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          const wsId = String(currentWorkspaceApiId);
+          const connected = parsed.filter(
+            (r) => r && typeof r.id === "string" && typeof r.name === "string" && r.workspaceId === wsId
+          );
+          if (connected.length > 0) {
+            return connected.map((r): RepositoryItem => ({
+              id: r.id,
+              name: r.name,
+              openPRs: 0,
+              highRisk: 0,
+              activeIssues: 0,
+              connected: true,
+              membersOnline: 0,
+              workspaceId: r.workspaceId,
+            }));
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return [];
+  }, [currentWorkspaceApiId]);
+  const firstVisibleRepositoryId = visibleRepositories[0]?.id ?? null;
   const apiChannelIdByUiChannel = useMemo(() => {
     return apiChannels.reduce<Record<string, number>>((acc, channel) => {
       acc[getApiChannelUiId(channel)] = channel.id;
@@ -793,7 +860,7 @@ export function ChatPage() {
       .filter((channel) => getApiChannelUiId(channel) !== "general")
       .map((channel) => ({
         id: getApiChannelUiId(channel),
-        label: channel.name,
+        label: cleanChannelLabel(channel.name),
         apiChannelId: channel.id
       }));
   }, [apiChannels]);
@@ -872,10 +939,13 @@ export function ChatPage() {
     : "grid h-[calc(100svh-128px)] min-h-0 gap-[clamp(16px,1.8vw,24px)] overflow-hidden";
   const selectedChannelMeta = ALL_SIDEBAR_CHANNELS.find((channel) => channel.id === selectedChannel);
   const selectedCustomChannel = allCustomChannels.find(ch => ch.id === selectedChannel);
+  const selectedRepoForChannel = visibleRepositories.find(r => r.id === selectedChannel);
   const selectedChannelTitle = selectedChannel === 'pull-requests'
-    ? `${currentRepo?.name ?? '레포'} - PR`
+    ? `${cleanChannelLabel(currentRepo?.name ?? '레포')} - PR`
     : selectedChannel === 'issues'
-    ? `${currentRepo?.name ?? '레포'} - 이슈`
+    ? `${cleanChannelLabel(currentRepo?.name ?? '레포')} - 이슈`
+    : selectedRepoForChannel
+    ? cleanChannelLabel(selectedRepoForChannel.name)
     : selectedCustomChannel?.label
     ?? selectedChannelMeta?.label
     ?? selectedChannel.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
@@ -1576,6 +1646,18 @@ export function ChatPage() {
     incrementUnreadCount
   ]);
 
+  useEffect(() => {
+    if (!currentWorkspaceApiId || !chatStompRef.current?.isConnected()) return;
+    const sub = chatStompRef.current.subscribe<{ memberId: number; presence: string }>(
+      `/topic/workspaces/${currentWorkspaceApiId}/presence`,
+      (payload) => {
+        if (!payload?.memberId || !payload?.presence) return;
+        setPresenceOverrides((prev) => ({ ...prev, [String(payload.memberId)]: payload.presence }));
+      }
+    );
+    return () => sub.unsubscribe();
+  }, [currentWorkspaceApiId, chatStompReadyKey]);
+
   const handleChannelTypingChange = useCallback((typing: boolean) => {
     if (!activeApiChannelId) return;
 
@@ -1892,7 +1974,9 @@ export function ChatPage() {
           fontSize: '13px',
           fontWeight: 950
         }}>
-          {myProfile.initials}
+          {profile.avatarUrl
+            ? <img src={profile.avatarUrl} alt="" className="h-full w-full rounded-full object-cover" />
+            : (profile.name.trim().slice(0, 2) || 'ME')}
           <span className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full" style={{
             background: currentPresence.color,
             border: '2px solid #07111f'
@@ -1900,7 +1984,7 @@ export function ChatPage() {
         </span>
         <span className="min-w-0 flex-1">
           <span className="block truncate" style={{ color: 'var(--white)', fontSize: '13px', fontWeight: 950 }}>
-            {myProfile.name}
+            {profile.name || myProfile.name}
           </span>
           <span className="mt-0.5 flex min-w-0 items-center gap-1.5">
             <Clock3 size={11} style={{ color: currentPresence.color, flexShrink: 0 }} />
@@ -1962,7 +2046,11 @@ export function ChatPage() {
                   <button
                     key={option.id}
                     type="button"
-                    onClick={() => setUserPresence(option.id)}
+                    onClick={() => {
+                      setUserPresence(option.id);
+                      const apiId = currentWorkspaceApiId;
+                      if (apiId) updatePresence(apiId, option.id).catch(() => {});
+                    }}
                     className="flex w-full items-center gap-3 rounded-xl border-0 px-3 py-2.5 text-left tracking-tight"
                     style={{
                       background: selected ? 'rgba(var(--codedock-primary-rgb), 0.12)' : 'transparent',
@@ -2567,7 +2655,7 @@ export function ChatPage() {
                       border: '1px solid rgba(var(--codedock-primary-rgb), 0.3)',
                       boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5)',
                       maxHeight: 'calc(3 * 72px)',
-                      overflowY: DEFAULT_WORKSPACES.length > 3 ? 'auto' : 'hidden',
+                      overflowY: workspaceList.length > 3 ? 'auto' : 'hidden',
                       overflowX: 'hidden',
                     }}
                     initial={{ opacity: 0, y: -6 }}
@@ -2575,7 +2663,7 @@ export function ChatPage() {
                     exit={{ opacity: 0, y: -6 }}
                     transition={{ type: 'spring', stiffness: 360, damping: 32 }}
                   >
-                    {DEFAULT_WORKSPACES.map((ws) => (
+                    {workspaceList.map((ws) => (
                       <button
                         key={ws.id}
                         type="button"
@@ -2649,8 +2737,7 @@ export function ChatPage() {
             </div>
           )}
 
-          {visibleRepositories.length > 0 ? (
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <div className="codedock-scrollbar-hidden flex min-w-0 flex-1 flex-col gap-2 overflow-y-auto pr-1">
               {renderSidebarChannel({ id: 'overview', label: '통합 개요', icon: Home })}
 
@@ -2995,6 +3082,7 @@ export function ChatPage() {
                 }}
               />
 
+              {visibleRepositories.length > 0 && (
               <div
                 className="grid min-h-0 flex-1 content-start gap-2 overflow-y-auto pr-1"
                 style={{ scrollbarWidth: 'none' }}
@@ -3199,6 +3287,8 @@ export function ChatPage() {
                   </div>
                 );
               })}
+              </div>
+              )}
 
               <div className="my-1" style={{ borderTop: '1px solid rgba(var(--codedock-primary-rgb), 0.14)' }}></div>
 
@@ -3212,22 +3302,6 @@ export function ChatPage() {
               {renderSidebarChannel({ id: 'team', label: '팀', icon: Users })}
               {renderProfileDock()}
             </div>
-          </div>
-          ) : (
-            <div className="flex-1 rounded-2xl px-4 py-5" style={{
-              background: 'rgba(5, 11, 20, 0.28)',
-              border: '1px dashed rgba(var(--codedock-primary-rgb), 0.18)'
-            }}>
-              <p className="m-0 tracking-tight" style={{
-                color: 'var(--muted)',
-                fontSize: '13px',
-                fontWeight: 800,
-                lineHeight: 1.6
-              }}>
-                이 팀에는 아직 연결된 리포지토리가 없습니다
-              </p>
-            </div>
-          )}
         </section>
         )}
 
@@ -3345,8 +3419,10 @@ export function ChatPage() {
             ) : selectedChannel === 'team' ? (
               <TeamPanel
                 workspaceId={selectedWorkspace}
+                workspaceApiId={currentWorkspaceApiId}
                 currentUserId={myProfile.id}
                 currentUserOnline={userPresence !== 'offline'}
+                presenceOverrides={presenceOverrides}
                 onInvite={() => setTeamInviteOpen(true)}
                 onOpenChannel={(channelId) => {
                   setSelectedPR(null);

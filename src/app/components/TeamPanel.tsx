@@ -10,12 +10,22 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
+import { fetchWithAuth } from "../api/fetchWithAuth";
+import type { WorkspaceMember } from "../api/workspace";
+
+interface UserProfile {
+  id: number;
+  avatarUrl?: string | null;
+  githubUsername?: string | null;
+}
 
 interface TeamPanelProps {
   workspaceId: string;
+  workspaceApiId: number;
   currentUserId: string;
   currentUserOnline: boolean;   // true when presence is not 'offline'
   onOpenChannel?: (channelId: string) => void;
+  presenceOverrides?: Record<string, string>; // memberId → presence
 }
 
 interface TeamMember {
@@ -25,6 +35,7 @@ interface TeamMember {
   role: string;
   email: string;
   github: string;
+  avatarUrl?: string;
   online: boolean;
   statusColor: string;
   commits: number;
@@ -201,23 +212,85 @@ export function ensureSeeded() {
   });
 }
 
-export function TeamPanel({ workspaceId, currentUserId, currentUserOnline, onOpenChannel }: TeamPanelProps) {
+function nameToInitials(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) return "?";
+  // Korean names: take first 2 chars; others: first letter of each word up to 2
+  if (/[ㄱ-힝]/.test(trimmed)) return trimmed.slice(0, 2);
+  return trimmed.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase();
+}
+
+function presenceToColor(p: string): string {
+  if (p === 'active') return 'var(--matrix-green)';
+  if (p === 'away') return '#F59E0B';
+  if (p === 'busy') return '#EF4444';
+  return '#8B94A7';
+}
+
+export function TeamPanel({ workspaceId, workspaceApiId, currentUserId, currentUserOnline, onOpenChannel, presenceOverrides = {} }: TeamPanelProps) {
   ensureSeeded();   // no-op after first run
 
-  const [members, setMembers] = useState<TeamMember[]>(() => {
-    const all = loadAllTeams();
-    return all[workspaceId] ?? [ALL_MEMBERS[0]];  // fallback: 김재준 only
-  });
+  const [members, setMembers] = useState<TeamMember[]>([]);
   const [activeRoomId, setActiveRoomId] = useState(teamRooms[1].id);
   const [notice, setNotice] = useState("팀원 역할 수정이 가능합니다.");
 
   useEffect(() => {
-    const all = loadAllTeams();
-    setMembers(all[workspaceId] ?? [ALL_MEMBERS[0]]);
-  }, [workspaceId]);
+    let cancelled = false;
+    const load = () => fetchWithAuth<WorkspaceMember[]>(`/api/v1/workspaces/${workspaceApiId}/members`)
+      .then(async (apiMembers) => {
+        if (cancelled) return;
+        if (!apiMembers || apiMembers.length === 0) return;
+
+        const avatarMap = await Promise.all(
+          apiMembers.map((m) =>
+            fetchWithAuth<UserProfile>(`/api/v1/users/${m.userId}`)
+              .then((u) => {
+                const avatarUrl = u?.avatarUrl || (u?.githubUsername ? `https://github.com/${u.githubUsername}.png` : "");
+                return { userId: m.userId, avatarUrl };
+              })
+              .catch(() => ({ userId: m.userId, avatarUrl: "" }))
+          )
+        ).then((results) => Object.fromEntries(results.map((r) => [r.userId, r.avatarUrl])));
+
+        if (cancelled) return;
+        const mapped: TeamMember[] = apiMembers.map((m) => {
+          const presence = m.presence ?? "active";
+          const online = presence !== "offline";
+          const statusColor = presence === "active" ? "var(--matrix-green)"
+            : presence === "away" ? "#F59E0B"
+            : presence === "busy" ? "#EF4444"
+            : "#8B94A7";
+          return {
+            id: String(m.memberId),
+            initials: nameToInitials(m.username),
+            name: m.username,
+            role: m.role || "Member",
+            email: m.email ?? "",
+            github: "",
+            avatarUrl: avatarMap[m.userId] ?? "",
+            online,
+            statusColor,
+            commits: 0,
+            prs: 0,
+            reviews: 0,
+          };
+        });
+        setMembers(mapped);
+      })
+      .catch(() => {});
+    load();
+    return () => { cancelled = true; };
+  }, [workspaceApiId]);
   const activeRoom = teamRooms.find((room) => room.id === activeRoomId) ?? teamRooms[0];
-  // Override the current user's stored `online` field with the live presence prop
-  const onlineCount = members.filter((member) =>
+
+  // Apply real-time presence overrides from WebSocket
+  const effectiveMembers = useMemo(() => members.map((m) => {
+    const override = presenceOverrides[m.id];
+    if (!override) return m;
+    return { ...m, online: override !== 'offline', statusColor: presenceToColor(override) };
+  }), [members, presenceOverrides]);
+
+  const onlineCount = effectiveMembers.filter((member) =>
     member.id === currentUserId ? currentUserOnline : member.online
   ).length;
   const activityItems = useMemo(() => {
@@ -268,7 +341,7 @@ export function TeamPanel({ workspaceId, currentUserId, currentUserOnline, onOpe
             팀
           </h2>
           <p className="m-0 mt-2 tracking-tight" style={{ color: "var(--muted)", fontSize: 14, fontWeight: 800 }}>
-            {members.length}명 · {onlineCount}명 접속 중
+            {effectiveMembers.length}명 · {onlineCount}명 접속 중
           </p>
         </div>
 
@@ -288,7 +361,7 @@ export function TeamPanel({ workspaceId, currentUserId, currentUserOnline, onOpe
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        {members.map((member) => (
+        {effectiveMembers.map((member) => (
           <article
             key={member.email}
             className="rounded-2xl px-5 py-4"
@@ -303,13 +376,15 @@ export function TeamPanel({ workspaceId, currentUserId, currentUserOnline, onOpe
             <div className="mb-5 flex items-start justify-between gap-2">
               <div className="flex min-w-0 items-start gap-3">
                 <div className="relative">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-full" style={{
+                  <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full" style={{
                     background: "linear-gradient(135deg, var(--neon-cyan), #8b7cf6)",
                     color: "#021014",
                     fontSize: 16,
                     fontWeight: 950
                   }}>
-                    {member.initials}
+                    {member.avatarUrl
+                      ? <img src={member.avatarUrl} alt={member.name} className="h-full w-full object-cover" />
+                      : member.initials}
                   </div>
                   <span className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full" style={{
                     background: member.statusColor,
@@ -352,16 +427,20 @@ export function TeamPanel({ workspaceId, currentUserId, currentUserOnline, onOpe
               </select>
             </label>
 
-            <div className="mb-5 grid gap-2">
-              <MemberContact icon={<Mail size={14} />} text={member.email} />
-              <MemberContact icon={<Github size={14} />} text={member.github} />
-            </div>
+            {(member.email || member.github) && (
+              <div className="mb-5 grid gap-2">
+                {member.email && <MemberContact icon={<Mail size={14} />} text={member.email} />}
+                {member.github && <MemberContact icon={<Github size={14} />} text={member.github} />}
+              </div>
+            )}
 
-            <div className="grid grid-cols-3 gap-3 text-center">
-              <MemberStat value={member.commits} label="Commits" />
-              <MemberStat value={member.prs} label="PRs" />
-              <MemberStat value={member.reviews} label="Reviews" />
-            </div>
+            {(member.commits > 0 || member.prs > 0 || member.reviews > 0) && (
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <MemberStat value={member.commits} label="커밋" />
+                <MemberStat value={member.prs} label="PR" />
+                <MemberStat value={member.reviews} label="리뷰" />
+              </div>
+            )}
           </article>
         ))}
       </div>

@@ -9,6 +9,8 @@ import type { Org } from "../pages/WorkspacePage";
 import { TeamInviteModal } from "./TeamInviteModal";
 import type { InviteDraft } from "./TeamInviteModal";
 import { fetchMyGithubRepos, type GithubRepo } from "../api/github";
+import { fetchWithAuth } from "../api/fetchWithAuth";
+import type { WorkspaceMember as ApiMember } from "../api/workspace";
 
 // ─── localStorage helpers (mirrors TeamPanel pattern) ───────────────────────
 const WORKSPACE_TEAMS_KEY  = "codedock-workspace-teams-v1";
@@ -135,6 +137,7 @@ type StoredMember = {
   statusColor: string;
   protected?: boolean;    // true = 소유자 (immutable)
   github?: string;
+  avatarUrl?: string;
   commits?: number;
   prs?: number;
   reviews?: number;
@@ -583,6 +586,41 @@ function MembersTab({ org, isAdmin, isOwner, onUpdate }: {
     const all = loadAllTeams();
     return all[wsKey] ?? [];
   });
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchWithAuth<ApiMember[]>(`/api/v1/workspaces/${org.id}/members`)
+      .then(async (apiMembers) => {
+        if (cancelled || !apiMembers || apiMembers.length === 0) return;
+        const avatarMap = await Promise.all(
+          apiMembers.map((m) =>
+            fetchWithAuth<{ avatarUrl?: string; githubUsername?: string }>(`/api/v1/users/${m.userId}`)
+              .then((u) => ({
+                userId: m.userId,
+                avatarUrl: u?.avatarUrl || (u?.githubUsername ? `https://github.com/${u.githubUsername}.png` : ""),
+              }))
+              .catch(() => ({ userId: m.userId, avatarUrl: "" }))
+          )
+        ).then((results) => Object.fromEntries(results.map((r) => [r.userId, r.avatarUrl])));
+        if (cancelled) return;
+        const mapped: StoredMember[] = apiMembers.map((m) => ({
+          id: String(m.memberId),
+          initials: m.username.slice(0, 2),
+          name: m.username,
+          role: m.role || "Member",
+          permissionRole: m.role,
+          email: m.email ?? "",
+          online: false,
+          statusColor: "#8B94A7",
+          protected: m.role === "owner",
+          avatarUrl: avatarMap[m.userId] ?? "",
+        }));
+        if (!cancelled) setMembers(mapped);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [org.id]);
+
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [confirmKickId, setConfirmKickId] = useState<string | null>(null);
   const [reordering, setReordering] = useState(false);
@@ -750,16 +788,23 @@ function MembersTab({ org, isAdmin, isOwner, onUpdate }: {
                   transition: "background 0.15s",
                 }}>
                   {/* Avatar */}
-                  <div style={{
-                    width: "34px", height: "34px", borderRadius: "50%", flexShrink: 0,
-                    background: isProtected
-                      ? "linear-gradient(135deg, #FFD166, #FF6B6B)"
-                      : "linear-gradient(135deg, var(--neon-cyan), #8b7cf6)",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: "11px", fontWeight: 950, color: "#021014",
-                  }}>
-                    {member.initials}
-                  </div>
+                  {member.avatarUrl ? (
+                    <img src={member.avatarUrl} alt={member.name} style={{
+                      width: "34px", height: "34px", borderRadius: "50%", flexShrink: 0,
+                      objectFit: "cover",
+                    }} />
+                  ) : (
+                    <div style={{
+                      width: "34px", height: "34px", borderRadius: "50%", flexShrink: 0,
+                      background: isProtected
+                        ? "linear-gradient(135deg, #FFD166, #FF6B6B)"
+                        : "linear-gradient(135deg, var(--neon-cyan), #8b7cf6)",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: "11px", fontWeight: 950, color: "#021014",
+                    }}>
+                      {member.initials}
+                    </div>
+                  )}
                   {/* Info */}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>

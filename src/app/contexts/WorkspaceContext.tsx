@@ -36,8 +36,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       let found: number | null = null;
 
       data.forEach((m) => {
-        map.set(m.id, m.name);
-        if (m.userId === uid) found = m.id;
+        map.set(m.memberId, m.username);
+        if (m.userId === uid) found = m.memberId;
       });
 
       setMembers(map);
