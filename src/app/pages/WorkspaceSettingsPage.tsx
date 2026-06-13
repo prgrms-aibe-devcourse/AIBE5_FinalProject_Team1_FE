@@ -22,6 +22,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useTheme } from "../contexts/ThemeContext";
+import { fetchMyWorkspaces, deleteWorkspace as deleteWorkspaceApi, type WorkspaceDto } from "../api/workspace";
 
 type WorkspaceRole = "owner" | "admin" | "member";
 
@@ -138,13 +139,38 @@ export function WorkspaceSettingsPage() {
   const isSingleMode = incomingWorkspaceId !== null;
 
   const [workspaces, setWorkspaces] = useState<Workspace[]>(INITIAL_WORKSPACES);
-  const [selectedId, setSelectedId] = useState<string>(
-    // isSingleMode일 때는 무조건 첫 번째 워크스페이스 선택 (ID 불일치 방지)
-    isSingleMode ? (INITIAL_WORKSPACES[0]?.id ?? "") : (INITIAL_WORKSPACES[0]?.id ?? "")
-  );
+  const [selectedId, setSelectedId] = useState<string>(INITIAL_WORKSPACES[0]?.id ?? "");
+  const [realApiId, setRealApiId] = useState<number | null>(null);
   const [toast, setToast] = useState<{ message: string; tone: "ok" | "warn" } | null>(null);
 
   const selected = workspaces.find((workspace) => workspace.id === selectedId) ?? null;
+
+  // incomingWorkspaceId가 있으면 실제 API에서 워크스페이스 정보를 가져와 이름/권한을 동기화
+  useEffect(() => {
+    if (!incomingWorkspaceId) return;
+    const numericId = parseInt(incomingWorkspaceId.replace(/[^0-9]/g, ""), 10);
+    if (isNaN(numericId)) return;
+    fetchMyWorkspaces()
+      .then((list: WorkspaceDto[]) => {
+        const found = list.find((w) => w.id === numericId);
+        if (!found) return;
+        setRealApiId(found.id);
+        const role: WorkspaceRole =
+          found.myRole === "owner" ? "owner" : found.myRole === "admin" ? "admin" : "member";
+        setWorkspaces((prev) => {
+          const synced: Workspace = {
+            ...prev[0],
+            id: `real-${found.id}`,
+            name: found.name,
+            description: found.description ?? "",
+            role,
+          };
+          return [synced, ...prev.slice(1)];
+        });
+        setSelectedId(`real-${found.id}`);
+      })
+      .catch(() => {});
+  }, [incomingWorkspaceId]);
 
   useEffect(() => {
     if (!toast) return;
@@ -185,7 +211,22 @@ export function WorkspaceSettingsPage() {
   };
 
   const handleLeave = (id: string) => removeWorkspace(id, "워크스페이스에서 나갔어요.");
-  const handleDelete = (id: string) => removeWorkspace(id, "워크스페이스를 삭제했어요.");
+
+  const handleDelete = (id: string) => {
+    if (realApiId !== null) {
+      deleteWorkspaceApi(realApiId)
+        .then(() => {
+          removeWorkspace(id, "워크스페이스를 삭제했어요.");
+          navigate(-1);
+        })
+        .catch((err: unknown) => {
+          const msg = err instanceof Error ? err.message : "팀 삭제에 실패했습니다.";
+          notify(msg, "warn");
+        });
+    } else {
+      removeWorkspace(id, "워크스페이스를 삭제했어요.");
+    }
+  };
 
   return (
     <div className="mx-auto w-[min(1120px,calc(100vw-36px))] py-12 pb-20">

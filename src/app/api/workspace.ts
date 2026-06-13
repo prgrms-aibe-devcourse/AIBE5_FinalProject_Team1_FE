@@ -34,12 +34,23 @@ export function createWorkspace(payload: WorkspaceCreatePayload): Promise<Worksp
 }
 
 export type WorkspaceMember = {
-  id: number;
+  memberId: number;
   userId: number;
-  name: string;
+  email: string;
+  username: string;
   role: string;
+  joinedAt: string;
+  presence?: string;
 };
 
 export function getWorkspaceMembers(workspaceId: number, options?: ApiRequestOptions) {
   return apiClient.get<WorkspaceMember[]>(`/api/v1/workspaces/${workspaceId}/members`, options);
+}
+
+export function updatePresence(workspaceId: number, presence: string): Promise<void> {
+  return fetchWithAuth<void>(`/api/v1/workspaces/${workspaceId}/me/presence`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ presence }),
+  });
 }

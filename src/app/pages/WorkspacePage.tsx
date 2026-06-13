@@ -226,7 +226,7 @@ function DraggableTeamCard({
   return (
     <div
       ref={cardRef}
-      onClick={() => navigate("/chat")}
+      onClick={() => navigate("/chat", { state: { workspaceId: org.workspaceId } })}
       className="px-6 py-6 rounded-3xl transition-all hover:scale-[1.01]"
       style={{
         background: `linear-gradient(135deg, rgba(${rgb},0.13) 0%, rgba(11,22,40,0.90) 55%, rgba(8,16,32,0.85) 100%)`,
