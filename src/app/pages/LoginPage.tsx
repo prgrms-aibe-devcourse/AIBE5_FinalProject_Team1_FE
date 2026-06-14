@@ -207,7 +207,8 @@ export function LoginPage() {
       }>("/api/v1/auth/login", { email: trimmedEmail, password });
       setTokens(data.accessToken, data.refreshToken);
       await reloadProfile();
-      navigate("/workspace");
+      const next = new URLSearchParams(window.location.search).get("next");
+      navigate(next && next.startsWith("/") && !next.startsWith("//") ? next : "/workspace");
     } catch (error) {
       const failed =
           error instanceof ApiClientError && error.status === 401
@@ -219,6 +220,10 @@ export function LoginPage() {
   };
 
   const handleGithubLogin = () => {
+    const next = new URLSearchParams(window.location.search).get("next");
+    if (next && next.startsWith("/") && !next.startsWith("//")) {
+      sessionStorage.setItem("codedock-oauth-next", next);
+    }
     loginWithGithub();
   };
 

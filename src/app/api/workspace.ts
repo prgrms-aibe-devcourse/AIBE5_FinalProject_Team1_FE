@@ -54,3 +54,72 @@ export function updatePresence(workspaceId: number, presence: string): Promise<v
     body: JSON.stringify({ presence }),
   });
 }
+
+export function getWorkspace(workspaceId: number): Promise<WorkspaceDto> {
+  return apiClient.get<WorkspaceDto>(`/api/v1/workspaces/${workspaceId}`);
+}
+
+export type WorkspaceUpdatePayload = {
+  name?: string;
+  description?: string;
+};
+
+export function updateWorkspace(workspaceId: number, payload: WorkspaceUpdatePayload): Promise<WorkspaceDto> {
+  return apiClient.patch<WorkspaceDto>(`/api/v1/workspaces/${workspaceId}`, payload);
+}
+
+export function changeMemberRole(workspaceId: number, memberId: number, role: string): Promise<void> {
+  return apiClient.patch<void>(`/api/v1/workspaces/${workspaceId}/members/${memberId}/role`, { role });
+}
+
+export function removeMember(workspaceId: number, memberId: number): Promise<void> {
+  return apiClient.delete<void>(`/api/v1/workspaces/${workspaceId}/members/${memberId}`);
+}
+
+export function leaveWorkspace(workspaceId: number): Promise<void> {
+  return apiClient.delete<void>(`/api/v1/workspaces/${workspaceId}/leave`);
+}
+
+export function transferOwnership(workspaceId: number, memberId: number): Promise<void> {
+  return apiClient.post<void>(`/api/v1/workspaces/${workspaceId}/members/${memberId}/transfer-ownership`);
+}
+
+export type InviteCreatePayload = {
+  email: string;
+  role: string;
+  expiresInHours: number;
+};
+
+export type InviteResponseDto = {
+  inviteUrl: string;
+  expiresAt: string;
+};
+
+export function createInvite(workspaceId: number, payload: InviteCreatePayload): Promise<InviteResponseDto> {
+  return apiClient.post<InviteResponseDto>(`/api/v1/workspaces/${workspaceId}/invites`, payload);
+}
+
+export type InvitationDto = {
+  invitationId: number;
+  email: string;
+  role: string;
+  status: string;
+  expiresAt: string;
+  createdAt: string;
+};
+
+export function listInvitations(workspaceId: number): Promise<InvitationDto[]> {
+  return apiClient.get<InvitationDto[]>(`/api/v1/workspaces/${workspaceId}/invites`);
+}
+
+export function revokeInvitation(workspaceId: number, invitationId: number): Promise<void> {
+  return apiClient.delete<void>(`/api/v1/workspaces/${workspaceId}/invites/${invitationId}`);
+}
+
+export function acceptInvite(token: string): Promise<void> {
+  return apiClient.post<void>(`/api/v1/invites/${encodeURIComponent(token)}/accept`);
+}
+
+export function rejectInvite(token: string): Promise<void> {
+  return apiClient.post<void>(`/api/v1/invites/${encodeURIComponent(token)}/reject`);
+}
