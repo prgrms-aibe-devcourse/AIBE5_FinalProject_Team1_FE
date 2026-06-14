@@ -17,7 +17,9 @@ export function OAuthCallbackPage() {
     }
 
     setTokens(accessToken, refreshToken);
-    navigate("/workspace", { replace: true });
+    const next = sessionStorage.getItem("codedock-oauth-next");
+    sessionStorage.removeItem("codedock-oauth-next");
+    navigate(next && next.startsWith("/") && !next.startsWith("//") ? next : "/workspace", { replace: true });
   }, [navigate]);
 
   return (
