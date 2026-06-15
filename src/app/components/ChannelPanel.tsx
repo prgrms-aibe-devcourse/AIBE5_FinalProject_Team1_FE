@@ -1,6 +1,6 @@
-import { Hash, MessageSquare, Send, Bookmark, Reply, AtSign, X, Paperclip, Smile, UserPlus, FileUp, Code, Pencil, Trash2 } from "lucide-react";
+import { Hash, MessageSquare, Send, Bookmark, Reply, AtSign, X, Paperclip, Smile, UserPlus, FileUp, Code, Pencil, Trash2, Image as ImageIcon, Link2 } from "lucide-react";
 import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
-import { createFileMessageAttachment, createLinkMessageAttachment, createLinkMessageAttachmentFromText, messageAttachmentGroups, messageAttachmentTypeLabels, type MessageAttachment, type MessageAttachmentType } from "./messageAttachments";
+import { MAX_MESSAGE_ATTACHMENTS, createLinkMessageAttachmentFromText, createUrlMessageAttachment, getMessageAttachmentTypeLabel, isSendableMessageAttachment, messageAttachmentGroups, type MessageAttachment, type MessageAttachmentType } from "./messageAttachments";
 import { EmojiPicker } from "./EmojiPicker";
 import { MessageReactions, toggleMessageReaction, type MessageReaction } from "./MessageReactions";
 import { MessageAttachmentCard } from "./MessageAttachmentCard";
@@ -144,8 +144,10 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
     setActivePanel((prev) => (prev === panel ? null : panel));
   const [activeAttachmentType, setActiveAttachmentType] = useState<MessageAttachmentType>("pr");
   const [selectedAttachments, setSelectedAttachments] = useState<MessageAttachment[]>([]);
+  const [attachmentError, setAttachmentError] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
   const [linkTitle, setLinkTitle] = useState("");
+  const [urlAttachmentType, setUrlAttachmentType] = useState<"link" | "image" | "file">("link");
   const [responderTyping, setResponderTyping] = useState(false);
   const [localThreadReactions, setLocalThreadReactions] = useState<Record<string, MessageReaction[]>>({});
   const [localBookmarkedThreadIds, setLocalBookmarkedThreadIds] = useState<Record<number, boolean>>(() => readBookmarkMap(bookmarkStorageKey));
@@ -226,7 +228,7 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
   const activeAttachmentGroup =
     messageAttachmentGroups.find((group) => group.type === activeAttachmentType) ?? messageAttachmentGroups[0];
   const linkPreviewAttachment = linkUrl.trim()
-    ? createLinkMessageAttachment(linkUrl, linkTitle)
+    ? createUrlMessageAttachment(linkUrl, linkTitle, urlAttachmentType)
     : null;
 
   const canSendMessage = messageText.trim().length > 0 || codeBlockText.trim().length > 0 || selectedAttachments.length > 0;
@@ -246,31 +248,45 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
   }, [composerTyping, onTypingChange]);
 
   const handleAttachmentToggle = (attachment: MessageAttachment) => {
-    setSelectedAttachments((prev) =>
-      prev.some((item) => item.id === attachment.id)
-        ? prev.filter((item) => item.id !== attachment.id)
-        : [...prev, attachment]
-    );
+    setSelectedAttachments((prev) => {
+      if (prev.some((item) => item.id === attachment.id)) {
+        setAttachmentError("");
+        return prev.filter((item) => item.id !== attachment.id);
+      }
+      if (prev.length >= MAX_MESSAGE_ATTACHMENTS) {
+        setAttachmentError(`첨부파일은 최대 ${MAX_MESSAGE_ATTACHMENTS}개까지 추가할 수 있습니다.`);
+        return prev;
+      }
+      setAttachmentError("");
+      return [...prev, attachment];
+    });
   };
 
   const handleAttachmentRemove = (attachmentId: string) => {
     setSelectedAttachments((prev) => prev.filter((item) => item.id !== attachmentId));
+    setAttachmentError("");
   };
 
   const handleLocalFilesSelected = (event: ChangeEvent<HTMLInputElement>, type: "file" | "image") => {
     const files = Array.from(event.target.files ?? []);
     if (files.length === 0) return;
-    setSelectedAttachments((prev) => [
-      ...prev,
-      ...files.map((file) => createFileMessageAttachment(file, type))
-    ]);
+    setAttachmentError(`${getMessageAttachmentTypeLabel(type)} attachments must be added as URLs. Binary upload is not supported yet.`);
+    setUrlAttachmentType(type);
+    setActivePanel("link");
     event.target.value = "";
   };
 
   const handleAddLinkAttachment = () => {
-    const attachment = createLinkMessageAttachment(linkUrl, linkTitle);
+    const attachment = createUrlMessageAttachment(linkUrl, linkTitle, urlAttachmentType);
     if (!attachment) return;
-    setSelectedAttachments((prev) => [...prev, attachment]);
+    setSelectedAttachments((prev) => {
+      if (prev.length >= MAX_MESSAGE_ATTACHMENTS) {
+        setAttachmentError(`첨부파일은 최대 ${MAX_MESSAGE_ATTACHMENTS}개까지 추가할 수 있습니다.`);
+        return prev;
+      }
+      setAttachmentError("");
+      return [...prev, attachment];
+    });
     setLinkUrl("");
     setLinkTitle("");
     setActivePanel(null);
@@ -480,6 +496,14 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
     const outgoingAttachments = detectedLinkAttachment && !selectedAttachments.some((a) => a.url === detectedLinkAttachment.url)
       ? [...selectedAttachments, detectedLinkAttachment]
       : selectedAttachments;
+    if (outgoingAttachments.length > MAX_MESSAGE_ATTACHMENTS) {
+      setAttachmentError(`첨부파일은 최대 ${MAX_MESSAGE_ATTACHMENTS}개까지 전송할 수 있습니다.`);
+      return;
+    }
+    if (outgoingAttachments.some((attachment) => !isSendableMessageAttachment(attachment))) {
+      setAttachmentError("File/Image attachments must use a public URL. Binary upload is not supported yet.");
+      return;
+    }
     const mentions = extractMentionNames(outgoingMessage);
 
     const nextThread: Thread = {
@@ -506,6 +530,7 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
     setLinkUrl("");
     setLinkTitle("");
     setReplyTo(null);
+    setAttachmentError("");
     triggerResponderTyping();
   };
 
@@ -790,7 +815,7 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
                 }}
                 title="첨부 제거"
               >
-                <span style={{ color: 'var(--neon-cyan)' }}>{messageAttachmentTypeLabels[attachment.type]}</span>
+                <span style={{ color: 'var(--neon-cyan)' }}>{getMessageAttachmentTypeLabel(attachment.type)}</span>
                 {attachment.title}
                 <X size={12} />
               </button>
@@ -899,6 +924,25 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
                 링크 첨부
               </span>
             </div>
+            <div className="mb-3 flex flex-wrap gap-2">
+              {(["link", "image", "file"] as const).map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => setUrlAttachmentType(type)}
+                  className="rounded-full border px-3 py-1 tracking-tight"
+                  style={{
+                    background: urlAttachmentType === type ? 'rgba(32, 227, 255, 0.16)' : 'rgba(11, 22, 40, 0.72)',
+                    borderColor: urlAttachmentType === type ? 'rgba(32, 227, 255, 0.46)' : 'rgba(var(--codedock-primary-rgb), 0.14)',
+                    color: urlAttachmentType === type ? 'var(--neon-cyan)' : 'var(--muted)',
+                    fontSize: "var(--krds-body-xsmall)",
+                    fontWeight: 900
+                  }}
+                >
+                  {getMessageAttachmentTypeLabel(type)} URL
+                </button>
+              ))}
+            </div>
             <div className="grid gap-2 xl:grid-cols-[1fr_0.72fr_auto]">
               <input
                 value={linkUrl}
@@ -984,6 +1028,18 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
 
         <TypingIndicatorBar label={typingLabel} />
 
+        {attachmentError && (
+          <div className="mb-2 rounded-lg px-3 py-2 tracking-tight" style={{
+            background: 'rgba(255, 107, 107, 0.10)',
+            border: '1px solid rgba(255, 107, 107, 0.28)',
+            color: '#FF6B6B',
+            fontSize: "var(--krds-body-xsmall)",
+            fontWeight: 900
+          }}>
+            {attachmentError}
+          </div>
+        )}
+
         {replyTo && (
           <div className="mb-2 flex items-start gap-2 rounded-xl px-3 py-2" style={{
             background: 'rgba(32, 227, 255, 0.06)',
@@ -1033,6 +1089,8 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
               { label: '코드 블록', icon: <Code size={18} />, onClick: () => togglePanel('code'), active: activePanel === 'code' },
               { label: '목록 첨부', icon: <Paperclip size={18} />, onClick: () => togglePanel('attachment'), active: activePanel === 'attachment' },
               { label: '파일 첨부', icon: <FileUp size={18} />, onClick: () => fileInputRef.current?.click(), active: false },
+              { label: '이미지 첨부', icon: <ImageIcon size={18} />, onClick: () => imageInputRef.current?.click(), active: false },
+              { label: '링크 첨부', icon: <Link2 size={18} />, onClick: () => togglePanel('link'), active: activePanel === 'link' },
               { label: '이모지', icon: <Smile size={18} />, onClick: () => togglePanel('emoji'), active: activePanel === 'emoji' },
             ].map(({ label, icon, onClick, active }) => (
               <div key={label} className="relative">

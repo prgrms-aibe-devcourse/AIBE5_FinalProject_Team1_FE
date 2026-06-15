@@ -1,6 +1,6 @@
 import { Send, Sparkles, Code, AtSign, Smile, GitPullRequest, FileText, Plus, Minus, MessageSquare, Bookmark, Share2, Reply, MoreVertical, X, CheckCircle, Clock, AlertCircle, ExternalLink, GitMerge, Hash, Paperclip, FileUp, Image as ImageIcon, Link2, CircleDot, CircleCheck, CircleMinus } from "lucide-react";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
-import { createFileMessageAttachment, createLinkMessageAttachment, createLinkMessageAttachmentFromText, messageAttachmentGroups, messageAttachmentTypeLabels, type MessageAttachment, type MessageAttachmentType } from "./messageAttachments";
+import { MAX_MESSAGE_ATTACHMENTS, createLinkMessageAttachmentFromText, createUrlMessageAttachment, getMessageAttachmentTypeLabel, isSendableMessageAttachment, messageAttachmentGroups, type MessageAttachment, type MessageAttachmentType } from "./messageAttachments";
 import { EmojiPicker } from "./EmojiPicker";
 import { MessageReactions, toggleMessageReaction, type MessageReaction } from "./MessageReactions";
 import { MessageAttachmentCard } from "./MessageAttachmentCard";
@@ -24,6 +24,8 @@ const colorAlpha = (color: string, percent: number) => `color-mix(in srgb, ${col
 
 interface Message {
   id: number;
+  backendMessageId?: number;
+  backendChannelId?: number;
   user: string;
   text: string;
   time: string;
@@ -59,6 +61,7 @@ interface Message {
   issueHistory?: IssueHistoryEvent[];
   attachments?: MessageAttachment[];
   replyTo?: { user: string; text: string };
+  sendError?: string;
 }
 
 interface ChatPanelProps {
@@ -68,6 +71,7 @@ interface ChatPanelProps {
   reactions?: Record<string, MessageReaction[]>;
   replyCounts?: Record<number, number>;
   onSendMessage?: (message: string, attachments?: MessageAttachment[], replyTo?: { user: string; text: string }, metadata?: MessageMetadata) => void;
+  onAddMessageAttachments?: (message: Message, attachments: MessageAttachment[]) => Promise<void> | void;
   onSharePR?: (prData: any, message: string, channelIds: string[]) => void;
   showAISummary?: boolean;
   onMergePR?: (messageId: number) => void;
@@ -122,7 +126,7 @@ function getUserInitial(user?: string) {
   return trimmed ? trimmed.charAt(0).toUpperCase() : "?";
 }
 
-export function ChatPanel({ channelId = "general", title, messages, reactions, replyCounts = {}, onSendMessage, onSharePR, showAISummary = true, onMergePR, onReviewPR, onViewIssue, onOpenThread, selectedThreadId, onToggleReaction, isRepository = false }: ChatPanelProps) {
+export function ChatPanel({ channelId = "general", title, messages, reactions, replyCounts = {}, onSendMessage, onAddMessageAttachments, onSharePR, showAISummary = true, onMergePR, onReviewPR, onViewIssue, onOpenThread, selectedThreadId, onToggleReaction, isRepository = false }: ChatPanelProps) {
   const bookmarkStorageKey = `codedock-chat-bookmarks:${channelId}`;
   const [message, setMessage] = useState('');
   const [codeBlockText, setCodeBlockText] = useState('');
@@ -144,8 +148,11 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
   const [activeAttachmentType, setActiveAttachmentType] = useState<MessageAttachmentType>("pr");
   const [selectedAttachments, setSelectedAttachments] = useState<MessageAttachment[]>([]);
+  const [attachmentError, setAttachmentError] = useState("");
+  const [attachmentTarget, setAttachmentTarget] = useState<Message | null>(null);
   const [linkUrl, setLinkUrl] = useState("");
   const [linkTitle, setLinkTitle] = useState("");
+  const [urlAttachmentType, setUrlAttachmentType] = useState<"link" | "image" | "file">("link");
   const [responderTyping, setResponderTyping] = useState(false);
   const [localMessageReactions, setLocalMessageReactions] = useState<Record<string, MessageReaction[]>>({});
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -191,12 +198,45 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
     const trimmedMessage = message.trim();
     const trimmedCodeBlock = codeBlockText.trim();
     const detectedLinkAttachment = createLinkMessageAttachmentFromText(trimmedMessage);
-    const outgoingAttachments = detectedLinkAttachment && !selectedAttachments.some((attachment) => attachment.url === detectedLinkAttachment.url)
+    const outgoingAttachments = !attachmentTarget && detectedLinkAttachment && !selectedAttachments.some((attachment) => attachment.url === detectedLinkAttachment.url)
       ? [...selectedAttachments, detectedLinkAttachment]
       : selectedAttachments;
     const outgoingMessage = trimmedCodeBlock
       ? `${trimmedMessage}${trimmedMessage ? "\n\n" : ""}\`\`\`\n${trimmedCodeBlock}\n\`\`\``
       : trimmedMessage;
+
+    if (outgoingAttachments.length > MAX_MESSAGE_ATTACHMENTS) {
+      setAttachmentError(`첨부파일은 최대 ${MAX_MESSAGE_ATTACHMENTS}개까지 전송할 수 있습니다.`);
+      return;
+    }
+
+    if (outgoingAttachments.some((attachment) => !isSendableMessageAttachment(attachment))) {
+      setAttachmentError("File/Image attachments must use a public URL. Binary upload is not supported yet.");
+      return;
+    }
+
+    if (attachmentTarget) {
+      const existingCount = attachmentTarget.attachments?.length ?? 0;
+      if (outgoingAttachments.length === 0 || !onAddMessageAttachments) return;
+      if (existingCount + outgoingAttachments.length > MAX_MESSAGE_ATTACHMENTS) {
+        setAttachmentError(`메시지 하나에는 첨부파일을 최대 ${MAX_MESSAGE_ATTACHMENTS}개까지 추가할 수 있습니다.`);
+        return;
+      }
+
+      Promise.resolve(onAddMessageAttachments(attachmentTarget, outgoingAttachments))
+        .then(() => {
+          setSelectedAttachments([]);
+          setActivePanel(null);
+          setLinkUrl("");
+          setLinkTitle("");
+          setAttachmentTarget(null);
+          setAttachmentError("");
+        })
+        .catch((error) => {
+          setAttachmentError(error instanceof Error ? error.message : "첨부파일 추가에 실패했습니다.");
+        });
+      return;
+    }
 
     if ((outgoingMessage || outgoingAttachments.length > 0) && onSendMessage) {
       const replyToPayload = replyTo
@@ -211,6 +251,8 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
       setLinkUrl("");
       setLinkTitle("");
       setReplyTo(null);
+      setAttachmentTarget(null);
+      setAttachmentError("");
       triggerResponderTyping();
     }
   };
@@ -260,10 +302,13 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
   const activeAttachmentGroup =
     messageAttachmentGroups.find((group) => group.type === activeAttachmentType) ?? messageAttachmentGroups[0];
   const linkPreviewAttachment = linkUrl.trim()
-    ? createLinkMessageAttachment(linkUrl, linkTitle)
+    ? createUrlMessageAttachment(linkUrl, linkTitle, urlAttachmentType)
     : null;
 
-  const canSend = message.trim().length > 0 || codeBlockText.trim().length > 0 || selectedAttachments.length > 0;
+  const attachmentTargetCount = attachmentTarget?.attachments?.length ?? 0;
+  const canSend = attachmentTarget
+    ? selectedAttachments.length > 0
+    : message.trim().length > 0 || codeBlockText.trim().length > 0 || selectedAttachments.length > 0;
   const composerTyping = message.trim().length > 0;
   const typingLabel = responderTyping
     ? composerTyping
@@ -274,33 +319,50 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
       : "";
 
   const handleAttachmentToggle = (attachment: MessageAttachment) => {
-    setSelectedAttachments((prev) =>
-      prev.some((item) => item.id === attachment.id)
-        ? prev.filter((item) => item.id !== attachment.id)
-        : [...prev, attachment]
-    );
+    setSelectedAttachments((prev) => {
+      if (prev.some((item) => item.id === attachment.id)) {
+        setAttachmentError("");
+        return prev.filter((item) => item.id !== attachment.id);
+      }
+
+      if (attachmentTargetCount + prev.length >= MAX_MESSAGE_ATTACHMENTS) {
+        setAttachmentError(`메시지 하나에는 첨부파일을 최대 ${MAX_MESSAGE_ATTACHMENTS}개까지 추가할 수 있습니다.`);
+        return prev;
+      }
+
+      setAttachmentError("");
+      return [...prev, attachment];
+    });
   };
 
   const handleAttachmentRemove = (attachmentId: string) => {
     setSelectedAttachments((prev) => prev.filter((item) => item.id !== attachmentId));
+    setAttachmentError("");
   };
 
   const handleLocalFilesSelected = (event: ChangeEvent<HTMLInputElement>, type: "file" | "image") => {
     const files = Array.from(event.target.files ?? []);
     if (files.length === 0) return;
 
-    setSelectedAttachments((prev) => [
-      ...prev,
-      ...files.map((file) => createFileMessageAttachment(file, type))
-    ]);
+    setAttachmentError(`${getMessageAttachmentTypeLabel(type)} attachments must be added as URLs. Binary upload is not supported yet.`);
+    setUrlAttachmentType(type);
+    setActivePanel("link");
     event.target.value = "";
   };
 
   const handleAddLinkAttachment = () => {
-    const attachment = createLinkMessageAttachment(linkUrl, linkTitle);
+    const attachment = createUrlMessageAttachment(linkUrl, linkTitle, urlAttachmentType);
     if (!attachment) return;
 
-    setSelectedAttachments((prev) => [...prev, attachment]);
+    setSelectedAttachments((prev) => {
+      if (attachmentTargetCount + prev.length >= MAX_MESSAGE_ATTACHMENTS) {
+        setAttachmentError(`메시지 하나에는 첨부파일을 최대 ${MAX_MESSAGE_ATTACHMENTS}개까지 추가할 수 있습니다.`);
+        return prev;
+      }
+
+      setAttachmentError("");
+      return [...prev, attachment];
+    });
     setLinkUrl("");
     setLinkTitle("");
     setActivePanel(null);
@@ -321,6 +383,18 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
 
   const handleShareMessage = (msg: Message) => {
     setReplyTo(msg);
+  };
+
+  const handleStartAddAttachments = (msg: Message) => {
+    setAttachmentTarget(msg);
+    setReplyTo(null);
+    setMessage("");
+    setCodeBlockText("");
+    setSelectedAttachments([]);
+    setLinkUrl("");
+    setLinkTitle("");
+    setAttachmentError("");
+    setActivePanel("attachment");
   };
 
   const renderHoverMenu = (msg: Message) => {
@@ -401,6 +475,16 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
             onClick={(e) => { e.stopPropagation(); handleMentionClick(msg.user); }}
             title="멘션"
           ><AtSign size={14} /></button>
+          {onAddMessageAttachments && Number.isFinite(Number(msg.backendMessageId)) && (
+            <button
+              className="w-7 h-7 rounded flex items-center justify-center"
+              style={btnStyle('첨부 추가')}
+              onMouseEnter={() => setHoveredBtn(bk('첨부 추가'))}
+              onMouseLeave={() => setHoveredBtn(null)}
+              onClick={(e) => { e.stopPropagation(); handleStartAddAttachments(msg); }}
+              title="첨부 추가"
+            ><Paperclip size={14} /></button>
+          )}
         </div>
 
         {currentLabel && (
@@ -1045,6 +1129,15 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                         ))}
                       </div>
                     )}
+                    {msg.sendError && (
+                      <p className="m-0 mt-2 tracking-tight" style={{
+                        color: '#FF6B6B',
+                        fontSize: "var(--krds-body-xsmall)",
+                        fontWeight: 900
+                      }}>
+                        {msg.sendError}
+                      </p>
+                    )}
                   </div>
                   {(hoveredMessageId === msg.id || emojiPickerMsgId === msg.id) && renderHoverMenu(msg)}
                 </div>
@@ -1135,7 +1228,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                 }}
                 title="첨부 제거"
               >
-                <span style={{ color: 'var(--neon-cyan)' }}>{messageAttachmentTypeLabels[attachment.type]}</span>
+                <span style={{ color: 'var(--neon-cyan)' }}>{getMessageAttachmentTypeLabel(attachment.type)}</span>
                 {attachment.title}
                 <X size={12} />
               </button>
@@ -1268,6 +1361,25 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                 링크 첨부
               </span>
             </div>
+            <div className="mb-3 flex flex-wrap gap-2">
+              {(["link", "image", "file"] as const).map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => setUrlAttachmentType(type)}
+                  className="rounded-full border px-3 py-1 tracking-tight"
+                  style={{
+                    background: urlAttachmentType === type ? 'rgba(32, 227, 255, 0.16)' : 'rgba(11, 22, 40, 0.72)',
+                    borderColor: urlAttachmentType === type ? 'rgba(32, 227, 255, 0.46)' : 'rgba(var(--codedock-primary-rgb), 0.14)',
+                    color: urlAttachmentType === type ? 'var(--neon-cyan)' : 'var(--muted)',
+                    fontSize: "var(--krds-body-xsmall)",
+                    fontWeight: 900
+                  }}
+                >
+                  {getMessageAttachmentTypeLabel(type)} URL
+                </button>
+              ))}
+            </div>
             <div className="grid gap-2 md:grid-cols-[1fr_0.72fr_auto]">
               <input
                 value={linkUrl}
@@ -1363,6 +1475,48 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
 
         <TypingIndicatorBar label={typingLabel} />
 
+        {attachmentError && (
+          <div className="mb-2 rounded-lg px-3 py-2 tracking-tight" style={{
+            background: 'rgba(255, 107, 107, 0.10)',
+            border: '1px solid rgba(255, 107, 107, 0.28)',
+            color: '#FF6B6B',
+            fontSize: "var(--krds-body-xsmall)",
+            fontWeight: 900
+          }}>
+            {attachmentError}
+          </div>
+        )}
+
+        {attachmentTarget && (
+          <div className="mb-2 flex items-start gap-2 rounded-xl px-3 py-2" style={{
+            background: 'rgba(32, 227, 255, 0.06)',
+            border: '1px solid rgba(32, 227, 255, 0.18)',
+            borderLeft: '3px solid var(--neon-cyan)',
+          }}>
+            <div className="min-w-0 flex-1">
+              <span className="tracking-tight" style={{ color: 'var(--neon-cyan)', fontSize: '11px', fontWeight: 900 }}>
+                기존 메시지에 첨부 추가
+              </span>
+              <p className="m-0 mt-0.5 truncate tracking-tight" style={{ color: 'var(--muted)', fontSize: '12px', fontWeight: 700 }}>
+                {attachmentTarget.text || attachmentTarget.prTitle || attachmentTarget.issueTitle || attachmentTarget.code || ''}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setAttachmentTarget(null);
+                setSelectedAttachments([]);
+                setAttachmentError("");
+              }}
+              className="flex-shrink-0 rounded border-0 flex items-center justify-center"
+              style={{ background: 'transparent', color: 'var(--muted)', cursor: 'pointer', padding: '2px' }}
+              aria-label="첨부 추가 취소"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
+
         {replyTo && (
           <div className="mb-2 flex items-start gap-2 rounded-xl px-3 py-2" style={{
             background: 'rgba(32, 227, 255, 0.06)',
@@ -1419,6 +1573,8 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
               { label: '코드 블록', icon: <><Code size={18} />{codeBlockText.trim() && <span className="absolute top-1 right-1 h-2 w-2 rounded-full" style={{ background: 'var(--neon-cyan)', boxShadow: '0 0 4px var(--neon-cyan)' }} />}</>, onClick: () => togglePanel('code'), active: activePanel === 'code' },
               { label: '목록 첨부', icon: <Paperclip size={18} />, onClick: () => togglePanel('attachment'), active: activePanel === 'attachment' },
               { label: '파일 첨부', icon: <FileUp size={18} />, onClick: () => fileInputRef.current?.click(), active: false },
+              { label: '이미지 첨부', icon: <ImageIcon size={18} />, onClick: () => imageInputRef.current?.click(), active: false },
+              { label: '링크 첨부', icon: <Link2 size={18} />, onClick: () => togglePanel('link'), active: activePanel === 'link' },
               { label: '이모지', icon: <Smile size={18} />, onClick: () => togglePanel('emoji'), active: activePanel === 'emoji' },
             ].map(({ label, icon, onClick, active }) => (
               <div key={label} className="relative">

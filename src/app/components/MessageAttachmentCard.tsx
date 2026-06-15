@@ -1,6 +1,6 @@
 import { ExternalLink, FileText, Image as ImageIcon, Link2, LockKeyhole } from "lucide-react";
 import type { MouseEvent } from "react";
-import { getLinkPreviewInfo, messageAttachmentTypeLabels, type MessageAttachment } from "./messageAttachments";
+import { getLinkPreviewInfo, getMessageAttachmentTypeLabel, type MessageAttachment } from "./messageAttachments";
 
 interface MessageAttachmentCardProps {
   attachment: MessageAttachment;
@@ -16,6 +16,7 @@ function getAttachmentIcon(type: MessageAttachment["type"]) {
 export function MessageAttachmentCard({ attachment, onClick }: MessageAttachmentCardProps) {
   const Icon = getAttachmentIcon(attachment.type);
   const canOpen = Boolean(attachment.url);
+  const imagePreviewUrl = attachment.previewUrl ?? attachment.url;
   const linkPreview = attachment.type === "link" && attachment.url
     ? getLinkPreviewInfo(attachment.url, attachment.title)
     : null;
@@ -30,7 +31,7 @@ export function MessageAttachmentCard({ attachment, onClick }: MessageAttachment
         border: "1px solid rgba(var(--codedock-primary-rgb), 0.18)"
       }}
     >
-      {attachment.type === "image" && attachment.previewUrl && (
+      {attachment.type === "image" && imagePreviewUrl && (
         <div
           className="overflow-hidden"
           style={{
@@ -39,7 +40,7 @@ export function MessageAttachmentCard({ attachment, onClick }: MessageAttachment
           }}
         >
           <img
-            src={attachment.previewUrl}
+            src={imagePreviewUrl}
             alt={attachment.title}
             className="block max-h-56 w-full object-cover"
           />
@@ -121,7 +122,7 @@ export function MessageAttachmentCard({ attachment, onClick }: MessageAttachment
             color: "var(--neon-cyan)"
           }}>
             <Icon size={12} />
-            {messageAttachmentTypeLabels[attachment.type]}
+            {getMessageAttachmentTypeLabel(attachment.type)}
           </span>
           <span className="tracking-tight" style={{
             fontSize: "var(--krds-body-xsmall)",
