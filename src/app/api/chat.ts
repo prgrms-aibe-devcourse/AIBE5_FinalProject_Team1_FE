@@ -62,6 +62,10 @@ export type ThreadReplyCreateRequest = {
   content: string;
 };
 
+export type ThreadReplyUpdateRequest = {
+  content: string;
+};
+
 export type ThreadReplyWebSocketCreateRequest = {
   content: string;
 };
@@ -301,6 +305,19 @@ export function getThreadReplies(threadId: number, options?: ApiRequestOptions) 
 
 export function createThreadReply(threadId: number, request: ThreadReplyCreateRequest, options?: ApiRequestOptions) {
   return apiClient.post<ThreadReply>(`/api/threads/${threadId}/replies`, request, options);
+}
+
+export function updateThreadReply(
+  threadId: number,
+  replyId: number,
+  request: ThreadReplyUpdateRequest,
+  options?: ApiRequestOptions
+) {
+  return apiClient.patch<ThreadReply>(`/api/threads/${threadId}/replies/${replyId}`, request, options);
+}
+
+export function deleteThreadReply(threadId: number, replyId: number, options?: ApiRequestOptions) {
+  return apiClient.delete<ThreadReply>(`/api/threads/${threadId}/replies/${replyId}`, options);
 }
 
 export function getChannelReactions(channelId: number, options?: ApiRequestOptions) {

@@ -3547,6 +3547,14 @@ export function ChatPage() {
                 selectedThreadId={selectedThread?.id}
                 onOpenInvite={() => setTeamInviteOpen(true)}
                 onSendThread={activeApiChannelId ? handleSendMessage : undefined}
+                onAddMessageAttachments={activeApiChannelId
+                  ? (message, attachments) => attachToExistingServerMessage(
+                      selectedChannel,
+                      activeApiChannelId,
+                      Number(message.backendMessageId),
+                      attachments
+                    ).then(() => undefined)
+                  : undefined}
                 onTypingChange={activeApiChannelId ? handleChannelTypingChange : undefined}
                 remoteTypingLabel={activeRemoteTypingLabel}
                 onToggleReaction={handleToggleReaction}
@@ -3567,6 +3575,14 @@ export function ChatPage() {
                 selectedThreadId={selectedThread?.id}
                 onOpenInvite={() => setTeamInviteOpen(true)}
                 onSendThread={activeApiChannelId ? handleSendMessage : undefined}
+                onAddMessageAttachments={activeApiChannelId
+                  ? (message, attachments) => attachToExistingServerMessage(
+                      selectedChannel,
+                      activeApiChannelId,
+                      Number(message.backendMessageId),
+                      attachments
+                    ).then(() => undefined)
+                  : undefined}
                 onTypingChange={activeApiChannelId ? handleChannelTypingChange : undefined}
                 remoteTypingLabel={activeRemoteTypingLabel}
                 onToggleReaction={handleToggleReaction}
@@ -3587,6 +3603,14 @@ export function ChatPage() {
                 selectedThreadId={selectedThread?.id}
                 onOpenInvite={() => setTeamInviteOpen(true)}
                 onSendThread={activeApiChannelId ? handleSendMessage : undefined}
+                onAddMessageAttachments={activeApiChannelId
+                  ? (message, attachments) => attachToExistingServerMessage(
+                      selectedChannel,
+                      activeApiChannelId,
+                      Number(message.backendMessageId),
+                      attachments
+                    ).then(() => undefined)
+                  : undefined}
                 onTypingChange={activeApiChannelId ? handleChannelTypingChange : undefined}
                 remoteTypingLabel={activeRemoteTypingLabel}
                 onToggleReaction={handleToggleReaction}
