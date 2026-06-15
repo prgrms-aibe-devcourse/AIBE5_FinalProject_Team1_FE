@@ -1,6 +1,8 @@
 import { ChevronDown, Database, Download, FileCode, ImageIcon, Minus, RotateCcw, Sparkles } from "lucide-react";
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import mermaid from "mermaid";
+import { getErd } from "../api/erd";
+import { ApiClientError } from "../api/client";
 
 interface ERDPageProps {
   embedded?: boolean;
@@ -256,6 +258,8 @@ export function ERDPage({ embedded = false, workspaceId }: ERDPageProps) {
   const hasAutoFitCanvasRef = useRef(false);
 
   const [mermaidCode, setMermaidCode] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [apiError, setApiError] = useState("");
   const [diagramZoom, setDiagramZoom] = useState(defaultDiagramZoom);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const [mermaidSvg, setMermaidSvg] = useState("");
@@ -342,6 +346,33 @@ export function ERDPage({ embedded = false, workspaceId }: ERDPageProps) {
 
     setDiagramZoom((prev) => clampDiagramZoom(prev, minDiagramZoom));
   }, [diagramFrameHeight, diagramFrameWidth, viewportSize.width, viewportSize.height, worldCanvasWidth, worldCanvasHeight]);
+
+  useEffect(() => {
+    if (!workspaceId) return;
+
+    const controller = new AbortController();
+    setIsLoading(true);
+    setApiError("");
+
+    getErd(workspaceId, { signal: controller.signal })
+      .then((data) => {
+        setMermaidCode(data.mermaidCode);
+      })
+      .catch((error) => {
+        if (error instanceof ApiClientError && error.code === "ERD_NOT_FOUND") {
+          setMermaidCode("");
+        } else if (!(error instanceof DOMException && error.name === "AbortError")) {
+          setApiError(error instanceof Error ? error.message : "ERD를 불러오지 못했습니다.");
+        }
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+
+    return () => {
+      controller.abort();
+    };
+  }, [workspaceId]);
 
   useEffect(() => {
     if (!mermaidCode.trim()) {
@@ -766,7 +797,40 @@ export function ERDPage({ embedded = false, workspaceId }: ERDPageProps) {
                   transformOrigin: "0 0"
                 }}
               >
-                {!mermaidCode ? (
+                {isLoading ? (
+                  <div
+                    className="absolute rounded-2xl px-5 py-5 text-center tracking-tight"
+                    style={{
+                      left: diagramFrameOffsetX,
+                      top: diagramFrameOffsetY,
+                      width: 320,
+                      background: "rgba(11, 22, 40, 0.78)",
+                      border: "1px dashed rgba(var(--codedock-primary-rgb), 0.28)",
+                      color: "var(--muted)",
+                      boxShadow: "0 18px 44px rgba(0, 0, 0, 0.24)"
+                    }}
+                  >
+                    <p className="m-0" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>
+                      ERD를 불러오는 중...
+                    </p>
+                  </div>
+                ) : apiError ? (
+                  <div
+                    className="absolute rounded-2xl px-5 py-4"
+                    style={{
+                      left: diagramFrameOffsetX,
+                      top: diagramFrameOffsetY,
+                      background: "rgba(255, 107, 107, 0.10)",
+                      border: "1px solid rgba(255, 107, 107, 0.30)",
+                      color: "#FFB4B4",
+                      fontSize: 13,
+                      fontWeight: 850,
+                      lineHeight: 1.7
+                    }}
+                  >
+                    ERD 조회 실패: {apiError}
+                  </div>
+                ) : !mermaidCode ? (
                   <div
                     className="absolute rounded-2xl px-5 py-5 text-center tracking-tight"
                     style={{
