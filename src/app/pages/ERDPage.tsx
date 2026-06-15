@@ -1,7 +1,7 @@
 import { ChevronDown, Database, Download, FileCode, ImageIcon, Minus, RotateCcw, Sparkles } from "lucide-react";
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import mermaid from "mermaid";
-import { getErd, getErdTables, type ErdTable } from "../api/erd";
+import { getErd, getErdTables, generateErd, type ErdTable } from "../api/erd";
 import { ApiClientError } from "../api/client";
 
 interface ERDPageProps {
@@ -263,6 +263,8 @@ export function ERDPage({ embedded = false, workspaceId }: ERDPageProps) {
   const [tables, setTables] = useState<ErdTable[]>([]);
   const [isTablesLoading, setIsTablesLoading] = useState(false);
   const [expandedTableId, setExpandedTableId] = useState<number | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState("");
   const [diagramZoom, setDiagramZoom] = useState(defaultDiagramZoom);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const [mermaidSvg, setMermaidSvg] = useState("");
@@ -516,6 +518,38 @@ export function ERDPage({ embedded = false, workspaceId }: ERDPageProps) {
     setShowDownloadMenu(false);
   };
 
+  const handleGenerateErd = async () => {
+    if (!workspaceId || isGenerating) return;
+
+    setIsGenerating(true);
+    setGenerateError("");
+
+    try {
+      const data = await generateErd(workspaceId);
+      setMermaidCode(data.mermaidCode);
+
+      setIsTablesLoading(true);
+      getErdTables(workspaceId)
+        .then((tableData) => setTables(tableData))
+        .catch(() => setTables([]))
+        .finally(() => setIsTablesLoading(false));
+    } catch (error) {
+      if (error instanceof ApiClientError) {
+        if (error.code === "GITHUB_REPO_NOT_FOUND") {
+          setGenerateError("GitHub 레포지토리가 연결되지 않았습니다.");
+        } else if (error.code === "WORKSPACE_MEMBER_NOT_FOUND") {
+          setGenerateError("워크스페이스 멤버 정보를 찾을 수 없습니다.");
+        } else {
+          setGenerateError(error.message || "ERD 생성에 실패했습니다.");
+        }
+      } else {
+        setGenerateError("ERD 생성에 실패했습니다.");
+      }
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   const handleZoomChange = (delta: number) => {
     setDiagramZoom((prev) => clampDiagramZoom(prev + delta, minDiagramZoom));
   };
@@ -646,23 +680,35 @@ export function ERDPage({ embedded = false, workspaceId }: ERDPageProps) {
           <div
             className={embedded ? "flex shrink-0 flex-nowrap items-center gap-2" : "flex flex-wrap items-center gap-2"}
           >
-            <button
-              type="button"
-              disabled
-              className="inline-flex shrink-0 items-center gap-2 rounded-lg border-0 px-3 py-2 tracking-tight"
-              style={{
-                background: "rgba(255, 145, 77, 0.10)",
-                border: "1px solid rgba(255, 145, 77, 0.32)",
-                color: "#ff9a5c",
-                cursor: "not-allowed",
-                fontSize: "var(--krds-body-xsmall)",
-                fontWeight: 950,
-                opacity: 0.42
-              }}
-            >
-              <Sparkles size={15} />
-              AI 자동 생성
-            </button>
+            <div className="flex flex-col items-end gap-1">
+              <button
+                type="button"
+                onClick={handleGenerateErd}
+                disabled={isGenerating || !workspaceId}
+                className="inline-flex shrink-0 items-center gap-2 rounded-lg border-0 px-3 py-2 tracking-tight transition-all hover:scale-[1.02]"
+                style={{
+                  background: "rgba(255, 145, 77, 0.10)",
+                  border: "1px solid rgba(255, 145, 77, 0.32)",
+                  color: "#ff9a5c",
+                  cursor: isGenerating || !workspaceId ? "not-allowed" : "pointer",
+                  fontSize: "var(--krds-body-xsmall)",
+                  fontWeight: 950,
+                  opacity: isGenerating || !workspaceId ? 0.6 : 1
+                }}
+              >
+                <Sparkles size={15} />
+                {isGenerating ? "생성 중..." : "AI 자동 생성"}
+              </button>
+              {generateError && (
+                <p className="m-0 tracking-tight" style={{
+                  color: "#FFB4B4",
+                  fontSize: "var(--krds-body-xsmall)",
+                  fontWeight: 800
+                }}>
+                  {generateError}
+                </p>
+              )}
+            </div>
             <div className="relative shrink-0" ref={downloadMenuRef}>
               <button
                 type="button"
