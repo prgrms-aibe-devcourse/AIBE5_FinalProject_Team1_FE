@@ -27,7 +27,6 @@ export type ChannelMessage = {
 };
 
 export type ChannelMessageCreateRequest = {
-  senderMemberId: number;
   content: string;
 };
 
@@ -58,7 +57,6 @@ export type ThreadReplyWebSocketCreateRequest = {
 };
 
 export type ReactionToggleRequest = {
-  workspaceMemberId: number;
   targetType: ReactionTargetType;
   targetId: number;
   emoji: string;
@@ -128,7 +126,6 @@ export type TypingEvent = {
 };
 
 export type TypingEventRequest = {
-  workspaceMemberId: number;
   senderName: string;
   typing: boolean;
 };
