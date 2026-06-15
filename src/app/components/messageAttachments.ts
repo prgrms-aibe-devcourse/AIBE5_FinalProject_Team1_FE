@@ -1,8 +1,10 @@
 export type MessageAttachmentType = "pr" | "erd" | "issue" | "api" | "docs" | "file" | "image" | "link";
+export const MAX_MESSAGE_ATTACHMENTS = 10;
 
 export interface MessageAttachment {
   id: string;
   type: MessageAttachmentType;
+  targetId?: number;
   title: string;
   detail: string;
   meta: string;
@@ -10,6 +12,36 @@ export interface MessageAttachment {
   previewUrl?: string;
   mimeType?: string;
   size?: number;
+}
+
+export interface MessageAttachmentRequest {
+  attachmentType: MessageAttachmentType;
+  type: MessageAttachmentType;
+  targetId?: number;
+  url?: string;
+  title?: string;
+  detail?: string;
+  meta?: string;
+  previewUrl?: string;
+  mimeType?: string;
+  fileSize?: number;
+  size?: number;
+}
+
+export interface MessageAttachmentResponse {
+  id: number | string;
+  attachmentType?: string;
+  type?: string;
+  targetId?: number | null;
+  url?: string | null;
+  title?: string | null;
+  detail?: string | null;
+  meta?: string | null;
+  previewUrl?: string | null;
+  mimeType?: string | null;
+  fileSize?: number | null;
+  size?: number | null;
+  createdAt?: string;
 }
 
 export interface MessageAttachmentGroup {
@@ -39,12 +71,93 @@ export const messageAttachmentTypeLabels: Record<MessageAttachmentType, string> 
   link: "링크"
 };
 
+export function getMessageAttachmentTypeLabel(type: MessageAttachmentType) {
+  switch (type) {
+    case "pr":
+      return "PR";
+    case "erd":
+      return "ERD";
+    case "issue":
+      return "Issue";
+    case "api":
+      return "API";
+    case "docs":
+      return "Docs";
+    case "file":
+      return "File";
+    case "image":
+      return "Image";
+    case "link":
+      return "Link";
+    default:
+      return type;
+  }
+}
+
 export function formatAttachmentSize(size?: number) {
   if (!size) return "0 B";
 
   if (size < 1024) return `${size} B`;
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function isLocalObjectUrl(value?: string) {
+  return Boolean(value?.startsWith("blob:"));
+}
+
+export function requiresAttachmentUrl(type: MessageAttachmentType) {
+  return type === "file" || type === "image" || type === "link";
+}
+
+export function isSendableMessageAttachment(attachment: MessageAttachment) {
+  return !requiresAttachmentUrl(attachment.type)
+    || Boolean(attachment.url && !isLocalObjectUrl(attachment.url));
+}
+
+function normalizeAttachmentType(type?: string | null): MessageAttachmentType {
+  const normalized = (type ?? "").toLowerCase();
+  const validTypes: MessageAttachmentType[] = ["pr", "erd", "issue", "api", "docs", "file", "image", "link"];
+  return validTypes.includes(normalized as MessageAttachmentType)
+    ? normalized as MessageAttachmentType
+    : "file";
+}
+
+export function toMessageAttachmentRequest(attachment: MessageAttachment): MessageAttachmentRequest {
+  // Binary upload is out of scope; local object URLs are only for optimistic previews.
+  return {
+    attachmentType: attachment.type,
+    type: attachment.type,
+    targetId: attachment.targetId,
+    url: isLocalObjectUrl(attachment.url) ? undefined : attachment.url,
+    title: attachment.title,
+    detail: attachment.detail,
+    meta: attachment.meta,
+    previewUrl: isLocalObjectUrl(attachment.previewUrl) ? undefined : attachment.previewUrl,
+    mimeType: attachment.mimeType,
+    fileSize: attachment.size,
+    size: attachment.size
+  };
+}
+
+export function mapMessageAttachmentResponse(response: MessageAttachmentResponse): MessageAttachment {
+  const type = normalizeAttachmentType(response.type ?? response.attachmentType);
+  const size = response.size ?? response.fileSize ?? undefined;
+  const typeLabel = getMessageAttachmentTypeLabel(type);
+  const title = response.title?.trim() || typeLabel;
+
+  return {
+    id: String(response.id),
+    type,
+    targetId: response.targetId ?? undefined,
+    title,
+    detail: response.detail?.trim() || response.url || title,
+    meta: response.meta?.trim() || (size ? formatAttachmentSize(size) : typeLabel),
+    url: response.url ?? undefined,
+    previewUrl: response.previewUrl ?? undefined,
+    mimeType: response.mimeType ?? undefined,
+    size
+  };
 }
 
 export function createFileMessageAttachment(file: File, type: "file" | "image"): MessageAttachment {
@@ -91,20 +204,35 @@ export function getLinkPreviewInfo(rawUrl: string, rawTitle?: string): LinkPrevi
   };
 }
 
-export function createLinkMessageAttachment(rawUrl: string, rawTitle?: string): MessageAttachment | null {
+export function createUrlMessageAttachment(
+  rawUrl: string,
+  rawTitle?: string,
+  type: Extract<MessageAttachmentType, "file" | "image" | "link"> = "link"
+): MessageAttachment | null {
   const preview = getLinkPreviewInfo(rawUrl, rawTitle);
   if (!preview) return null;
 
   const uniqueId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const fallbackTitle = preview.path === "/"
+    ? preview.host.replace(/^www\./, "")
+    : decodeURIComponent(preview.path.split("/").filter(Boolean).at(-1) ?? preview.host);
+  const title = rawTitle?.trim() || (type === "link" ? preview.title : fallbackTitle);
 
   return {
-    id: `link-${uniqueId}-${preview.normalizedUrl}`,
-    type: "link",
-    title: preview.title,
+    id: `${type}-${uniqueId}-${preview.normalizedUrl}`,
+    type,
+    title,
     detail: preview.displayUrl,
-    meta: preview.isSecure ? "보안 링크" : "외부 링크",
-    url: preview.normalizedUrl
+    meta: type === "link"
+      ? (preview.isSecure ? "Secure link" : "Link")
+      : `URL ${getMessageAttachmentTypeLabel(type)}`,
+    url: preview.normalizedUrl,
+    previewUrl: type === "image" ? preview.normalizedUrl : undefined
   };
+}
+
+export function createLinkMessageAttachment(rawUrl: string, rawTitle?: string): MessageAttachment | null {
+  return createUrlMessageAttachment(rawUrl, rawTitle, "link");
 }
 
 export function createLinkMessageAttachmentFromText(text: string): MessageAttachment | null {

@@ -1,5 +1,6 @@
 import { apiClient, type ApiRequestOptions } from "./client";
 import type { ChannelType, ISODateTime, ReactionTargetType } from "./types";
+import type { MessageAttachmentRequest, MessageAttachmentResponse } from "../components/messageAttachments";
 
 export type Channel = {
   id: number;
@@ -22,6 +23,7 @@ export type ChannelMessage = {
   senderName: string;
   content: string;
   createdAt: ISODateTime;
+  attachments?: MessageAttachmentResponse[];
 };
 
 export type ChannelMessageCreateRequest = {
@@ -30,6 +32,7 @@ export type ChannelMessageCreateRequest = {
 
 export type ChannelMessageRestCreateRequest = {
   content: string;
+  attachments?: MessageAttachmentRequest[];
 };
 
 export type ChannelMessageUpdateRequest = {
@@ -229,6 +232,19 @@ export function createChannelMessage(
   options?: ApiRequestOptions
 ) {
   return apiClient.post<ChannelMessage>(`/api/channels/${channelId}/messages`, request, options);
+}
+
+export function addMessageAttachments(
+  channelId: number,
+  messageId: number,
+  attachments: MessageAttachmentRequest[],
+  options?: ApiRequestOptions
+) {
+  return apiClient.post<MessageAttachmentResponse[]>(
+    `/api/channels/${channelId}/messages/${messageId}/attachments`,
+    { attachments },
+    options
+  );
 }
 
 export function updateChannelMessage(

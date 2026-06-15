@@ -13,7 +13,12 @@ import { DocsPage } from "./DocsPage";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router";
 import { AnimatePresence, motion } from "motion/react";
-import type { MessageAttachment } from "../components/messageAttachments";
+import {
+  isSendableMessageAttachment,
+  mapMessageAttachmentResponse,
+  toMessageAttachmentRequest,
+  type MessageAttachment
+} from "../components/messageAttachments";
 import type { MessageMetadata } from "../components/chatInteractionUtils";
 import { toggleMessageReaction, type MessageReaction } from "../components/MessageReactions";
 import { TeamInviteModal } from "../components/TeamInviteModal";
@@ -22,6 +27,7 @@ import { createPortal } from "react-dom";
 import {
   CHAT_EVENT_TYPE,
   chatWebSocketDestinations,
+  addMessageAttachments,
   createChannelMessage,
   createThreadReply,
   deleteChannelMessage,
@@ -316,6 +322,8 @@ function formatApiDateTime(value: string) {
 }
 
 function mapChannelMessageToWorkspaceMessage(message: ChannelMessage) {
+  const attachments = (message.attachments ?? []).map(mapMessageAttachmentResponse);
+
   return {
     id: message.id,
     backendMessageId: message.id,
@@ -325,7 +333,8 @@ function mapChannelMessageToWorkspaceMessage(message: ChannelMessage) {
     message: message.content,
     text: message.content,
     time: formatApiDateTime(message.createdAt),
-    replies: 0
+    replies: 0,
+    attachments
   };
 }
 
@@ -1213,7 +1222,14 @@ export function ChatPage() {
       if (alreadyExists) return prev;
 
       const withoutMatchingPending = currentChannelMessages.filter((item) =>
-        !(item.pending && item.text === message.content && item.user === message.senderName)
+        !(
+          item.pending
+          && item.text === message.content
+          && (
+            item.user === message.senderName
+            || item.backendChannelId === message.channelId
+          )
+        )
       );
 
       return {
@@ -1239,6 +1255,42 @@ export function ChatPage() {
         ? { ...prevThread, ...mappedMessage }
         : prevThread
     );
+  }, []);
+
+  const attachToExistingServerMessage = useCallback((
+    channelId: string,
+    apiChannelId: number,
+    messageId: number,
+    attachments: MessageAttachment[]
+  ) => {
+    if (attachments.some((attachment) => !isSendableMessageAttachment(attachment))) {
+      return Promise.reject(new Error("File/Image attachments must use a public URL. Binary upload is not supported yet."));
+    }
+
+    const attachmentPayload = attachments.map(toMessageAttachmentRequest);
+    if (attachmentPayload.length === 0 || attachmentPayload.length > 10) {
+      return Promise.resolve([]);
+    }
+
+    return addMessageAttachments(apiChannelId, messageId, attachmentPayload).then((serverAttachments) => {
+      const mappedAttachments = serverAttachments.map(mapMessageAttachmentResponse);
+
+      setMessages((prev) => ({
+        ...prev,
+        [channelId]: (prev[channelId] || []).map((item) =>
+          Number(item.backendMessageId ?? item.id) === messageId
+            ? { ...item, attachments: [...(item.attachments ?? []), ...mappedAttachments] }
+            : item
+        )
+      }));
+      setSelectedThread((prevThread: any) =>
+        prevThread && Number(prevThread.backendMessageId ?? prevThread.id) === messageId
+          ? { ...prevThread, attachments: [...(prevThread.attachments ?? []), ...mappedAttachments] }
+          : prevThread
+      );
+
+      return mappedAttachments;
+    });
   }, []);
 
   const appendServerThreadReply = useCallback((thread: any, reply: ThreadReply) => {
@@ -2340,11 +2392,15 @@ export function ChatPage() {
   const handleSendMessage = (text: string, attachments: MessageAttachment[] = [], replyTo?: { user: string; text: string }, metadata?: MessageMetadata) => {
     const trimmedText = text.trim();
     if (!trimmedText && attachments.length === 0) return;
+    if (attachments.length > 10) return;
+    if (attachments.some((attachment) => !isSendableMessageAttachment(attachment))) return;
     const mentions = metadata?.mentions?.filter(Boolean) ?? [];
+    const pendingMessageId = Date.now();
+    const attachmentPayload = attachments.map(toMessageAttachmentRequest);
     const messageText = trimmedText || `${attachments.length}개 항목을 공유합니다.`;
 
     const nextMessage: any = {
-      id: Date.now(),
+      id: pendingMessageId,
       user: currentDisplayName,
       text: trimmedText || `${attachments.length}개 항목을 공유합니다.`,
       time: '방금',
@@ -2369,7 +2425,7 @@ export function ChatPage() {
       }));
 
       const stompClient = chatStompRef.current;
-      if (stompClient) {
+      if (stompClient && attachmentPayload.length === 0) {
         stompClient.send(
           chatWebSocketDestinations.sendChannelMessage(activeApiChannelId),
           {
@@ -2379,10 +2435,26 @@ export function ChatPage() {
         return;
       }
 
-      createChannelMessage(activeApiChannelId, { content: messageText })
+      createChannelMessage(activeApiChannelId, {
+        content: messageText,
+        ...(attachmentPayload.length > 0 ? { attachments: attachmentPayload } : {})
+      })
         .then((serverMessage) => appendServerMessage(selectedChannel, serverMessage))
-        .catch(() => {
-          // Keep the optimistic message visible when the backend is unavailable.
+        .catch((error) => {
+          setMessages((prev) => ({
+            ...prev,
+            [selectedChannel]: (prev[selectedChannel] || []).map((item) =>
+              item.id === pendingMessageId
+                ? {
+                    ...item,
+                    pending: false,
+                    sendError: error instanceof Error
+                      ? error.message
+                      : "첨부파일 전송에 실패했습니다."
+                  }
+                : item
+            )
+          }));
         });
       return;
     }
@@ -3418,6 +3490,14 @@ export function ChatPage() {
                 reactions={messageReactions}
                 replyCounts={mergedReplyCounts}
                 onSendMessage={handleSendMessage}
+                onAddMessageAttachments={activeApiChannelId
+                  ? (message, attachments) => attachToExistingServerMessage(
+                      selectedChannel,
+                      activeApiChannelId,
+                      Number(message.backendMessageId),
+                      attachments
+                    ).then(() => undefined)
+                  : undefined}
                 onSharePR={handleSharePR}
                 showAISummary={false}
                 onMergePR={handleMergePR}
