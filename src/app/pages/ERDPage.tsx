@@ -1,7 +1,7 @@
 import { ChevronDown, Database, Download, FileCode, ImageIcon, Minus, RotateCcw, Sparkles } from "lucide-react";
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import mermaid from "mermaid";
-import { getErd } from "../api/erd";
+import { getErd, getErdTables, type ErdTable } from "../api/erd";
 import { ApiClientError } from "../api/client";
 
 interface ERDPageProps {
@@ -260,6 +260,9 @@ export function ERDPage({ embedded = false, workspaceId }: ERDPageProps) {
   const [mermaidCode, setMermaidCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [apiError, setApiError] = useState("");
+  const [tables, setTables] = useState<ErdTable[]>([]);
+  const [isTablesLoading, setIsTablesLoading] = useState(false);
+  const [expandedTableId, setExpandedTableId] = useState<number | null>(null);
   const [diagramZoom, setDiagramZoom] = useState(defaultDiagramZoom);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const [mermaidSvg, setMermaidSvg] = useState("");
@@ -367,6 +370,30 @@ export function ERDPage({ embedded = false, workspaceId }: ERDPageProps) {
       })
       .finally(() => {
         setIsLoading(false);
+      });
+
+    return () => {
+      controller.abort();
+    };
+  }, [workspaceId]);
+
+  useEffect(() => {
+    if (!workspaceId) return;
+
+    const controller = new AbortController();
+    setIsTablesLoading(true);
+
+    getErdTables(workspaceId, { signal: controller.signal })
+      .then((data) => {
+        setTables(data);
+      })
+      .catch((error) => {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          setTables([]);
+        }
+      })
+      .finally(() => {
+        setIsTablesLoading(false);
       });
 
     return () => {
@@ -713,8 +740,7 @@ export function ERDPage({ embedded = false, workspaceId }: ERDPageProps) {
       </header>
 
       <div className={embedded ? "grid min-h-0 flex-1 gap-4 xl:grid-cols-[330px_minmax(0,1fr)]" : "grid gap-5 xl:grid-cols-[430px_1fr]"}>
-        {/* 테이블 목록 패널 - 3번 작업에서 API 연결 예정 */}
-        <section className={embedded ? "flex min-h-0 flex-col overflow-hidden rounded-2xl" : "rounded-2xl overflow-hidden"} style={{
+        <section className={embedded ? "flex min-h-0 flex-col overflow-hidden rounded-2xl" : "flex flex-col rounded-2xl overflow-hidden"} style={{
           background: "rgba(11, 22, 40, 0.88)",
           border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)",
           boxShadow: "0 18px 44px rgba(0, 0, 0, 0.30)"
@@ -722,22 +748,122 @@ export function ERDPage({ embedded = false, workspaceId }: ERDPageProps) {
           <div className="px-4 py-4" style={{
             borderBottom: "1px solid rgba(var(--codedock-primary-rgb), 0.14)"
           }}>
-            <h2 className="m-0 tracking-tight" style={{
-              color: "var(--white)",
-              fontSize: "14px",
-              fontWeight: 950
-            }}>
-              테이블 목록
-            </h2>
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="m-0 tracking-tight" style={{
+                color: "var(--white)",
+                fontSize: "14px",
+                fontWeight: 950
+              }}>
+                테이블 목록
+              </h2>
+              {!isTablesLoading && tables.length > 0 && (
+                <span className="rounded-full px-2 py-1 font-mono tracking-tight" style={{
+                  background: "rgba(var(--codedock-primary-rgb), 0.10)",
+                  border: "1px solid rgba(var(--codedock-primary-rgb), 0.24)",
+                  color: "var(--neon-cyan)",
+                  fontSize: "var(--krds-body-xsmall)",
+                  fontWeight: 950
+                }}>
+                  {tables.length}
+                </span>
+              )}
+            </div>
           </div>
-          <div className="flex flex-1 items-center justify-center px-4 py-8">
-            <p className="m-0 tracking-tight" style={{
-              color: "var(--muted)",
-              fontSize: "var(--krds-body-xsmall)",
-              fontWeight: 800
-            }}>
-              테이블 정보를 불러오는 중...
-            </p>
+
+          <div className={`codedock-scrollbar-hidden overflow-y-auto ${embedded ? "flex-1" : ""}`} style={{ maxHeight: embedded ? "none" : 720 }}>
+            {isTablesLoading ? (
+              <div className="flex items-center justify-center px-4 py-8">
+                <p className="m-0 tracking-tight" style={{
+                  color: "var(--muted)",
+                  fontSize: "var(--krds-body-xsmall)",
+                  fontWeight: 800
+                }}>
+                  테이블 정보를 불러오는 중...
+                </p>
+              </div>
+            ) : tables.length === 0 ? (
+              <div className="flex flex-col items-center justify-center px-4 py-8 text-center">
+                <Database size={22} style={{ color: "var(--neon-cyan)", marginBottom: 10 }} />
+                <p className="m-0 tracking-tight" style={{
+                  color: "var(--white)",
+                  fontSize: "14px",
+                  fontWeight: 950
+                }}>
+                  테이블이 없습니다
+                </p>
+                <p className="m-0 mt-1 tracking-tight" style={{
+                  color: "var(--muted)",
+                  fontSize: "var(--krds-body-xsmall)",
+                  fontWeight: 800
+                }}>
+                  AI 자동 생성 후 테이블 정보가 표시됩니다.
+                </p>
+              </div>
+            ) : (
+              <div className="grid gap-2 p-3">
+                {tables.map((table) => {
+                  const isExpanded = expandedTableId === table.id;
+                  return (
+                    <div
+                      key={table.id}
+                      className="rounded-xl tracking-tight"
+                      style={{
+                        background: isExpanded ? "rgba(var(--codedock-primary-rgb), 0.10)" : "rgba(234, 247, 255, 0.04)",
+                        border: isExpanded ? "1px solid rgba(var(--codedock-primary-rgb), 0.28)" : "1px solid rgba(var(--codedock-primary-rgb), 0.12)"
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setExpandedTableId(isExpanded ? null : table.id)}
+                        className="flex w-full items-start justify-between gap-2 border-0 bg-transparent px-3 py-3 text-left"
+                        style={{ cursor: "pointer", color: "var(--white)" }}
+                      >
+                        <div className="min-w-0">
+                          <p className="m-0 truncate" style={{ fontSize: "13px", fontWeight: 950 }}>
+                            {table.tableName}
+                          </p>
+                          {table.description && (
+                            <p className="m-0 mt-1 truncate" style={{
+                              color: "var(--muted)",
+                              fontSize: "var(--krds-body-xsmall)",
+                              fontWeight: 800
+                            }}>
+                              {table.description}
+                            </p>
+                          )}
+                        </div>
+                        <ChevronDown
+                          size={14}
+                          style={{
+                            color: "var(--muted)",
+                            flexShrink: 0,
+                            marginTop: 2,
+                            transform: isExpanded ? "rotate(180deg)" : "none",
+                            transition: "transform 0.15s"
+                          }}
+                        />
+                      </button>
+                      {isExpanded && (
+                        <div className="px-3 pb-3">
+                          <pre className="m-0 overflow-x-auto rounded-lg p-3" style={{
+                            background: "rgba(5, 11, 20, 0.60)",
+                            border: "1px solid rgba(var(--codedock-primary-rgb), 0.12)",
+                            color: "var(--soft-mint)",
+                            fontSize: "var(--krds-body-xsmall)",
+                            fontWeight: 800,
+                            lineHeight: 1.7,
+                            whiteSpace: "pre-wrap",
+                            wordBreak: "break-all"
+                          }}>
+                            {table.schemaDefinition}
+                          </pre>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </section>
 
