@@ -1,11 +1,9 @@
-import { ChevronDown, Database, Download, FileCode, ImageIcon, Minus, Plus, RefreshCw, RotateCcw, Sparkles, Table2, Trash2 } from "lucide-react";
+import { ChevronDown, Database, Download, FileCode, ImageIcon, Minus, RotateCcw, Sparkles } from "lucide-react";
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import mermaid from "mermaid";
 
 interface ERDPageProps {
   embedded?: boolean;
-  repositoryId?: string;
-  repositoryName?: string;
   workspaceId?: number;
 }
 
@@ -28,118 +26,6 @@ interface DiagramRelation {
   notation: string;
   label: string;
 }
-
-interface ErdDocument {
-  id: string;
-  title: string;
-  description: string;
-  code: string;
-  updatedAt: string;
-}
-
-const defaultErdCode = `erDiagram
-  users ||--o{ projects : owns
-  projects ||--o{ repositories : has
-  repositories ||--o{ pull_requests : tracks
-  pull_requests ||--o{ comments : contains
-  users ||--o{ comments : writes
-
-  users {
-    INTEGER id PK
-    VARCHAR(255) email
-    VARCHAR(100) username
-    VARCHAR(100) github_id
-    TIMESTAMP created_at
-    TIMESTAMP updated_at nullable
-  }
-
-  projects {
-    INTEGER id PK
-    VARCHAR(255) name
-    TEXT description nullable
-    VARCHAR(500) repo_url
-    INTEGER owner_id FK
-    TIMESTAMP created_at
-  }
-
-  repositories {
-    INTEGER id PK
-    INTEGER project_id FK
-    BIGINT github_repo_id
-    VARCHAR(255) full_name
-    BOOLEAN is_private
-    TIMESTAMP synced_at
-  }
-
-  pull_requests {
-    INTEGER id PK
-    INTEGER repository_id FK
-    INTEGER pr_number
-    VARCHAR(500) title
-    INTEGER author_id FK
-  }
-
-  comments {
-    INTEGER id PK
-    INTEGER pr_id FK
-    INTEGER user_id FK
-    TEXT content
-    TIMESTAMP created_at
-  }`;
-
-const generatedErdCode = `erDiagram
-  users ||--o{ workspaces : owns
-  workspaces ||--o{ workspace_members : includes
-  users ||--o{ workspace_members : joins
-  workspaces ||--o{ invite_links : issues
-  workspaces ||--o{ docs : stores
-  docs ||--o{ doc_versions : versions
-
-  users {
-    BIGINT id PK
-    VARCHAR(255) email
-    VARCHAR(100) display_name
-    VARCHAR(50) role
-    TIMESTAMP deleted_at nullable
-  }
-
-  workspaces {
-    BIGINT id PK
-    VARCHAR(100) name
-    VARCHAR(100) slug
-    BIGINT owner_id FK
-    TIMESTAMP created_at
-  }
-
-  workspace_members {
-    BIGINT id PK
-    BIGINT workspace_id FK
-    BIGINT user_id FK
-    VARCHAR(30) permission
-  }
-
-  invite_links {
-    BIGINT id PK
-    BIGINT workspace_id FK
-    VARCHAR(255) token
-    TIMESTAMP expires_at
-    TIMESTAMP revoked_at nullable
-  }
-
-  docs {
-    BIGINT id PK
-    BIGINT workspace_id FK
-    VARCHAR(255) title
-    TEXT content
-    TIMESTAMP updated_at
-  }
-
-  doc_versions {
-    BIGINT id PK
-    BIGINT doc_id FK
-    INTEGER version_no
-    TEXT snapshot
-  }`;
 
 const knownTypes = [
   "BIGINT",
@@ -167,8 +53,6 @@ const minDiagramZoom = 0.1;
 const maxDiagramZoom = 1.8;
 const defaultDiagramZoom = 1;
 const diagramZoomStep = 0.1;
-const defaultRepositoryName = "codedock-backend";
-const erdDocumentsStorageKey = "codedock-erd-documents-v2";
 const minWorldCanvasWidth = 7200;
 const minWorldCanvasHeight = 5000;
 const worldCanvasExtraWidth = 4600;
@@ -345,12 +229,9 @@ function getDownloadableSvg(svg: string) {
 function sanitizeRenderedSvg(svg: string) {
   if (!svg) return "";
   let result = svg;
-  // Mermaid가 자동으로 넣는 inline max-width 제거 (CSS가 sizing을 제어하도록)
   result = result.replace(/style="([^"]*?)max-width:\s*[^;"]+;?\s*([^"]*)"/g, 'style="$1$2"');
-  // SVG root의 width/height 속성 제거 — viewBox와 CSS만으로 크기 결정
   result = result.replace(/(<svg\b[^>]*?)\swidth="[^"]*"/, "$1");
   result = result.replace(/(<svg\b[^>]*?)\sheight="[^"]*"/, "$1");
-  // preserveAspectRatio: top-left 정렬 — 컨테이너 비율 mismatch 시 오른쪽이 잘리지 않게
   if (!/preserveAspectRatio=/.test(result)) {
     result = result.replace(/<svg\b/, '<svg preserveAspectRatio="xMinYMin meet"');
   } else {
@@ -369,130 +250,19 @@ function parseSvgNaturalSize(svg: string): { width: number; height: number } | n
   return { width, height };
 }
 
-function createInitialErdDocuments(repositoryName: string): ErdDocument[] {
-  return [
-    {
-      id: "main-schema",
-      title: `${repositoryName} 기본 ERD`,
-      description: "사용자, 프로젝트, PR 흐름",
-      code: defaultErdCode,
-      updatedAt: "방금 전"
-    },
-    {
-      id: "workspace-docs",
-      title: "워크스페이스 문서 ERD",
-      description: "팀, 문서, 초대 링크 흐름",
-      code: generatedErdCode,
-      updatedAt: "2분 전"
-    }
-  ];
-}
-
-function createBlankErdCode(repositoryName: string) {
-  const normalizedName = normalizeEntityName(repositoryName.toLowerCase().replace(/[^\w]+/g, "_")) || "project";
-
-  return `erDiagram
-  ${normalizedName}_projects ||--o{ ${normalizedName}_items : contains
-  ${normalizedName}_projects ||--o{ ${normalizedName}_members : includes
-
-  ${normalizedName}_projects {
-    BIGINT id PK
-    VARCHAR(255) name
-    TEXT description nullable
-    TIMESTAMP created_at
-  }
-
-  ${normalizedName}_items {
-    BIGINT id PK
-    BIGINT project_id FK
-    VARCHAR(255) title
-    VARCHAR(50) status
-    TIMESTAMP updated_at
-  }
-
-  ${normalizedName}_members {
-    BIGINT id PK
-    BIGINT project_id FK
-    BIGINT user_id
-    VARCHAR(30) role
-  }`;
-}
-
-function getErdFileName(title: string) {
-  const normalizedTitle = title
-    .trim()
-    .toLowerCase()
-    .replace(/[^\w가-힣]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-
-  return normalizedTitle || "codedock-erd";
-}
-
-function getSavedErdDocuments() {
-  if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
-    return {};
-  }
-
-  try {
-    const storedValue = window.localStorage.getItem(erdDocumentsStorageKey);
-    if (!storedValue) return {};
-
-    const parsed = JSON.parse(storedValue);
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
-
-    return Object.fromEntries(Object.entries(parsed).map(([key, value]) => [
-      key,
-      Array.isArray(value)
-        ? value.filter((document): document is ErdDocument =>
-          document
-          && typeof document.id === "string"
-          && typeof document.title === "string"
-          && typeof document.description === "string"
-          && typeof document.code === "string"
-          && typeof document.updatedAt === "string"
-        )
-        : []
-    ]));
-  } catch {
-    return {};
-  }
-}
-
-function saveErdDocuments(documentsByRepository: Record<string, ErdDocument[]>) {
-  if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
-    return;
-  }
-
-  try {
-    window.localStorage.setItem(erdDocumentsStorageKey, JSON.stringify(documentsByRepository));
-  } catch {
-    // Local storage can be unavailable in previews; in-memory ERD state still works.
-  }
-}
-
-export function ERDPage({ embedded = false, repositoryName = defaultRepositoryName, repositoryId, workspaceId }: ERDPageProps) {
+export function ERDPage({ embedded = false, workspaceId }: ERDPageProps) {
   const diagramViewportRef = useRef<HTMLDivElement>(null);
   const downloadMenuRef = useRef<HTMLDivElement>(null);
   const hasAutoFitCanvasRef = useRef(false);
-  const repositoryKey = repositoryId ?? repositoryName;
+
+  const [mermaidCode, setMermaidCode] = useState("");
   const [diagramZoom, setDiagramZoom] = useState(defaultDiagramZoom);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const [mermaidSvg, setMermaidSvg] = useState("");
   const [mermaidError, setMermaidError] = useState("");
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
-  const [erdDocumentsByRepository, setErdDocumentsByRepository] = useState<Record<string, ErdDocument[]>>(() => getSavedErdDocuments());
-  const [selectedErdIdByRepository, setSelectedErdIdByRepository] = useState<Record<string, string>>({});
-  const erdDocuments = erdDocumentsByRepository[repositoryKey] ?? createInitialErdDocuments(repositoryName);
-  const selectedErdId = selectedErdIdByRepository[repositoryKey] ?? erdDocuments[0]?.id;
-  const selectedErd = erdDocuments.find((document) => document.id === selectedErdId) ?? erdDocuments[0];
-  const selectedErdRenderId = selectedErd?.id ?? "";
-  const erdCode = selectedErd?.code ?? "";
-  const [debouncedErdCode, setDebouncedErdCode] = useState(erdCode);
-  const diagram = useMemo(() => parseErdCode(erdCode), [erdCode]);
-  const erdDocumentSummaries = useMemo(() => erdDocuments.map((document) => ({
-    document,
-    diagram: parseErdCode(document.code)
-  })), [erdDocuments]);
+
+  const diagram = useMemo(() => parseErdCode(mermaidCode), [mermaidCode]);
   const relationCount = diagram.relations.length;
   const columnCount = diagram.entities.reduce((sum, entity) => sum + entity.columns.length, 0);
   const fallbackDiagramWidth = Math.max(1100, diagramCanvasWidth + 240);
@@ -522,58 +292,6 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
   const diagramRenderStyle = {
     "--codedock-erd-diagram-width": `${diagramRenderWidth}px`
   } as CSSProperties;
-
-  useEffect(() => {
-    const initialDocuments = createInitialErdDocuments(repositoryName);
-    setErdDocumentsByRepository((prev) => Object.prototype.hasOwnProperty.call(prev, repositoryKey) ? prev : {
-      ...prev,
-      [repositoryKey]: initialDocuments
-    });
-  }, [repositoryKey, repositoryName]);
-
-  useEffect(() => {
-    setSelectedErdIdByRepository((prev) => {
-      const hasSelectedDocument = selectedErdId && erdDocuments.some((document) => document.id === selectedErdId);
-
-      if (hasSelectedDocument) {
-        return prev;
-      }
-
-      if (!erdDocuments.length) {
-        if (!Object.prototype.hasOwnProperty.call(prev, repositoryKey)) {
-          return prev;
-        }
-
-        const nextSelectedIds = { ...prev };
-        delete nextSelectedIds[repositoryKey];
-        return nextSelectedIds;
-      }
-
-      return {
-        ...prev,
-        [repositoryKey]: erdDocuments[0].id
-      };
-    });
-  }, [erdDocuments, repositoryKey, selectedErdId]);
-
-  useEffect(() => {
-    saveErdDocuments(erdDocumentsByRepository);
-  }, [erdDocumentsByRepository]);
-
-  useEffect(() => {
-    if (!selectedErdRenderId) {
-      setDebouncedErdCode("");
-      return;
-    }
-
-    const debounceId = window.setTimeout(() => {
-      setDebouncedErdCode(erdCode);
-    }, 250);
-
-    return () => {
-      window.clearTimeout(debounceId);
-    };
-  }, [erdCode, selectedErdRenderId]);
 
   useEffect(() => {
     const viewport = diagramViewportRef.current;
@@ -625,89 +343,15 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
     setDiagramZoom((prev) => clampDiagramZoom(prev, minDiagramZoom));
   }, [diagramFrameHeight, diagramFrameWidth, viewportSize.width, viewportSize.height, worldCanvasWidth, worldCanvasHeight]);
 
-  const updateSelectedErdCode = (nextCode: string) => {
-    if (!selectedErdId) return;
-
-    setErdDocumentsByRepository((prev) => {
-      const documents = prev[repositoryKey] ?? createInitialErdDocuments(repositoryName);
-
-      return {
-        ...prev,
-        [repositoryKey]: documents.map((document) => document.id === selectedErdId
-          ? { ...document, code: nextCode, updatedAt: "방금 전" }
-          : document)
-      };
-    });
-  };
-
-  const handleSelectErd = (documentId: string) => {
-    setSelectedErdIdByRepository((prev) => ({
-      ...prev,
-      [repositoryKey]: documentId
-    }));
-    setShowDownloadMenu(false);
-  };
-
-  const handleAddErd = () => {
-    const nextIndex = erdDocuments.length + 1;
-    const nextDocument: ErdDocument = {
-      id: `erd-${Date.now()}`,
-      title: `새 ERD ${nextIndex}`,
-      description: `${repositoryName} 프로젝트 새 다이어그램`,
-      code: createBlankErdCode(repositoryName),
-      updatedAt: "방금 전"
-    };
-
-    setErdDocumentsByRepository((prev) => ({
-      ...prev,
-      [repositoryKey]: [...(prev[repositoryKey] ?? erdDocuments), nextDocument]
-    }));
-    setSelectedErdIdByRepository((prev) => ({
-      ...prev,
-      [repositoryKey]: nextDocument.id
-    }));
-  };
-
-  const handleDeleteErd = (documentId: string) => {
-    const nextDocuments = erdDocuments.filter((document) => document.id !== documentId);
-    const nextSelectedId = selectedErd?.id === documentId
-      ? nextDocuments[0]?.id
-      : selectedErd?.id;
-
-    setErdDocumentsByRepository((prev) => ({
-      ...prev,
-      [repositoryKey]: nextDocuments
-    }));
-
-    setSelectedErdIdByRepository((prev) => {
-      const nextSelectedIds = { ...prev };
-
-      if (nextSelectedId) {
-        nextSelectedIds[repositoryKey] = nextSelectedId;
-      } else {
-        delete nextSelectedIds[repositoryKey];
-      }
-
-      return nextSelectedIds;
-    });
-  };
-
   useEffect(() => {
-    if (!selectedErdRenderId) {
+    if (!mermaidCode.trim()) {
       setMermaidSvg("");
       setMermaidError("");
       cleanupMermaidRenderArtifacts();
       return;
     }
 
-    if (!debouncedErdCode.trim()) {
-      setMermaidSvg("");
-      setMermaidError("Mermaid 코드를 입력하세요.");
-      cleanupMermaidRenderArtifacts();
-      return;
-    }
-
-    const renderableCode = toMermaidRenderableCode(debouncedErdCode);
+    const renderableCode = toMermaidRenderableCode(mermaidCode);
 
     if (!isErdCode(renderableCode)) {
       setMermaidSvg("");
@@ -717,7 +361,7 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
     }
 
     let cancelled = false;
-    const renderId = `codedock-erd-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const renderId = `codedock-erd-${Date.now()}`;
     const renderContainer = document.createElement("div");
     renderContainer.setAttribute("aria-hidden", "true");
     Object.assign(renderContainer.style, {
@@ -763,7 +407,7 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
       renderContainer.remove();
       cleanupMermaidRenderArtifacts();
     };
-  }, [debouncedErdCode, selectedErdRenderId]);
+  }, [mermaidCode]);
 
   useEffect(() => {
     if (!showDownloadMenu) return;
@@ -797,18 +441,18 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `${getErdFileName(selectedErd?.title ?? "codedock-erd")}.svg`;
+    anchor.download = "codedock-erd.svg";
     anchor.click();
     URL.revokeObjectURL(url);
     setShowDownloadMenu(false);
   };
 
   const handleExportMmd = () => {
-    const blob = new Blob([erdCode], { type: "text/plain;charset=utf-8" });
+    const blob = new Blob([mermaidCode], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `${getErdFileName(selectedErd?.title ?? "codedock-erd")}.mmd`;
+    anchor.download = "codedock-erd.mmd";
     anchor.click();
     URL.revokeObjectURL(url);
     setShowDownloadMenu(false);
@@ -874,7 +518,7 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
         aria-label="ERD 확대"
         title="확대 · Ctrl + 휠로 확대/축소"
       >
-        <Plus size={15} />
+        <Minus size={15} style={{ transform: "rotate(90deg)" }} />
       </button>
     </div>
   );
@@ -937,13 +581,6 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
             }}>
               ERD (Entity Relationship Diagram)
             </h1>
-            <p className="m-0 mt-1 tracking-tight" style={{
-              color: "var(--muted)",
-              fontSize: embedded ? "var(--krds-body-xsmall)" : "14px",
-              fontWeight: 800
-            }}>
-              {repositoryName}
-            </p>
           </div>
         </div>
 
@@ -953,73 +590,33 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
           >
             <button
               type="button"
-              onClick={() => updateSelectedErdCode(generatedErdCode)}
-              disabled={!selectedErd}
+              disabled
               className="inline-flex shrink-0 items-center gap-2 rounded-lg border-0 px-3 py-2 tracking-tight"
               style={{
                 background: "rgba(255, 145, 77, 0.10)",
                 border: "1px solid rgba(255, 145, 77, 0.32)",
                 color: "#ff9a5c",
-                cursor: selectedErd ? "pointer" : "not-allowed",
+                cursor: "not-allowed",
                 fontSize: "var(--krds-body-xsmall)",
                 fontWeight: 950,
-                opacity: selectedErd ? 1 : 0.42
+                opacity: 0.42
               }}
             >
               <Sparkles size={15} />
               AI 자동 생성
             </button>
-            <button
-              type="button"
-              onClick={() => updateSelectedErdCode(defaultErdCode)}
-              disabled={!selectedErd}
-              className="inline-flex shrink-0 items-center gap-2 rounded-lg border-0 px-3 py-2 tracking-tight"
-              style={{
-                background: "rgba(234, 247, 255, 0.06)",
-                border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)",
-                color: "var(--white)",
-                cursor: selectedErd ? "pointer" : "not-allowed",
-                fontSize: "var(--krds-body-xsmall)",
-                fontWeight: 900,
-                opacity: selectedErd ? 1 : 0.42
-              }}
-            >
-              <RefreshCw size={15} />
-              기본값
-            </button>
-            <button
-              type="button"
-              onClick={() => selectedErd?.id && handleDeleteErd(selectedErd.id)}
-              disabled={!selectedErd}
-              className="inline-flex shrink-0 items-center gap-2 rounded-lg border-0 px-3 py-2 tracking-tight"
-              style={{
-                background: "rgba(255, 107, 107, 0.10)",
-                border: "1px solid rgba(255, 107, 107, 0.22)",
-                color: "#ff8f8f",
-                cursor: selectedErd ? "pointer" : "not-allowed",
-                fontSize: "var(--krds-body-xsmall)",
-                fontWeight: 950,
-                opacity: selectedErd ? 1 : 0.42
-              }}
-              title={selectedErd ? "현재 ERD 삭제" : "삭제할 ERD가 없어요"}
-            >
-              <Trash2 size={15} />
-              삭제
-            </button>
             <div className="relative shrink-0" ref={downloadMenuRef}>
               <button
                 type="button"
-                onClick={() => selectedErd && setShowDownloadMenu((v) => !v)}
-                disabled={!selectedErd}
+                onClick={() => setShowDownloadMenu((v) => !v)}
                 className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border-0 px-3 tracking-tight"
                 style={{
                   background: "rgba(234, 247, 255, 0.06)",
                   border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)",
                   color: "var(--white)",
-                  cursor: selectedErd ? "pointer" : "not-allowed",
+                  cursor: "pointer",
                   fontSize: "var(--krds-body-xsmall)",
-                  fontWeight: 900,
-                  opacity: selectedErd ? 1 : 0.42
+                  fontWeight: 900
                 }}
                 aria-label="ERD 다운로드"
                 aria-expanded={showDownloadMenu}
@@ -1085,6 +682,7 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
       </header>
 
       <div className={embedded ? "grid min-h-0 flex-1 gap-4 xl:grid-cols-[330px_minmax(0,1fr)]" : "grid gap-5 xl:grid-cols-[430px_1fr]"}>
+        {/* 테이블 목록 패널 - 3번 작업에서 API 연결 예정 */}
         <section className={embedded ? "flex min-h-0 flex-col overflow-hidden rounded-2xl" : "rounded-2xl overflow-hidden"} style={{
           background: "rgba(11, 22, 40, 0.88)",
           border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)",
@@ -1093,189 +691,23 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
           <div className="px-4 py-4" style={{
             borderBottom: "1px solid rgba(var(--codedock-primary-rgb), 0.14)"
           }}>
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <h2 className="m-0 tracking-tight" style={{
-                  color: "var(--white)",
-                  fontSize: "14px",
-                  fontWeight: 950
-                }}>
-                  ERD 목록
-                </h2>
-                <p className="m-0 mt-1 truncate tracking-tight" style={{
-                  color: "var(--muted)",
-                  fontSize: "var(--krds-body-xsmall)",
-                  fontWeight: 800
-                }}>
-                  {repositoryName} 프로젝트 다이어그램
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={handleAddErd}
-                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border-0 px-3 py-2 tracking-tight transition-all hover:scale-[1.02]"
-                style={{
-                  background: "rgba(var(--codedock-primary-rgb), 0.10)",
-                  border: "1px solid rgba(var(--codedock-primary-rgb), 0.24)",
-                  color: "var(--neon-cyan)",
-                  cursor: "pointer",
-                  fontSize: "var(--krds-body-xsmall)",
-                  fontWeight: 950
-                }}
-              >
-                <Plus size={14} />
-                추가
-              </button>
-            </div>
-
-            <div
-              className="codedock-scrollbar-hidden mt-3 grid gap-2 overflow-y-auto pr-1"
-              style={{ maxHeight: embedded ? 190 : 250 }}
-            >
-              {erdDocumentSummaries.length === 0 && (
-                <div
-                  className="rounded-xl px-4 py-5 text-center tracking-tight"
-                  style={{
-                    background: "rgba(234, 247, 255, 0.045)",
-                    border: "1px dashed rgba(var(--codedock-primary-rgb), 0.24)",
-                    color: "var(--white)"
-                  }}
-                >
-                  <Database size={22} style={{ color: "var(--neon-cyan)", margin: "0 auto 10px" }} />
-                  <p className="m-0" style={{ fontSize: "14px", fontWeight: 950 }}>
-                    ERD를 추가하세요
-                  </p>
-                  <p className="m-0 mt-1" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>
-                    추가 버튼을 눌러 새 다이어그램을 만들 수 있어요.
-                  </p>
-                </div>
-              )}
-              {erdDocumentSummaries.map(({ document: erdDoc, diagram: documentDiagram }) => {
-                const isSelected = erdDoc.id === selectedErd?.id;
-                const documentColumnCount = documentDiagram.entities.reduce((sum, entity) => sum + entity.columns.length, 0);
-                const canDeleteErd = erdDocuments.length > 0;
-
-                return (
-                  <div
-                    key={erdDoc.id}
-                    className="grid grid-cols-[minmax(0,1fr)_auto] items-stretch gap-2 rounded-xl px-2 py-2 tracking-tight transition-all hover:translate-x-0.5"
-                    style={{
-                      background: isSelected ? "rgba(var(--codedock-primary-rgb), 0.12)" : "rgba(234, 247, 255, 0.045)",
-                      border: isSelected ? "1px solid rgba(var(--codedock-primary-rgb), 0.34)" : "1px solid rgba(var(--codedock-primary-rgb), 0.12)",
-                      color: "var(--white)",
-                      boxShadow: isSelected ? "0 10px 28px rgba(var(--codedock-primary-rgb), 0.10)" : "none"
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => handleSelectErd(erdDoc.id)}
-                      className="min-w-0 rounded-lg border-0 bg-transparent px-1 text-left tracking-tight"
-                      style={{ color: "var(--white)", cursor: "pointer" }}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="m-0 truncate" style={{ fontSize: "13px", fontWeight: 950 }}>
-                            {erdDoc.title}
-                          </p>
-                          <p className="m-0 mt-1 truncate" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>
-                            {erdDoc.description}
-                          </p>
-                        </div>
-                        <span className="shrink-0 rounded-full px-2 py-1 font-mono" style={{
-                          background: isSelected ? "rgba(var(--codedock-secondary-rgb), 0.12)" : "rgba(234, 247, 255, 0.06)",
-                          color: isSelected ? "var(--soft-mint)" : "var(--muted)",
-                          fontSize: "var(--krds-body-xsmall)",
-                          fontWeight: 950
-                        }}>
-                          {documentDiagram.entities.length}T
-                        </span>
-                      </div>
-                      <div className="mt-3 flex items-center justify-between gap-2" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 850 }}>
-                        <span>컬럼 {documentColumnCount}</span>
-                        <span>관계 {documentDiagram.relations.length}</span>
-                        <span>{erdDoc.updatedAt}</span>
-                      </div>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteErd(erdDoc.id)}
-                      disabled={!canDeleteErd}
-                      className="inline-flex h-9 w-9 shrink-0 items-center justify-center self-start rounded-lg border-0 transition-all hover:scale-105"
-                      style={{
-                        background: "rgba(255, 107, 107, 0.10)",
-                        border: "1px solid rgba(255, 107, 107, 0.20)",
-                        color: "#ff8f8f",
-                        cursor: canDeleteErd ? "pointer" : "not-allowed",
-                        opacity: canDeleteErd ? 1 : 0.38
-                      }}
-                      aria-label={`${erdDoc.title} 삭제`}
-                      title="ERD 삭제"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
+            <h2 className="m-0 tracking-tight" style={{
+              color: "var(--white)",
+              fontSize: "14px",
+              fontWeight: 950
+            }}>
+              테이블 목록
+            </h2>
           </div>
-
-          <div className="flex items-center justify-between px-4 py-3" style={{
-            borderBottom: "1px solid rgba(var(--codedock-primary-rgb), 0.14)"
-          }}>
-            <div className="flex items-center gap-2">
-              <Table2 size={17} style={{ color: "var(--neon-cyan)" }} />
-              <h2 className="m-0 tracking-tight" style={{
-                color: "var(--white)",
-                fontSize: "14px",
-                fontWeight: 950
-              }}>
-                Mermaid ERD 코드
-              </h2>
-            </div>
-            <span className="max-w-[150px] truncate tracking-tight" style={{
+          <div className="flex flex-1 items-center justify-center px-4 py-8">
+            <p className="m-0 tracking-tight" style={{
               color: "var(--muted)",
               fontSize: "var(--krds-body-xsmall)",
               fontWeight: 800
             }}>
-              {selectedErd?.title ?? "ERD 없음"}
-            </span>
+              테이블 정보를 불러오는 중...
+            </p>
           </div>
-
-          {mermaidError && (
-            <div
-              className="mx-4 mt-4 rounded-2xl px-4 py-3 tracking-tight"
-              style={{
-                background: "rgba(255, 107, 107, 0.10)",
-                border: "1px solid rgba(255, 107, 107, 0.30)",
-                color: "#FFB4B4",
-                fontSize: "var(--krds-body-xsmall)",
-                fontWeight: 850,
-                lineHeight: 1.6
-              }}
-            >
-              Mermaid 문법 오류: {mermaidError}
-            </div>
-          )}
-
-          <textarea
-            value={erdCode}
-            onChange={(event) => updateSelectedErdCode(event.target.value)}
-            disabled={!selectedErd}
-            placeholder="ERD를 추가하면 Mermaid 코드를 편집할 수 있어요."
-            spellCheck={false}
-            className="codedock-scrollbar-hidden block w-full resize-none border-0 p-4 font-mono outline-none"
-            style={{
-              flex: embedded ? "1 1 0" : undefined,
-              minHeight: embedded ? 0 : "720px",
-              background: "rgba(5, 11, 20, 0.78)",
-              color: "var(--soft-mint)",
-              cursor: selectedErd ? "text" : "not-allowed",
-              fontSize: "var(--krds-body-xsmall)",
-              fontWeight: 800,
-              lineHeight: 1.7,
-              opacity: selectedErd ? 1 : 0.62
-            }}
-          />
         </section>
 
         <section className={embedded ? "flex min-h-0 flex-col overflow-hidden rounded-2xl" : "rounded-2xl overflow-hidden"} style={{
@@ -1293,22 +725,6 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
               <PreviewStat label="관계" value={relationCount} />
             </div>
             <div className="flex min-w-0 flex-wrap items-center justify-end gap-3">
-              <button
-                type="button"
-                onClick={handleAddErd}
-                className="inline-flex shrink-0 items-center gap-2 rounded-lg border-0 px-3 py-2 tracking-tight transition-all hover:scale-[1.02]"
-                style={{
-                  background: "rgba(var(--codedock-primary-rgb), 0.10)",
-                  border: "1px solid rgba(var(--codedock-primary-rgb), 0.24)",
-                  color: "var(--neon-cyan)",
-                  cursor: "pointer",
-                  fontSize: "var(--krds-body-xsmall)",
-                  fontWeight: 950
-                }}
-              >
-                <Plus size={15} />
-                생성
-              </button>
               {zoomControls}
             </div>
           </div>
@@ -1350,7 +766,7 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
                   transformOrigin: "0 0"
                 }}
               >
-                {!selectedErd ? (
+                {!mermaidCode ? (
                   <div
                     className="absolute rounded-2xl px-5 py-5 text-center tracking-tight"
                     style={{
@@ -1365,10 +781,10 @@ export function ERDPage({ embedded = false, repositoryName = defaultRepositoryNa
                   >
                     <Database size={26} style={{ color: "var(--neon-cyan)", margin: "0 auto 12px" }} />
                     <p className="m-0" style={{ fontSize: 15, fontWeight: 950 }}>
-                      ERD를 추가하세요
+                      ERD가 없습니다
                     </p>
                     <p className="m-0 mt-2" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800, lineHeight: 1.6 }}>
-                      새 다이어그램을 만들면 여기에서 바로 미리볼 수 있어요.
+                      AI 자동 생성 버튼으로 ERD를 생성할 수 있어요.
                     </p>
                   </div>
                 ) : mermaidError ? (

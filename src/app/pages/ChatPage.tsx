@@ -3636,7 +3636,7 @@ export function ChatPage() {
               </EmbeddedPanelBoundary>
             ) : selectedChannel === 'erd' ? (
               <EmbeddedPanelBoundary key={`erd-${selectedRepository}`}>
-                <ERDPage embedded repositoryId={selectedRepository} repositoryName={selectedRepositoryName} workspaceId={currentWorkspaceApiId} />
+                <ERDPage embedded workspaceId={currentWorkspaceApiId} />
               </EmbeddedPanelBoundary>
             ) : selectedChannel === 'docs' ? (
               <EmbeddedPanelBoundary key="docs">
