@@ -126,7 +126,6 @@ export type TypingEvent = {
 };
 
 export type TypingEventRequest = {
-  senderName: string;
   typing: boolean;
 };
 
