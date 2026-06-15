@@ -1,4 +1,4 @@
-import { X, Send, Smile, FileCode } from "lucide-react";
+import { Check, Pencil, Trash2, X, Send, Smile, FileCode } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { EmojiPicker } from "./EmojiPicker";
 import { MessageReactions, toggleMessageReaction, type MessageReaction } from "./MessageReactions";
@@ -6,13 +6,18 @@ import { TypingIndicatorBar } from "./TypingIndicatorBar";
 
 interface ThreadMessage {
   id: number | string;
+  backendReplyId?: number;
+  backendThreadId?: number;
   user: string;
   text: string;
+  message?: string;
   time: string;
   fileId?: string;
   fileName?: string;
   line?: number;
   code?: string;
+  pending?: boolean;
+  deleted?: boolean;
 }
 
 interface ThreadPanelProps {
@@ -23,6 +28,8 @@ interface ThreadPanelProps {
   reactions?: Record<string, MessageReaction[]>;
   onClose: () => void;
   onSendReply: (text: string) => void;
+  onEditReply?: (reply: ThreadMessage, nextText: string) => void;
+  onDeleteReply?: (reply: ThreadMessage) => void;
   onToggleReaction?: (reactionKey: string, emoji: string) => void;
 }
 
@@ -39,8 +46,10 @@ function getDisplayUserName(user?: string) {
   return isSelfUser(trimmed) ? currentUserDisplayName : trimmed;
 }
 
-export function ThreadPanel({ originalMessage, replies, displayReplyCount, reactionScope, reactions, onClose, onSendReply, onToggleReaction }: ThreadPanelProps) {
+export function ThreadPanel({ originalMessage, replies, displayReplyCount, reactionScope, reactions, onClose, onSendReply, onEditReply, onDeleteReply, onToggleReaction }: ThreadPanelProps) {
   const [replyText, setReplyText] = useState('');
+  const [editingReplyId, setEditingReplyId] = useState<number | string | null>(null);
+  const [editingReplyText, setEditingReplyText] = useState('');
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [hoveredToolBtn, setHoveredToolBtn] = useState<string | null>(null);
   const [responderTyping, setResponderTyping] = useState(false);
@@ -109,6 +118,31 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
   const handleEmojiSelect = (emoji: string) => {
     setReplyText((prev) => `${prev}${emoji}`);
     setEmojiPickerOpen(false);
+  };
+
+  const handleStartEditReply = (reply: ThreadMessage) => {
+    setEditingReplyId(reply.id);
+    setEditingReplyText(reply.text);
+  };
+
+  const handleCancelEditReply = () => {
+    setEditingReplyId(null);
+    setEditingReplyText('');
+  };
+
+  const handleSubmitEditReply = (reply: ThreadMessage) => {
+    const nextText = editingReplyText.trim();
+    if (!nextText) return;
+
+    onEditReply?.(reply, nextText);
+    handleCancelEditReply();
+  };
+
+  const handleDeleteReply = (reply: ThreadMessage) => {
+    if (editingReplyId === reply.id) {
+      handleCancelEditReply();
+    }
+    onDeleteReply?.(reply);
   };
 
   const handleReactionToggle = (reactionKey: string, emoji: string) => {
@@ -220,6 +254,8 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
           {replies.map((reply) => {
             const isMine = isSelfUser(reply.user);
             const hasDiffRef = reply.fileId && reply.line > 0;
+            const isEditingReply = editingReplyId === reply.id;
+            const canManageReply = isMine && !reply.deleted && (onEditReply || onDeleteReply);
             return (
               <div key={reply.id} className="mb-2">
                 <div className="px-4 py-3 rounded-xl" style={{
@@ -265,6 +301,44 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
                         {reply.time}
                       </span>
                     </div>
+                    {canManageReply && (
+                      <div className="flex items-center gap-1">
+                        {onEditReply && (
+                          <button
+                            type="button"
+                            onClick={() => handleStartEditReply(reply)}
+                            className="flex h-7 w-7 items-center justify-center rounded-lg border-0"
+                            style={{
+                              background: isEditingReply ? 'rgba(32, 227, 255, 0.16)' : 'rgba(var(--codedock-primary-rgb), 0.08)',
+                              border: '1px solid rgba(var(--codedock-primary-rgb), 0.16)',
+                              color: isEditingReply ? 'var(--neon-cyan)' : 'var(--muted)',
+                              cursor: 'pointer'
+                            }}
+                            aria-label="답글 수정"
+                            title="답글 수정"
+                          >
+                            <Pencil size={13} />
+                          </button>
+                        )}
+                        {onDeleteReply && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteReply(reply)}
+                            className="flex h-7 w-7 items-center justify-center rounded-lg border-0"
+                            style={{
+                              background: 'rgba(255, 107, 107, 0.10)',
+                              border: '1px solid rgba(255, 107, 107, 0.18)',
+                              color: '#FF6B6B',
+                              cursor: 'pointer'
+                            }}
+                            aria-label="답글 삭제"
+                            title="답글 삭제"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                   {hasDiffRef && (
                     <div className="mb-2 overflow-hidden rounded-xl" style={{
@@ -291,13 +365,75 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
                       )}
                     </div>
                   )}
-                  <p className="m-0 leading-[1.5] tracking-tight whitespace-pre-wrap" style={{
-                    fontSize: '13px',
-                    fontWeight: 700,
-                    color: 'var(--soft-mint)'
-                  }}>
-                    {reply.text}
-                  </p>
+                  {isEditingReply ? (
+                    <div className="grid gap-2">
+                      <textarea
+                        value={editingReplyText}
+                        onChange={(event) => setEditingReplyText(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+                            event.preventDefault();
+                            handleSubmitEditReply(reply);
+                          }
+                          if (event.key === 'Escape') {
+                            event.preventDefault();
+                            handleCancelEditReply();
+                          }
+                        }}
+                        className="min-h-[72px] w-full resize-none rounded-xl border-0 px-3 py-2 tracking-tight outline-none"
+                        style={{
+                          background: 'rgba(5, 11, 20, 0.72)',
+                          border: '1px solid rgba(var(--codedock-primary-rgb), 0.20)',
+                          color: 'var(--white)',
+                          fontSize: '13px',
+                          fontWeight: 700,
+                          lineHeight: 1.5
+                        }}
+                      />
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={handleCancelEditReply}
+                          className="flex items-center gap-1 rounded-lg border-0 px-3 py-1.5 tracking-tight"
+                          style={{
+                            background: 'rgba(234, 247, 255, 0.06)',
+                            color: 'var(--muted)',
+                            fontSize: '12px',
+                            fontWeight: 900,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <X size={13} />
+                          취소
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleSubmitEditReply(reply)}
+                          disabled={!editingReplyText.trim()}
+                          className="flex items-center gap-1 rounded-lg border-0 px-3 py-1.5 tracking-tight"
+                          style={{
+                            background: 'linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))',
+                            color: '#021014',
+                            fontSize: '12px',
+                            fontWeight: 950,
+                            cursor: editingReplyText.trim() ? 'pointer' : 'not-allowed',
+                            opacity: editingReplyText.trim() ? 1 : 0.5
+                          }}
+                        >
+                          <Check size={13} />
+                          저장
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="m-0 leading-[1.5] tracking-tight whitespace-pre-wrap" style={{
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      color: reply.deleted ? 'var(--muted)' : 'var(--soft-mint)'
+                    }}>
+                      {reply.text}
+                    </p>
+                  )}
                   <MessageReactions
                     reactions={reactionMap[`${activeReactionScope}:reply:${reply.id}`]}
                     onToggle={(emoji) => handleReactionToggle(`${activeReactionScope}:reply:${reply.id}`, emoji)}

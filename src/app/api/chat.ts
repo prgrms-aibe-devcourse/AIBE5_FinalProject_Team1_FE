@@ -91,6 +91,7 @@ export type ReactionSummary = {
   targetId: number;
   emoji: string;
   count: number;
+  reacted?: boolean;
 };
 
 export type BookmarkToggleResponse = {
