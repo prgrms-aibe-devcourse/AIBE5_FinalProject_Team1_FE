@@ -29,7 +29,9 @@ import {
   chatWebSocketDestinations,
   addMessageAttachments,
   createChannelMessage,
+  createWorkspaceChannel,
   createThreadReply,
+  deleteWorkspaceChannel,
   deleteChannelMessage,
   getChatEventPayload,
   getChannelMessages,
@@ -42,6 +44,7 @@ import {
   markMentionAsRead,
   toggleChannelReaction,
   toggleMessageBookmark,
+  updateWorkspaceChannel,
   updateChannelMessage,
   type Channel,
   type ChannelEventPayload,
@@ -716,6 +719,7 @@ export function ChatPage() {
   const profilePopupRef = useRef<HTMLDivElement>(null);
   const sidebarRef = useRef<HTMLElement>(null);
   const isCreatingChannelRef = useRef(false);
+  const channelActionInFlightRef = useRef(false);
 
   useEffect(() => {
     if (!showRepoDropdown) return;
@@ -777,6 +781,10 @@ export function ChatPage() {
   const [addChannelStep, setAddChannelStep] = useState<null | 'select' | 'chat' | 'repo'>(null);
   const [newChannelName, setNewChannelName] = useState('');
   const [newRepoChannelUrl, setNewRepoChannelUrl] = useState('');
+  const [isSubmittingChannel, setIsSubmittingChannel] = useState(false);
+  const [channelCreateError, setChannelCreateError] = useState('');
+  const [channelActionError, setChannelActionError] = useState('');
+  const [channelActionPendingId, setChannelActionPendingId] = useState<string | null>(null);
   const [channelUnreadCounts, setChannelUnreadCounts] = useState<Record<string, number>>({
     general: 3,
     'frontend-chat': 2,
@@ -1772,23 +1780,45 @@ export function ChatPage() {
   const handleAddCustomChannel = () => {
     setNewChannelName('');
     setNewRepoChannelUrl('');
+    setChannelCreateError('');
+    setChannelActionError('');
     setAddChannelStep((prev) => (prev ? null : 'select'));
   };
 
   const handleSelectChannelType = (type: 'chat' | 'repo') => {
+    setChannelCreateError('');
+    setChannelActionError('');
     setAddChannelStep(type);
   };
 
-  const handleSubmitAddChannel = () => {
+  const handleSubmitAddChannel = async () => {
     if (isCreatingChannelRef.current) return;
     isCreatingChannelRef.current = true;
-    const label = newChannelName.trim() || `새 채널 ${customChannels.length + 1}`;
-    const id = `custom-${Date.now()}`;
-    setCustomChannels(prev => [...prev, { id, label }]);
-    setSelectedChannel(id);
-    setAddChannelStep(null);
-    setNewChannelName('');
-    setTimeout(() => { isCreatingChannelRef.current = false; }, 500);
+    setIsSubmittingChannel(true);
+    setChannelCreateError('');
+    const label = newChannelName.trim() || `새 채널 ${allCustomChannels.length + 1}`;
+
+    try {
+      const createdChannel = await createWorkspaceChannel(currentWorkspaceApiId, {
+        name: label,
+        description: null
+      });
+
+      setApiChannels((prev) => {
+        const alreadyExists = prev.some((channel) => channel.id === createdChannel.id);
+        return alreadyExists
+          ? prev.map((channel) => (channel.id === createdChannel.id ? createdChannel : channel))
+          : [...prev, createdChannel];
+      });
+      setSelectedChannel(getApiChannelUiId(createdChannel));
+      setAddChannelStep(null);
+      setNewChannelName('');
+    } catch {
+      setChannelCreateError('채널을 만들지 못했어요. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setIsSubmittingChannel(false);
+      isCreatingChannelRef.current = false;
+    }
   };
 
   const handleSubmitAddRepoChannel = () => {
@@ -1819,30 +1849,86 @@ export function ChatPage() {
     setAddChannelStep(null);
     setNewChannelName('');
     setNewRepoChannelUrl('');
+    setChannelCreateError('');
+    setChannelActionError('');
   };
 
-  const handleDeleteCustomChannel = (channelId: string) => {
-    setCustomChannels(prev => prev.filter(ch => ch.id !== channelId));
-    if (selectedChannel === channelId) setSelectedChannel('general');
-    setChannelMenuOpenId(null);
+  const handleDeleteCustomChannel = async (channelId: string) => {
+    if (channelActionInFlightRef.current) return;
+
+    const channel = allCustomChannels.find((item) => item.id === channelId);
+    if (!channel) return;
+
+    channelActionInFlightRef.current = true;
+    setChannelActionPendingId(channelId);
+    setChannelActionError('');
+
+    try {
+      if (channel.apiChannelId) {
+        await deleteWorkspaceChannel(currentWorkspaceApiId, channel.apiChannelId);
+        setApiChannels((prev) => prev.filter((apiChannel) => apiChannel.id !== channel.apiChannelId));
+      } else {
+        setCustomChannels(prev => prev.filter(ch => ch.id !== channelId));
+      }
+
+      if (selectedChannel === channelId) setSelectedChannel('general');
+      setChannelMenuOpenId(null);
+    } catch {
+      setChannelActionError('채널을 삭제하지 못했어요. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setChannelActionPendingId(null);
+      channelActionInFlightRef.current = false;
+    }
   };
 
   const handleStartRenameCustomChannel = (channel: CustomChannelItem) => {
+    setChannelActionError('');
     setEditingCustomChannelId(channel.id);
     setEditingCustomChannelLabel(channel.label);
     setChannelMenuOpenId(null);
   };
 
-  const handleCommitRenameCustomChannel = () => {
+  const handleCommitRenameCustomChannel = async () => {
     if (!editingCustomChannelId) return;
+    if (channelActionInFlightRef.current) return;
+
+    const channel = allCustomChannels.find((item) => item.id === editingCustomChannelId);
     const nextLabel = editingCustomChannelLabel.trim();
-    if (nextLabel) {
-      setCustomChannels(prev =>
-        prev.map(ch => ch.id === editingCustomChannelId ? { ...ch, label: nextLabel } : ch)
-      );
+    if (!nextLabel || !channel) {
+      setEditingCustomChannelId(null);
+      setEditingCustomChannelLabel('');
+      return;
     }
-    setEditingCustomChannelId(null);
-    setEditingCustomChannelLabel('');
+
+    channelActionInFlightRef.current = true;
+    setChannelActionPendingId(editingCustomChannelId);
+    setChannelActionError('');
+
+    try {
+      if (channel.apiChannelId) {
+        const currentApiChannel = apiChannels.find((apiChannel) => apiChannel.id === channel.apiChannelId);
+        const updatedChannel = await updateWorkspaceChannel(currentWorkspaceApiId, channel.apiChannelId, {
+          name: nextLabel,
+          description: currentApiChannel?.description ?? null
+        });
+
+        setApiChannels((prev) =>
+          prev.map((apiChannel) => (apiChannel.id === updatedChannel.id ? updatedChannel : apiChannel))
+        );
+      } else {
+        setCustomChannels(prev =>
+          prev.map(ch => ch.id === editingCustomChannelId ? { ...ch, label: nextLabel } : ch)
+        );
+      }
+
+      setEditingCustomChannelId(null);
+      setEditingCustomChannelLabel('');
+    } catch {
+      setChannelActionError('채널 이름을 수정하지 못했어요. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setChannelActionPendingId(null);
+      channelActionInFlightRef.current = false;
+    }
   };
 
   const toggleSidebarGroup = (group: SidebarGroupId) => {
@@ -2895,6 +2981,7 @@ export function ChatPage() {
                       onChange={e => setNewChannelName(e.target.value)}
                       onKeyDown={e => {
                         if (e.key === 'Escape') { e.preventDefault(); handleCancelAddChannel(); }
+                        if (e.key === 'Enter') { e.preventDefault(); void handleSubmitAddChannel(); }
                       }}
                       autoFocus
                       placeholder="새 채널 이름..."
@@ -2907,6 +2994,11 @@ export function ChatPage() {
                         fontWeight: 850
                       }}
                     />
+                    {channelCreateError && (
+                      <p className="mb-0 mt-2 leading-relaxed tracking-tight" style={{ color: '#FF6B6B', fontSize: '12px', fontWeight: 850 }}>
+                        {channelCreateError}
+                      </p>
+                    )}
                     <div className="mt-2 flex gap-2">
                       <button
                         type="button"
@@ -2925,17 +3017,19 @@ export function ChatPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={handleSubmitAddChannel}
+                        onClick={() => { void handleSubmitAddChannel(); }}
+                        disabled={isSubmittingChannel}
                         className="flex-1 rounded-full border-0 px-3 py-2 tracking-tight"
                         style={{
                           background: 'linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))',
                           color: '#021014',
-                          cursor: 'pointer',
+                          cursor: isSubmittingChannel ? 'not-allowed' : 'pointer',
+                          opacity: isSubmittingChannel ? 0.72 : 1,
                           fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 950
                         }}
                       >
-                        만들기
+                        {isSubmittingChannel ? '생성 중' : '만들기'}
                       </button>
                     </div>
                   </motion.div>
@@ -3020,7 +3114,11 @@ export function ChatPage() {
                 const isActive = selectedChannel === ch.id;
                 const isEditing = editingCustomChannelId === ch.id;
                 const isMenuOpen = channelMenuOpenId === ch.id;
-                const isApiChannel = Boolean(ch.apiChannelId);
+                const sourceApiChannel = ch.apiChannelId
+                  ? apiChannels.find((apiChannel) => apiChannel.id === ch.apiChannelId)
+                  : undefined;
+                const isChannelActionPending = channelActionPendingId === ch.id;
+                const canDeleteChannel = !sourceApiChannel || sourceApiChannel.isDeletable;
                 return (
                   <div key={ch.id} className="grid gap-0.5">
                     <div className="relative isolate flex w-full items-center rounded-full">
@@ -3043,11 +3141,12 @@ export function ChatPage() {
                           <input
                             value={editingCustomChannelLabel}
                             onChange={e => setEditingCustomChannelLabel(e.target.value)}
-                            onBlur={handleCommitRenameCustomChannel}
+                            onBlur={() => { void handleCommitRenameCustomChannel(); }}
                             onKeyDown={e => {
-                              if (e.key === 'Enter') { e.preventDefault(); handleCommitRenameCustomChannel(); }
+                              if (e.key === 'Enter') { e.preventDefault(); void handleCommitRenameCustomChannel(); }
                               if (e.key === 'Escape') { e.preventDefault(); setEditingCustomChannelId(null); setEditingCustomChannelLabel(''); }
                             }}
+                            disabled={isChannelActionPending}
                             autoFocus
                             className="min-w-0 flex-1 rounded-md border-0 bg-transparent px-0 py-0 outline-none tracking-tight"
                             style={{ color: 'var(--white)', fontSize: '13px', fontWeight: 900 }}
@@ -3081,20 +3180,19 @@ export function ChatPage() {
                           )}
                         </button>
                       )}
-                      {!isApiChannel && (
                       <button
                         type="button"
                         onClick={() => setChannelMenuOpenId(isMenuOpen ? null : ch.id)}
+                        disabled={isChannelActionPending}
                         className="relative z-10 grid h-7 w-7 flex-shrink-0 place-items-center rounded-full border-0 bg-transparent transition-all hover:bg-[rgba(var(--codedock-primary-rgb),0.10)]"
-                        style={{ cursor: 'pointer' }}
+                        style={{ cursor: isChannelActionPending ? 'not-allowed' : 'pointer', opacity: isChannelActionPending ? 0.5 : 1 }}
                         aria-label="채널 옵션"
                       >
                         <MoreVertical size={13} style={{ color: 'var(--muted)' }} />
                       </button>
-                      )}
                       <div className="mr-2" />
                     </div>
-                    {isMenuOpen && !isApiChannel && (
+                    {isMenuOpen && (
                       <div className="mx-2 overflow-hidden rounded-lg" style={{
                         background: 'rgba(5, 11, 20, 0.92)',
                         border: '1px solid rgba(var(--codedock-primary-rgb), 0.18)',
@@ -3103,26 +3201,33 @@ export function ChatPage() {
                         <button
                           type="button"
                           onClick={() => handleStartRenameCustomChannel(ch)}
+                          disabled={isChannelActionPending}
                           className="flex w-full items-center gap-2 border-0 px-3 py-2 text-left tracking-tight transition-all hover:bg-[rgba(var(--codedock-primary-rgb),0.08)]"
-                          style={{ background: 'transparent', color: 'var(--white)', fontSize: "var(--krds-body-xsmall)", fontWeight: 800, cursor: 'pointer', borderBottom: '1px solid rgba(var(--codedock-primary-rgb), 0.10)' }}
+                          style={{ background: 'transparent', color: 'var(--white)', fontSize: "var(--krds-body-xsmall)", fontWeight: 800, cursor: isChannelActionPending ? 'not-allowed' : 'pointer', opacity: isChannelActionPending ? 0.55 : 1, borderBottom: '1px solid rgba(var(--codedock-primary-rgb), 0.10)' }}
                         >
                           <Pencil size={13} style={{ color: 'var(--neon-cyan)' }} />
                           이름 수정
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleDeleteCustomChannel(ch.id)}
+                          onClick={() => { void handleDeleteCustomChannel(ch.id); }}
+                          disabled={isChannelActionPending || !canDeleteChannel}
                           className="flex w-full items-center gap-2 border-0 px-3 py-2 text-left tracking-tight transition-all hover:bg-[rgba(255,107,107,0.08)]"
-                          style={{ background: 'transparent', color: '#FF6B6B', fontSize: "var(--krds-body-xsmall)", fontWeight: 800, cursor: 'pointer' }}
+                          style={{ background: 'transparent', color: '#FF6B6B', fontSize: "var(--krds-body-xsmall)", fontWeight: 800, cursor: isChannelActionPending || !canDeleteChannel ? 'not-allowed' : 'pointer', opacity: isChannelActionPending || !canDeleteChannel ? 0.5 : 1 }}
                         >
                           <Trash2 size={13} />
-                          채널 삭제
+                          {isChannelActionPending ? '삭제 중' : canDeleteChannel ? '채널 삭제' : '삭제 불가'}
                         </button>
                       </div>
                     )}
                   </div>
                 );
               })}
+              {channelActionError && (
+                <p className="mx-2 my-1 leading-relaxed tracking-tight" style={{ color: '#FF6B6B', fontSize: '12px', fontWeight: 850 }}>
+                  {channelActionError}
+                </p>
+              )}
               </div>
 
               <div
