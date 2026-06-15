@@ -36,11 +36,11 @@ export function createWorkspace(payload: WorkspaceCreatePayload): Promise<Worksp
 export type WorkspaceMember = {
   memberId: number;
   userId: number;
-  email: string;
   username: string;
+  email: string;
   role: string;
   joinedAt: string;
-  presence?: string;
+  presence: string;
 };
 
 export function getWorkspaceMembers(workspaceId: number, options?: ApiRequestOptions) {

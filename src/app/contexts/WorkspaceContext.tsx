@@ -7,12 +7,12 @@ import {
   type ReactNode,
 } from "react";
 
-import { getWorkspaceMembers, type WorkspaceMember } from "../api/workspace";
+import { fetchMyWorkspaces, getWorkspaceMembers, type WorkspaceMember } from "../api/workspace";
 import { useProfile } from "./ProfileContext";
 import { isAuthenticated } from "../auth";
 
 interface WorkspaceContextValue {
-  workspaceId: number;
+  workspaceId: number | null;
   setWorkspaceId: (id: number) => void;
   myMemberId: number | null;
   members: Map<number, string>;
@@ -23,9 +23,16 @@ const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const { userId } = useProfile();
-  const [workspaceId, setWorkspaceId] = useState<number>(1);
+  const [workspaceId, setWorkspaceId] = useState<number | null>(null);
   const [myMemberId, setMyMemberId] = useState<number | null>(null);
   const [members, setMembers] = useState<Map<number, string>>(new Map());
+
+  useEffect(() => {
+    if (!isAuthenticated()) return;
+    fetchMyWorkspaces()
+      .then((list) => { if (list.length > 0) setWorkspaceId(list[0].id); })
+      .catch(() => {});
+  }, []);
 
   const loadMembers = useCallback(async (wsId: number, uid: number | null) => {
     if (!isAuthenticated() || !uid) return;
@@ -48,6 +55,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (workspaceId === null) return;
     void loadMembers(workspaceId, userId);
   }, [workspaceId, userId, loadMembers]);
 
