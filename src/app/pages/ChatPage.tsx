@@ -286,6 +286,19 @@ function saveJson(key: string, value: unknown) {
   }
 }
 
+function scheduleSaveJson(key: string, value: unknown, delay = 350) {
+  if (typeof window === "undefined") {
+    saveJson(key, value);
+    return undefined;
+  }
+
+  const timeoutId = window.setTimeout(() => {
+    saveJson(key, value);
+  }, delay);
+
+  return () => window.clearTimeout(timeoutId);
+}
+
 function toWorkspaceUiId(workspaceId: number) {
   return `workspace-${workspaceId}`;
 }
@@ -1170,16 +1183,16 @@ export function ChatPage() {
   }, [firstVisibleRepositoryId]);
 
   useEffect(() => {
-    saveJson(CHAT_MESSAGES_KEY, messages);
+    return scheduleSaveJson(CHAT_MESSAGES_KEY, messages);
   }, [messages]);
 
   useEffect(() => {
     threadRepliesRef.current = threadReplies;
-    saveJson(CHAT_THREAD_REPLIES_KEY, threadReplies);
+    return scheduleSaveJson(CHAT_THREAD_REPLIES_KEY, threadReplies);
   }, [threadReplies]);
 
   useEffect(() => {
-    saveJson(CHAT_THREAD_REPLY_COUNTS_KEY, threadReplyCounts);
+    return scheduleSaveJson(CHAT_THREAD_REPLY_COUNTS_KEY, threadReplyCounts);
   }, [threadReplyCounts]);
 
   useEffect(() => {
@@ -1187,7 +1200,7 @@ export function ChatPage() {
   }, [selectedChannel]);
 
   useEffect(() => {
-    saveJson(CHAT_REACTIONS_KEY, messageReactions);
+    return scheduleSaveJson(CHAT_REACTIONS_KEY, messageReactions);
   }, [messageReactions]);
 
   useEffect(() => {
