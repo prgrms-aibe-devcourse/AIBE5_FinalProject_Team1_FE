@@ -33,6 +33,7 @@ import {
   createThreadReply,
   deleteWorkspaceChannel,
   deleteChannelMessage,
+  deleteThreadReply,
   getChatEventPayload,
   getChannelMessages,
   getChannelReactions,
@@ -46,6 +47,7 @@ import {
   toggleMessageBookmark,
   updateWorkspaceChannel,
   updateChannelMessage,
+  updateThreadReply,
   type Channel,
   type ChannelEventPayload,
   type ChannelMessage,
@@ -356,11 +358,16 @@ function mapThreadReplyToWorkspaceMessage(reply: ThreadReply) {
   };
 }
 
-function mapReactionSummaryToMessageReaction(summary: ReactionSummary): MessageReaction {
+function mapReactionSummaryToMessageReaction(
+  summary: ReactionSummary,
+  previousReaction?: MessageReaction
+): MessageReaction {
   return {
     emoji: summary.emoji,
     count: summary.count,
-    reacted: false
+    reacted: typeof summary.reacted === "boolean"
+      ? summary.reacted
+      : previousReaction?.reacted ?? false
   };
 }
 
@@ -1393,8 +1400,6 @@ export function ChatPage() {
       const next = { ...prev };
 
       summaries.forEach((summary) => {
-        const reaction = mapReactionSummaryToMessageReaction(summary);
-
         if (summary.targetType === "thread") {
           const keys = [
             `channel:${channelId}:thread:${summary.targetId}`,
@@ -1404,6 +1409,8 @@ export function ChatPage() {
           ].filter((key): key is string => Boolean(key));
 
           keys.forEach((key) => {
+            const previousReaction = next[key]?.find((item) => item.emoji === summary.emoji);
+            const reaction = mapReactionSummaryToMessageReaction(summary, previousReaction);
             const existing = next[key]?.filter((item) => item.emoji !== summary.emoji) ?? [];
             next[key] = summary.count > 0 ? [...existing, reaction] : existing;
           });
@@ -1418,6 +1425,8 @@ export function ChatPage() {
             if (!matchesReply) return;
 
             const key = `thread:${channelId}:${threadKey}:reply:${summary.targetId}`;
+            const previousReaction = next[key]?.find((item) => item.emoji === summary.emoji);
+            const reaction = mapReactionSummaryToMessageReaction(summary, previousReaction);
             const existing = next[key]?.filter((item) => item.emoji !== summary.emoji) ?? [];
             next[key] = summary.count > 0 ? [...existing, reaction] : existing;
           });
@@ -2662,6 +2671,70 @@ export function ChatPage() {
       });
   };
 
+  const updateThreadReplyInState = (thread: any, reply: any, patch: Record<string, unknown>) => {
+    const key = getThreadKey(thread);
+    const targetReplyId = Number(reply.backendReplyId ?? reply.id);
+
+    setThreadReplies((prev) => ({
+      ...prev,
+      [key]: (prev[key] || []).map((item) =>
+        Number(item.backendReplyId ?? item.id) === targetReplyId
+          ? { ...item, ...patch }
+          : item
+      )
+    }));
+  };
+
+  const handleEditThreadReply = (reply: any, nextText: string) => {
+    if (!selectedThread) return;
+
+    const trimmedText = nextText.trim();
+    if (!trimmedText) return;
+
+    updateThreadReplyInState(selectedThread, reply, {
+      text: trimmedText,
+      message: trimmedText
+    });
+
+    const backendThreadId = Number(selectedThread.backendMessageId ?? selectedThread.id);
+    const backendReplyId = Number(reply.backendReplyId ?? reply.id);
+    if (!activeApiChannelId || !Number.isFinite(backendThreadId) || !Number.isFinite(backendReplyId)) return;
+
+    updateThreadReply(backendThreadId, backendReplyId, { content: trimmedText }, {})
+      .then((serverReply) => {
+        updateThreadReplyInState(selectedThread, reply, mapThreadReplyToWorkspaceMessage(serverReply));
+      })
+      .catch(() => {
+        // Keep the optimistic edit so the local mock workflow is not interrupted.
+      });
+  };
+
+  const handleDeleteThreadReply = (reply: any) => {
+    if (!selectedThread) return;
+
+    const deletedReply = "삭제된 답글입니다.";
+    updateThreadReplyInState(selectedThread, reply, {
+      text: deletedReply,
+      message: deletedReply,
+      deleted: true
+    });
+
+    const backendThreadId = Number(selectedThread.backendMessageId ?? selectedThread.id);
+    const backendReplyId = Number(reply.backendReplyId ?? reply.id);
+    if (!activeApiChannelId || !Number.isFinite(backendThreadId) || !Number.isFinite(backendReplyId)) return;
+
+    deleteThreadReply(backendThreadId, backendReplyId, {})
+      .then((serverReply) => {
+        updateThreadReplyInState(selectedThread, reply, {
+          ...mapThreadReplyToWorkspaceMessage(serverReply),
+          deleted: true
+        });
+      })
+      .catch(() => {
+        // Keep the optimistic delete so the local mock workflow is not interrupted.
+      });
+  };
+
   const handleSendReply = (text: string) => {
     if (selectedThread) {
       const key = getThreadKey(selectedThread);
@@ -3580,6 +3653,14 @@ export function ChatPage() {
                 selectedThreadId={selectedThread?.id}
                 onOpenInvite={() => setTeamInviteOpen(true)}
                 onSendThread={activeApiChannelId ? handleSendMessage : undefined}
+                onAddMessageAttachments={activeApiChannelId
+                  ? (message, attachments) => attachToExistingServerMessage(
+                      selectedChannel,
+                      activeApiChannelId,
+                      Number(message.backendMessageId),
+                      attachments
+                    ).then(() => undefined)
+                  : undefined}
                 onTypingChange={activeApiChannelId ? handleChannelTypingChange : undefined}
                 remoteTypingLabel={activeRemoteTypingLabel}
                 onToggleReaction={handleToggleReaction}
@@ -3600,6 +3681,14 @@ export function ChatPage() {
                 selectedThreadId={selectedThread?.id}
                 onOpenInvite={() => setTeamInviteOpen(true)}
                 onSendThread={activeApiChannelId ? handleSendMessage : undefined}
+                onAddMessageAttachments={activeApiChannelId
+                  ? (message, attachments) => attachToExistingServerMessage(
+                      selectedChannel,
+                      activeApiChannelId,
+                      Number(message.backendMessageId),
+                      attachments
+                    ).then(() => undefined)
+                  : undefined}
                 onTypingChange={activeApiChannelId ? handleChannelTypingChange : undefined}
                 remoteTypingLabel={activeRemoteTypingLabel}
                 onToggleReaction={handleToggleReaction}
@@ -3620,6 +3709,14 @@ export function ChatPage() {
                 selectedThreadId={selectedThread?.id}
                 onOpenInvite={() => setTeamInviteOpen(true)}
                 onSendThread={activeApiChannelId ? handleSendMessage : undefined}
+                onAddMessageAttachments={activeApiChannelId
+                  ? (message, attachments) => attachToExistingServerMessage(
+                      selectedChannel,
+                      activeApiChannelId,
+                      Number(message.backendMessageId),
+                      attachments
+                    ).then(() => undefined)
+                  : undefined}
                 onTypingChange={activeApiChannelId ? handleChannelTypingChange : undefined}
                 remoteTypingLabel={activeRemoteTypingLabel}
                 onToggleReaction={handleToggleReaction}
@@ -3716,6 +3813,8 @@ export function ChatPage() {
               reactions={messageReactions}
               onClose={handleCloseThread}
               onSendReply={handleSendThreadReply}
+              onEditReply={activeApiChannelId ? handleEditThreadReply : undefined}
+              onDeleteReply={activeApiChannelId ? handleDeleteThreadReply : undefined}
               onToggleReaction={handleToggleReaction}
             />
           </section>

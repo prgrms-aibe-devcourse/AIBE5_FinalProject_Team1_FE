@@ -47,6 +47,7 @@ interface ChannelPanelProps {
   onToggleBookmark?: (thread: Thread, nextBookmarked: boolean) => void;
   onEditThread?: (thread: Thread, nextMessage: string) => void;
   onDeleteThread?: (thread: Thread) => void;
+  onAddMessageAttachments?: (thread: Thread, attachments: MessageAttachment[]) => Promise<void> | void;
 }
 
 const CHANNEL_THREADS_KEY_PREFIX = "codedock-channel-threads-v1";
@@ -125,7 +126,7 @@ function getDisplayUserName(user?: string) {
   return isSelfUser(trimmed) ? currentUserDisplayName : trimmed;
 }
 
-export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, replyCounts = {}, onOpenThread, selectedThreadId, onOpenInvite, onSendThread, onTypingChange, remoteTypingLabel, onToggleReaction, bookmarkedThreadIds, onToggleBookmark, onEditThread, onDeleteThread }: ChannelPanelProps) {
+export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, replyCounts = {}, onOpenThread, selectedThreadId, onOpenInvite, onSendThread, onTypingChange, remoteTypingLabel, onToggleReaction, bookmarkedThreadIds, onToggleBookmark, onEditThread, onDeleteThread, onAddMessageAttachments }: ChannelPanelProps) {
   const channelStorageId = channelId ?? repoId ?? "general";
   const channelStorageKey = `${CHANNEL_THREADS_KEY_PREFIX}:${channelStorageId}`;
   const bookmarkStorageKey = `codedock-channel-bookmarks:${channelStorageId}`;
@@ -156,6 +157,7 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
   const [emojiPickerMsgId, setEmojiPickerMsgId] = useState<number | null>(null);
   const [emojiPickerPos, setEmojiPickerPos] = useState<{ top: number; right: number } | null>(null);
   const [replyTo, setReplyTo] = useState<Thread | null>(null);
+  const [attachmentTarget, setAttachmentTarget] = useState<Thread | null>(null);
   const [editingThreadId, setEditingThreadId] = useState<number | null>(null);
   const [editingMessageText, setEditingMessageText] = useState("");
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -231,7 +233,10 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
     ? createUrlMessageAttachment(linkUrl, linkTitle, urlAttachmentType)
     : null;
 
-  const canSendMessage = messageText.trim().length > 0 || codeBlockText.trim().length > 0 || selectedAttachments.length > 0;
+  const attachmentTargetCount = attachmentTarget?.attachments?.length ?? 0;
+  const canSendMessage = attachmentTarget
+    ? selectedAttachments.length > 0
+    : messageText.trim().length > 0 || codeBlockText.trim().length > 0 || selectedAttachments.length > 0;
   const composerTyping = messageText.trim().length > 0;
   const localTypingLabel = responderTyping
     ? composerTyping
@@ -253,7 +258,7 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
         setAttachmentError("");
         return prev.filter((item) => item.id !== attachment.id);
       }
-      if (prev.length >= MAX_MESSAGE_ATTACHMENTS) {
+      if (attachmentTargetCount + prev.length >= MAX_MESSAGE_ATTACHMENTS) {
         setAttachmentError(`첨부파일은 최대 ${MAX_MESSAGE_ATTACHMENTS}개까지 추가할 수 있습니다.`);
         return prev;
       }
@@ -280,7 +285,7 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
     const attachment = createUrlMessageAttachment(linkUrl, linkTitle, urlAttachmentType);
     if (!attachment) return;
     setSelectedAttachments((prev) => {
-      if (prev.length >= MAX_MESSAGE_ATTACHMENTS) {
+      if (attachmentTargetCount + prev.length >= MAX_MESSAGE_ATTACHMENTS) {
         setAttachmentError(`첨부파일은 최대 ${MAX_MESSAGE_ATTACHMENTS}개까지 추가할 수 있습니다.`);
         return prev;
       }
@@ -339,6 +344,19 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
 
   const handleShareThread = (thread: Thread) => {
     setReplyTo(thread);
+    setAttachmentTarget(null);
+  };
+
+  const handleStartAddAttachments = (thread: Thread) => {
+    setAttachmentTarget(thread);
+    setReplyTo(null);
+    setMessageText("");
+    setCodeBlockText("");
+    setSelectedAttachments([]);
+    setLinkUrl("");
+    setLinkTitle("");
+    setAttachmentError("");
+    setActivePanel("attachment");
   };
 
   const handleStartEditThread = (thread: Thread) => {
@@ -452,6 +470,15 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
             }}
           ><AtSign size={14} /></button>
 
+          {onAddMessageAttachments && Number.isFinite(Number(thread.backendMessageId)) && (
+            <button className="w-7 h-7 rounded flex items-center justify-center"
+              style={btnStyle('첨부 추가')}
+              onMouseEnter={() => setHoveredBtn(bk('첨부 추가'))}
+              onMouseLeave={() => setHoveredBtn(null)}
+              onClick={(e) => { e.stopPropagation(); handleStartAddAttachments(thread); }}
+            ><Paperclip size={14} /></button>
+          )}
+
           {canManageThread && (
             <>
               <button className="w-7 h-7 rounded flex items-center justify-center"
@@ -493,7 +520,7 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
       ? `${trimmedMessage}${trimmedMessage ? "\n\n" : ""}\`\`\`\n${trimmedCode}\n\`\`\``
       : trimmedMessage;
     const detectedLinkAttachment = createLinkMessageAttachmentFromText(outgoingMessage);
-    const outgoingAttachments = detectedLinkAttachment && !selectedAttachments.some((a) => a.url === detectedLinkAttachment.url)
+    const outgoingAttachments = !attachmentTarget && detectedLinkAttachment && !selectedAttachments.some((a) => a.url === detectedLinkAttachment.url)
       ? [...selectedAttachments, detectedLinkAttachment]
       : selectedAttachments;
     if (outgoingAttachments.length > MAX_MESSAGE_ATTACHMENTS) {
@@ -504,6 +531,30 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
       setAttachmentError("File/Image attachments must use a public URL. Binary upload is not supported yet.");
       return;
     }
+
+    if (attachmentTarget) {
+      const existingCount = attachmentTarget.attachments?.length ?? 0;
+      if (outgoingAttachments.length === 0 || !onAddMessageAttachments) return;
+      if (existingCount + outgoingAttachments.length > MAX_MESSAGE_ATTACHMENTS) {
+        setAttachmentError(`메시지 하나에는 첨부파일을 최대 ${MAX_MESSAGE_ATTACHMENTS}개까지 추가할 수 있습니다.`);
+        return;
+      }
+
+      Promise.resolve(onAddMessageAttachments(attachmentTarget, outgoingAttachments))
+        .then(() => {
+          setSelectedAttachments([]);
+          setActivePanel(null);
+          setLinkUrl("");
+          setLinkTitle("");
+          setAttachmentTarget(null);
+          setAttachmentError("");
+        })
+        .catch((error) => {
+          setAttachmentError(error instanceof Error ? error.message : "첨부파일 추가에 실패했습니다.");
+        });
+      return;
+    }
+
     const mentions = extractMentionNames(outgoingMessage);
 
     const nextThread: Thread = {
@@ -530,6 +581,7 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
     setLinkUrl("");
     setLinkTitle("");
     setReplyTo(null);
+    setAttachmentTarget(null);
     setAttachmentError("");
     triggerResponderTyping();
   };
@@ -1037,6 +1089,36 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
             fontWeight: 900
           }}>
             {attachmentError}
+          </div>
+        )}
+
+        {attachmentTarget && (
+          <div className="mb-2 flex items-start gap-2 rounded-xl px-3 py-2" style={{
+            background: 'rgba(32, 227, 255, 0.06)',
+            border: '1px solid rgba(32, 227, 255, 0.18)',
+            borderLeft: '3px solid var(--neon-cyan)',
+          }}>
+            <div className="min-w-0 flex-1">
+              <span className="tracking-tight" style={{ color: 'var(--neon-cyan)', fontSize: '11px', fontWeight: 900 }}>
+                기존 메시지에 첨부 추가
+              </span>
+              <p className="m-0 mt-0.5 truncate tracking-tight" style={{ color: 'var(--muted)', fontSize: '12px', fontWeight: 700 }}>
+                {attachmentTarget.message}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setAttachmentTarget(null);
+                setSelectedAttachments([]);
+                setAttachmentError("");
+              }}
+              className="flex-shrink-0 rounded border-0 flex items-center justify-center"
+              style={{ background: 'transparent', color: 'var(--muted)', cursor: 'pointer', padding: '2px' }}
+              aria-label="첨부 추가 취소"
+            >
+              <X size={14} />
+            </button>
           </div>
         )}
 
