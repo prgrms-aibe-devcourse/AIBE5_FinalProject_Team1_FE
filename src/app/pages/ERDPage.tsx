@@ -1,4 +1,4 @@
-import { ChevronDown, Database, Download, FileCode, ImageIcon, Minus, RotateCcw, Sparkles } from "lucide-react";
+import { ChevronDown, Database, Download, FileCode, ImageIcon, Minus, Plus, RotateCcw, Sparkles } from "lucide-react";
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import mermaid from "mermaid";
 import { getErd, getErdTables, generateErd, type ErdTable } from "../api/erd";
@@ -610,7 +610,7 @@ export function ERDPage({ embedded = false, workspaceId }: ERDPageProps) {
         aria-label="ERD 확대"
         title="확대 · Ctrl + 휠로 확대/축소"
       >
-        <Minus size={15} style={{ transform: "rotate(90deg)" }} />
+        <Plus size={15} />
       </button>
     </div>
   );
@@ -671,44 +671,33 @@ export function ERDPage({ embedded = false, workspaceId }: ERDPageProps) {
               fontWeight: 950,
               lineHeight: 1.1
             }}>
-              ERD (Entity Relationship Diagram)
+              ERD
             </h1>
           </div>
         </div>
 
-        <div className={embedded ? "flex min-w-0 flex-nowrap items-center justify-end gap-3 overflow-x-auto codedock-scrollbar-hidden" : "flex flex-wrap items-center gap-2"}>
+        <div className={embedded ? "flex min-w-0 flex-nowrap items-center justify-end gap-3 overflow-visible codedock-scrollbar-hidden" : "flex flex-wrap items-center gap-2"}>
           <div
             className={embedded ? "flex shrink-0 flex-nowrap items-center gap-2" : "flex flex-wrap items-center gap-2"}
           >
-            <div className="flex flex-col items-end gap-1">
-              <button
-                type="button"
-                onClick={handleGenerateErd}
-                disabled={isGenerating || !workspaceId}
-                className="inline-flex shrink-0 items-center gap-2 rounded-lg border-0 px-3 py-2 tracking-tight transition-all hover:scale-[1.02]"
-                style={{
-                  background: "rgba(255, 145, 77, 0.10)",
-                  border: "1px solid rgba(255, 145, 77, 0.32)",
-                  color: "#ff9a5c",
-                  cursor: isGenerating || !workspaceId ? "not-allowed" : "pointer",
-                  fontSize: "var(--krds-body-xsmall)",
-                  fontWeight: 950,
-                  opacity: isGenerating || !workspaceId ? 0.6 : 1
-                }}
-              >
-                <Sparkles size={15} />
-                {isGenerating ? "생성 중..." : "AI 자동 생성"}
-              </button>
-              {generateError && (
-                <p className="m-0 tracking-tight" style={{
-                  color: "#FFB4B4",
-                  fontSize: "var(--krds-body-xsmall)",
-                  fontWeight: 800
-                }}>
-                  {generateError}
-                </p>
-              )}
-            </div>
+            <button
+              type="button"
+              onClick={handleGenerateErd}
+              disabled={isGenerating || !workspaceId}
+              className="inline-flex shrink-0 items-center gap-2 rounded-lg border-0 px-3 py-2 tracking-tight transition-all hover:scale-[1.02]"
+              style={{
+                background: "rgba(255, 145, 77, 0.10)",
+                border: "1px solid rgba(255, 145, 77, 0.32)",
+                color: "#ff9a5c",
+                cursor: isGenerating || !workspaceId ? "not-allowed" : "pointer",
+                fontSize: "var(--krds-body-xsmall)",
+                fontWeight: 950,
+                opacity: isGenerating || !workspaceId ? 0.6 : 1
+              }}
+            >
+              <Sparkles size={15} />
+              {isGenerating ? "생성 중..." : "AI 자동 생성"}
+            </button>
             <div className="relative shrink-0" ref={downloadMenuRef}>
               <button
                 type="button"
@@ -784,6 +773,21 @@ export function ERDPage({ embedded = false, workspaceId }: ERDPageProps) {
           </div>
         </div>
       </header>
+
+      {generateError && (
+        <div
+          className="mb-4 rounded-xl px-4 py-2 tracking-tight"
+          style={{
+            background: "rgba(255, 107, 107, 0.10)",
+            border: "1px solid rgba(255, 107, 107, 0.28)",
+            color: "#FFB4B4",
+            fontSize: "var(--krds-body-xsmall)",
+            fontWeight: 800
+          }}
+        >
+          {generateError}
+        </div>
+      )}
 
       <div className={embedded ? "grid min-h-0 flex-1 gap-4 xl:grid-cols-[330px_minmax(0,1fr)]" : "grid gap-5 xl:grid-cols-[430px_1fr]"}>
         <section className={embedded ? "flex min-h-0 flex-col overflow-hidden rounded-2xl" : "flex flex-col rounded-2xl overflow-hidden"} style={{
