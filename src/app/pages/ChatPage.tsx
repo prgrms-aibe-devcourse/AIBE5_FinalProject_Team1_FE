@@ -62,8 +62,6 @@ const CHAT_THREAD_REPLY_COUNTS_KEY = "codedock-chat-thread-reply-counts-v1";
 const CHAT_REACTIONS_KEY = "codedock-chat-reactions-v1";
 const WORKSPACE_TEAMS_KEY = "codedock-workspace-teams-v1";
 const API_CHANNEL_ID_PREFIX = "api-channel-";
-const TEMPORARY_WORKSPACE_MEMBER_ID = 1;
-const TEMPORARY_API_USER_ID = 1;
 const ROLE_PRIVILEGE_ORDER = [
   "Tech Lead", "Backend Developer", "Frontend Developer", "DevOps Engineer",
   "QA Engineer", "Product Manager", "Designer", "Viewer"
@@ -673,6 +671,7 @@ const initialThreadReplies: Record<number | string, any[]> = {
 
 export function ChatPage() {
   const { profile } = useProfile();
+  const currentDisplayName = profile.name || myProfile.name;
   const [apiWorkspaces, setApiWorkspaces] = useState<WorkspaceDto[]>([]);
 
   useEffect(() => {
@@ -1135,9 +1134,8 @@ export function ChatPage() {
     return () => controller.abort();
   }, [currentWorkspaceApiId]);
 
-  const incrementUnreadCount = useCallback((channelId: string, senderMemberId?: number | null) => {
+  const incrementUnreadCount = useCallback((channelId: string) => {
     if (channelId === selectedChannelRef.current) return;
-    if (senderMemberId === TEMPORARY_WORKSPACE_MEMBER_ID) return;
 
     setChannelUnreadCounts((prev) => ({
       ...prev,
@@ -1256,10 +1254,7 @@ export function ChatPage() {
     const pendingIndex = currentReplies.findIndex((item) =>
       item.pending
       && item.text === reply.content
-      && (
-        item.user === reply.senderName
-        || reply.senderMemberId === TEMPORARY_WORKSPACE_MEMBER_ID
-      )
+      && item.user === reply.senderName
     );
     const nextReplies = pendingIndex >= 0
       ? currentReplies.map((item, index) => index === pendingIndex ? mappedReply : item)
@@ -1475,7 +1470,7 @@ export function ChatPage() {
             if (createdMessagePayload) {
               const messagePayload = createdMessagePayload;
               appendServerMessage(uiChannelId, messagePayload);
-              incrementUnreadCount(uiChannelId, messagePayload.senderMemberId);
+              incrementUnreadCount(uiChannelId);
               return;
             }
 
@@ -1501,7 +1496,7 @@ export function ChatPage() {
           (event) => {
             const typingPayload = getChatEventPayload<TypingEvent>(event, CHAT_EVENT_TYPE.TYPING);
             if (!typingPayload) return;
-            if (typingPayload.workspaceMemberId === TEMPORARY_WORKSPACE_MEMBER_ID) return;
+            if (typingPayload.senderName === currentDisplayName) return;
             const typingKey = `${selectedChannel}:${typingPayload.workspaceMemberId}`;
 
             if (remoteTypingTimeoutsRef.current[typingKey]) {
@@ -1557,7 +1552,7 @@ export function ChatPage() {
 
           if (notification.channelId) {
             const uiChannelId = apiChannelUiById[notification.channelId] ?? String(notification.channelId);
-            incrementUnreadCount(uiChannelId, notification.mentionedMemberId);
+            incrementUnreadCount(uiChannelId);
           }
 
           if (notification.workspaceId === undefined || notification.workspaceId === currentWorkspaceApiId) {
@@ -1599,6 +1594,7 @@ export function ChatPage() {
     apiChannels,
     applyReactionResponse,
     appendServerMessage,
+    currentDisplayName,
     currentWorkspaceApiId,
     incrementUnreadCount,
     replaceServerMessage,
@@ -1619,7 +1615,7 @@ export function ChatPage() {
           if (Number(reply.threadId) !== threadId) return;
 
           appendServerThreadReply(thread, reply);
-          incrementUnreadCount(channelId, reply.senderMemberId);
+          incrementUnreadCount(channelId);
         }
       )
     );
@@ -1654,11 +1650,11 @@ export function ChatPage() {
     chatStompRef.current?.send(
       chatWebSocketDestinations.sendChannelTyping(activeApiChannelId),
       {
-        senderName: myProfile.name,
+        senderName: currentDisplayName,
         typing
       }
     );
-  }, [activeApiChannelId]);
+  }, [activeApiChannelId, currentDisplayName]);
 
   const parseRepoNameFromUrl = (url: string): string | null => {
     try {
@@ -2289,7 +2285,6 @@ export function ChatPage() {
     }
 
     toggleChannelReaction(activeApiChannelId, {
-      workspaceMemberId: TEMPORARY_WORKSPACE_MEMBER_ID,
       targetType: target.targetType,
       targetId: target.targetId,
       emoji
@@ -2350,7 +2345,7 @@ export function ChatPage() {
 
     const nextMessage: any = {
       id: Date.now(),
-      user: myProfile.name,
+      user: currentDisplayName,
       text: trimmedText || `${attachments.length}개 항목을 공유합니다.`,
       time: '방금',
       attachments,
@@ -2454,7 +2449,7 @@ export function ChatPage() {
       const key = getThreadKey(selectedThread);
       const newReply: any = {
         id: Date.now(),
-        user: myProfile.name,
+        user: currentDisplayName,
         text: text,
         time: '방금'
       };
@@ -2491,7 +2486,7 @@ export function ChatPage() {
     const key = getThreadKey(selectedThread);
     const optimisticReply: any = {
       id: Date.now(),
-      user: myProfile.name,
+      user: currentDisplayName,
       text: trimmedText,
       message: trimmedText,
       time: '방금'
