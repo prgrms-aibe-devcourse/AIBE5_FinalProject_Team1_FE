@@ -7,7 +7,14 @@ import {
   type ReactNode,
 } from "react";
 
-import { fetchMyWorkspaces, getWorkspaceMembers, type WorkspaceMember } from "../api/workspace";
+import {
+  fetchMyWorkspaces,
+  getWorkspaceMembers,
+  changeMemberRole as changeMemberRoleApi,
+  removeMember as removeMemberApi,
+  transferOwnership as transferOwnershipApi,
+  type WorkspaceMember,
+} from "../api/workspace";
 import { useProfile } from "./ProfileContext";
 import { isAuthenticated } from "../auth";
 
@@ -15,8 +22,14 @@ interface WorkspaceContextValue {
   workspaceId: number | null;
   setWorkspaceId: (id: number) => void;
   myMemberId: number | null;
+  myAuthority: string | null;
   members: Map<number, string>;
+  memberList: WorkspaceMember[];
   getMemberName: (memberId: number) => string;
+  refetch: () => Promise<void>;
+  changeAuthority: (memberId: number, authority: string) => Promise<void>;
+  removeMember: (memberId: number) => Promise<void>;
+  transferOwnership: (memberId: number) => Promise<void>;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
@@ -25,32 +38,37 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const { userId } = useProfile();
   const [workspaceId, setWorkspaceId] = useState<number | null>(null);
   const [myMemberId, setMyMemberId] = useState<number | null>(null);
+  const [myAuthority, setMyAuthority] = useState<string | null>(null);
   const [members, setMembers] = useState<Map<number, string>>(new Map());
+  const [memberList, setMemberList] = useState<WorkspaceMember[]>([]);
 
   useEffect(() => {
     if (!isAuthenticated()) return;
     fetchMyWorkspaces()
-      .then((list) => { if (list.length > 0) setWorkspaceId(list[0].id); })
-      .catch(() => {});
+        .then((list) => { if (list.length > 0) setWorkspaceId(list[0].id); })
+        .catch(() => {});
   }, []);
 
   const loadMembers = useCallback(async (wsId: number, uid: number | null) => {
     if (!isAuthenticated() || !uid) return;
-
     try {
       const data: WorkspaceMember[] = await getWorkspaceMembers(wsId);
       const map = new Map<number, string>();
-      let found: number | null = null;
-
+      let foundId: number | null = null;
+      let foundAuthority: string | null = null;
       data.forEach((m) => {
         map.set(m.memberId, m.username);
-        if (m.userId === uid) found = m.memberId;
+        if (m.userId === uid) {
+          foundId = m.memberId;
+          foundAuthority = m.role;
+        }
       });
-
       setMembers(map);
-      setMyMemberId(found);
+      setMemberList(data);
+      setMyMemberId(foundId);
+      setMyAuthority(foundAuthority);
     } catch {
-      // 인증 전이거나 네트워크 오류 시 무시
+      return;
     }
   }, []);
 
@@ -59,15 +77,81 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     void loadMembers(workspaceId, userId);
   }, [workspaceId, userId, loadMembers]);
 
+  const refetch = useCallback(
+      () => (workspaceId === null ? Promise.resolve() : loadMembers(workspaceId, userId)),
+      [loadMembers, workspaceId, userId]
+  );
+
+  useEffect(() => {
+    const onFocus = () => { if (document.visibilityState === "visible") void refetch(); };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+  }, [refetch]);
+
+  const runMutation = useCallback(
+      async (action: () => Promise<void>) => {
+        try {
+          await action();
+          await refetch();
+        } catch (e) {
+          await refetch();
+          throw e;
+        }
+      },
+      [refetch]
+  );
+
+  const changeAuthority = useCallback(
+      (memberId: number, authority: string) => {
+        if (workspaceId === null) return Promise.resolve();
+        return runMutation(() => changeMemberRoleApi(workspaceId, memberId, authority));
+      },
+      [runMutation, workspaceId]
+  );
+
+  const removeMember = useCallback(
+      (memberId: number) => {
+        if (workspaceId === null) return Promise.resolve();
+        return runMutation(() => removeMemberApi(workspaceId, memberId));
+      },
+      [runMutation, workspaceId]
+  );
+
+  const transferOwnership = useCallback(
+      (memberId: number) => {
+        if (workspaceId === null) return Promise.resolve();
+        return runMutation(() => transferOwnershipApi(workspaceId, memberId));
+      },
+      [runMutation, workspaceId]
+  );
+
   const getMemberName = useCallback(
-    (memberId: number) => members.get(memberId) ?? String(memberId),
-    [members]
+      (memberId: number) => members.get(memberId) ?? String(memberId),
+      [members]
   );
 
   return (
-    <WorkspaceContext.Provider value={{ workspaceId, setWorkspaceId, myMemberId, members, getMemberName }}>
-      {children}
-    </WorkspaceContext.Provider>
+      <WorkspaceContext.Provider
+          value={{
+            workspaceId,
+            setWorkspaceId,
+            myMemberId,
+            myAuthority,
+            members,
+            memberList,
+            getMemberName,
+            refetch,
+            changeAuthority,
+            removeMember,
+            transferOwnership,
+          }}
+      >
+        {children}
+      </WorkspaceContext.Provider>
   );
 }
 

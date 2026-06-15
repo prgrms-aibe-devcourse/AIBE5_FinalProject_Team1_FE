@@ -26,6 +26,7 @@ import { WorkspaceSettingsPage } from "./pages/WorkspaceSettingsPage";
 import { LegalPage } from "./pages/LegalPage";
 import { OAuthCallbackPage } from "./pages/OAuthCallbackPage";
 import { OAuthPopupCallbackPage } from "./pages/OAuthPopupCallbackPage";
+import { InviteAcceptPage } from "./pages/InviteAcceptPage";
 import { isAuthenticated } from "./auth";
 
 function HomeRoute() {
@@ -45,6 +46,7 @@ export default function App() {
               <Route path="/" element={<HomeRoute />} />
               <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
               <Route path="/oauth/popup-callback" element={<OAuthPopupCallbackPage />} />
+              <Route path="/invite/:token" element={<InviteAcceptPage />} />
               <Route path="/terms" element={<LegalPage kind="terms" />} />
               <Route path="/privacy" element={<LegalPage kind="privacy" />} />
             </Route>
