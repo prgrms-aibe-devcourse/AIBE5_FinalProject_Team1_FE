@@ -5,7 +5,7 @@ import { WorkspaceSettingsModal } from "../components/WorkspaceSettingsModal";
 import { DndProvider, useDrag, useDrop, useDragLayer } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { fetchMyGithubRepos, fetchRepoCollaborators, type GithubCollaborator, type GithubRepo } from "../api/github";
-import { fetchMyWorkspaces, createWorkspace, deleteWorkspace, type WorkspaceDto } from "../api/workspace";
+import { fetchMyWorkspaces, createWorkspace, deleteWorkspace, listReceivedInvites, acceptInvite, rejectInvite, type WorkspaceDto, type ReceivedInviteDto } from "../api/workspace";
 
 const DRAG_TYPE = "TEAM_CARD";
 const WORKSPACE_COLORS_KEY = "codedock-workspace-colors-v1";
@@ -33,6 +33,7 @@ export type Org = {
 
 type Invite = {
   id: number;
+  token: string;
   teamName: string;
   inviterName: string;
   role: string;
@@ -301,7 +302,7 @@ function DraggableTeamCard({
         </button>
         <div className="flex flex-col items-center justify-between flex-shrink-0 self-stretch">
           <ArrowRight size={24} style={{ color: "var(--neon-cyan)" }} />
-          <DotHandle dragRef={drag} />
+          <DotHandle dragRef={(node) => { if (node) drag(node); }} />
         </div>
       </div>
     </div>
@@ -1023,6 +1024,30 @@ export function WorkspacePage() {
 
   const [invites, setInvites] = useState<Invite[]>([]);
 
+  useEffect(() => {
+    listReceivedInvites()
+        .then((list: ReceivedInviteDto[]) => setInvites(list.map((inv) => {
+          const expiresInDays = Math.max(0, Math.ceil((new Date(inv.expiresAt).getTime() - Date.now()) / 86400000));
+          return {
+            id: inv.invitationId,
+            token: inv.token,
+            teamName: inv.workspaceName,
+            inviterName: inv.inviterName,
+            role: roleToKorean(inv.role),
+            time: new Date(inv.expiresAt).toLocaleDateString("ko-KR"),
+            memberCount: inv.memberCount,
+            repoCount: 0,
+            myPendingReviews: 0,
+            myOpenPRs: 0,
+            myReviewedPRs: 0,
+            myOpenIssues: 0,
+            expiresInDays,
+            expiresTime: new Date(inv.expiresAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }),
+          };
+        })))
+        .catch(() => setInvites([]));
+  }, []);
+
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showInvitesModal, setShowInvitesModal] = useState(false);
 
@@ -1088,16 +1113,21 @@ export function WorkspacePage() {
   };
 
   const handleAcceptInvite = (invite: Invite) => {
-    const newId = Date.now();
-    setInvites((prev) => prev.filter((i) => i.id !== invite.id));
-    setOrgs((prev) => [
-      ...prev,
-      { id: newId, name: invite.teamName, myPendingReviews: invite.myPendingReviews, myOpenPRs: invite.myOpenPRs, myReviewedPRs: invite.myReviewedPRs, myOpenIssues: invite.myOpenIssues, memberCount: invite.memberCount, repoCount: invite.repoCount, myRole: invite.role, workspaceId: String(newId) },
-    ]);
+    acceptInvite(invite.token)
+        .then(async () => {
+          setInvites((prev) => prev.filter((i) => i.id !== invite.id));
+          const list = await fetchMyWorkspaces();
+          setOrgs(list.map(workspaceDtoToOrg));
+        })
+        .catch((e) => alert(e instanceof Error ? e.message : "초대 수락에 실패했습니다."));
   };
 
   const handleRejectInvite = (id: number) => {
-    setInvites((prev) => prev.filter((i) => i.id !== id));
+    const invite = invites.find((i) => i.id === id);
+    if (!invite) return;
+    rejectInvite(invite.token)
+        .then(() => setInvites((prev) => prev.filter((i) => i.id !== id)))
+        .catch((e) => alert(e instanceof Error ? e.message : "초대 거절에 실패했습니다."));
   };
 
   type KeyEventType = "pr_opened" | "issue_opened" | "review" | "mention" | "reply";

@@ -82,6 +82,16 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       [loadMembers, workspaceId, userId]
   );
 
+  useEffect(() => {
+    const onFocus = () => { if (document.visibilityState === "visible") void refetch(); };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+  }, [refetch]);
+
   const runMutation = useCallback(
       async (action: () => Promise<void>) => {
         try {
