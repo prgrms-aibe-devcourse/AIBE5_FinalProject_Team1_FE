@@ -123,3 +123,17 @@ export function acceptInvite(token: string): Promise<void> {
 export function rejectInvite(token: string): Promise<void> {
   return apiClient.post<void>(`/api/v1/invites/${encodeURIComponent(token)}/reject`);
 }
+
+export type ReceivedInviteDto = {
+  invitationId: number;
+  token: string;
+  workspaceName: string;
+  inviterName: string;
+  role: string;
+  expiresAt: string;
+  memberCount: number;
+};
+
+export function listReceivedInvites(): Promise<ReceivedInviteDto[]> {
+  return apiClient.get<ReceivedInviteDto[]>("/api/v1/invites/received");
+}

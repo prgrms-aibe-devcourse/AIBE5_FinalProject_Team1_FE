@@ -11,7 +11,7 @@ import type { InviteDraft } from "./TeamInviteModal";
 import { fetchMyGithubRepos, type GithubRepo } from "../api/github";
 import { useWorkspace } from "../contexts/WorkspaceContext";
 import { ApiClientError } from "../api/client";
-import { leaveWorkspace, createInvite, listInvitations, revokeInvitation, type InvitationDto, type WorkspaceMember } from "../api/workspace";
+import { leaveWorkspace, createInvite, listInvitations, revokeInvitation, updateWorkspace, type InvitationDto, type WorkspaceMember } from "../api/workspace";
 import { fetchWithAuth } from "../api/fetchWithAuth";
 
 // ─── localStorage helpers (mirrors TeamPanel pattern) ───────────────────────
@@ -415,6 +415,8 @@ function GeneralTab({ org, isAdmin, onUpdate, onColorChange }: {
 }) {
   const [name, setName] = useState(org.name);
   const [nameSaved, setNameSaved] = useState(false);
+  const [description, setDescription] = useState(org.description ?? "");
+  const [descSaved, setDescSaved] = useState(false);
   const [selectedColor, setSelectedColor] = useState<string>(
     () => loadColors()[String(org.id)] ?? DEFAULT_ACCENT
   );
@@ -425,10 +427,30 @@ function GeneralTab({ org, isAdmin, onUpdate, onColorChange }: {
     return () => clearTimeout(timerId);
   }, [nameSaved]);
 
+  useEffect(() => {
+    if (!descSaved) return;
+    const timerId = setTimeout(() => setDescSaved(false), 1800);
+    return () => clearTimeout(timerId);
+  }, [descSaved]);
+
   const saveName = (value: string) => {
-    if (!value.trim()) return;
-    onUpdate({ id: org.id, name: value.trim() });
-    setNameSaved(true);
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    updateWorkspace(org.id, { name: trimmed })
+        .then(() => {
+          onUpdate({ id: org.id, name: trimmed });
+          setNameSaved(true);
+        })
+        .catch((e) => alert(e instanceof Error ? e.message : "이름 저장에 실패했습니다."));
+  };
+
+  const saveDescription = (value: string) => {
+    updateWorkspace(org.id, { description: value })
+        .then(() => {
+          onUpdate({ id: org.id, description: value });
+          setDescSaved(true);
+        })
+        .catch((e) => alert(e instanceof Error ? e.message : "설명 저장에 실패했습니다."));
   };
 
   const handleColorSelect = (color: string) => {
@@ -466,6 +488,35 @@ function GeneralTab({ org, isAdmin, onUpdate, onColorChange }: {
           </button>
         )}
         {!isAdmin && <AdminNote />}
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+        <SectionHeader icon={FileText} label="팀 설명" />
+        <textarea
+            value={description}
+            onChange={e => setDescription(e.target.value)}
+            disabled={!isAdmin}
+            placeholder="팀 설명을 입력하세요"
+            rows={3}
+            style={{
+              background: "rgba(255,255,255,0.05)", border: "1.5px solid rgba(32,227,255,0.18)",
+              borderRadius: "10px", padding: "10px 14px",
+              color: isAdmin ? "var(--white)" : "var(--muted)", fontSize: "14px", fontWeight: 700,
+              outline: "none", width: "100%", boxSizing: "border-box", resize: "vertical",
+              opacity: isAdmin ? 1 : 0.5, cursor: isAdmin ? "text" : "not-allowed",
+            }}
+            onFocus={e => isAdmin && (e.target.style.borderColor = "rgba(32,227,255,0.45)")}
+            onBlur={e => (e.target.style.borderColor = "rgba(32,227,255,0.18)")}
+        />
+        {isAdmin && (
+            <button
+                onClick={() => saveDescription(description)}
+                disabled={description === (org.description ?? "")}
+                style={actionBtnStyle(description === (org.description ?? ""))}
+            >
+              {descSaved ? <><Check size={13} /> 저장됨</> : "저장"}
+            </button>
+        )}
       </div>
 
       <div style={{ borderTop: "1px solid rgba(32,227,255,0.08)", paddingTop: "24px" }}>
