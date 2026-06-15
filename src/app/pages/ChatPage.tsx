@@ -1091,9 +1091,7 @@ export function ChatPage() {
   useEffect(() => {
     if (!activeApiChannelId) return;
 
-    markChannelAsRead(activeApiChannelId, {
-      userId: TEMPORARY_API_USER_ID
-    }).catch(() => {
+    markChannelAsRead(activeApiChannelId).catch(() => {
       // The local unread count is already cleared; server read status waits for auth/API availability.
     });
   }, [activeApiChannelId]);
@@ -1102,8 +1100,7 @@ export function ChatPage() {
     const controller = new AbortController();
 
     getWorkspaceBookmarks(currentWorkspaceApiId, {
-      signal: controller.signal,
-      userId: TEMPORARY_API_USER_ID
+      signal: controller.signal
     })
       .then((bookmarks) => {
         const nextBookmarks = bookmarks.reduce<Record<string, Record<number, boolean>>>((acc, bookmark) => {
@@ -1128,8 +1125,7 @@ export function ChatPage() {
     const controller = new AbortController();
 
     getWorkspaceMentions(currentWorkspaceApiId, {
-      signal: controller.signal,
-      userId: TEMPORARY_API_USER_ID
+      signal: controller.signal
     })
       .then(setWorkspaceMentions)
       .catch(() => {
@@ -1177,9 +1173,7 @@ export function ChatPage() {
 
     setServerBookmarkState(uiChannelId, messageId, nextBookmarked);
 
-    toggleMessageBookmark(channelId, messageId, {
-      userId: TEMPORARY_API_USER_ID
-    })
+    toggleMessageBookmark(channelId, messageId)
       .then((response) => {
         setServerBookmarkState(uiChannelId, response.messageId, response.bookmarked);
       })
@@ -1193,9 +1187,7 @@ export function ChatPage() {
       prev.map((mention) => mention.id === mentionId ? { ...mention, read: true } : mention)
     );
 
-    markMentionAsRead(mentionId, {
-      userId: TEMPORARY_API_USER_ID
-    })
+    markMentionAsRead(mentionId)
       .then((updatedMention) => {
         setWorkspaceMentions((prev) =>
           prev.map((mention) => mention.id === mentionId ? updatedMention : mention)
@@ -1569,9 +1561,7 @@ export function ChatPage() {
           }
 
           if (notification.workspaceId === undefined || notification.workspaceId === currentWorkspaceApiId) {
-            getWorkspaceMentions(currentWorkspaceApiId, {
-              userId: TEMPORARY_API_USER_ID
-            })
+            getWorkspaceMentions(currentWorkspaceApiId)
               .then(setWorkspaceMentions)
               .catch(() => {
                 // The notification badge stays driven by local unread state if mention refresh fails.
@@ -2396,9 +2386,7 @@ export function ChatPage() {
         return;
       }
 
-      createChannelMessage(activeApiChannelId, { content: messageText }, {
-        userId: TEMPORARY_API_USER_ID
-      })
+      createChannelMessage(activeApiChannelId, { content: messageText })
         .then((serverMessage) => appendServerMessage(selectedChannel, serverMessage))
         .catch(() => {
           // Keep the optimistic message visible when the backend is unavailable.
