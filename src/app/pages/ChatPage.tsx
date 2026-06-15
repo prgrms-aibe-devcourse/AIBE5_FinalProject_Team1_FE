@@ -828,6 +828,13 @@ export function ChatPage() {
   const currentRepo = repositories.find(repo => repo.id === selectedRepository);
   const currentWorkspace = workspaceList.find(ws => ws.id === selectedWorkspace) ?? workspaceList[0];
   const currentWorkspaceApiId = useMemo(() => getWorkspaceApiId(selectedWorkspace), [selectedWorkspace]);
+  const refreshWorkspaceChannels = useCallback((signal?: AbortSignal) => {
+    return getWorkspaceChannels(currentWorkspaceApiId, signal ? { signal } : undefined)
+      .then((channels) => {
+        setApiChannels(channels);
+        return channels;
+      });
+  }, [currentWorkspaceApiId]);
   const visibleRepositories = useMemo(() => {
     try {
       const raw = window.localStorage.getItem(WORKSPACE_REPOS_KEY);
@@ -905,6 +912,14 @@ export function ChatPage() {
       return nextCounts;
     });
   }, [apiChannels]);
+
+  useEffect(() => {
+    if (!selectedChannel.startsWith(API_CHANNEL_ID_PREFIX)) return;
+    if (apiChannels.length === 0) return;
+    if (apiChannelIdByUiChannel[selectedChannel]) return;
+
+    setSelectedChannel('general');
+  }, [apiChannelIdByUiChannel, apiChannels.length, selectedChannel]);
 
   const currentMessages = messages[selectedChannel] || [];
   const apiThreadTargets = useMemo(() => {
@@ -1412,16 +1427,13 @@ export function ChatPage() {
   useEffect(() => {
     const controller = new AbortController();
 
-    getWorkspaceChannels(currentWorkspaceApiId, {
-      signal: controller.signal
-    })
-      .then(setApiChannels)
+    refreshWorkspaceChannels(controller.signal)
       .catch(() => {
         if (!controller.signal.aborted) setApiChannels([]);
       });
 
     return () => controller.abort();
-  }, [currentWorkspaceApiId]);
+  }, [refreshWorkspaceChannels]);
 
   useEffect(() => {
     if (!activeApiChannelId) return;
@@ -1804,13 +1816,22 @@ export function ChatPage() {
         description: null
       });
 
+      let selectedCreatedChannel = createdChannel;
       setApiChannels((prev) => {
         const alreadyExists = prev.some((channel) => channel.id === createdChannel.id);
         return alreadyExists
           ? prev.map((channel) => (channel.id === createdChannel.id ? createdChannel : channel))
           : [...prev, createdChannel];
       });
-      setSelectedChannel(getApiChannelUiId(createdChannel));
+
+      try {
+        const syncedChannels = await refreshWorkspaceChannels();
+        selectedCreatedChannel = syncedChannels.find((channel) => channel.id === createdChannel.id) ?? createdChannel;
+      } catch {
+        // Keep the created channel in local state when only the follow-up sync fails.
+      }
+
+      setSelectedChannel(getApiChannelUiId(selectedCreatedChannel));
       setAddChannelStep(null);
       setNewChannelName('');
     } catch {
@@ -1867,6 +1888,9 @@ export function ChatPage() {
       if (channel.apiChannelId) {
         await deleteWorkspaceChannel(currentWorkspaceApiId, channel.apiChannelId);
         setApiChannels((prev) => prev.filter((apiChannel) => apiChannel.id !== channel.apiChannelId));
+        refreshWorkspaceChannels().catch(() => {
+          // The deleted channel has already been removed locally.
+        });
       } else {
         setCustomChannels(prev => prev.filter(ch => ch.id !== channelId));
       }
@@ -1915,6 +1939,9 @@ export function ChatPage() {
         setApiChannels((prev) =>
           prev.map((apiChannel) => (apiChannel.id === updatedChannel.id ? updatedChannel : apiChannel))
         );
+        refreshWorkspaceChannels().catch(() => {
+          // Keep the updated channel in local state when only the follow-up sync fails.
+        });
       } else {
         setCustomChannels(prev =>
           prev.map(ch => ch.id === editingCustomChannelId ? { ...ch, label: nextLabel } : ch)
