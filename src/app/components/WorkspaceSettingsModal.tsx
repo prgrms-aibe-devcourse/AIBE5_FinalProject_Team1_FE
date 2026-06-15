@@ -9,11 +9,12 @@ import type { Org } from "../pages/WorkspacePage";
 import { TeamInviteModal } from "./TeamInviteModal";
 import type { InviteDraft } from "./TeamInviteModal";
 import { fetchMyGithubRepos, type GithubRepo } from "../api/github";
+import { useWorkspace } from "../contexts/WorkspaceContext";
+import { ApiClientError } from "../api/client";
+import { leaveWorkspace, createInvite, listInvitations, revokeInvitation, updateWorkspace, type InvitationDto, type WorkspaceMember } from "../api/workspace";
 import { fetchWithAuth } from "../api/fetchWithAuth";
-import type { WorkspaceMember as ApiMember } from "../api/workspace";
 
 // ─── localStorage helpers (mirrors TeamPanel pattern) ───────────────────────
-const WORKSPACE_TEAMS_KEY  = "codedock-workspace-teams-v1";
 const WORKSPACE_COLORS_KEY = "codedock-workspace-colors-v1";
 const CHAT_REPOS_KEY       = "codedock-workspace-repos-v1"; // workspace-specific, separate from ChatPage
 const REPO_URLS_KEY        = "codedock-repo-urls-v1";       // repoId → full GitHub URL
@@ -143,13 +144,6 @@ type StoredMember = {
   reviews?: number;
 };
 
-function loadAllTeams(): Record<string, StoredMember[]> {
-  try { return JSON.parse(localStorage.getItem(WORKSPACE_TEAMS_KEY) ?? "{}"); }
-  catch { return {}; }
-}
-function saveAllTeams(all: Record<string, StoredMember[]>) {
-  localStorage.setItem(WORKSPACE_TEAMS_KEY, JSON.stringify(all));
-}
 function loadColors(): Record<string, string> {
   try { return JSON.parse(localStorage.getItem(WORKSPACE_COLORS_KEY) ?? "{}"); }
   catch { return {}; }
@@ -211,6 +205,20 @@ const PERMISSION_ROLE_OPTIONS = ["관리자", "편집 가능", "보기 가능"];
 
 // Sort order: 소유자 always first, then by permission tier, then 가나다
 const PERMISSION_ORDER = ["소유자", "관리자", "편집 가능", "보기 가능"];
+
+const AUTHORITY_EN_TO_KO: Record<string, string> = {
+  owner: "소유자",
+  admin: "관리자",
+  editor: "편집 가능",
+  viewer: "보기 가능",
+};
+
+const AUTHORITY_KO_TO_EN: Record<string, string> = {
+  "소유자": "owner",
+  "관리자": "admin",
+  "편집 가능": "editor",
+  "보기 가능": "viewer",
+};
 
 function sortMembers(members: StoredMember[]): StoredMember[] {
   return [...members].sort((a, b) => {
@@ -407,6 +415,8 @@ function GeneralTab({ org, isAdmin, onUpdate, onColorChange }: {
 }) {
   const [name, setName] = useState(org.name);
   const [nameSaved, setNameSaved] = useState(false);
+  const [description, setDescription] = useState(org.description ?? "");
+  const [descSaved, setDescSaved] = useState(false);
   const [selectedColor, setSelectedColor] = useState<string>(
     () => loadColors()[String(org.id)] ?? DEFAULT_ACCENT
   );
@@ -417,10 +427,30 @@ function GeneralTab({ org, isAdmin, onUpdate, onColorChange }: {
     return () => clearTimeout(timerId);
   }, [nameSaved]);
 
+  useEffect(() => {
+    if (!descSaved) return;
+    const timerId = setTimeout(() => setDescSaved(false), 1800);
+    return () => clearTimeout(timerId);
+  }, [descSaved]);
+
   const saveName = (value: string) => {
-    if (!value.trim()) return;
-    onUpdate({ id: org.id, name: value.trim() });
-    setNameSaved(true);
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    updateWorkspace(org.id, { name: trimmed })
+        .then(() => {
+          onUpdate({ id: org.id, name: trimmed });
+          setNameSaved(true);
+        })
+        .catch((e) => alert(e instanceof Error ? e.message : "이름 저장에 실패했습니다."));
+  };
+
+  const saveDescription = (value: string) => {
+    updateWorkspace(org.id, { description: value })
+        .then(() => {
+          onUpdate({ id: org.id, description: value });
+          setDescSaved(true);
+        })
+        .catch((e) => alert(e instanceof Error ? e.message : "설명 저장에 실패했습니다."));
   };
 
   const handleColorSelect = (color: string) => {
@@ -460,6 +490,35 @@ function GeneralTab({ org, isAdmin, onUpdate, onColorChange }: {
         {!isAdmin && <AdminNote />}
       </div>
 
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+        <SectionHeader icon={FileText} label="팀 설명" />
+        <textarea
+            value={description}
+            onChange={e => setDescription(e.target.value)}
+            disabled={!isAdmin}
+            placeholder="팀 설명을 입력하세요"
+            rows={3}
+            style={{
+              background: "rgba(255,255,255,0.05)", border: "1.5px solid rgba(32,227,255,0.18)",
+              borderRadius: "10px", padding: "10px 14px",
+              color: isAdmin ? "var(--white)" : "var(--muted)", fontSize: "14px", fontWeight: 700,
+              outline: "none", width: "100%", boxSizing: "border-box", resize: "vertical",
+              opacity: isAdmin ? 1 : 0.5, cursor: isAdmin ? "text" : "not-allowed",
+            }}
+            onFocus={e => isAdmin && (e.target.style.borderColor = "rgba(32,227,255,0.45)")}
+            onBlur={e => (e.target.style.borderColor = "rgba(32,227,255,0.18)")}
+        />
+        {isAdmin && (
+            <button
+                onClick={() => saveDescription(description)}
+                disabled={description === (org.description ?? "")}
+                style={actionBtnStyle(description === (org.description ?? ""))}
+            >
+              {descSaved ? <><Check size={13} /> 저장됨</> : "저장"}
+            </button>
+        )}
+      </div>
+
       <div style={{ borderTop: "1px solid rgba(32,227,255,0.08)", paddingTop: "24px" }}>
         <SectionHeader icon={Palette} label="워크스페이스 색상" note="내 기기에만 저장됩니다" />
         <div style={{ marginTop: "12px", display: "flex", gap: "14px", flexWrap: "wrap" }}>
@@ -492,33 +551,6 @@ function GeneralTab({ org, isAdmin, onUpdate, onColorChange }: {
       </div>
     </div>
   );
-}
-
-// ─── Invite draft → StoredMember conversion ──────────────────────────────────
-const MEMBER_POOL: Record<string, StoredMember> = {
-  "jaejun@codedock.dev":  { id: "jaejun",  initials: "JJ", name: "김재준", role: "Tech Lead",          permissionRole: "편집 가능", email: "jaejun@codedock.dev",  online: true,  statusColor: "#39FF88", github: "kimjaejun",  commits: 247, prs: 42, reviews: 68 },
-  "jinah@codedock.dev":   { id: "jinah",   initials: "JA", name: "김진아", role: "Backend Developer",  permissionRole: "편집 가능", email: "jinah@codedock.dev",   online: true,  statusColor: "#39FF88", github: "kimjinah",   commits: 0,   prs: 0,  reviews: 0  },
-  "jinpil@codedock.dev":  { id: "jinpil",  initials: "JP", name: "김진필", role: "Backend Developer",  permissionRole: "편집 가능", email: "jinpil@codedock.dev",  online: true,  statusColor: "#39FF88", github: "kimjinpil",  commits: 189, prs: 35, reviews: 52 },
-  "junwoo@codedock.dev":  { id: "junwoo",  initials: "JW", name: "김준우", role: "Frontend Developer", permissionRole: "편집 가능", email: "junwoo@codedock.dev",  online: true,  statusColor: "#39FF88", github: "kimjunwoo",  commits: 156, prs: 28, reviews: 45 },
-  "jinhyun@codedock.dev": { id: "jinhyun", initials: "JH", name: "김진현", role: "DevOps Engineer",    permissionRole: "편집 가능", email: "jinhyun@codedock.dev", online: false, statusColor: "#8B94A7", github: "kimjinhyun", commits: 98,  prs: 18, reviews: 31 },
-  "hyun@codedock.dev":    { id: "hyun",    initials: "AH", name: "안현",   role: "QA Engineer",        permissionRole: "편집 가능", email: "hyun@codedock.dev",    online: false, statusColor: "#8B94A7", github: "ahnhyun",    commits: 45,  prs: 12, reviews: 87 },
-};
-
-function draftToStored(draft: InviteDraft): StoredMember {
-  return MEMBER_POOL[draft.email] ?? {
-    id: `invited-${draft.id}`,
-    initials: draft.name.slice(0, 2).toUpperCase(),
-    name: draft.name,
-    role: draft.role,
-    permissionRole: "편집 가능",
-    email: draft.email,
-    online: false,
-    statusColor: "#8B94A7",
-    github: draft.email.split("@")[0],
-    commits: 0,
-    prs: 0,
-    reviews: 0,
-  };
 }
 
 // Small self-contained component so it can use useState without hooks-in-callback rules
@@ -580,84 +612,89 @@ function MembersTab({ org, isAdmin, isOwner, onUpdate }: {
   org: Org; isAdmin: boolean; isOwner: boolean;
   onUpdate: (u: Partial<Org> & { id: number }) => void;
 }) {
-  const wsKey = org.workspaceId ?? String(org.id);
 
-  const [members, setMembers] = useState<StoredMember[]>(() => {
-    const all = loadAllTeams();
-    return all[wsKey] ?? [];
-  });
+  const { memberList, changeAuthority, removeMember, transferOwnership, setWorkspaceId } = useWorkspace();
+
+  useEffect(() => {
+    setWorkspaceId(org.id);
+  }, [org.id, setWorkspaceId]);
+
+  const [members, setMembers] = useState<StoredMember[]>([]);
+  const avatarCacheRef = useRef<Record<number, string>>({});
 
   useEffect(() => {
     let cancelled = false;
-    fetchWithAuth<ApiMember[]>(`/api/v1/workspaces/${org.id}/members`)
-      .then(async (apiMembers) => {
-        if (cancelled || !apiMembers || apiMembers.length === 0) return;
-        const avatarMap = await Promise.all(
-          apiMembers.map((m) =>
+    const toStored = (m: WorkspaceMember): StoredMember => ({
+      id: String(m.memberId),
+      initials: m.username.slice(0, 2),
+      name: m.username,
+      role: "멤버",
+      permissionRole: AUTHORITY_EN_TO_KO[m.role] ?? "편집 가능",
+      email: m.email ?? "",
+      online: m.presence ? m.presence !== "offline" : false,
+      statusColor: "#8B94A7",
+      protected: m.role === "owner",
+      avatarUrl: avatarCacheRef.current[m.userId] ?? "",
+    });
+    setMembers(memberList.map(toStored));
+    const missing = memberList.filter((m) => !(m.userId in avatarCacheRef.current));
+    if (missing.length === 0) return;
+    void Promise.all(
+        missing.map((m) =>
             fetchWithAuth<{ avatarUrl?: string; githubUsername?: string }>(`/api/v1/users/${m.userId}`)
-              .then((u) => ({
-                userId: m.userId,
-                avatarUrl: u?.avatarUrl || (u?.githubUsername ? `https://github.com/${u.githubUsername}.png` : ""),
-              }))
-              .catch(() => ({ userId: m.userId, avatarUrl: "" }))
-          )
-        ).then((results) => Object.fromEntries(results.map((r) => [r.userId, r.avatarUrl])));
-        if (cancelled) return;
-        const mapped: StoredMember[] = apiMembers.map((m) => ({
-          id: String(m.memberId),
-          initials: m.username.slice(0, 2),
-          name: m.username,
-          role: m.role || "Member",
-          permissionRole: m.role,
-          email: m.email ?? "",
-          online: false,
-          statusColor: "#8B94A7",
-          protected: m.role === "owner",
-          avatarUrl: avatarMap[m.userId] ?? "",
-        }));
-        if (!cancelled) setMembers(mapped);
-      })
-      .catch(() => {});
+                .then((u) => ({ userId: m.userId, avatarUrl: u?.avatarUrl || (u?.githubUsername ? `https://github.com/${u.githubUsername}.png` : "") }))
+                .catch(() => ({ userId: m.userId, avatarUrl: "" }))
+        )
+    ).then((results) => {
+      if (cancelled) return;
+      results.forEach((r) => { avatarCacheRef.current[r.userId] = r.avatarUrl; });
+      setMembers(memberList.map(toStored));
+    });
     return () => { cancelled = true; };
-  }, [org.id]);
-
+  }, [memberList]);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [confirmKickId, setConfirmKickId] = useState<string | null>(null);
   const [reordering, setReordering] = useState(false);
   const [transferTarget, setTransferTarget] = useState("");
   const [showTransferConfirm, setShowTransferConfirm] = useState(false);
   const [transferDone, setTransferDone] = useState(false);
+  const [invitations, setInvitations] = useState<InvitationDto[]>([]);
 
-  // Always holds the latest members so RAF callbacks don't use stale closures
-  const membersRef = useRef(members);
-  useEffect(() => { membersRef.current = members; }, [members]);
+  const loadInvitations = useCallback(() => {
+    if (!isAdmin) return;
+    void listInvitations(org.id)
+        .then((list) => setInvitations(list.filter((inv) => inv.status === "pending")))
+        .catch(() => {});
+  }, [isAdmin, org.id]);
 
-  const persist = (next: StoredMember[]) => {
-    const all = loadAllTeams();
-    saveAllTeams({ ...all, [wsKey]: next });
-    setMembers(next);
-    onUpdate({ id: org.id, memberCount: next.length });
+  useEffect(() => {
+    loadInvitations();
+  }, [loadInvitations]);
+
+  const handleRevokeInvite = (invitationId: number) => {
+    void revokeInvitation(org.id, invitationId)
+        .then(() => loadInvitations())
+        .catch((e) => {
+          alert(
+              e instanceof ApiClientError && e.code === "C006"
+                  ? "다른 사용자가 먼저 변경했습니다. 최신 상태로 새로고침되었습니다."
+                  : "초대 취소에 실패했습니다."
+          );
+        });
   };
 
   const handlePermissionChange = (memberId: string, newPermission: string) => {
-    // Step 1 — grey out immediately and dismiss any open confirm
     setReordering(true);
     setConfirmKickId(null);
-
-    // Step 2 — wait for the grey paint to finish, THEN apply the role change.
-    // requestAnimationFrame fires just before the *next* paint; double-RAF
-    // ensures the grey frame has actually been committed to screen first.
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        const updated = membersRef.current.map(m =>
-          m.id === memberId ? { ...m, permissionRole: newPermission } : m
-        );
-        persist(updated);
-        // Step 3 (reorder) happens automatically: sortedMembers recomputes
-        // from the new members in the same render.
-        // Step 4 (un-grey) is handled by the useEffect below.
-      });
-    });
+    void changeAuthority(Number(memberId), AUTHORITY_KO_TO_EN[newPermission])
+        .catch((e) => {
+          setReordering(false);
+          alert(
+              e instanceof ApiClientError && e.code === "C006"
+                  ? "다른 사용자가 먼저 변경했습니다. 최신 상태로 새로고침되었습니다."
+                  : "권한 변경에 실패했습니다."
+          );
+        });
   };
 
   // Step 4 — lift the grayout once React has painted the newly sorted list.
@@ -672,59 +709,58 @@ function MembersTab({ org, isAdmin, isOwner, onUpdate }: {
   const sortedMembers = useMemo(() => sortMembers(members), [members]);
 
   const handleKickConfirmed = (memberId: string) => {
-    persist(membersRef.current.filter(m => m.id !== memberId));
     setConfirmKickId(null);
+    void removeMember(Number(memberId))
+        .catch((e) => {
+          alert(
+              e instanceof ApiClientError && e.code === "C006"
+                  ? "다른 사용자가 먼저 변경했습니다. 최신 상태로 새로고침되었습니다."
+                  : "멤버 추방에 실패했습니다."
+          );
+        });
   };
 
   const handleInviteConfirm = (drafts: InviteDraft[]) => {
-    const existingIds = new Set(members.map(m => m.id));
-    const existingEmails = new Set(members.map(m => m.email));
-    const newMembers = drafts
-      .map(draftToStored)
-      .filter(m => !existingIds.has(m.id) && !existingEmails.has(m.email));
-    if (newMembers.length > 0) persist([...members, ...newMembers]);
+    const existingEmails = new Set([
+      ...memberList.map((m) => m.email.toLowerCase()),
+      ...invitations.map((inv) => inv.email.toLowerCase()),
+    ]);
+    const toInvite = drafts.filter((d) => !existingEmails.has(d.email.toLowerCase()));
+    if (toInvite.length === 0) return;
+    void Promise.allSettled(
+        toInvite.map((d) =>
+            createInvite(org.id, { email: d.email, role: "viewer", expiresInHours: 168 })
+        )
+    ).then((results) => {
+      const failed = results.filter((r) => r.status === "rejected").length;
+      if (failed > 0) {
+        alert(`${failed}건의 초대 생성에 실패했습니다.`);
+      }
+      loadInvitations();
+    });
   };
 
   const handleTransfer = () => {
     if (!transferTarget) return;
-
-    // Step 1 — show processing state + grey out the member list immediately
     setTransferDone(true);
     setReordering(true);
-
-    // Step 2 — wait for the greyed frame to be painted, then apply all changes atomically
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        // Swap protected flags and permissionRoles in the stored member array
-        const updated = membersRef.current.map(m => {
-          if (m.protected) {
-            // Previous owner → demoted to 관리자
-            return { ...m, protected: false, permissionRole: "관리자" };
-          }
-          if (m.id === transferTarget) {
-            // New owner → elevated to 소유자
-            return { ...m, protected: true, permissionRole: "소유자" };
-          }
-          return m;
+    void transferOwnership(Number(transferTarget))
+        .then(() => {
+          onUpdate({ id: org.id, myRole: "관리자" });
+        })
+        .catch((e) => {
+          setReordering(false);
+          alert(
+              e instanceof ApiClientError && e.code === "C006"
+                  ? "다른 사용자가 먼저 변경했습니다. 최신 상태로 새로고침되었습니다."
+                  : "소유권 이전에 실패했습니다."
+          );
+        })
+        .finally(() => {
+          setShowTransferConfirm(false);
+          setTransferDone(false);
+          setTransferTarget("");
         });
-
-        // Persist to localStorage + update members state.
-        // sortedMembers recomputes → new owner rises to top.
-        // useEffect([members]) fires after paint → clears reordering.
-        persist(updated);
-
-        // Update the org-level role in the parent.
-        // handleUpdateOrg → setOrgs + setSettingsOrg → modal receives new org prop
-        // → isOwner becomes false → 소유권 이전 section disappears, 나가기 unlocks.
-        onUpdate({ id: org.id, myRole: "관리자" });
-
-        // Reset transfer UI state
-        setShowTransferConfirm(false);
-        setTransferDone(false);
-        setTransferTarget("");
-        // reordering cleared dynamically by useEffect([members]) watcher
-      });
-    });
   };
 
   // Exclude protected (소유자) from transfer candidates
@@ -973,7 +1009,37 @@ function MembersTab({ org, isAdmin, isOwner, onUpdate }: {
           )}
         </div>
       )}
-
+      {isAdmin && invitations.length > 0 && (
+          <div style={{ marginTop: "8px" }}>
+            <SectionHeader icon={UserPlus} label="대기 중인 초대" />
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "8px" }}>
+              {invitations.map((inv) => (
+                  <div key={inv.invitationId} style={{
+                    display: "flex", alignItems: "center", gap: "12px",
+                    padding: "10px 14px", borderRadius: "12px",
+                    border: "1px solid rgba(32,227,255,0.08)", background: "rgba(255,255,255,0.03)",
+                  }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ margin: 0, fontSize: "13px", fontWeight: 900, color: "var(--white)" }}>{inv.email}</p>
+                      <p style={{ margin: "2px 0 0", fontSize: "11px", color: "var(--muted)", fontWeight: 800 }}>
+                        {AUTHORITY_EN_TO_KO[inv.role] ?? inv.role} · 대기 중
+                      </p>
+                    </div>
+                    <button
+                        onClick={() => handleRevokeInvite(inv.invitationId)}
+                        style={{
+                          padding: "6px 12px", borderRadius: "8px",
+                          border: "1px solid rgba(255,107,107,0.3)", background: "rgba(255,107,107,0.08)",
+                          color: "#FF6B6B", fontSize: "12px", fontWeight: 900, cursor: "pointer", flexShrink: 0,
+                        }}
+                    >
+                      취소
+                    </button>
+                  </div>
+              ))}
+            </div>
+          </div>
+      )}
       {/* Invite modal */}
       <TeamInviteModal
         isOpen={showInviteModal}
@@ -1487,7 +1553,17 @@ function DangerTab({ org, isOwner, onDelete, onLeave }: {
             <div style={{ display: "flex", gap: "8px" }}>
               <button onClick={() => setShowLeaveConfirm(false)} style={cancelBtnStyle}>취소</button>
               <button
-                onClick={() => onLeave(org.id)}
+                  onClick={() => {
+                    void leaveWorkspace(org.id)
+                        .then(() => onLeave(org.id))
+                        .catch((e) => {
+                          alert(
+                              e instanceof ApiClientError && e.code === "C006"
+                                  ? "다른 사용자가 먼저 변경했습니다. 최신 상태로 새로고침되었습니다."
+                                  : "팀 나가기에 실패했습니다."
+                          );
+                        });
+                  }}
                 style={{
                   ...dangerBtnStyle,
                   background: "rgba(255,209,102,0.12)", borderColor: "rgba(255,209,102,0.4)",

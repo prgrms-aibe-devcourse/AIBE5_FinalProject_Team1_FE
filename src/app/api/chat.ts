@@ -16,6 +16,16 @@ export type Channel = {
   unreadCount: number;
 };
 
+export type ChannelCreateRequest = {
+  name: string;
+  description?: string | null;
+};
+
+export type ChannelUpdateRequest = {
+  name: string;
+  description?: string | null;
+};
+
 export type ChannelMessage = {
   id: number;
   channelId: number;
@@ -212,6 +222,31 @@ export function getChatEventPayload<T>(event: unknown, expectedType: ChatEventTy
 
 export function getWorkspaceChannels(workspaceId: number, options?: ApiRequestOptions) {
   return apiClient.get<Channel[]>(`/api/workspaces/${workspaceId}/channels`, options);
+}
+
+export function createWorkspaceChannel(
+  workspaceId: number,
+  request: ChannelCreateRequest,
+  options?: ApiRequestOptions
+) {
+  return apiClient.post<Channel>(`/api/workspaces/${workspaceId}/channels`, request, options);
+}
+
+export function updateWorkspaceChannel(
+  workspaceId: number,
+  channelId: number,
+  request: ChannelUpdateRequest,
+  options?: ApiRequestOptions
+) {
+  return apiClient.patch<Channel>(`/api/workspaces/${workspaceId}/channels/${channelId}`, request, options);
+}
+
+export function deleteWorkspaceChannel(
+  workspaceId: number,
+  channelId: number,
+  options?: ApiRequestOptions
+) {
+  return apiClient.delete<void>(`/api/workspaces/${workspaceId}/channels/${channelId}`, options);
 }
 
 export function getChannelMessages(channelId: number, query: ChannelMessagesQuery = {}, options?: ApiRequestOptions) {
