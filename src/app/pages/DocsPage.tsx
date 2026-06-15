@@ -57,7 +57,7 @@ function mapDocumentResponse(doc: DocumentResponse): DocumentItem {
 export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: DocsPageProps) {
   const { language } = useLanguage();
   const { workspaceId: contextWorkspaceId, getMemberName, myMemberId } = useWorkspace();
-  const workspaceId = workspaceIdProp ?? contextWorkspaceId;
+  const workspaceId = contextWorkspaceId ?? workspaceIdProp ?? null;
 
   const [docs, setDocs] = useState<DocumentItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -67,12 +67,14 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
   const [draftTitle, setDraftTitle] = useState("");
   const [draftContent, setDraftContent] = useState("");
   const [draftCategory, setDraftCategory] = useState<DocumentCategory | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<DocumentCategory | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<DocumentCategory | 'none' | null>(null);
   const [editingDocId, setEditingDocId] = useState<number | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editContent, setEditContent] = useState("");
+  const [editCategory, setEditCategory] = useState<DocumentCategory | null>(null);
 
   const loadDocs = useCallback(async () => {
+    if (workspaceId === null) return;
     setIsLoading(true);
     try {
       const data = await getDocuments(workspaceId);
@@ -101,6 +103,12 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
   const selectedDocData = docs.find(doc => doc.id === selectedDoc);
   const selectedDocContent = selectedDocData?.content ?? "";
 
+  const filteredDocs = selectedCategory === 'none'
+    ? docs.filter(d => d.category === null)
+    : selectedCategory
+      ? docs.filter(d => d.category === selectedCategory)
+      : docs;
+
   const getCategoryLabel = (category: typeof categories[number]) => (
     language === "en" ? category.nameEn : category.name
   );
@@ -125,7 +133,7 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
   };
 
   const handleRegisterDraft = async () => {
-    if (!draftTitle.trim()) return;
+    if (!draftTitle.trim() || workspaceId === null) return;
 
     try {
       const created = await createDocument(workspaceId, {
@@ -149,6 +157,7 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
   };
 
   const handleGenerateAiDocument = async () => {
+    if (workspaceId === null) return;
     setIsAiGenerating(true);
     try {
       const created = await aiGenerateDocument(workspaceId);
@@ -172,12 +181,14 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
     setEditingDocId(doc.id);
     setEditTitle(doc.title);
     setEditContent(doc.content ?? "");
+    setEditCategory(doc.category);
   };
 
   const handleCancelEditDocument = () => {
     setEditingDocId(null);
     setEditTitle("");
     setEditContent("");
+    setEditCategory(null);
   };
 
   const handleSaveEditDocument = async () => {
@@ -187,6 +198,7 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
       const updated = await updateDocument(workspaceId, editingDocId, {
         title: editTitle.trim(),
         content: editContent.trim(),
+        category: editCategory ?? undefined,
       });
       const updatedDoc = mapDocumentResponse(updated);
       setDocs((prev) => prev.map((d) => d.id === editingDocId ? updatedDoc : d));
@@ -221,7 +233,7 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
   };
 
   const renderDocumentPreview = (content: string) => (
-    <div className="mx-auto grid w-full max-w-[900px] gap-4">
+    <div className="grid w-full gap-4">
       {content.split("\n").map((line, index) => {
         const trimmedLine = line.trim();
 
@@ -322,7 +334,7 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
         </p>
       </div>
 
-      <div className={embedded ? "grid grid-cols-3 gap-3 mb-5" : "grid md:grid-cols-3 gap-4 mb-9"}>
+      <div className={embedded ? "grid grid-cols-4 gap-3 mb-5" : "grid md:grid-cols-4 gap-4 mb-9"}>
         {categories.map((category) => {
           const Icon = category.icon;
           const categoryCount = docs.filter((doc) => doc.category === category.id).length;
@@ -359,6 +371,40 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
             </button>
           );
         })}
+        {(() => {
+          const noneCount = docs.filter(d => d.category === null).length;
+          const isActive = selectedCategory === 'none';
+          return (
+            <button
+              type="button"
+              onClick={() => setSelectedCategory(isActive ? null : 'none')}
+              className={embedded ? "px-4 py-4 rounded-2xl border-0 text-left transition-all hover:translate-y-[-1px]" : "px-5 py-5 rounded-3xl border-0 text-left transition-all hover:translate-y-[-1px]"}
+              style={{
+                background: isActive ? `rgba(var(--codedock-primary-rgb), 0.12)` : 'rgba(11, 22, 40, 0.82)',
+                border: isActive ? `1px solid rgba(var(--codedock-primary-rgb), 0.34)` : '1px solid rgba(var(--codedock-primary-rgb), 0.16)',
+                boxShadow: embedded ? '0 12px 30px rgba(0, 0, 0, 0.26)' : '0 20px 60px rgba(0, 0, 0, 0.32)',
+                backdropFilter: 'blur(16px)',
+                cursor: 'pointer'
+              }}
+            >
+              <FileText size={20} style={{ color: 'var(--muted)', marginBottom: '8px' }} />
+              <p className="m-0 mb-2 tracking-tight" style={{
+                color: 'var(--muted)',
+                fontSize: "var(--krds-body-xsmall)",
+                fontWeight: 900
+              }}>
+                {language === "en" ? "General" : "일반 문서"}
+              </p>
+              <p className="m-0 tracking-[-0.06em]" style={{
+                fontSize: '32px',
+                fontWeight: 950,
+                color: 'var(--muted)'
+              }}>
+                {noneCount}
+              </p>
+            </button>
+          );
+        })()}
       </div>
 
       <div className={embedded ? "grid min-h-0 flex-1 gap-5 xl:grid-cols-[330px_1fr]" : "grid lg:grid-cols-[360px_1fr] gap-6"}>
@@ -372,7 +418,7 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
             <h2 className="m-0 leading-none tracking-[-0.075em]" style={{ fontSize: '20px', fontWeight: 950 }}>
               {language === "en" ? "Documents" : "문서 목록"}
               <span className="ml-2 tracking-tight" style={{ color: 'var(--neon-cyan)', fontSize: '14px', fontWeight: 950 }}>
-                {(selectedCategory ? docs.filter(d => d.category === selectedCategory) : docs).length}
+                {filteredDocs.length}
               </span>
             </h2>
             <div className="flex gap-2">
@@ -412,8 +458,8 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
             </div>
           </div>
 
-          <div className="codedock-scrollbar-hidden grid min-h-0 flex-1 gap-2 overflow-y-auto pr-1">
-            {(selectedCategory ? docs.filter(d => d.category === selectedCategory) : docs).map((doc) => {
+          <div className="codedock-scrollbar-hidden grid min-h-0 flex-1 content-start gap-2 overflow-y-auto pr-1">
+            {filteredDocs.map((doc) => {
               const Icon = getCategoryIcon(doc.category);
               const color = getCategoryColor(doc.category);
               return (
@@ -613,7 +659,7 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
         )}
 
         {!isWriting && selectedDocData && (
-          <section className={embedded ? "flex min-h-0 flex-col overflow-hidden px-5 py-5 rounded-2xl" : "px-8 py-8 rounded-[30px]"} style={{
+          <section className={embedded ? "flex min-h-0 flex-col overflow-hidden px-5 py-5 rounded-2xl" : "flex min-h-0 flex-col px-8 py-8 rounded-[30px]"} style={{
             background: 'rgba(11, 22, 40, 0.82)',
             border: '1px solid rgba(var(--codedock-primary-rgb), 0.16)',
             boxShadow: embedded ? '0 14px 36px rgba(0, 0, 0, 0.28)' : '0 20px 60px rgba(0, 0, 0, 0.32)',
@@ -652,6 +698,42 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
                       </span>
                     </div>
                   )}
+                  {(() => {
+                    const cat = categories.find(c => c.id === selectedDocData.category);
+                    if (cat) {
+                      const CatIcon = cat.icon;
+                      return (
+                        <div className="flex items-center gap-2 px-3 py-1 rounded-full" style={{
+                          background: 'rgba(234, 247, 255, 0.06)',
+                          border: '1px solid rgba(234, 247, 255, 0.12)'
+                        }}>
+                          <CatIcon size={13} style={{ color: cat.color }} />
+                          <span className="tracking-tight" style={{
+                            fontSize: "var(--krds-body-xsmall)",
+                            fontWeight: 900,
+                            color: cat.color
+                          }}>
+                            {language === "en" ? cat.nameEn : cat.name}
+                          </span>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div className="flex items-center gap-2 px-3 py-1 rounded-full" style={{
+                        background: 'rgba(234, 247, 255, 0.06)',
+                        border: '1px solid rgba(234, 247, 255, 0.12)'
+                      }}>
+                        <FileText size={13} style={{ color: 'var(--muted)' }} />
+                        <span className="tracking-tight" style={{
+                          fontSize: "var(--krds-body-xsmall)",
+                          fontWeight: 900,
+                          color: 'var(--muted)'
+                        }}>
+                          {language === "en" ? "General" : "일반 문서"}
+                        </span>
+                      </div>
+                    );
+                  })()}
                 </div>
                 <h2 className="m-0 mb-3 leading-[1.2] tracking-[-0.065em]" style={{
                   fontSize: '28px',
@@ -767,8 +849,37 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
             </div>
 
             {editingDocId === selectedDocData.id ? (
-              <div className={embedded ? "codedock-scrollbar-hidden min-h-0 flex-1 overflow-y-auto pr-1" : ""}>
+              <div className={embedded ? "codedock-scrollbar-hidden min-h-0 flex-1 overflow-y-auto pr-1" : "codedock-scrollbar-hidden min-h-0 flex-1 overflow-y-auto pr-1"}>
                 <div className="mx-auto grid w-full max-w-[980px] gap-4">
+                  <div className="grid gap-2">
+                    <span className="tracking-tight" style={{ color: 'var(--muted)', fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}>
+                      {language === "en" ? "Category" : "카테고리"}
+                    </span>
+                    <div className="flex gap-2 flex-wrap">
+                      {categories.map((cat) => {
+                        const CatIcon = cat.icon;
+                        return (
+                          <button
+                            key={cat.id}
+                            type="button"
+                            onClick={() => setEditCategory(editCategory === cat.id ? null : cat.id)}
+                            className="inline-flex items-center gap-2 rounded-xl border-0 px-3 py-2 tracking-tight transition-all"
+                            style={{
+                              background: editCategory === cat.id ? 'rgba(var(--codedock-primary-rgb), 0.16)' : 'rgba(5, 11, 20, 0.62)',
+                              border: editCategory === cat.id ? '1px solid rgba(var(--codedock-primary-rgb), 0.34)' : '1px solid rgba(var(--codedock-primary-rgb), 0.18)',
+                              color: editCategory === cat.id ? cat.color : 'var(--muted)',
+                              cursor: 'pointer',
+                              fontSize: "var(--krds-body-xsmall)",
+                              fontWeight: 950
+                            }}
+                          >
+                            <CatIcon size={13} />
+                            {language === "en" ? cat.nameEn : cat.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                   <label className="grid gap-2">
                     <span className="tracking-tight" style={{
                       color: 'var(--muted)',
@@ -815,14 +926,18 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
                 </div>
               </div>
             ) : (
-              <div className={embedded ? "codedock-scrollbar-hidden min-h-0 flex-1 overflow-y-auto pr-1" : "codedock-scrollbar-hidden max-h-[760px] overflow-y-auto pr-2"}>
-                <div className="rounded-3xl px-6 py-6" style={{
-                  background: 'rgba(5, 11, 20, 0.46)',
-                  border: '1px solid rgba(var(--codedock-primary-rgb), 0.12)',
-                  boxShadow: 'inset 0 1px 0 rgba(234, 247, 255, 0.06)'
-                }}>
-                  {renderDocumentPreview(selectedDocContent)}
-                </div>
+              <div className={embedded ? "codedock-scrollbar-hidden min-h-0 flex-1 overflow-y-auto pr-1" : "codedock-scrollbar-hidden min-h-0 flex-1 overflow-y-auto pr-2"}>
+                {embedded ? (
+                  <div className="min-h-full rounded-3xl px-5 py-5" style={{
+                    background: 'rgba(5, 11, 20, 0.46)',
+                    border: '1px solid rgba(var(--codedock-primary-rgb), 0.12)',
+                    boxShadow: 'inset 0 1px 0 rgba(234, 247, 255, 0.06)'
+                  }}>
+                    {renderDocumentPreview(selectedDocContent)}
+                  </div>
+                ) : (
+                  renderDocumentPreview(selectedDocContent)
+                )}
               </div>
             )}
           </section>

@@ -30,6 +30,7 @@ export type DocumentCreateRequest = {
 export type DocumentUpdateRequest = {
   title: string;
   content?: string;
+  category?: DocumentCategory;
 };
 
 export function getDocuments(workspaceId: number, options?: ApiRequestOptions) {
