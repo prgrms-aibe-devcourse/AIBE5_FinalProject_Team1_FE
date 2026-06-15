@@ -6,6 +6,7 @@ import { DndProvider, useDrag, useDrop, useDragLayer } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { fetchMyGithubRepos, fetchRepoCollaborators, type GithubCollaborator, type GithubRepo } from "../api/github";
 import { fetchMyWorkspaces, createWorkspace, deleteWorkspace, listReceivedInvites, acceptInvite, rejectInvite, type WorkspaceDto, type ReceivedInviteDto } from "../api/workspace";
+import { useWorkspace } from "../contexts/WorkspaceContext";
 
 const DRAG_TYPE = "TEAM_CARD";
 const WORKSPACE_COLORS_KEY = "codedock-workspace-colors-v1";
@@ -196,6 +197,7 @@ function DraggableTeamCard({
   accentColor: string;
 }) {
   const navigate = useNavigate();
+  const { setWorkspaceId } = useWorkspace();
   const cardRef = useRef<HTMLDivElement>(null);
 
   const [{ isDragging }, drag, dragPreview] = useDrag({
@@ -223,11 +225,18 @@ function DraggableTeamCard({
   drop(dragPreview(cardRef));
 
   const rgb = hexToRgb(accentColor);
+  const handleOpenWorkspace = () => {
+    const workspaceApiId = Number(org.workspaceId ?? org.id);
+    if (Number.isFinite(workspaceApiId)) {
+      setWorkspaceId(workspaceApiId);
+    }
+    navigate("/chat", { state: { workspaceId: String(workspaceApiId) } });
+  };
 
   return (
     <div
       ref={cardRef}
-      onClick={() => navigate("/chat", { state: { workspaceId: org.workspaceId } })}
+      onClick={handleOpenWorkspace}
       className="px-6 py-6 rounded-3xl transition-all hover:scale-[1.01]"
       style={{
         background: `linear-gradient(135deg, rgba(${rgb},0.13) 0%, rgba(11,22,40,0.90) 55%, rgba(8,16,32,0.85) 100%)`,

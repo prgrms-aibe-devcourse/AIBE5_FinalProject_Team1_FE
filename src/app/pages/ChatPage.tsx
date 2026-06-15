@@ -63,6 +63,7 @@ import {
 import type { ChatStompClient } from "../api/stomp";
 import { useProfile } from "../contexts/ProfileContext";
 import { fetchMyWorkspaces, getWorkspaceMembers, updatePresence, type WorkspaceDto, type WorkspaceMember } from "../api/workspace";
+import { useWorkspace } from "../contexts/WorkspaceContext";
 
 const REPOSITORY_IMPORTED_KEY = "codedock-repository-imported";
 const REPOSITORY_LIST_KEY = "codedock-repositories-v2";
@@ -104,6 +105,7 @@ interface RepositoryItem {
 
 interface WorkspaceItem {
   id: string;
+  apiId?: number;
   name: string;
   connected: boolean;
   membersOnline: number;
@@ -284,9 +286,26 @@ function saveJson(key: string, value: unknown) {
   }
 }
 
-function getWorkspaceApiId(workspaceId: string) {
+function toWorkspaceUiId(workspaceId: number) {
+  return `workspace-${workspaceId}`;
+}
+
+function getWorkspaceApiId(workspaceId: string, workspace?: WorkspaceItem | null) {
+  if (workspace?.apiId) {
+    return workspace.apiId;
+  }
+
   const numericSuffix = workspaceId.match(/\d+$/)?.[0];
   return numericSuffix ? Number(numericSuffix) : 1;
+}
+
+function parseWorkspaceApiId(value: unknown) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
 }
 
 // "Seoilhyeon AIBE5_Algorithm_Study 10" → "AIBE5_Algorithm_Study"
@@ -692,6 +711,7 @@ const initialThreadReplies: Record<number | string, any[]> = {
 
 export function ChatPage() {
   const { profile, userId } = useProfile();
+  const { workspaceId: contextWorkspaceId, setWorkspaceId: setContextWorkspaceId } = useWorkspace();
   const currentDisplayName = profile.name || myProfile.name;
   const [apiWorkspaces, setApiWorkspaces] = useState<WorkspaceDto[]>([]);
   const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMember[]>([]);
@@ -701,18 +721,23 @@ export function ChatPage() {
       .then((workspaces) => {
         setApiWorkspaces(workspaces);
         if (workspaces.length > 0) {
-          const incomingId = (location.state as { workspaceId?: string } | null)?.workspaceId;
-          const target = incomingId
-            ? workspaces.find((w) => String(w.id) === incomingId)
-            : null;
-          setSelectedWorkspace(target ? `workspace-${target.id}` : `workspace-${workspaces[0].id}`);
+          const incomingId = (location.state as { workspaceId?: string | number } | null)?.workspaceId;
+          const incomingApiId = parseWorkspaceApiId(incomingId);
+          const target = incomingApiId !== null
+            ? workspaces.find((w) => w.id === incomingApiId)
+            : contextWorkspaceId !== null
+              ? workspaces.find((w) => w.id === contextWorkspaceId)
+              : null;
+          const nextWorkspace = target ?? workspaces[0];
+          setSelectedWorkspace(toWorkspaceUiId(nextWorkspace.id));
+          setContextWorkspaceId(nextWorkspace.id);
         }
       })
       .catch(() => {});
   }, []);
 
   const workspaceList = apiWorkspaces.length > 0
-    ? apiWorkspaces.map(ws => ({ id: `workspace-${ws.id}`, name: ws.name, myRole: ws.myRole, membersOnline: ws.memberCount, connected: true }))
+    ? apiWorkspaces.map(ws => ({ id: toWorkspaceUiId(ws.id), apiId: ws.id, name: ws.name, myRole: ws.myRole, membersOnline: ws.memberCount, connected: true }))
     : DEFAULT_WORKSPACES;
 
   const [repositoriesImported, setRepositoriesImported] = useState(true);
@@ -837,11 +862,31 @@ export function ChatPage() {
   const hasRepositories = repositoriesImported && repositories.length > 0;
   const currentRepo = repositories.find(repo => repo.id === selectedRepository);
   const currentWorkspace = workspaceList.find(ws => ws.id === selectedWorkspace) ?? workspaceList[0];
-  const currentWorkspaceApiId = useMemo(() => getWorkspaceApiId(selectedWorkspace), [selectedWorkspace]);
+  const currentWorkspaceApiId = getWorkspaceApiId(selectedWorkspace, currentWorkspace);
   const currentWorkspaceMemberId = useMemo(() => {
     if (userId == null) return null;
     return workspaceMembers.find((member) => Number(member.userId) === Number(userId))?.memberId ?? null;
   }, [userId, workspaceMembers]);
+
+  useEffect(() => {
+    if (apiWorkspaces.length === 0 || contextWorkspaceId === null) return;
+    const contextWorkspace = apiWorkspaces.find((workspace) => workspace.id === contextWorkspaceId);
+    if (!contextWorkspace) return;
+
+    const nextWorkspaceId = toWorkspaceUiId(contextWorkspace.id);
+    if (selectedWorkspace !== nextWorkspaceId) {
+      setSelectedWorkspace(nextWorkspaceId);
+    }
+  }, [apiWorkspaces, contextWorkspaceId, selectedWorkspace]);
+
+  useEffect(() => {
+    if (apiWorkspaces.length === 0) return;
+    const hasWorkspace = apiWorkspaces.some((workspace) => workspace.id === currentWorkspaceApiId);
+    if (hasWorkspace && contextWorkspaceId !== currentWorkspaceApiId) {
+      setContextWorkspaceId(currentWorkspaceApiId);
+    }
+  }, [apiWorkspaces, contextWorkspaceId, currentWorkspaceApiId, setContextWorkspaceId]);
+
   const refreshWorkspaceChannels = useCallback((signal?: AbortSignal) => {
     return getWorkspaceChannels(currentWorkspaceApiId, signal ? { signal } : undefined)
       .then((channels) => {
@@ -892,6 +937,7 @@ export function ChatPage() {
     }, {});
   }, [apiChannels]);
   const activeApiChannelId = apiChannelIdByUiChannel[selectedChannel];
+  const hasActiveApiChatChannel = activeApiChannelId !== undefined;
   const apiCustomChannels = useMemo<CustomChannelItem[]>(() => {
     return apiChannels
       .filter((channel) => getApiChannelUiId(channel) !== "general")
@@ -1551,9 +1597,14 @@ export function ChatPage() {
   }, [activeApiChannelId, selectedThread?.backendMessageId, selectedThread?.id]);
 
   useEffect(() => {
-    if (apiChannels.length === 0) {
+    if (apiChannels.length === 0 || !hasActiveApiChatChannel) {
       chatStompRef.current?.disconnect();
       chatStompRef.current = null;
+      Object.values(remoteTypingTimeoutsRef.current).forEach((timeoutId) => {
+        window.clearTimeout(timeoutId);
+      });
+      remoteTypingTimeoutsRef.current = {};
+      setRemoteTypingByChannel({});
       return;
     }
 
@@ -1707,6 +1758,7 @@ export function ChatPage() {
     applyReactionResponse,
     appendServerMessage,
     currentWorkspaceApiId,
+    hasActiveApiChatChannel,
     incrementUnreadCount,
     isCurrentWorkspaceMember,
     replaceServerMessage,
@@ -2939,8 +2991,10 @@ export function ChatPage() {
                         key={ws.id}
                         type="button"
                         onClick={() => {
+                          const nextWorkspaceApiId = getWorkspaceApiId(ws.id, ws);
                           setSelectedWorkspace(ws.id);
-                          const firstRepo = repositories.find(r => r.workspaceId === ws.id);
+                          setContextWorkspaceId(nextWorkspaceApiId);
+                          const firstRepo = repositories.find(r => r.workspaceId === ws.id || r.workspaceId === String(nextWorkspaceApiId));
                           if (firstRepo) setSelectedRepository(firstRepo.id);
                           setSelectedChannel('overview');
                           setShowRepoDropdown(false);
