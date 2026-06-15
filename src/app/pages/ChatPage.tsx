@@ -1654,7 +1654,6 @@ export function ChatPage() {
     chatStompRef.current?.send(
       chatWebSocketDestinations.sendChannelTyping(activeApiChannelId),
       {
-        workspaceMemberId: TEMPORARY_WORKSPACE_MEMBER_ID,
         senderName: myProfile.name,
         typing
       }
@@ -2379,7 +2378,6 @@ export function ChatPage() {
         stompClient.send(
           chatWebSocketDestinations.sendChannelMessage(activeApiChannelId),
           {
-            senderMemberId: TEMPORARY_WORKSPACE_MEMBER_ID,
             content: messageText
           }
         );
@@ -2549,7 +2547,6 @@ export function ChatPage() {
         stompClient.send(
           chatWebSocketDestinations.sendThreadReply(backendThreadId),
           {
-            userId: TEMPORARY_API_USER_ID,
             content: trimmedText
           }
         );
