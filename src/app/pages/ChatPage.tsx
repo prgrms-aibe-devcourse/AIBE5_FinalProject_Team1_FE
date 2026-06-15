@@ -60,7 +60,7 @@ import {
 } from "../api";
 import type { ChatStompClient } from "../api/stomp";
 import { useProfile } from "../contexts/ProfileContext";
-import { fetchMyWorkspaces, updatePresence, type WorkspaceDto } from "../api/workspace";
+import { fetchMyWorkspaces, getWorkspaceMembers, updatePresence, type WorkspaceDto, type WorkspaceMember } from "../api/workspace";
 
 const REPOSITORY_IMPORTED_KEY = "codedock-repository-imported";
 const REPOSITORY_LIST_KEY = "codedock-repositories-v2";
@@ -331,6 +331,7 @@ function mapChannelMessageToWorkspaceMessage(message: ChannelMessage) {
     id: message.id,
     backendMessageId: message.id,
     backendChannelId: message.channelId,
+    senderMemberId: message.senderMemberId,
     user: message.senderName,
     avatar: message.senderName?.charAt(0).toUpperCase() || "U",
     message: message.content,
@@ -346,6 +347,7 @@ function mapThreadReplyToWorkspaceMessage(reply: ThreadReply) {
     id: reply.id,
     backendReplyId: reply.id,
     backendThreadId: reply.threadId,
+    senderMemberId: reply.senderMemberId,
     user: reply.senderName,
     avatar: reply.senderName?.charAt(0).toUpperCase() || "U",
     text: reply.content,
@@ -682,9 +684,10 @@ const initialThreadReplies: Record<number | string, any[]> = {
 };
 
 export function ChatPage() {
-  const { profile } = useProfile();
+  const { profile, userId } = useProfile();
   const currentDisplayName = profile.name || myProfile.name;
   const [apiWorkspaces, setApiWorkspaces] = useState<WorkspaceDto[]>([]);
+  const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMember[]>([]);
 
   useEffect(() => {
     fetchMyWorkspaces()
@@ -828,6 +831,10 @@ export function ChatPage() {
   const currentRepo = repositories.find(repo => repo.id === selectedRepository);
   const currentWorkspace = workspaceList.find(ws => ws.id === selectedWorkspace) ?? workspaceList[0];
   const currentWorkspaceApiId = useMemo(() => getWorkspaceApiId(selectedWorkspace), [selectedWorkspace]);
+  const currentWorkspaceMemberId = useMemo(() => {
+    if (userId == null) return null;
+    return workspaceMembers.find((member) => Number(member.userId) === Number(userId))?.memberId ?? null;
+  }, [userId, workspaceMembers]);
   const refreshWorkspaceChannels = useCallback((signal?: AbortSignal) => {
     return getWorkspaceChannels(currentWorkspaceApiId, signal ? { signal } : undefined)
       .then((channels) => {
@@ -912,6 +919,28 @@ export function ChatPage() {
       return nextCounts;
     });
   }, [apiChannels]);
+
+  useEffect(() => {
+    if (!currentWorkspaceApiId || userId == null) {
+      setWorkspaceMembers([]);
+      return;
+    }
+
+    const controller = new AbortController();
+    getWorkspaceMembers(currentWorkspaceApiId, { signal: controller.signal })
+      .then(setWorkspaceMembers)
+      .catch(() => {
+        setWorkspaceMembers([]);
+      });
+
+    return () => controller.abort();
+  }, [currentWorkspaceApiId, userId]);
+
+  const isCurrentWorkspaceMember = useCallback((memberId?: number | null) => {
+    return currentWorkspaceMemberId != null
+      && memberId != null
+      && Number(memberId) === Number(currentWorkspaceMemberId);
+  }, [currentWorkspaceMemberId]);
 
   useEffect(() => {
     if (!selectedChannel.startsWith(API_CHANNEL_ID_PREFIX)) return;
@@ -1542,7 +1571,9 @@ export function ChatPage() {
             if (createdMessagePayload) {
               const messagePayload = createdMessagePayload;
               appendServerMessage(uiChannelId, messagePayload);
-              incrementUnreadCount(uiChannelId);
+              if (!isCurrentWorkspaceMember(messagePayload.senderMemberId)) {
+                incrementUnreadCount(uiChannelId);
+              }
               return;
             }
 
@@ -1568,7 +1599,7 @@ export function ChatPage() {
           (event) => {
             const typingPayload = getChatEventPayload<TypingEvent>(event, CHAT_EVENT_TYPE.TYPING);
             if (!typingPayload) return;
-            if (typingPayload.senderName === currentDisplayName) return;
+            if (isCurrentWorkspaceMember(typingPayload.workspaceMemberId)) return;
             const typingKey = `${selectedChannel}:${typingPayload.workspaceMemberId}`;
 
             if (remoteTypingTimeoutsRef.current[typingKey]) {
@@ -1666,9 +1697,9 @@ export function ChatPage() {
     apiChannels,
     applyReactionResponse,
     appendServerMessage,
-    currentDisplayName,
     currentWorkspaceApiId,
     incrementUnreadCount,
+    isCurrentWorkspaceMember,
     replaceServerMessage,
     selectedChannel
   ]);
@@ -1687,7 +1718,9 @@ export function ChatPage() {
           if (Number(reply.threadId) !== threadId) return;
 
           appendServerThreadReply(thread, reply);
-          incrementUnreadCount(channelId);
+          if (!isCurrentWorkspaceMember(reply.senderMemberId)) {
+            incrementUnreadCount(channelId);
+          }
         }
       )
     );
@@ -1701,7 +1734,8 @@ export function ChatPage() {
     appendServerThreadReply,
     apiThreadTargets,
     chatStompReadyKey,
-    incrementUnreadCount
+    incrementUnreadCount,
+    isCurrentWorkspaceMember
   ]);
 
   useEffect(() => {
@@ -1722,11 +1756,10 @@ export function ChatPage() {
     chatStompRef.current?.send(
       chatWebSocketDestinations.sendChannelTyping(activeApiChannelId),
       {
-        senderName: currentDisplayName,
         typing
       }
     );
-  }, [activeApiChannelId, currentDisplayName]);
+  }, [activeApiChannelId]);
 
   const parseRepoNameFromUrl = (url: string): string | null => {
     try {
