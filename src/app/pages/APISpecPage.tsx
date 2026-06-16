@@ -113,7 +113,7 @@ interface APISpecPageProps {
 }
 
 export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps) {
-  const { myMemberId } = useWorkspace();
+  const { myMemberId, getMemberName } = useWorkspace();
 
   const [apis, setApis] = useState<ApiSpecResponse[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -607,7 +607,7 @@ export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps)
               )}
 
               <div className="mb-6 grid gap-4 md:grid-cols-3">
-                <InfoBlock icon={Code} label="담당" value={selectedApiData.assigneeId ? String(selectedApiData.assigneeId) : "미지정"} />
+                <InfoBlock icon={Code} label="담당" value={selectedApiData.assigneeId != null ? getMemberName(selectedApiData.assigneeId) : "미지정"} />
                 <InfoBlock icon={LinkIcon} label="관련 이슈" value={selectedApiData.relatedIssueId ? `Issue #${selectedApiData.relatedIssueId}` : "미지정"} />
                 <InfoBlock icon={GitBranch} label="관련 PR" value={selectedApiData.relatedPrId ? `PR #${selectedApiData.relatedPrId}` : "미지정"} />
               </div>
