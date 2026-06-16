@@ -365,6 +365,57 @@ function getSavedWorkspaceScopedRecord<T>(
     : scopeChannelRecordByWorkspace(workspaceApiId, source);
 }
 
+function hasServerMessageState(messages: any[]) {
+  return messages.some((message) =>
+    message?.backendMessageId != null
+    || message?.backendChannelId != null
+    || message?.serverSyncState != null
+    || message?.pending === true
+  );
+}
+
+function getLocalPersistableMessages(
+  messages: Record<string, any[]>,
+  apiChannelIdByUiChannel: Record<string, number>,
+  currentWorkspaceApiId: number
+) {
+  return Object.entries(messages).reduce<Record<string, any[]>>((acc, [channelStateKey, channelMessages]) => {
+    const channelId = getChannelIdFromWorkspaceScopedChatKey(channelStateKey);
+    const workspaceId = getWorkspaceIdFromWorkspaceScopedChatKey(channelStateKey);
+    const isCurrentWorkspaceApiChannel =
+      workspaceId === currentWorkspaceApiId
+      && (
+        channelId.startsWith(API_CHANNEL_ID_PREFIX)
+        || apiChannelIdByUiChannel[channelId] !== undefined
+      );
+
+    if (isCurrentWorkspaceApiChannel || hasServerMessageState(channelMessages)) {
+      return acc;
+    }
+
+    acc[channelStateKey] = channelMessages;
+    return acc;
+  }, {});
+}
+
+function hasServerThreadReplyState(replies: any[]) {
+  return replies.some((reply) =>
+    reply?.backendReplyId != null
+    || reply?.backendThreadId != null
+    || reply?.pending === true
+  );
+}
+
+function getLocalPersistableThreadReplies(threadReplies: Record<string | number, any[]>): Record<string | number, any[]> {
+  return Object.entries(threadReplies).reduce<Record<string | number, any[]>>((acc, [threadKey, replies]) => {
+    if (!hasServerThreadReplyState(replies)) {
+      acc[threadKey] = replies;
+    }
+
+    return acc;
+  }, {});
+}
+
 function toWorkspaceUiId(workspaceId: number) {
   return `workspace-${workspaceId}`;
 }
@@ -880,13 +931,19 @@ export function ChatPage() {
   const [selectedChannel, setSelectedChannel] = useState<string>('overview');
   const selectedChannelRef = useRef(selectedChannel);
   const [messages, setMessages] = useState<Record<string, any[]>>(() =>
-    getSavedWorkspaceScopedRecord(CHAT_MESSAGES_KEY, initialMessages)
+    getLocalPersistableMessages(
+      getSavedWorkspaceScopedRecord(CHAT_MESSAGES_KEY, initialMessages),
+      {},
+      DEFAULT_WORKSPACE_API_ID
+    )
   );
   const [selectedPR, setSelectedPR] = useState<any>(null);
   const [selectedIssue, setSelectedIssue] = useState<any>(null);
   const [selectedThread, setSelectedThread] = useState<any>(null);
   const [threadReplies, setThreadReplies] = useState<Record<number | string, any[]>>(() =>
-    getSavedWorkspaceScopedRecord(CHAT_THREAD_REPLIES_KEY, initialThreadReplies)
+    getLocalPersistableThreadReplies(
+      getSavedWorkspaceScopedRecord(CHAT_THREAD_REPLIES_KEY, initialThreadReplies)
+    )
   );
   const threadRepliesRef = useRef<Record<number | string, any[]>>(threadReplies);
   const [threadReplyCounts, setThreadReplyCounts] = useState<Record<number | string, number>>(() =>
@@ -1285,6 +1342,15 @@ export function ChatPage() {
     return counts;
   }, [userPresence]);
 
+  const persistableLocalMessages = useMemo(
+    () => getLocalPersistableMessages(messages, apiChannelIdByUiChannel, currentWorkspaceApiId),
+    [apiChannelIdByUiChannel, currentWorkspaceApiId, messages]
+  );
+  const persistableLocalThreadReplies = useMemo(
+    () => getLocalPersistableThreadReplies(threadReplies),
+    [threadReplies]
+  );
+
   useEffect(() => {
     if (!isMainExpanded) return;
 
@@ -1320,13 +1386,13 @@ export function ChatPage() {
   }, [firstVisibleRepositoryId]);
 
   useEffect(() => {
-    return scheduleSaveJson(CHAT_MESSAGES_KEY, messages);
-  }, [messages]);
+    return scheduleSaveJson(CHAT_MESSAGES_KEY, persistableLocalMessages);
+  }, [persistableLocalMessages]);
 
   useEffect(() => {
     threadRepliesRef.current = threadReplies;
-    return scheduleSaveJson(CHAT_THREAD_REPLIES_KEY, threadReplies);
-  }, [threadReplies]);
+    return scheduleSaveJson(CHAT_THREAD_REPLIES_KEY, persistableLocalThreadReplies);
+  }, [persistableLocalThreadReplies, threadReplies]);
 
   useEffect(() => {
     return scheduleSaveJson(CHAT_THREAD_REPLY_COUNTS_KEY, threadReplyCounts);
@@ -1706,6 +1772,17 @@ export function ChatPage() {
     if (!activeApiChannelId) return;
 
     const controller = new AbortController();
+    setMessages((prev) => {
+      const currentChannelMessages = prev[selectedChannelMessageKey] ?? [];
+      if (currentChannelMessages.length === 0 || hasServerMessageState(currentChannelMessages)) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        [selectedChannelMessageKey]: []
+      };
+    });
 
     getChannelMessages(activeApiChannelId, { limit: 50 }, {
       signal: controller.signal
@@ -1717,7 +1794,8 @@ export function ChatPage() {
         }));
       })
       .catch(() => {
-        // Keep the existing mock/local messages when the backend is unavailable.
+        // Keep existing server/pending messages when the backend is unavailable.
+        // Local-only messages are cleared above so API channels do not look persisted from localStorage.
       });
 
     return () => controller.abort();
@@ -2824,20 +2902,25 @@ export function ChatPage() {
           {
             ...nextMessage,
             pending: true,
-            backendChannelId: activeApiChannelId
+            backendChannelId: activeApiChannelId,
+            serverSyncState: "pending"
           }
         ]
       }));
 
       const stompClient = chatStompRef.current;
       if (stompClient && attachmentPayload.length === 0) {
-        stompClient.send(
-          chatWebSocketDestinations.sendChannelMessage(activeApiChannelId),
-          {
-            content: messageText
-          }
-        );
-        return;
+        try {
+          stompClient.send(
+            chatWebSocketDestinations.sendChannelMessage(activeApiChannelId),
+            {
+              content: messageText
+            }
+          );
+          return;
+        } catch {
+          // Fall back to REST creation below when the STOMP send path is unavailable.
+        }
       }
 
       createChannelMessage(activeApiChannelId, {
@@ -2853,6 +2936,7 @@ export function ChatPage() {
                 ? {
                     ...item,
                     pending: false,
+                    serverSyncState: "failed",
                     sendError: error instanceof Error
                       ? error.message
                       : "첨부파일 전송에 실패했습니다."
