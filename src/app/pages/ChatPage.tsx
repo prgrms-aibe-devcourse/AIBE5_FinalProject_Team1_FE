@@ -1352,8 +1352,9 @@ export function ChatPage() {
           item.pending
           && item.text === message.content
           && (
-            item.user === message.senderName
-            || item.backendChannelId === message.channelId
+            item.senderMemberId != null
+              ? Number(item.senderMemberId) === Number(message.senderMemberId)
+              : item.user === message.senderName || item.backendChannelId === message.channelId
           )
         )
       );
@@ -1432,7 +1433,8 @@ export function ChatPage() {
     const pendingIndex = currentReplies.findIndex((item) =>
       item.pending
       && item.text === reply.content
-      && item.user === reply.senderName
+      && (!item.backendThreadId || Number(item.backendThreadId) === Number(reply.threadId))
+      && (item.senderMemberId == null || Number(item.senderMemberId) === Number(reply.senderMemberId))
     );
     const nextReplies = pendingIndex >= 0
       ? currentReplies.map((item, index) => index === pendingIndex ? mappedReply : item)
@@ -2643,6 +2645,7 @@ export function ChatPage() {
 
     const nextMessage: any = {
       id: pendingMessageId,
+      senderMemberId: currentWorkspaceMemberId ?? undefined,
       user: currentDisplayName,
       text: trimmedText || `${attachments.length}개 항목을 공유합니다.`,
       time: '방금',
@@ -2862,8 +2865,11 @@ export function ChatPage() {
     if (!trimmedText) return;
 
     const key = getThreadKey(selectedThread);
+    const backendThreadId = Number(selectedThread.backendMessageId ?? selectedThread.id);
     const optimisticReply: any = {
       id: Date.now(),
+      backendThreadId: Number.isFinite(backendThreadId) ? backendThreadId : undefined,
+      senderMemberId: currentWorkspaceMemberId ?? undefined,
       user: currentDisplayName,
       text: trimmedText,
       message: trimmedText,
@@ -2912,7 +2918,6 @@ export function ChatPage() {
       );
     };
 
-    const backendThreadId = Number(selectedThread.backendMessageId ?? selectedThread.id);
     if (activeApiChannelId && Number.isFinite(backendThreadId)) {
       appendReply({ ...optimisticReply, pending: true });
       const stompClient = chatStompRef.current;
@@ -3740,6 +3745,8 @@ export function ChatPage() {
               <ChannelPanel
                 channelId={selectedChannel}
                 repoName={allCustomChannels.find(ch => ch.id === selectedChannel)?.label}
+                myMemberId={currentWorkspaceMemberId}
+                myDisplayName={currentDisplayName}
                 threads={activeApiChannelId ? currentMessages : undefined}
                 reactions={messageReactions}
                 replyCounts={mergedReplyCounts}
@@ -3768,6 +3775,8 @@ export function ChatPage() {
                 channelId={selectedChannel}
                 repoId={selectedRepository}
                 repoName={currentRepo?.name}
+                myMemberId={currentWorkspaceMemberId}
+                myDisplayName={currentDisplayName}
                 threads={activeApiChannelId ? currentMessages : undefined}
                 reactions={messageReactions}
                 replyCounts={mergedReplyCounts}
@@ -3796,6 +3805,8 @@ export function ChatPage() {
                 channelId={selectedChannel}
                 repoId={selectedChannel}
                 repoName={repositories.find(r => r.id === selectedChannel)?.name}
+                myMemberId={currentWorkspaceMemberId}
+                myDisplayName={currentDisplayName}
                 threads={activeApiChannelId ? currentMessages : undefined}
                 reactions={messageReactions}
                 replyCounts={mergedReplyCounts}
@@ -3843,6 +3854,8 @@ export function ChatPage() {
                 channelId={selectedChannel}
                 title={selectedChannelTitle}
                 messages={currentMessages}
+                myMemberId={currentWorkspaceMemberId}
+                myDisplayName={currentDisplayName}
                 reactions={messageReactions}
                 replyCounts={mergedReplyCounts}
                 onSendMessage={handleSendMessage}
@@ -3896,6 +3909,8 @@ export function ChatPage() {
             <ThreadPanel
               originalMessage={selectedThread}
               replies={threadReplies[getThreadKey(selectedThread)] || []}
+              myMemberId={currentWorkspaceMemberId}
+              myDisplayName={currentDisplayName}
               displayReplyCount={
                 Math.max(
                   (threadReplies[getThreadKey(selectedThread)] || []).length,
