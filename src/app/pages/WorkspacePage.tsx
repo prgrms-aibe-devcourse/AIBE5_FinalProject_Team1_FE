@@ -7,6 +7,7 @@ import { HTML5Backend } from "react-dnd-html5-backend";
 import { fetchMyGithubRepos, fetchRepoCollaborators, type GithubCollaborator, type GithubRepo } from "../api/github";
 import { fetchMyWorkspaces, createWorkspace, deleteWorkspace, listReceivedInvites, acceptInvite, rejectInvite, createInvite, type WorkspaceDto, type ReceivedInviteDto } from "../api/workspace";
 import { useWorkspace } from "../contexts/WorkspaceContext";
+import { useProfile } from "../contexts/ProfileContext";
 
 const DRAG_TYPE = "TEAM_CARD";
 const WORKSPACE_COLORS_KEY = "codedock-workspace-colors-v1";
@@ -1005,6 +1006,7 @@ function workspaceDtoToOrg(w: WorkspaceDto): Org {
 
 export function WorkspacePage() {
   const navigate = useNavigate();
+  const { profile } = useProfile();
   const teamSectionRef = useRef<HTMLDivElement>(null);
 
   const [orgs, setOrgs] = useState<Org[]>([]);
@@ -1096,10 +1098,8 @@ export function WorkspacePage() {
   const handleCreateTeam = async (name: string, selectedRepos: GithubRepo[], invitedMembers: TeamInviteDraft[]) => {
     const base = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
     const slug = (base || "team") + "-" + Date.now().toString(36);
-    await createWorkspace({ name: name.trim(), slug });
-    const list = await fetchMyWorkspaces();
-    const newWorkspace = list.find((w) => w.slug === slug);
-    if (newWorkspace && selectedRepos.length > 0) {
+    const newWorkspace = await createWorkspace({ name: name.trim(), slug });
+    if (selectedRepos.length > 0) {
       const CHAT_REPOS_KEY = "codedock-workspace-repos-v1";
       const REPO_URLS_KEY = "codedock-repo-urls-v1";
       const wsId = String(newWorkspace.id);
@@ -1116,13 +1116,16 @@ export function WorkspacePage() {
       }
       localStorage.setItem(REPO_URLS_KEY, JSON.stringify(urls));
     }
-    if (newWorkspace && invitedMembers.length > 0) {
+    const creatorEmail = profile.email.trim().toLowerCase();
+    const membersToInvite = invitedMembers.filter((m) => m.email.trim().toLowerCase() !== creatorEmail);
+    if (membersToInvite.length > 0) {
       const results = await Promise.allSettled(
-          invitedMembers.map((m) => createInvite(newWorkspace.id, { email: m.email, role: "viewer", expiresInHours: 168 }))
+          membersToInvite.map((m) => createInvite(newWorkspace.id, { email: m.email, role: "viewer", expiresInHours: 168 }))
       );
       const failed = results.filter((r) => r.status === "rejected").length;
       if (failed > 0) alert(`${failed}건의 초대 생성에 실패했습니다.`);
     }
+    const list = await fetchMyWorkspaces();
     setOrgs(list.map(workspaceDtoToOrg));
   };
 
