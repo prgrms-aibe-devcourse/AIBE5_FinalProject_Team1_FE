@@ -133,16 +133,6 @@ export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps)
   const filteredApis = filterMethod ? apis.filter((api) => api.method === filterMethod) : apis;
   const selectedApiData = apis.find((api) => api.id === selectedApiId) ?? apis[0] ?? null;
 
-  const groups = useMemo(() => {
-    const groupNames = Array.from(
-      new Set(apis.map((api) => api.groupName).filter((g): g is string => g !== null))
-    );
-    return groupNames.map((name) => ({
-      name,
-      count: apis.filter((api) => api.groupName === name).length,
-    }));
-  }, [apis]);
-
   const methodCounts = useMemo(() => {
     return apis.reduce<Record<ApiSpecMethod, number>>(
       (acc, api) => {
@@ -457,25 +447,6 @@ export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps)
             </button>
           </div>
 
-          <div className="mb-5 grid gap-2">
-            {groups.map((group) => (
-              <div
-                key={group.name}
-                className="flex items-center justify-between rounded-2xl px-4 py-3"
-                style={{
-                  background: "rgba(5, 11, 20, 0.42)",
-                  border: "1px solid rgba(var(--codedock-primary-rgb), 0.10)",
-                }}
-              >
-                <span className="text-sm font-black tracking-tight" style={{ color: "var(--white)" }}>
-                  {group.name}
-                </span>
-                <span className="text-[var(--krds-body-xsmall)] font-black tracking-tight" style={{ color: "var(--muted)" }}>
-                  {group.count}개
-                </span>
-              </div>
-            ))}
-          </div>
 
           {isLoading ? (
             <div className="rounded-2xl px-4 py-8 text-center tracking-tight" style={{ background: "rgba(234, 247, 255, 0.045)", border: "1px dashed rgba(var(--codedock-primary-rgb), 0.24)" }}>
@@ -518,7 +489,7 @@ export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps)
                     <MethodBadge method={api.method} />
                     <StatusBadge status={api.status} />
                   </div>
-                  <p className="m-0 mb-1 font-mono text-sm font-black tracking-tight" style={{ color: "var(--white)" }}>
+                  <p className="m-0 mb-1 break-all font-mono text-sm font-black tracking-tight" style={{ color: "var(--white)" }}>
                     {api.endpoint}
                   </p>
                   <p className="m-0 text-[var(--krds-body-xsmall)] font-bold leading-5 tracking-tight" style={{ color: "var(--muted)" }}>
@@ -1050,7 +1021,7 @@ function SpecBlock({ title, payload }: { title: string; payload: string }) {
         {title}
       </h3>
       <pre
-        className="m-0 overflow-x-auto rounded-2xl p-4 font-mono text-sm leading-6"
+        className="m-0 overflow-x-auto whitespace-pre-wrap break-all rounded-2xl p-4 font-mono text-sm leading-6"
         style={{
           background: "rgba(5, 11, 20, 0.62)",
           border: "1px solid rgba(var(--codedock-primary-rgb), 0.14)",
