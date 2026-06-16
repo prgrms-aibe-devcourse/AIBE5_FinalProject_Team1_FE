@@ -415,10 +415,19 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
           backdropFilter: 'blur(16px)'
         }}>
           <div className="mb-4 flex flex-shrink-0 items-center justify-between gap-2">
-            <h2 className="m-0 leading-none tracking-[-0.075em]" style={{ fontSize: '20px', fontWeight: 950 }}>
+            <h2 className="m-0 flex shrink-0 items-center gap-2 whitespace-nowrap leading-none tracking-[-0.075em]" style={{ fontSize: '20px', fontWeight: 950 }}>
               {language === "en" ? "Documents" : "문서 목록"}
-              <span className="ml-2 tracking-tight" style={{ color: 'var(--neon-cyan)', fontSize: '14px', fontWeight: 950 }}>
-                {filteredDocs.length}
+              <span
+                className="shrink-0 whitespace-nowrap rounded-lg px-2 py-0.5 font-black tracking-tight"
+                style={{
+                  fontSize: '13px',
+                  background: selectedCategory !== null
+                    ? `color-mix(in srgb, ${getCategoryColor(selectedCategory)} 15%, transparent)`
+                    : "rgba(234, 247, 255, 0.08)",
+                  color: selectedCategory !== null ? getCategoryColor(selectedCategory) : "var(--muted)",
+                }}
+              >
+                {selectedCategory !== null ? `${filteredDocs.length} / ${docs.length}` : docs.length}
               </span>
             </h2>
             <div className="flex gap-2">
@@ -426,7 +435,7 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
                 type="button"
                 onClick={() => void handleGenerateAiDocument()}
                 disabled={isAiGenerating}
-                className="inline-flex items-center gap-1.5 rounded-xl border-0 px-3 py-2 tracking-tight"
+                className="inline-flex shrink-0 whitespace-nowrap items-center gap-1.5 rounded-xl border-0 px-3 py-2 tracking-tight"
                 style={{
                   background: 'linear-gradient(135deg, rgba(var(--codedock-primary-rgb), 0.20), rgba(var(--codedock-secondary-rgb), 0.12))',
                   border: '1px solid rgba(var(--codedock-primary-rgb), 0.28)',
@@ -443,7 +452,7 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
               <button
                 type="button"
                 onClick={handleStartWriting}
-                className="inline-flex items-center gap-1.5 rounded-xl border-0 px-3 py-2 tracking-tight"
+                className="inline-flex shrink-0 whitespace-nowrap items-center gap-1.5 rounded-xl border-0 px-3 py-2 tracking-tight"
                 style={{
                   background: 'linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))',
                   color: '#021014',
