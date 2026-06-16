@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import {
   getApiSpecs,
+  getSwaggerUrl,
   createApiSpec,
   updateApiSpec,
   deleteApiSpec,
@@ -166,6 +167,26 @@ export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps)
       })
       .finally(() => {
         setIsLoading(false);
+      });
+
+    return () => {
+      controller.abort();
+    };
+  }, [workspaceId]);
+
+  useEffect(() => {
+    if (!workspaceId) return;
+
+    const controller = new AbortController();
+
+    getSwaggerUrl(workspaceId, { signal: controller.signal })
+      .then((url) => {
+        setSwaggerUrl(url);
+      })
+      .catch((error) => {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          setSwaggerUrl("");
+        }
       });
 
     return () => {
