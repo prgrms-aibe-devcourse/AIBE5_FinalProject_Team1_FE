@@ -369,6 +369,7 @@ function hasServerMessageState(messages: any[]) {
   return messages.some((message) =>
     message?.backendMessageId != null
     || message?.backendChannelId != null
+    || message?.serverSyncState != null
     || message?.pending === true
   );
 }
@@ -1771,6 +1772,17 @@ export function ChatPage() {
     if (!activeApiChannelId) return;
 
     const controller = new AbortController();
+    setMessages((prev) => {
+      const currentChannelMessages = prev[selectedChannelMessageKey] ?? [];
+      if (currentChannelMessages.length === 0 || hasServerMessageState(currentChannelMessages)) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        [selectedChannelMessageKey]: []
+      };
+    });
 
     getChannelMessages(activeApiChannelId, { limit: 50 }, {
       signal: controller.signal
@@ -1782,7 +1794,8 @@ export function ChatPage() {
         }));
       })
       .catch(() => {
-        // Keep the existing mock/local messages when the backend is unavailable.
+        // Keep existing server/pending messages when the backend is unavailable.
+        // Local-only messages are cleared above so API channels do not look persisted from localStorage.
       });
 
     return () => controller.abort();
@@ -2889,20 +2902,25 @@ export function ChatPage() {
           {
             ...nextMessage,
             pending: true,
-            backendChannelId: activeApiChannelId
+            backendChannelId: activeApiChannelId,
+            serverSyncState: "pending"
           }
         ]
       }));
 
       const stompClient = chatStompRef.current;
       if (stompClient && attachmentPayload.length === 0) {
-        stompClient.send(
-          chatWebSocketDestinations.sendChannelMessage(activeApiChannelId),
-          {
-            content: messageText
-          }
-        );
-        return;
+        try {
+          stompClient.send(
+            chatWebSocketDestinations.sendChannelMessage(activeApiChannelId),
+            {
+              content: messageText
+            }
+          );
+          return;
+        } catch {
+          // Fall back to REST creation below when the STOMP send path is unavailable.
+        }
       }
 
       createChannelMessage(activeApiChannelId, {
@@ -2918,6 +2936,7 @@ export function ChatPage() {
                 ? {
                     ...item,
                     pending: false,
+                    serverSyncState: "failed",
                     sendError: error instanceof Error
                       ? error.message
                       : "첨부파일 전송에 실패했습니다."
