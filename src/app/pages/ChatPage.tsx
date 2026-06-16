@@ -75,6 +75,8 @@ const CHAT_THREAD_REPLY_COUNTS_KEY = "codedock-chat-thread-reply-counts-v1";
 const CHAT_REACTIONS_KEY = "codedock-chat-reactions-v1";
 const WORKSPACE_TEAMS_KEY = "codedock-workspace-teams-v1";
 const API_CHANNEL_ID_PREFIX = "api-channel-";
+const DEFAULT_WORKSPACE_API_ID = 1;
+const WORKSPACE_CHAT_STATE_KEY_PREFIX = "workspace";
 const ROLE_PRIVILEGE_ORDER = [
   "Tech Lead", "Backend Developer", "Frontend Developer", "DevOps Engineer",
   "QA Engineer", "Product Manager", "Designer", "Viewer"
@@ -298,6 +300,69 @@ function scheduleSaveJson(key: string, value: unknown, delay = 350) {
   }, delay);
 
   return () => window.clearTimeout(timeoutId);
+}
+
+function getWorkspaceScopedChatKey(workspaceApiId: number, key: string | number) {
+  return `${WORKSPACE_CHAT_STATE_KEY_PREFIX}:${workspaceApiId}:${String(key)}`;
+}
+
+function getChannelIdFromWorkspaceScopedChatKey(key: string) {
+  const match = key.match(/^workspace:\d+:(.+)$/);
+  return match?.[1] ?? key;
+}
+
+function getWorkspaceIdFromWorkspaceScopedChatKey(key: string) {
+  const match = key.match(/^workspace:(\d+):/);
+  return match ? Number(match[1]) : null;
+}
+
+function hasWorkspaceScopedChatKeys(value: Record<string, unknown>) {
+  return Object.keys(value).some((key) => key.startsWith(`${WORKSPACE_CHAT_STATE_KEY_PREFIX}:`));
+}
+
+function scopeChannelRecordByWorkspace<T>(
+  workspaceApiId: number,
+  record: Record<string, T>
+): Record<string, T> {
+  return Object.entries(record).reduce<Record<string, T>>((acc, [key, value]) => {
+    const scopedKey = key.startsWith(`${WORKSPACE_CHAT_STATE_KEY_PREFIX}:`)
+      ? key
+      : getWorkspaceScopedChatKey(workspaceApiId, key);
+    acc[scopedKey] = value;
+    return acc;
+  }, {});
+}
+
+function getWorkspaceScopedRecordView<T>(
+  workspaceApiId: number,
+  record: Record<string, T>
+): Record<string, T> {
+  return Object.entries(record).reduce<Record<string, T>>((acc, [key, value]) => {
+    const scopedWorkspaceId = getWorkspaceIdFromWorkspaceScopedChatKey(key);
+
+    if (scopedWorkspaceId === workspaceApiId) {
+      acc[getChannelIdFromWorkspaceScopedChatKey(key)] = value;
+      return acc;
+    }
+
+    if (scopedWorkspaceId === null && workspaceApiId === DEFAULT_WORKSPACE_API_ID) {
+      acc[key] = value;
+    }
+
+    return acc;
+  }, {});
+}
+
+function getSavedWorkspaceScopedRecord<T>(
+  key: string,
+  fallback: Record<string, T>,
+  workspaceApiId = DEFAULT_WORKSPACE_API_ID
+) {
+  const saved = getSavedJson<Record<string, T> | null>(key, null);
+  const source = saved ?? fallback;
+  return hasWorkspaceScopedChatKeys(source)
+    ? source
+    : scopeChannelRecordByWorkspace(workspaceApiId, source);
 }
 
 function toWorkspaceUiId(workspaceId: number) {
@@ -634,6 +699,27 @@ function getThreadKey(msg: any): string | number {
   return msg?.id;
 }
 
+function getMessageFallbackAvatar(user?: string) {
+  const trimmedUser = (user ?? "").trim();
+  return trimmedUser ? trimmedUser.charAt(0).toUpperCase() : "U";
+}
+
+function mapMessageToChannelThread(message: any) {
+  const user = message?.user ?? message?.senderName ?? "CodeDock";
+  const body = message?.message ?? message?.text ?? "";
+  const replyCount = Number(message?.replies ?? message?.replyCount ?? 0);
+
+  return {
+    ...message,
+    user,
+    avatar: message?.avatar ?? getMessageFallbackAvatar(user),
+    message: body,
+    text: message?.text ?? body,
+    time: message?.time ?? "",
+    replies: Number.isFinite(replyCount) ? replyCount : 0
+  };
+}
+
 const initialThreadReplies: Record<number | string, any[]> = {
   // ── PR 스레드 (pr-{id} 키) ──────────────────────────────────────
   // PR #104 — AI 인터뷰 리팩터 (diff seed 포함)
@@ -794,27 +880,20 @@ export function ChatPage() {
   const [selectedChannel, setSelectedChannel] = useState<string>('overview');
   const selectedChannelRef = useRef(selectedChannel);
   const [messages, setMessages] = useState<Record<string, any[]>>(() =>
-    getSavedJson(CHAT_MESSAGES_KEY, initialMessages)
+    getSavedWorkspaceScopedRecord(CHAT_MESSAGES_KEY, initialMessages)
   );
   const [selectedPR, setSelectedPR] = useState<any>(null);
   const [selectedIssue, setSelectedIssue] = useState<any>(null);
   const [selectedThread, setSelectedThread] = useState<any>(null);
   const [threadReplies, setThreadReplies] = useState<Record<number | string, any[]>>(() =>
-    getSavedJson(CHAT_THREAD_REPLIES_KEY, initialThreadReplies)
+    getSavedWorkspaceScopedRecord(CHAT_THREAD_REPLIES_KEY, initialThreadReplies)
   );
   const threadRepliesRef = useRef<Record<number | string, any[]>>(threadReplies);
   const [threadReplyCounts, setThreadReplyCounts] = useState<Record<number | string, number>>(() =>
-    getSavedJson(CHAT_THREAD_REPLY_COUNTS_KEY, {})
+    getSavedWorkspaceScopedRecord(CHAT_THREAD_REPLY_COUNTS_KEY, {})
   );
-  const mergedReplyCounts = useMemo(() => {
-    const counts: Record<number | string, number> = { ...threadReplyCounts };
-    Object.entries(threadReplies).forEach(([key, replies]) => {
-      counts[key] = (replies as any[]).length;
-    });
-    return counts;
-  }, [threadReplyCounts, threadReplies]);
   const [messageReactions, setMessageReactions] = useState<Record<string, MessageReaction[]>>(() =>
-    getSavedJson(CHAT_REACTIONS_KEY, {})
+    getSavedWorkspaceScopedRecord(CHAT_REACTIONS_KEY, {})
   );
   const [isMainExpanded, setIsMainExpanded] = useState(false);
   const [teamInviteOpen, setTeamInviteOpen] = useState(false);
@@ -842,10 +921,12 @@ export function ChatPage() {
   const [channelActionError, setChannelActionError] = useState('');
   const [channelActionPendingId, setChannelActionPendingId] = useState<string | null>(null);
   const [channelUnreadCounts, setChannelUnreadCounts] = useState<Record<string, number>>({
-    general: 3,
-    'frontend-chat': 2,
-    'backend-chat': 1,
-    'review-room': 2,
+    ...scopeChannelRecordByWorkspace(DEFAULT_WORKSPACE_API_ID, {
+      general: 3,
+      'frontend-chat': 2,
+      'backend-chat': 1,
+      'review-room': 2,
+    })
   });
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
 
@@ -885,6 +966,45 @@ export function ChatPage() {
   const currentWorkspace = workspaceList.find(ws => ws.id === selectedWorkspace) ?? workspaceList[0];
   const canManageWorkspaceChannels = canManageWorkspaceChannel(currentWorkspace?.myRole);
   const currentWorkspaceApiId = getWorkspaceApiId(selectedWorkspace, currentWorkspace);
+  const selectedChannelMessageKey = useMemo(
+    () => getWorkspaceScopedChatKey(currentWorkspaceApiId, selectedChannel),
+    [currentWorkspaceApiId, selectedChannel]
+  );
+  const getMessageChannelKey = useCallback(
+    (channelId: string) => getWorkspaceScopedChatKey(currentWorkspaceApiId, channelId),
+    [currentWorkspaceApiId]
+  );
+  const getThreadReplyStateKey = useCallback(
+    (thread: any) => getWorkspaceScopedChatKey(currentWorkspaceApiId, getThreadKey(thread)),
+    [currentWorkspaceApiId]
+  );
+  const getInteractionStateKey = useCallback(
+    (key: string | number) => getWorkspaceScopedChatKey(currentWorkspaceApiId, key),
+    [currentWorkspaceApiId]
+  );
+  const currentThreadReplies = useMemo(
+    () => getWorkspaceScopedRecordView(currentWorkspaceApiId, threadReplies),
+    [currentWorkspaceApiId, threadReplies]
+  );
+  const currentThreadReplyCounts = useMemo(
+    () => getWorkspaceScopedRecordView(currentWorkspaceApiId, threadReplyCounts),
+    [currentWorkspaceApiId, threadReplyCounts]
+  );
+  const mergedReplyCounts = useMemo(() => {
+    const counts: Record<number | string, number> = { ...currentThreadReplyCounts };
+    Object.entries(currentThreadReplies).forEach(([key, replies]) => {
+      counts[key] = (replies as any[]).length;
+    });
+    return counts;
+  }, [currentThreadReplies, currentThreadReplyCounts]);
+  const currentMessageReactions = useMemo(
+    () => getWorkspaceScopedRecordView(currentWorkspaceApiId, messageReactions),
+    [currentWorkspaceApiId, messageReactions]
+  );
+  const currentChannelUnreadCounts = useMemo(
+    () => getWorkspaceScopedRecordView(currentWorkspaceApiId, channelUnreadCounts),
+    [channelUnreadCounts, currentWorkspaceApiId]
+  );
   const currentWorkspaceMemberId = useMemo(() => {
     if (userId == null) return null;
     return workspaceMembers.find((member) => Number(member.userId) === Number(userId))?.memberId ?? null;
@@ -975,11 +1095,11 @@ export function ChatPage() {
   );
   const activeRemoteTypingNames = Object.values(remoteTypingByChannel[selectedChannel] ?? {});
   const activeRemoteTypingLabel = formatRemoteTypingLabel(activeRemoteTypingNames);
-  const activeServerBookmarkedThreadIds = serverBookmarkedThreadsByChannel[selectedChannel] ?? {};
+  const activeServerBookmarkedThreadIds = serverBookmarkedThreadsByChannel[selectedChannelMessageKey] ?? {};
   const unreadMentionCount = workspaceMentions.filter((mention) => !mention.read).length;
 
   const getChannelBadge = (channelId: string): string | undefined => {
-    const count = channelUnreadCounts[channelId];
+    const count = currentChannelUnreadCounts[channelId];
     return count && count > 0 ? String(count) : undefined;
   };
 
@@ -989,11 +1109,11 @@ export function ChatPage() {
     setChannelUnreadCounts((prev) => {
       const nextCounts = { ...prev };
       apiChannels.forEach((channel) => {
-        nextCounts[getApiChannelUiId(channel)] = channel.unreadCount ?? 0;
+        nextCounts[getMessageChannelKey(getApiChannelUiId(channel))] = channel.unreadCount ?? 0;
       });
       return nextCounts;
     });
-  }, [apiChannels]);
+  }, [apiChannels, getMessageChannelKey]);
 
   useEffect(() => {
     if (!currentWorkspaceApiId || userId == null) {
@@ -1025,11 +1145,19 @@ export function ChatPage() {
     setSelectedChannel('general');
   }, [apiChannelIdByUiChannel, apiChannels.length, selectedChannel]);
 
-  const currentMessages = messages[selectedChannel] || [];
+  const currentMessages = messages[selectedChannelMessageKey] || [];
+  const currentChannelThreads = useMemo(
+    () => currentMessages.map(mapMessageToChannelThread),
+    [currentMessages]
+  );
   const apiThreadTargets = useMemo(() => {
     const threadTargets = new Map<number, { channelId: string; thread: any }>();
 
-    Object.entries(messages).forEach(([channelId, channelMessages]) => {
+    Object.entries(messages).forEach(([channelStateKey, channelMessages]) => {
+      const workspaceId = getWorkspaceIdFromWorkspaceScopedChatKey(channelStateKey);
+      if (workspaceId !== null && workspaceId !== currentWorkspaceApiId) return;
+
+      const channelId = getChannelIdFromWorkspaceScopedChatKey(channelStateKey);
       if (!apiChannelIdByUiChannel[channelId]) return;
 
       channelMessages.forEach((message) => {
@@ -1047,7 +1175,7 @@ export function ChatPage() {
       threadId,
       ...target
     }));
-  }, [apiChannelIdByUiChannel, messages]);
+  }, [apiChannelIdByUiChannel, currentWorkspaceApiId, messages]);
   const isRepository = ['pull-requests', 'ai-review'].includes(selectedChannel);
   const sidebarColumn = "clamp(280px, 21vw, 340px)";
   const threadColumn = "clamp(320px, 26vw, 400px)";
@@ -1209,6 +1337,13 @@ export function ChatPage() {
   }, [selectedChannel]);
 
   useEffect(() => {
+    setSelectedThread(null);
+    setSelectedPR(null);
+    setSelectedIssue(null);
+    setRemoteTypingByChannel({});
+  }, [currentWorkspaceApiId]);
+
+  useEffect(() => {
     return scheduleSaveJson(CHAT_REACTIONS_KEY, messageReactions);
   }, [messageReactions]);
 
@@ -1218,10 +1353,10 @@ export function ChatPage() {
 
   useEffect(() => {
     setChannelUnreadCounts(prev => {
-      if (!prev[selectedChannel]) return prev;
-      return { ...prev, [selectedChannel]: 0 };
+      if (!prev[selectedChannelMessageKey]) return prev;
+      return { ...prev, [selectedChannelMessageKey]: 0 };
     });
-  }, [selectedChannel]);
+  }, [selectedChannelMessageKey]);
 
   useEffect(() => {
     if (!activeApiChannelId) return;
@@ -1240,21 +1375,27 @@ export function ChatPage() {
       .then((bookmarks) => {
         const nextBookmarks = bookmarks.reduce<Record<string, Record<number, boolean>>>((acc, bookmark) => {
           const uiChannelId = apiChannelUiById[bookmark.channelId] ?? String(bookmark.channelId);
-          acc[uiChannelId] = {
-            ...(acc[uiChannelId] ?? {}),
+          const channelStateKey = getMessageChannelKey(uiChannelId);
+          acc[channelStateKey] = {
+            ...(acc[channelStateKey] ?? {}),
             [bookmark.messageId]: true
           };
           return acc;
         }, {});
 
-        setServerBookmarkedThreadsByChannel(nextBookmarks);
+        setServerBookmarkedThreadsByChannel((prev) => ({
+          ...Object.fromEntries(
+            Object.entries(prev).filter(([key]) => getWorkspaceIdFromWorkspaceScopedChatKey(key) !== currentWorkspaceApiId)
+          ),
+          ...nextBookmarks
+        }));
       })
       .catch(() => {
         // Keep local bookmark state when the backend is unavailable.
       });
 
     return () => controller.abort();
-  }, [apiChannelUiById, currentWorkspaceApiId]);
+  }, [apiChannelUiById, currentWorkspaceApiId, getMessageChannelKey]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -1272,16 +1413,18 @@ export function ChatPage() {
 
   const incrementUnreadCount = useCallback((channelId: string) => {
     if (channelId === selectedChannelRef.current) return;
+    const channelStateKey = getMessageChannelKey(channelId);
 
     setChannelUnreadCounts((prev) => ({
       ...prev,
-      [channelId]: (prev[channelId] ?? 0) + 1
+      [channelStateKey]: (prev[channelStateKey] ?? 0) + 1
     }));
-  }, []);
+  }, [getMessageChannelKey]);
 
   const setServerBookmarkState = useCallback((uiChannelId: string, messageId: number, bookmarked: boolean) => {
     setServerBookmarkedThreadsByChannel((prev) => {
-      const nextChannelBookmarks = { ...(prev[uiChannelId] ?? {}) };
+      const channelStateKey = getMessageChannelKey(uiChannelId);
+      const nextChannelBookmarks = { ...(prev[channelStateKey] ?? {}) };
 
       if (bookmarked) {
         nextChannelBookmarks[messageId] = true;
@@ -1291,10 +1434,10 @@ export function ChatPage() {
 
       return {
         ...prev,
-        [uiChannelId]: nextChannelBookmarks
+        [channelStateKey]: nextChannelBookmarks
       };
     });
-  }, []);
+  }, [getMessageChannelKey]);
 
   const handleToggleThreadBookmark = useCallback((thread: any, nextBookmarked: boolean) => {
     const channelId = Number(thread.backendChannelId ?? activeApiChannelId);
@@ -1336,9 +1479,10 @@ export function ChatPage() {
 
   const appendServerMessage = useCallback((channelId: string, message: ChannelMessage) => {
     const mappedMessage = mapChannelMessageToWorkspaceMessage(message);
+    const channelStateKey = getMessageChannelKey(channelId);
 
     setMessages((prev) => {
-      const currentChannelMessages = prev[channelId] || [];
+      const currentChannelMessages = prev[channelStateKey] || [];
       const alreadyExists = currentChannelMessages.some((item) =>
         item.backendMessageId === message.id || (
           item.backendChannelId === message.channelId
@@ -1362,17 +1506,18 @@ export function ChatPage() {
 
       return {
         ...prev,
-        [channelId]: [...withoutMatchingPending, mappedMessage]
+        [channelStateKey]: [...withoutMatchingPending, mappedMessage]
       };
     });
-  }, []);
+  }, [getMessageChannelKey]);
 
   const replaceServerMessage = useCallback((channelId: string, message: ChannelMessage) => {
     const mappedMessage = mapChannelMessageToWorkspaceMessage(message);
+    const channelStateKey = getMessageChannelKey(channelId);
 
     setMessages((prev) => ({
       ...prev,
-      [channelId]: (prev[channelId] || []).map((item) =>
+      [channelStateKey]: (prev[channelStateKey] || []).map((item) =>
         item.backendMessageId === message.id || item.id === message.id
           ? { ...item, ...mappedMessage }
           : item
@@ -1383,7 +1528,7 @@ export function ChatPage() {
         ? { ...prevThread, ...mappedMessage }
         : prevThread
     );
-  }, []);
+  }, [getMessageChannelKey]);
 
   const attachToExistingServerMessage = useCallback((
     channelId: string,
@@ -1402,10 +1547,11 @@ export function ChatPage() {
 
     return addMessageAttachments(apiChannelId, messageId, attachmentPayload).then((serverAttachments) => {
       const mappedAttachments = serverAttachments.map(mapMessageAttachmentResponse);
+      const channelStateKey = getMessageChannelKey(channelId);
 
       setMessages((prev) => ({
         ...prev,
-        [channelId]: (prev[channelId] || []).map((item) =>
+        [channelStateKey]: (prev[channelStateKey] || []).map((item) =>
           Number(item.backendMessageId ?? item.id) === messageId
             ? { ...item, attachments: [...(item.attachments ?? []), ...mappedAttachments] }
             : item
@@ -1419,10 +1565,10 @@ export function ChatPage() {
 
       return mappedAttachments;
     });
-  }, []);
+  }, [getMessageChannelKey]);
 
   const appendServerThreadReply = useCallback((thread: any, reply: ThreadReply) => {
-    const threadKey = getThreadKey(thread);
+    const threadKey = getThreadReplyStateKey(thread);
     const mappedReply = mapThreadReplyToWorkspaceMessage(reply);
     const currentReplies = threadRepliesRef.current[threadKey] ?? [];
     const alreadyExists = currentReplies.some((item) =>
@@ -1450,7 +1596,7 @@ export function ChatPage() {
     setThreadReplies(nextThreadReplies);
     setThreadReplyCounts((prev) => ({
       ...prev,
-      [thread.id]: Math.max(prev[thread.id] ?? 0, nextReplies.length)
+      [threadKey]: Math.max(prev[threadKey] ?? 0, nextReplies.length)
     }));
     setSelectedThread((prevThread: any) =>
       prevThread && prevThread.id === thread.id
@@ -1461,7 +1607,7 @@ export function ChatPage() {
           }
         : prevThread
     );
-  }, []);
+  }, [getThreadReplyStateKey]);
 
   const applyReactionSummaries = useCallback((summaries: ReactionSummary[], channelId = selectedChannel) => {
     if (summaries.length === 0) return;
@@ -1479,33 +1625,39 @@ export function ChatPage() {
           ].filter((key): key is string => Boolean(key));
 
           keys.forEach((key) => {
-            const previousReaction = next[key]?.find((item) => item.emoji === summary.emoji);
+            const reactionStateKey = getInteractionStateKey(key);
+            const previousReaction = next[reactionStateKey]?.find((item) => item.emoji === summary.emoji);
             const reaction = mapReactionSummaryToMessageReaction(summary, previousReaction);
-            const existing = next[key]?.filter((item) => item.emoji !== summary.emoji) ?? [];
-            next[key] = summary.count > 0 ? [...existing, reaction] : existing;
+            const existing = next[reactionStateKey]?.filter((item) => item.emoji !== summary.emoji) ?? [];
+            next[reactionStateKey] = summary.count > 0 ? [...existing, reaction] : existing;
           });
           return;
         }
 
         if (summary.targetType === "thread_reply") {
           Object.entries(threadRepliesRef.current).forEach(([threadKey, replies]) => {
+            const workspaceId = getWorkspaceIdFromWorkspaceScopedChatKey(String(threadKey));
+            if (workspaceId !== null && workspaceId !== currentWorkspaceApiId) return;
+
             const matchesReply = replies.some((reply) =>
               Number(reply.backendReplyId ?? reply.id) === summary.targetId
             );
             if (!matchesReply) return;
 
-            const key = `thread:${channelId}:${threadKey}:reply:${summary.targetId}`;
-            const previousReaction = next[key]?.find((item) => item.emoji === summary.emoji);
+            const unscopedThreadKey = getChannelIdFromWorkspaceScopedChatKey(String(threadKey));
+            const key = `thread:${channelId}:${unscopedThreadKey}:reply:${summary.targetId}`;
+            const reactionStateKey = getInteractionStateKey(key);
+            const previousReaction = next[reactionStateKey]?.find((item) => item.emoji === summary.emoji);
             const reaction = mapReactionSummaryToMessageReaction(summary, previousReaction);
-            const existing = next[key]?.filter((item) => item.emoji !== summary.emoji) ?? [];
-            next[key] = summary.count > 0 ? [...existing, reaction] : existing;
+            const existing = next[reactionStateKey]?.filter((item) => item.emoji !== summary.emoji) ?? [];
+            next[reactionStateKey] = summary.count > 0 ? [...existing, reaction] : existing;
           });
         }
       });
 
       return next;
     });
-  }, [selectedChannel, selectedThread]);
+  }, [currentWorkspaceApiId, getInteractionStateKey, selectedChannel, selectedThread]);
 
   const applyReactionResponse = useCallback((response: ReactionToggleResponse, channelId = selectedChannel) => {
     const keys = response.targetType === "thread"
@@ -1516,21 +1668,24 @@ export function ChatPage() {
             : null
         ].filter((key): key is string => Boolean(key))
       : Object.entries(threadRepliesRef.current)
-        .filter(([, replies]) =>
-          replies.some((reply) => Number(reply.backendReplyId ?? reply.id) === response.targetId)
-        )
-        .map(([threadKey]) => `thread:${channelId}:${threadKey}:reply:${response.targetId}`);
+        .filter(([threadKey, replies]) => {
+          const workspaceId = getWorkspaceIdFromWorkspaceScopedChatKey(String(threadKey));
+          if (workspaceId !== null && workspaceId !== currentWorkspaceApiId) return false;
+          return replies.some((reply) => Number(reply.backendReplyId ?? reply.id) === response.targetId);
+        })
+        .map(([threadKey]) => `thread:${channelId}:${getChannelIdFromWorkspaceScopedChatKey(String(threadKey))}:reply:${response.targetId}`);
 
     if (keys.length === 0) return;
 
     setMessageReactions((prev) => {
       const next = { ...prev };
       keys.forEach((key) => {
-        next[key] = upsertReactionSummary(next[key], response);
+        const reactionStateKey = getInteractionStateKey(key);
+        next[reactionStateKey] = upsertReactionSummary(next[reactionStateKey], response);
       });
       return next;
     });
-  }, [selectedChannel, selectedThread]);
+  }, [currentWorkspaceApiId, getInteractionStateKey, selectedChannel, selectedThread]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -1558,7 +1713,7 @@ export function ChatPage() {
       .then((serverMessages) => {
         setMessages((prev) => ({
           ...prev,
-          [selectedChannel]: serverMessages.map(mapChannelMessageToWorkspaceMessage)
+          [selectedChannelMessageKey]: serverMessages.map(mapChannelMessageToWorkspaceMessage)
         }));
       })
       .catch(() => {
@@ -1566,7 +1721,7 @@ export function ChatPage() {
       });
 
     return () => controller.abort();
-  }, [activeApiChannelId, selectedChannel]);
+  }, [activeApiChannelId, selectedChannelMessageKey]);
 
   useEffect(() => {
     if (!activeApiChannelId) return;
@@ -1591,7 +1746,7 @@ export function ChatPage() {
     if (!Number.isFinite(threadId)) return;
 
     const controller = new AbortController();
-    const threadKey = getThreadKey(selectedThread);
+    const threadKey = getThreadReplyStateKey(selectedThread);
 
     getThreadReplies(threadId, {
       signal: controller.signal
@@ -1605,7 +1760,7 @@ export function ChatPage() {
         }));
         setThreadReplyCounts((prev) => ({
           ...prev,
-          [selectedThread.id]: mappedReplies.length
+          [threadKey]: mappedReplies.length
         }));
         setSelectedThread((prevThread: any) =>
           prevThread && prevThread.id === selectedThread.id
@@ -1622,7 +1777,7 @@ export function ChatPage() {
       });
 
     return () => controller.abort();
-  }, [activeApiChannelId, selectedThread?.backendMessageId, selectedThread?.id]);
+  }, [activeApiChannelId, getThreadReplyStateKey, selectedThread?.backendMessageId, selectedThread?.id]);
 
   useEffect(() => {
     if (apiChannels.length === 0 || !hasActiveApiChatChannel) {
@@ -2464,7 +2619,7 @@ export function ChatPage() {
   const handleMergePR = (messageId: number) => {
     setMessages(prevMessages => {
       const newMessages = { ...prevMessages };
-      const channelMessages = newMessages[selectedChannel];
+      const channelMessages = newMessages[selectedChannelMessageKey];
       if (channelMessages) {
         const originalPR = channelMessages.find(msg => msg.id === messageId);
 
@@ -2482,7 +2637,7 @@ export function ChatPage() {
             deletions: originalPR.deletions
           };
 
-          newMessages[selectedChannel] = [
+          newMessages[selectedChannelMessageKey] = [
             ...channelMessages.map(msg =>
               msg.id === messageId && msg.type === 'pr'
                 ? { ...msg, prStatus: 'completed' as const }
@@ -2568,13 +2723,15 @@ export function ChatPage() {
   };
 
   const handleToggleReaction = (reactionKey: string, emoji: string) => {
+    const unscopedReactionKey = getChannelIdFromWorkspaceScopedChatKey(reactionKey);
+    const reactionStateKey = getInteractionStateKey(unscopedReactionKey);
     const applyLocalReaction = () => {
       setMessageReactions((prev) => ({
         ...prev,
-        [reactionKey]: toggleMessageReaction(prev[reactionKey], emoji)
+        [reactionStateKey]: toggleMessageReaction(prev[reactionStateKey], emoji)
       }));
     };
-    const target = getReactionTarget(reactionKey);
+    const target = getReactionTarget(unscopedReactionKey);
 
     if (!activeApiChannelId || !target || !Number.isFinite(target.targetId)) {
       applyLocalReaction();
@@ -2615,8 +2772,9 @@ export function ChatPage() {
     setMessages((prev) => {
       const nextMessages = { ...prev };
       channelIds.forEach((channelId, index) => {
-        nextMessages[channelId] = [
-          ...(nextMessages[channelId] || []),
+        const channelStateKey = getMessageChannelKey(channelId);
+        nextMessages[channelStateKey] = [
+          ...(nextMessages[channelStateKey] || []),
           { ...sharedMessage, id: sharedMessage.id + index }
         ];
       });
@@ -2627,7 +2785,8 @@ export function ChatPage() {
       const nextCounts = { ...prev };
       channelIds.forEach((channelId) => {
         if (channelId !== selectedChannel) {
-          nextCounts[channelId] = (nextCounts[channelId] || 0) + 1;
+          const channelStateKey = getMessageChannelKey(channelId);
+          nextCounts[channelStateKey] = (nextCounts[channelStateKey] || 0) + 1;
         }
       });
       return nextCounts;
@@ -2660,8 +2819,8 @@ export function ChatPage() {
     if (activeApiChannelId) {
       setMessages((prev) => ({
         ...prev,
-        [selectedChannel]: [
-          ...(prev[selectedChannel] || []),
+        [selectedChannelMessageKey]: [
+          ...(prev[selectedChannelMessageKey] || []),
           {
             ...nextMessage,
             pending: true,
@@ -2689,7 +2848,7 @@ export function ChatPage() {
         .catch((error) => {
           setMessages((prev) => ({
             ...prev,
-            [selectedChannel]: (prev[selectedChannel] || []).map((item) =>
+            [selectedChannelMessageKey]: (prev[selectedChannelMessageKey] || []).map((item) =>
               item.id === pendingMessageId
                 ? {
                     ...item,
@@ -2707,14 +2866,14 @@ export function ChatPage() {
 
     setMessages((prev) => ({
       ...prev,
-      [selectedChannel]: [...(prev[selectedChannel] || []), nextMessage]
+      [selectedChannelMessageKey]: [...(prev[selectedChannelMessageKey] || []), nextMessage]
     }));
   };
 
   const updateThreadMessageInState = (thread: any, patch: Record<string, unknown>) => {
     setMessages((prev) => ({
       ...prev,
-      [selectedChannel]: (prev[selectedChannel] || []).map((item) =>
+      [selectedChannelMessageKey]: (prev[selectedChannelMessageKey] || []).map((item) =>
         item.id === thread.id || item.backendMessageId === thread.backendMessageId
           ? { ...item, ...patch }
           : item
@@ -2763,7 +2922,7 @@ export function ChatPage() {
   };
 
   const updateThreadReplyInState = (thread: any, reply: any, patch: Record<string, unknown>) => {
-    const key = getThreadKey(thread);
+    const key = getThreadReplyStateKey(thread);
     const targetReplyId = Number(reply.backendReplyId ?? reply.id);
 
     setThreadReplies((prev) => ({
@@ -2828,7 +2987,7 @@ export function ChatPage() {
 
   const handleSendReply = (text: string) => {
     if (selectedThread) {
-      const key = getThreadKey(selectedThread);
+      const key = getThreadReplyStateKey(selectedThread);
       const newReply: any = {
         id: Date.now(),
         user: currentDisplayName,
@@ -2841,10 +3000,10 @@ export function ChatPage() {
         [key]: [...(prev[key] || []), newReply]
       }));
       setThreadReplyCounts(prev => {
-        const nextCount = (prev[selectedThread.id] ?? selectedThread.replies ?? 0) + 1;
+        const nextCount = (prev[key] ?? selectedThread.replies ?? 0) + 1;
         return {
           ...prev,
-          [selectedThread.id]: nextCount
+          [key]: nextCount
         };
       });
       setSelectedThread((prevThread: any) =>
@@ -2865,7 +3024,7 @@ export function ChatPage() {
     const trimmedText = text.trim();
     if (!trimmedText) return;
 
-    const key = getThreadKey(selectedThread);
+    const key = getThreadReplyStateKey(selectedThread);
     const backendThreadId = Number(selectedThread.backendMessageId ?? selectedThread.id);
     const optimisticReply: any = {
       id: Date.now(),
@@ -2883,10 +3042,10 @@ export function ChatPage() {
         [key]: [...(prev[key] || []), reply]
       }));
       setThreadReplyCounts(prev => {
-        const nextCount = (prev[selectedThread.id] ?? selectedThread.replies ?? 0) + 1;
+        const nextCount = (prev[key] ?? selectedThread.replies ?? 0) + 1;
         return {
           ...prev,
-          [selectedThread.id]: nextCount
+          [key]: nextCount
         };
       });
       setSelectedThread((prevThread: any) =>
@@ -2945,7 +3104,7 @@ export function ChatPage() {
 
   const handleAddPrThreadReply = (msg: any) => {
     if (!selectedPR) return;
-    const key = `pr-${selectedPR.id}`;
+    const key = getInteractionStateKey(`pr-${selectedPR.id}`);
     setThreadReplies(prev => ({
       ...prev,
       [key]: [...(prev[key] || []), msg]
@@ -2954,7 +3113,7 @@ export function ChatPage() {
 
   const handleAddIssueThreadReply = (msg: any) => {
     if (!selectedIssue) return;
-    const key = `issue-${selectedIssue.id}`;
+    const key = getInteractionStateKey(`issue-${selectedIssue.id}`);
     setThreadReplies(prev => ({
       ...prev,
       [key]: [...(prev[key] || []), msg]
@@ -3745,16 +3904,17 @@ export function ChatPage() {
             ) : selectedChannel === 'general' || allCustomChannels.some(ch => ch.id === selectedChannel) ? (
               <ChannelPanel
                 channelId={selectedChannel}
+                storageScopeId={selectedChannelMessageKey}
                 repoName={allCustomChannels.find(ch => ch.id === selectedChannel)?.label}
                 myMemberId={currentWorkspaceMemberId}
                 myDisplayName={currentDisplayName}
-                threads={activeApiChannelId ? currentMessages : undefined}
-                reactions={messageReactions}
+                threads={currentChannelThreads}
+                reactions={currentMessageReactions}
                 replyCounts={mergedReplyCounts}
                 onOpenThread={handleOpenThread}
                 selectedThreadId={selectedThread?.id}
                 onOpenInvite={() => setTeamInviteOpen(true)}
-                onSendThread={activeApiChannelId ? handleSendMessage : undefined}
+                onSendThread={handleSendMessage}
                 onAddMessageAttachments={activeApiChannelId
                   ? (message, attachments) => attachToExistingServerMessage(
                       selectedChannel,
@@ -3768,23 +3928,24 @@ export function ChatPage() {
                 onToggleReaction={handleToggleReaction}
                 bookmarkedThreadIds={activeApiChannelId ? activeServerBookmarkedThreadIds : undefined}
                 onToggleBookmark={activeApiChannelId ? handleToggleThreadBookmark : undefined}
-                onEditThread={activeApiChannelId ? handleEditThreadMessage : undefined}
-                onDeleteThread={activeApiChannelId ? handleDeleteThreadMessage : undefined}
+                onEditThread={handleEditThreadMessage}
+                onDeleteThread={handleDeleteThreadMessage}
               />
             ) : REPO_CHANNEL_IDS_REVERSE[selectedChannel] !== undefined ? (
               <ChannelPanel
                 channelId={selectedChannel}
+                storageScopeId={selectedChannelMessageKey}
                 repoId={selectedRepository}
                 repoName={currentRepo?.name}
                 myMemberId={currentWorkspaceMemberId}
                 myDisplayName={currentDisplayName}
-                threads={activeApiChannelId ? currentMessages : undefined}
-                reactions={messageReactions}
+                threads={currentChannelThreads}
+                reactions={currentMessageReactions}
                 replyCounts={mergedReplyCounts}
                 onOpenThread={handleOpenThread}
                 selectedThreadId={selectedThread?.id}
                 onOpenInvite={() => setTeamInviteOpen(true)}
-                onSendThread={activeApiChannelId ? handleSendMessage : undefined}
+                onSendThread={handleSendMessage}
                 onAddMessageAttachments={activeApiChannelId
                   ? (message, attachments) => attachToExistingServerMessage(
                       selectedChannel,
@@ -3798,23 +3959,24 @@ export function ChatPage() {
                 onToggleReaction={handleToggleReaction}
                 bookmarkedThreadIds={activeApiChannelId ? activeServerBookmarkedThreadIds : undefined}
                 onToggleBookmark={activeApiChannelId ? handleToggleThreadBookmark : undefined}
-                onEditThread={activeApiChannelId ? handleEditThreadMessage : undefined}
-                onDeleteThread={activeApiChannelId ? handleDeleteThreadMessage : undefined}
+                onEditThread={handleEditThreadMessage}
+                onDeleteThread={handleDeleteThreadMessage}
               />
             ) : repositories.find(r => r.id === selectedChannel) ? (
               <ChannelPanel
                 channelId={selectedChannel}
+                storageScopeId={selectedChannelMessageKey}
                 repoId={selectedChannel}
                 repoName={repositories.find(r => r.id === selectedChannel)?.name}
                 myMemberId={currentWorkspaceMemberId}
                 myDisplayName={currentDisplayName}
-                threads={activeApiChannelId ? currentMessages : undefined}
-                reactions={messageReactions}
+                threads={currentChannelThreads}
+                reactions={currentMessageReactions}
                 replyCounts={mergedReplyCounts}
                 onOpenThread={handleOpenThread}
                 selectedThreadId={selectedThread?.id}
                 onOpenInvite={() => setTeamInviteOpen(true)}
-                onSendThread={activeApiChannelId ? handleSendMessage : undefined}
+                onSendThread={handleSendMessage}
                 onAddMessageAttachments={activeApiChannelId
                   ? (message, attachments) => attachToExistingServerMessage(
                       selectedChannel,
@@ -3828,8 +3990,8 @@ export function ChatPage() {
                 onToggleReaction={handleToggleReaction}
                 bookmarkedThreadIds={activeApiChannelId ? activeServerBookmarkedThreadIds : undefined}
                 onToggleBookmark={activeApiChannelId ? handleToggleThreadBookmark : undefined}
-                onEditThread={activeApiChannelId ? handleEditThreadMessage : undefined}
-                onDeleteThread={activeApiChannelId ? handleDeleteThreadMessage : undefined}
+                onEditThread={handleEditThreadMessage}
+                onDeleteThread={handleDeleteThreadMessage}
               />
             ) : selectedChannel === 'work-board' ? (
               <WorkBoardPanel
@@ -3853,11 +4015,12 @@ export function ChatPage() {
             ) : (
               <ChatPanel
                 channelId={selectedChannel}
+                bookmarkScopeId={selectedChannelMessageKey}
                 title={selectedChannelTitle}
                 messages={currentMessages}
                 myMemberId={currentWorkspaceMemberId}
                 myDisplayName={currentDisplayName}
-                reactions={messageReactions}
+                reactions={currentMessageReactions}
                 replyCounts={mergedReplyCounts}
                 onSendMessage={handleSendMessage}
                 onAddMessageAttachments={activeApiChannelId
@@ -3888,7 +4051,7 @@ export function ChatPage() {
               prData={selectedPR}
               onClose={handleClosePRReview}
               onMergePR={handleMergePR}
-              externalThreadMessages={threadReplies[`pr-${selectedPR.id}`] ?? []}
+              externalThreadMessages={currentThreadReplies[`pr-${selectedPR.id}`] ?? []}
               onAddThreadMessage={handleAddPrThreadReply}
             />
           </section>
@@ -3899,7 +4062,7 @@ export function ChatPage() {
             <IssuePanel
               issueData={selectedIssue}
               onClose={handleCloseIssue}
-              externalThreadMessages={threadReplies[`issue-${selectedIssue.id}`] ?? []}
+              externalThreadMessages={currentThreadReplies[`issue-${selectedIssue.id}`] ?? []}
               onAddThreadMessage={handleAddIssueThreadReply}
             />
           </section>
@@ -3909,18 +4072,18 @@ export function ChatPage() {
           <section className="min-h-0 rounded-[30px] overflow-hidden">
             <ThreadPanel
               originalMessage={selectedThread}
-              replies={threadReplies[getThreadKey(selectedThread)] || []}
+              replies={currentThreadReplies[getThreadKey(selectedThread)] || []}
               myMemberId={currentWorkspaceMemberId}
               myDisplayName={currentDisplayName}
               displayReplyCount={
                 Math.max(
-                  (threadReplies[getThreadKey(selectedThread)] || []).length,
-                  threadReplyCounts[selectedThread.id] ?? 0,
+                  (currentThreadReplies[getThreadKey(selectedThread)] || []).length,
+                  mergedReplyCounts[getThreadKey(selectedThread)] ?? 0,
                   selectedThread.replies ?? 0
                 )
               }
               reactionScope={`thread:${selectedChannel}:${selectedThread.id}`}
-              reactions={messageReactions}
+              reactions={currentMessageReactions}
               onClose={handleCloseThread}
               onSendReply={handleSendThreadReply}
               onEditReply={activeApiChannelId ? handleEditThreadReply : undefined}

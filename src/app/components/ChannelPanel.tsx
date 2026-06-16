@@ -27,6 +27,7 @@ interface Thread {
 
 interface ChannelPanelProps {
   channelId?: string;
+  storageScopeId?: string;
   repoId?: string;
   repoName?: string;
   threads?: Thread[];
@@ -129,8 +130,21 @@ function getDisplayUserName(user?: string) {
   return isSelfUser(trimmed) ? currentUserDisplayName : trimmed;
 }
 
-export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, replyCounts = {}, onOpenThread, selectedThreadId, onOpenInvite, onSendThread, onTypingChange, remoteTypingLabel, onToggleReaction, bookmarkedThreadIds, onToggleBookmark, onEditThread, onDeleteThread, onAddMessageAttachments, myMemberId, myDisplayName }: ChannelPanelProps) {
-  const channelStorageId = channelId ?? repoId ?? "general";
+function getThreadAvatar(thread: Thread) {
+  const avatar = thread.avatar?.trim();
+  if (avatar) return avatar;
+
+  const user = getDisplayUserName(thread.user);
+  return user ? user.charAt(0).toUpperCase() : "?";
+}
+
+function getThreadBody(thread: Thread) {
+  return thread.message ?? (thread as any).text ?? "";
+}
+
+export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, threads, reactions, replyCounts = {}, onOpenThread, selectedThreadId, onOpenInvite, onSendThread, onTypingChange, remoteTypingLabel, onToggleReaction, bookmarkedThreadIds, onToggleBookmark, onEditThread, onDeleteThread, onAddMessageAttachments, myMemberId, myDisplayName }: ChannelPanelProps) {
+  const channelStorageId = storageScopeId ?? channelId ?? repoId ?? "general";
+  const reactionChannelId = channelId ?? repoId ?? "general";
   const channelStorageKey = `${CHANNEL_THREADS_KEY_PREFIX}:${channelStorageId}`;
   const bookmarkStorageKey = `codedock-channel-bookmarks:${channelStorageId}`;
   const [localThreads, setLocalThreads] = useState<Thread[]>(() =>
@@ -312,7 +326,7 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
     setActivePanel(null);
   };
 
-  const getThreadReactionKey = (threadId: number) => `channel:${channelStorageId}:thread:${threadId}`;
+  const getThreadReactionKey = (threadId: number) => `channel:${reactionChannelId}:thread:${threadId}`;
 
   const handleReactionToggle = (threadId: number, emoji: string) => {
     const reactionKey = getThreadReactionKey(threadId);
@@ -371,7 +385,7 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
 
   const handleStartEditThread = (thread: Thread) => {
     setEditingThreadId(thread.id);
-    setEditingMessageText(thread.message);
+    setEditingMessageText(getThreadBody(thread));
   };
 
   const handleCancelEditThread = () => {
@@ -575,7 +589,7 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
       time: '방금',
       replies: 0,
       attachments: outgoingAttachments,
-      replyTo: replyTo ? { user: replyTo.user, text: replyTo.message } : undefined,
+      replyTo: replyTo ? { user: replyTo.user, text: getThreadBody(replyTo) } : undefined,
       mentions: mentions.length ? mentions : undefined
     };
 
@@ -656,9 +670,11 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
       <div ref={scrollContainerRef} className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
         <div className="grid gap-4">
           {displayedThreads.map((thread) => {
-            const displayedReplyCount = replyCounts[thread.id] ?? thread.replies;
+            const displayedReplyCount = replyCounts[thread.id] ?? thread.replies ?? 0;
             const isOwnThread = isThreadMine(thread);
             const isEditingThread = editingThreadId === thread.id;
+            const threadAvatar = getThreadAvatar(thread);
+            const threadBody = getThreadBody(thread);
 
             return (
             <div
@@ -682,10 +698,10 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
                     background: isOwnThread ? 'rgba(var(--codedock-primary-rgb), 0.16)' : 'rgba(var(--codedock-primary-rgb), 0.12)',
                     border: isOwnThread ? '1px solid rgba(var(--codedock-primary-rgb), 0.30)' : '1px solid rgba(var(--codedock-primary-rgb), 0.22)',
                     color: 'var(--neon-cyan)',
-                    fontSize: thread.avatar.length > 2 ? '18px' : '13px',
+                    fontSize: threadAvatar.length > 2 ? '18px' : '13px',
                     fontWeight: 950,
                     lineHeight: 1
-                  }}>{isOwnThread ? displayCurrentUserAvatar : thread.avatar}</span>
+                  }}>{isOwnThread ? displayCurrentUserAvatar : threadAvatar}</span>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="tracking-tight" style={{
@@ -771,7 +787,7 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
                         color: thread.deleted ? 'var(--muted)' : 'var(--white)',
                         lineHeight: '1.5'
                       }}>
-                        {thread.message}
+                        {threadBody}
                       </p>
                     )}
                     {thread.mentions && thread.mentions.length > 0 && (
@@ -1143,7 +1159,7 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
                 @{replyTo.user}에게 답장
               </span>
               <p className="m-0 mt-0.5 truncate tracking-tight" style={{ color: 'var(--muted)', fontSize: '12px', fontWeight: 700 }}>
-                {replyTo.message}
+                {getThreadBody(replyTo)}
               </p>
             </div>
             <button
