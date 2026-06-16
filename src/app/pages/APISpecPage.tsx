@@ -18,6 +18,8 @@ import {
 import {
   getApiSpecs,
   getSwaggerUrl,
+  registerSwaggerUrl,
+  resyncSwagger,
   createApiSpec,
   updateApiSpec,
   deleteApiSpec,
@@ -124,6 +126,9 @@ export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps)
   const [formError, setFormError] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generateError, setGenerateError] = useState("");
+  const [swaggerUrlInput, setSwaggerUrlInput] = useState("");
+  const [isSwaggerSyncing, setIsSwaggerSyncing] = useState(false);
+  const [swaggerSyncError, setSwaggerSyncError] = useState("");
   const [filterMethod, setFilterMethod] = useState<ApiSpecMethod | null>(null);
 
   const filteredApis = filterMethod ? apis.filter((api) => api.method === filterMethod) : apis;
@@ -301,6 +306,47 @@ export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps)
       );
     } finally {
       setIsGenerating(false);
+    }
+  }
+
+  async function handleRegisterSwaggerUrl() {
+    if (!workspaceId || !swaggerUrlInput.trim()) return;
+
+    setIsSwaggerSyncing(true);
+    setSwaggerSyncError("");
+
+    try {
+      const result = await registerSwaggerUrl(workspaceId, swaggerUrlInput.trim());
+      setSwaggerUrl(result.swaggerUrl);
+      setSwaggerUrlInput("");
+      const updated = await getApiSpecs(workspaceId);
+      setApis(updated);
+    } catch (error) {
+      setSwaggerSyncError(
+        error instanceof ApiClientError ? error.message : "Swagger URL 등록에 실패했습니다.",
+      );
+    } finally {
+      setIsSwaggerSyncing(false);
+    }
+  }
+
+  async function handleResyncSwagger() {
+    if (!workspaceId) return;
+
+    setIsSwaggerSyncing(true);
+    setSwaggerSyncError("");
+
+    try {
+      const result = await resyncSwagger(workspaceId);
+      setSwaggerUrl(result.swaggerUrl);
+      const updated = await getApiSpecs(workspaceId);
+      setApis(updated);
+    } catch (error) {
+      setSwaggerSyncError(
+        error instanceof ApiClientError ? error.message : "재동기화에 실패했습니다.",
+      );
+    } finally {
+      setIsSwaggerSyncing(false);
     }
   }
 
@@ -660,20 +706,66 @@ export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps)
           `}
         </style>
         <div
-          className="flex flex-wrap items-center justify-between gap-3 px-5 py-4"
+          className="flex flex-col gap-4 px-5 py-4"
           style={{
             borderBottom: "1px solid rgba(var(--codedock-primary-rgb), 0.14)",
             background: "linear-gradient(90deg, rgba(var(--codedock-primary-rgb), 0.10), rgba(var(--codedock-secondary-rgb), 0.045), rgba(5, 11, 20, 0.72))",
           }}
         >
-          <div>
-            <p className="m-0 mb-1 font-mono text-[var(--krds-body-xsmall)] font-black uppercase tracking-[0.14em]" style={{ color: "var(--neon-cyan)" }}>
-              Swagger / OpenAPI 3.1
-            </p>
-            <h2 className="m-0 text-xl font-black tracking-tight" style={{ color: "var(--white)" }}>
-              Swagger UI 연동 미리보기
-            </h2>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="m-0 mb-1 font-mono text-[var(--krds-body-xsmall)] font-black uppercase tracking-[0.14em]" style={{ color: "var(--neon-cyan)" }}>
+                Swagger / OpenAPI 3.1
+              </p>
+              <h2 className="m-0 text-xl font-black tracking-tight" style={{ color: "var(--white)" }}>
+                Swagger UI 연동 미리보기
+              </h2>
+            </div>
+            {swaggerUrl && (
+              <button
+                onClick={handleResyncSwagger}
+                disabled={isSwaggerSyncing}
+                className="flex items-center gap-2 rounded-xl border-0 px-4 py-2 text-sm font-black tracking-tight"
+                style={{
+                  background: "rgba(var(--codedock-primary-rgb), 0.12)",
+                  color: "var(--neon-cyan)",
+                  cursor: isSwaggerSyncing ? "not-allowed" : "pointer",
+                  opacity: isSwaggerSyncing ? 0.6 : 1,
+                }}
+                type="button"
+              >
+                {isSwaggerSyncing ? "동기화 중..." : "재동기화"}
+              </button>
+            )}
           </div>
+          <div className="flex gap-2">
+            <input
+              style={{ ...inputStyle, flex: 1 }}
+              value={swaggerUrlInput}
+              onChange={(e) => setSwaggerUrlInput(e.target.value)}
+              placeholder={swaggerUrl || "Swagger URL을 입력하세요 (https://...)"}
+              onKeyDown={(e) => e.key === "Enter" && handleRegisterSwaggerUrl()}
+            />
+            <button
+              onClick={handleRegisterSwaggerUrl}
+              disabled={isSwaggerSyncing || !swaggerUrlInput.trim()}
+              className="shrink-0 rounded-xl border-0 px-4 py-2 text-sm font-black tracking-tight"
+              style={{
+                background: "linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))",
+                color: "#021014",
+                cursor: isSwaggerSyncing || !swaggerUrlInput.trim() ? "not-allowed" : "pointer",
+                opacity: isSwaggerSyncing || !swaggerUrlInput.trim() ? 0.6 : 1,
+              }}
+              type="button"
+            >
+              {isSwaggerSyncing ? "등록 중..." : "등록"}
+            </button>
+          </div>
+          {swaggerSyncError && (
+            <p className="m-0 text-[var(--krds-body-xsmall)] font-bold tracking-tight" style={{ color: "#FFB4B4" }}>
+              {swaggerSyncError}
+            </p>
+          )}
         </div>
         <div className={`codedock-swagger codedock-scrollbar-hidden overflow-y-auto ${embedded ? "max-h-[520px]" : "max-h-[720px]"} px-4 py-4`}>
           {swaggerUrl ? (

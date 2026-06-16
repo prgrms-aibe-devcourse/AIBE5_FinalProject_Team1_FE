@@ -105,8 +105,22 @@ export function deleteApiSpec(workspaceId: number, apiSpecId: number, options?: 
   return apiClient.delete<void>(`/api/workspaces/${workspaceId}/api-specs/${apiSpecId}`, options);
 }
 
+export type SwaggerSyncResponse = {
+  swaggerUrl: string;
+  syncedCount: number;
+  completedChecklistCount: number;
+};
+
 export function getSwaggerUrl(workspaceId: number, options?: ApiRequestOptions) {
   return apiClient.get<string>(`/api/workspaces/${workspaceId}/api-specs/swagger-url`, options);
+}
+
+export function registerSwaggerUrl(workspaceId: number, swaggerUrl: string, options?: ApiRequestOptions) {
+  return apiClient.post<SwaggerSyncResponse>(`/api/workspaces/${workspaceId}/api-specs/swagger-url`, { swaggerUrl }, options);
+}
+
+export function resyncSwagger(workspaceId: number, options?: ApiRequestOptions) {
+  return apiClient.post<SwaggerSyncResponse>(`/api/workspaces/${workspaceId}/api-specs/swagger-url/resync`, undefined, options);
 }
 
 export function generateAiChecklist(workspaceId: number, options?: ApiRequestOptions) {
