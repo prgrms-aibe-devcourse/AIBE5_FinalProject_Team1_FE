@@ -163,6 +163,7 @@ export function WorkspaceSettingsPage() {
               : fallback;
 
   const handleUpdate = (id: string, partial: Partial<Workspace>, message?: string) => {
+    const snapshot = workspaces.find((workspace) => workspace.id === id);
     setWorkspaces((current) => current.map((workspace) => (workspace.id === id ? { ...workspace, ...partial } : workspace)));
     const realId = Number(id);
     const payload: WorkspaceUpdatePayload = {};
@@ -172,7 +173,10 @@ export function WorkspaceSettingsPage() {
     if (Number.isFinite(realId) && Object.keys(payload).length > 0) {
       updateWorkspace(realId, payload)
           .then(() => { if (message) notify(message); })
-          .catch((e) => notify(conflictMessage(e, "저장에 실패했습니다."), "warn"));
+          .catch((e) => {
+            if (snapshot) setWorkspaces((current) => current.map((workspace) => (workspace.id === id ? snapshot : workspace)));
+            notify(conflictMessage(e, "저장에 실패했습니다."), "warn");
+          });
       return;
     }
     if (message) notify(message);
@@ -188,7 +192,16 @@ export function WorkspaceSettingsPage() {
           setWorkspaces((current) =>
               current.map((workspace) => {
                 if (workspace.id !== id) return workspace;
-                return { ...workspace, role: "admin", members: workspace.members.map((member) => (member.id === memberId ? { ...member, role: "owner" } : member)) };
+                return {
+                  ...workspace,
+                  role: "admin",
+                  members: workspace.members.map((member) =>
+                      member.id === memberId
+                          ? { ...member, role: "owner" }
+                          : member.role === "owner"
+                              ? { ...member, role: "admin" }
+                              : member),
+                };
               }),
           );
           notify(`소유권을 ${targetName}님에게 이전했어요. 이제 관리자 권한입니다.`);
@@ -381,14 +394,15 @@ function WorkspaceDetail({
   const [slugDraft, setSlugDraft] = useState(workspace.slug);
   const [descDraft, setDescDraft] = useState(workspace.description);
   const [confirming, setConfirming] = useState<ConfirmKind>(null);
-  const [transferTargetId, setTransferTargetId] = useState<string>(workspace.members[0]?.id ?? "");
+  const transferableMembers = workspace.members.filter((member) => member.role !== "owner");
+  const [transferTargetId, setTransferTargetId] = useState<string>(transferableMembers[0]?.id ?? "");
   const [deleteText, setDeleteText] = useState("");
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!transferTargetId && workspace.members.length > 0) {
-      setTransferTargetId(workspace.members[0].id);
-    }
+    if (transferTargetId) return;
+    const firstTransferable = workspace.members.find((member) => member.role !== "owner");
+    if (firstTransferable) setTransferTargetId(firstTransferable.id);
   }, [workspace.members, transferTargetId]);
 
   const role = ROLE_CONFIG[workspace.role];
@@ -671,7 +685,7 @@ function WorkspaceDetail({
                     className="h-11 rounded-xl px-3 outline-none"
                     style={{ background: "rgba(5,11,20,0.7)", border: "1px solid rgba(32,227,255,0.18)", color: "var(--white)", fontSize: "14px", fontWeight: 800 }}
                   >
-                    {workspace.members.map((member) => (
+                    {transferableMembers.map((member) => (
                       <option key={member.id} value={member.id}>
                         {member.name} ({ROLE_CONFIG[member.role].label})
                       </option>
