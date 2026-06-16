@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { EmojiPicker } from "./EmojiPicker";
 import { MessageReactions, toggleMessageReaction, type MessageReaction } from "./MessageReactions";
 import { TypingIndicatorBar } from "./TypingIndicatorBar";
+import { MessageAttachmentCard } from "./MessageAttachmentCard";
+import type { MessageAttachment } from "./messageAttachments";
 
 interface ThreadMessage {
   id: number | string;
@@ -31,6 +33,7 @@ interface ThreadPanelProps {
   onSendReply: (text: string) => void;
   onEditReply?: (reply: ThreadMessage, nextText: string) => void;
   onDeleteReply?: (reply: ThreadMessage) => void;
+  onDeleteMessageAttachment?: (message: any, attachment: MessageAttachment) => Promise<void> | void;
   onToggleReaction?: (reactionKey: string, emoji: string) => void;
   myMemberId?: number | null;
   myDisplayName?: string;
@@ -49,12 +52,14 @@ function getDisplayUserName(user?: string) {
   return isSelfUser(trimmed) ? currentUserDisplayName : trimmed;
 }
 
-export function ThreadPanel({ originalMessage, replies, displayReplyCount, reactionScope, reactions, onClose, onSendReply, onEditReply, onDeleteReply, onToggleReaction, myMemberId, myDisplayName }: ThreadPanelProps) {
+export function ThreadPanel({ originalMessage, replies, displayReplyCount, reactionScope, reactions, onClose, onSendReply, onEditReply, onDeleteReply, onDeleteMessageAttachment, onToggleReaction, myMemberId, myDisplayName }: ThreadPanelProps) {
   const displayCurrentUserName = myDisplayName?.trim() || currentUserDisplayName;
   const displayCurrentUserAvatar = displayCurrentUserName.charAt(0) || currentUserAvatar;
   const [replyText, setReplyText] = useState('');
   const [editingReplyId, setEditingReplyId] = useState<number | string | null>(null);
   const [editingReplyText, setEditingReplyText] = useState('');
+  const [attachmentError, setAttachmentError] = useState('');
+  const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null);
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [hoveredToolBtn, setHoveredToolBtn] = useState<string | null>(null);
   const [responderTyping, setResponderTyping] = useState(false);
@@ -147,6 +152,25 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
       ? Number(reply.senderMemberId) === Number(myMemberId)
       : isSelfUser(reply.user)
   );
+  const isOriginalMine = (
+    myMemberId != null && originalMessage?.senderMemberId != null
+      ? Number(originalMessage.senderMemberId) === Number(myMemberId)
+      : isSelfUser(originalMessage?.user)
+  );
+
+  const handleDeleteOriginalAttachment = (attachment: MessageAttachment) => {
+    if (!onDeleteMessageAttachment || deletingAttachmentId) return;
+
+    setDeletingAttachmentId(attachment.id);
+    setAttachmentError('');
+    Promise.resolve(onDeleteMessageAttachment(originalMessage, attachment))
+      .catch((error) => {
+        setAttachmentError(error instanceof Error ? error.message : '첨부파일 삭제에 실패했습니다.');
+      })
+      .finally(() => {
+        setDeletingAttachmentId(null);
+      });
+  };
 
   const handleDeleteReply = (reply: ThreadMessage) => {
     if (editingReplyId === reply.id) {
@@ -236,6 +260,37 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
               }}>
                 {originalMessage.message || originalMessage.text}
               </p>
+              {originalMessage.attachments && originalMessage.attachments.length > 0 && (
+                <div className="mt-3 grid gap-2">
+                  {originalMessage.attachments.map((attachment: MessageAttachment) => (
+                    <MessageAttachmentCard
+                      key={attachment.id}
+                      attachment={attachment}
+                      onDelete={
+                        onDeleteMessageAttachment
+                        && isOriginalMine
+                        && !originalMessage.deleted
+                        && Number.isFinite(Number(originalMessage.backendMessageId))
+                        && Number.isFinite(Number(attachment.id))
+                          ? () => handleDeleteOriginalAttachment(attachment)
+                          : undefined
+                      }
+                      deleteDisabled={deletingAttachmentId === attachment.id}
+                    />
+                  ))}
+                </div>
+              )}
+              {attachmentError && (
+                <p className="m-0 mt-3 rounded-lg px-3 py-2 tracking-tight" style={{
+                  background: 'rgba(255, 107, 107, 0.10)',
+                  border: '1px solid rgba(255, 107, 107, 0.28)',
+                  color: '#FF6B6B',
+                  fontSize: '12px',
+                  fontWeight: 900
+                }}>
+                  {attachmentError}
+                </p>
+              )}
             </div>
             <MessageReactions
               reactions={reactionMap[`${activeReactionScope}:original`]}

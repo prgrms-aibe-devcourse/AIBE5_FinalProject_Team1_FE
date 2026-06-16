@@ -1,10 +1,12 @@
-import { ExternalLink, FileText, Image as ImageIcon, Link2, LockKeyhole } from "lucide-react";
+import { ExternalLink, FileText, Image as ImageIcon, Link2, LockKeyhole, Trash2 } from "lucide-react";
 import type { MouseEvent } from "react";
 import { getLinkPreviewInfo, getMessageAttachmentTypeLabel, type MessageAttachment } from "./messageAttachments";
 
 interface MessageAttachmentCardProps {
   attachment: MessageAttachment;
   onClick?: (event: MouseEvent<HTMLDivElement>) => void;
+  onDelete?: (attachment: MessageAttachment) => void;
+  deleteDisabled?: boolean;
 }
 
 function getAttachmentIcon(type: MessageAttachment["type"]) {
@@ -13,7 +15,7 @@ function getAttachmentIcon(type: MessageAttachment["type"]) {
   return FileText;
 }
 
-export function MessageAttachmentCard({ attachment, onClick }: MessageAttachmentCardProps) {
+export function MessageAttachmentCard({ attachment, onClick, onDelete, deleteDisabled = false }: MessageAttachmentCardProps) {
   const Icon = getAttachmentIcon(attachment.type);
   const canOpen = Boolean(attachment.url);
   const imagePreviewUrl = attachment.previewUrl ?? attachment.url;
@@ -168,6 +170,34 @@ export function MessageAttachmentCard({ attachment, onClick }: MessageAttachment
             열기
             <ExternalLink size={12} />
           </a>
+        )}
+
+        {onDelete && (
+          <button
+            type="button"
+            disabled={deleteDisabled}
+            aria-label={`${attachment.title} 첨부파일 삭제`}
+            title="첨부파일 삭제"
+            className="mt-2 ml-2 inline-flex items-center gap-1.5 rounded-md border-0 px-2 py-1 tracking-tight"
+            style={{
+              background: "rgba(255, 107, 107, 0.10)",
+              border: "1px solid rgba(255, 107, 107, 0.24)",
+              color: "#FF6B6B",
+              cursor: deleteDisabled ? "not-allowed" : "pointer",
+              fontSize: "var(--krds-body-xsmall)",
+              fontWeight: 900,
+              opacity: deleteDisabled ? 0.55 : 1
+            }}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (!deleteDisabled) {
+                onDelete(attachment);
+              }
+            }}
+          >
+            {deleteDisabled ? "삭제 중" : "삭제"}
+            <Trash2 size={12} />
+          </button>
         )}
       </div>
     </div>
