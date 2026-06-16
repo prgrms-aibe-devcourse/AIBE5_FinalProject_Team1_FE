@@ -1,6 +1,16 @@
 const ACCESS_TOKEN_KEY  = "codedock-access-token";
 const REFRESH_TOKEN_KEY = "codedock-refresh-token";
 
+function getApiBaseUrl() {
+  return import.meta.env.VITE_API_BASE_URL ?? "";
+}
+
+function buildApiUrl(path: string) {
+  const baseUrl = getApiBaseUrl().replace(/\/$/, "");
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${baseUrl}${normalizedPath}`;
+}
+
 export function getAccessToken(): string | null {
   return localStorage.getItem(ACCESS_TOKEN_KEY);
 }
@@ -31,7 +41,7 @@ export function authHeader(): HeadersInit {
 
 // GitHub 로그인 시작 — Vite proxy → BE → GitHub으로 리다이렉트
 export function loginWithGithub() {
-  window.location.href = "/oauth2/authorization/github";
+  window.location.href = buildApiUrl("/oauth2/authorization/github");
 }
 
 // 토큰 갱신
@@ -40,7 +50,7 @@ export async function refreshAccessToken(): Promise<boolean> {
   if (!refreshToken) return false;
 
   try {
-    const res = await fetch("/api/v1/auth/refresh", {
+    const res = await fetch(buildApiUrl("/api/v1/auth/refresh"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refreshToken }),
@@ -62,7 +72,7 @@ export async function logout() {
   const refreshToken = getRefreshToken();
   try {
     if (refreshToken) {
-      await fetch("/api/v1/auth/logout", {
+      await fetch(buildApiUrl("/api/v1/auth/logout"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ refreshToken }),

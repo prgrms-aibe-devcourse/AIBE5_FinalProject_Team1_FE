@@ -26,6 +26,7 @@ interface Message {
   id: number;
   backendMessageId?: number;
   backendChannelId?: number;
+  senderMemberId?: number;
   user: string;
   text: string;
   time: string;
@@ -81,6 +82,8 @@ interface ChatPanelProps {
   selectedThreadId?: number | string;
   onToggleReaction?: (reactionKey: string, emoji: string) => void;
   isRepository?: boolean;
+  myMemberId?: number | null;
+  myDisplayName?: string;
 }
 
 const riskLabel: Record<NonNullable<Message["aiRisk"]>, string> = {
@@ -126,8 +129,10 @@ function getUserInitial(user?: string) {
   return trimmed ? trimmed.charAt(0).toUpperCase() : "?";
 }
 
-export function ChatPanel({ channelId = "general", title, messages, reactions, replyCounts = {}, onSendMessage, onAddMessageAttachments, onSharePR, showAISummary = true, onMergePR, onReviewPR, onViewIssue, onOpenThread, selectedThreadId, onToggleReaction, isRepository = false }: ChatPanelProps) {
+export function ChatPanel({ channelId = "general", title, messages, reactions, replyCounts = {}, onSendMessage, onAddMessageAttachments, onSharePR, showAISummary = true, onMergePR, onReviewPR, onViewIssue, onOpenThread, selectedThreadId, onToggleReaction, isRepository = false, myMemberId, myDisplayName }: ChatPanelProps) {
   const bookmarkStorageKey = `codedock-chat-bookmarks:${channelId}`;
+  const displayCurrentUserName = myDisplayName?.trim() || currentUserDisplayName;
+  const displayCurrentUserAvatar = displayCurrentUserName.charAt(0) || currentUserAvatar;
   const [message, setMessage] = useState('');
   const [codeBlockText, setCodeBlockText] = useState('');
   type ActivePanel = 'code' | 'attachment' | 'emoji' | 'link' | null;
@@ -160,6 +165,11 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
   const responderTypingTimerRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const isMessageMine = (message: Message) => (
+    myMemberId != null && message.senderMemberId != null
+      ? Number(message.senderMemberId) === Number(myMemberId)
+      : isSelfUser(message.user)
+  );
 
   useEffect(() => {
     return () => {
@@ -312,7 +322,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
   const composerTyping = message.trim().length > 0;
   const typingLabel = responderTyping
     ? composerTyping
-      ? `CodeDock AI, ${currentUserDisplayName} 입력 중입니다`
+      ? `CodeDock AI, ${displayCurrentUserName} 입력 중입니다`
       : "CodeDock AI가 답변을 정리 중입니다"
     : composerTyping
       ? "내가 입력 중입니다"
@@ -618,7 +628,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
       <div ref={scrollContainerRef} className="min-h-0 flex-1 px-6 py-4 overflow-y-auto">
         <div className="grid gap-4">
           {filteredMessages.map((msg) => {
-            const isOwnMessage = isSelfUser(msg.user);
+            const isOwnMessage = isMessageMine(msg);
             const isStructuredMessage = msg.type === 'pr' || msg.type === 'issue';
             const showSlackAvatar = !isStructuredMessage;
 
@@ -645,7 +655,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                     fontSize: "var(--krds-body-xsmall)",
                     fontWeight: 950
                   }}>
-                    {isOwnMessage ? currentUserAvatar : msg.type === 'system' ? 'AI' : getUserInitial(msg.user)}
+                    {isOwnMessage ? displayCurrentUserAvatar : msg.type === 'system' ? 'AI' : getUserInitial(msg.user)}
                   </span>
                 )}
                 <span className="tracking-tight" style={{
@@ -653,7 +663,7 @@ export function ChatPanel({ channelId = "general", title, messages, reactions, r
                   fontWeight: 900,
                   color: isOwnMessage ? 'var(--neon-cyan)' : msg.type === 'system' ? 'var(--neon-cyan)' : 'var(--matrix-green)'
                 }}>
-                  {isOwnMessage ? getDisplayUserName(msg.user) : msg.user}
+                  {isOwnMessage ? displayCurrentUserName : msg.user}
                 </span>
                 {isOwnMessage && (
                   <span className="rounded px-1.5 py-0.5 tracking-tight" style={{
