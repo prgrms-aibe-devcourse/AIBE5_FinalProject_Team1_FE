@@ -1312,6 +1312,13 @@ export function ChatPage() {
   }, [selectedChannel]);
 
   useEffect(() => {
+    setSelectedThread(null);
+    setSelectedPR(null);
+    setSelectedIssue(null);
+    setRemoteTypingByChannel({});
+  }, [currentWorkspaceApiId]);
+
+  useEffect(() => {
     return scheduleSaveJson(CHAT_REACTIONS_KEY, messageReactions);
   }, [messageReactions]);
 
@@ -3872,10 +3879,11 @@ export function ChatPage() {
             ) : selectedChannel === 'general' || allCustomChannels.some(ch => ch.id === selectedChannel) ? (
               <ChannelPanel
                 channelId={selectedChannel}
+                storageScopeId={selectedChannelMessageKey}
                 repoName={allCustomChannels.find(ch => ch.id === selectedChannel)?.label}
                 myMemberId={currentWorkspaceMemberId}
                 myDisplayName={currentDisplayName}
-                threads={activeApiChannelId ? currentMessages : undefined}
+                threads={currentMessages}
                 reactions={currentMessageReactions}
                 replyCounts={mergedReplyCounts}
                 onOpenThread={handleOpenThread}
@@ -3901,11 +3909,12 @@ export function ChatPage() {
             ) : REPO_CHANNEL_IDS_REVERSE[selectedChannel] !== undefined ? (
               <ChannelPanel
                 channelId={selectedChannel}
+                storageScopeId={selectedChannelMessageKey}
                 repoId={selectedRepository}
                 repoName={currentRepo?.name}
                 myMemberId={currentWorkspaceMemberId}
                 myDisplayName={currentDisplayName}
-                threads={activeApiChannelId ? currentMessages : undefined}
+                threads={currentMessages}
                 reactions={currentMessageReactions}
                 replyCounts={mergedReplyCounts}
                 onOpenThread={handleOpenThread}
@@ -3931,11 +3940,12 @@ export function ChatPage() {
             ) : repositories.find(r => r.id === selectedChannel) ? (
               <ChannelPanel
                 channelId={selectedChannel}
+                storageScopeId={selectedChannelMessageKey}
                 repoId={selectedChannel}
                 repoName={repositories.find(r => r.id === selectedChannel)?.name}
                 myMemberId={currentWorkspaceMemberId}
                 myDisplayName={currentDisplayName}
-                threads={activeApiChannelId ? currentMessages : undefined}
+                threads={currentMessages}
                 reactions={currentMessageReactions}
                 replyCounts={mergedReplyCounts}
                 onOpenThread={handleOpenThread}
@@ -3980,6 +3990,7 @@ export function ChatPage() {
             ) : (
               <ChatPanel
                 channelId={selectedChannel}
+                bookmarkScopeId={selectedChannelMessageKey}
                 title={selectedChannelTitle}
                 messages={currentMessages}
                 myMemberId={currentWorkspaceMemberId}

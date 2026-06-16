@@ -67,6 +67,7 @@ interface Message {
 
 interface ChatPanelProps {
   channelId?: string;
+  bookmarkScopeId?: string;
   title: string;
   messages: Message[];
   reactions?: Record<string, MessageReaction[]>;
@@ -129,8 +130,8 @@ function getUserInitial(user?: string) {
   return trimmed ? trimmed.charAt(0).toUpperCase() : "?";
 }
 
-export function ChatPanel({ channelId = "general", title, messages, reactions, replyCounts = {}, onSendMessage, onAddMessageAttachments, onSharePR, showAISummary = true, onMergePR, onReviewPR, onViewIssue, onOpenThread, selectedThreadId, onToggleReaction, isRepository = false, myMemberId, myDisplayName }: ChatPanelProps) {
-  const bookmarkStorageKey = `codedock-chat-bookmarks:${channelId}`;
+export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messages, reactions, replyCounts = {}, onSendMessage, onAddMessageAttachments, onSharePR, showAISummary = true, onMergePR, onReviewPR, onViewIssue, onOpenThread, selectedThreadId, onToggleReaction, isRepository = false, myMemberId, myDisplayName }: ChatPanelProps) {
+  const bookmarkStorageKey = `codedock-chat-bookmarks:${bookmarkScopeId ?? channelId}`;
   const displayCurrentUserName = myDisplayName?.trim() || currentUserDisplayName;
   const displayCurrentUserAvatar = displayCurrentUserName.charAt(0) || currentUserAvatar;
   const [message, setMessage] = useState('');

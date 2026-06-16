@@ -27,6 +27,7 @@ interface Thread {
 
 interface ChannelPanelProps {
   channelId?: string;
+  storageScopeId?: string;
   repoId?: string;
   repoName?: string;
   threads?: Thread[];
@@ -129,8 +130,9 @@ function getDisplayUserName(user?: string) {
   return isSelfUser(trimmed) ? currentUserDisplayName : trimmed;
 }
 
-export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, replyCounts = {}, onOpenThread, selectedThreadId, onOpenInvite, onSendThread, onTypingChange, remoteTypingLabel, onToggleReaction, bookmarkedThreadIds, onToggleBookmark, onEditThread, onDeleteThread, onAddMessageAttachments, myMemberId, myDisplayName }: ChannelPanelProps) {
-  const channelStorageId = channelId ?? repoId ?? "general";
+export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, threads, reactions, replyCounts = {}, onOpenThread, selectedThreadId, onOpenInvite, onSendThread, onTypingChange, remoteTypingLabel, onToggleReaction, bookmarkedThreadIds, onToggleBookmark, onEditThread, onDeleteThread, onAddMessageAttachments, myMemberId, myDisplayName }: ChannelPanelProps) {
+  const channelStorageId = storageScopeId ?? channelId ?? repoId ?? "general";
+  const reactionChannelId = channelId ?? repoId ?? "general";
   const channelStorageKey = `${CHANNEL_THREADS_KEY_PREFIX}:${channelStorageId}`;
   const bookmarkStorageKey = `codedock-channel-bookmarks:${channelStorageId}`;
   const [localThreads, setLocalThreads] = useState<Thread[]>(() =>
@@ -312,7 +314,7 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
     setActivePanel(null);
   };
 
-  const getThreadReactionKey = (threadId: number) => `channel:${channelStorageId}:thread:${threadId}`;
+  const getThreadReactionKey = (threadId: number) => `channel:${reactionChannelId}:thread:${threadId}`;
 
   const handleReactionToggle = (threadId: number, emoji: string) => {
     const reactionKey = getThreadReactionKey(threadId);
