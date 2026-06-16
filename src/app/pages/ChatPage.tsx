@@ -699,6 +699,27 @@ function getThreadKey(msg: any): string | number {
   return msg?.id;
 }
 
+function getMessageFallbackAvatar(user?: string) {
+  const trimmedUser = (user ?? "").trim();
+  return trimmedUser ? trimmedUser.charAt(0).toUpperCase() : "U";
+}
+
+function mapMessageToChannelThread(message: any) {
+  const user = message?.user ?? message?.senderName ?? "CodeDock";
+  const body = message?.message ?? message?.text ?? "";
+  const replyCount = Number(message?.replies ?? message?.replyCount ?? 0);
+
+  return {
+    ...message,
+    user,
+    avatar: message?.avatar ?? getMessageFallbackAvatar(user),
+    message: body,
+    text: message?.text ?? body,
+    time: message?.time ?? "",
+    replies: Number.isFinite(replyCount) ? replyCount : 0
+  };
+}
+
 const initialThreadReplies: Record<number | string, any[]> = {
   // ── PR 스레드 (pr-{id} 키) ──────────────────────────────────────
   // PR #104 — AI 인터뷰 리팩터 (diff seed 포함)
@@ -1125,6 +1146,10 @@ export function ChatPage() {
   }, [apiChannelIdByUiChannel, apiChannels.length, selectedChannel]);
 
   const currentMessages = messages[selectedChannelMessageKey] || [];
+  const currentChannelThreads = useMemo(
+    () => currentMessages.map(mapMessageToChannelThread),
+    [currentMessages]
+  );
   const apiThreadTargets = useMemo(() => {
     const threadTargets = new Map<number, { channelId: string; thread: any }>();
 
@@ -3883,13 +3908,13 @@ export function ChatPage() {
                 repoName={allCustomChannels.find(ch => ch.id === selectedChannel)?.label}
                 myMemberId={currentWorkspaceMemberId}
                 myDisplayName={currentDisplayName}
-                threads={currentMessages}
+                threads={currentChannelThreads}
                 reactions={currentMessageReactions}
                 replyCounts={mergedReplyCounts}
                 onOpenThread={handleOpenThread}
                 selectedThreadId={selectedThread?.id}
                 onOpenInvite={() => setTeamInviteOpen(true)}
-                onSendThread={activeApiChannelId ? handleSendMessage : undefined}
+                onSendThread={handleSendMessage}
                 onAddMessageAttachments={activeApiChannelId
                   ? (message, attachments) => attachToExistingServerMessage(
                       selectedChannel,
@@ -3903,8 +3928,8 @@ export function ChatPage() {
                 onToggleReaction={handleToggleReaction}
                 bookmarkedThreadIds={activeApiChannelId ? activeServerBookmarkedThreadIds : undefined}
                 onToggleBookmark={activeApiChannelId ? handleToggleThreadBookmark : undefined}
-                onEditThread={activeApiChannelId ? handleEditThreadMessage : undefined}
-                onDeleteThread={activeApiChannelId ? handleDeleteThreadMessage : undefined}
+                onEditThread={handleEditThreadMessage}
+                onDeleteThread={handleDeleteThreadMessage}
               />
             ) : REPO_CHANNEL_IDS_REVERSE[selectedChannel] !== undefined ? (
               <ChannelPanel
@@ -3914,13 +3939,13 @@ export function ChatPage() {
                 repoName={currentRepo?.name}
                 myMemberId={currentWorkspaceMemberId}
                 myDisplayName={currentDisplayName}
-                threads={currentMessages}
+                threads={currentChannelThreads}
                 reactions={currentMessageReactions}
                 replyCounts={mergedReplyCounts}
                 onOpenThread={handleOpenThread}
                 selectedThreadId={selectedThread?.id}
                 onOpenInvite={() => setTeamInviteOpen(true)}
-                onSendThread={activeApiChannelId ? handleSendMessage : undefined}
+                onSendThread={handleSendMessage}
                 onAddMessageAttachments={activeApiChannelId
                   ? (message, attachments) => attachToExistingServerMessage(
                       selectedChannel,
@@ -3934,8 +3959,8 @@ export function ChatPage() {
                 onToggleReaction={handleToggleReaction}
                 bookmarkedThreadIds={activeApiChannelId ? activeServerBookmarkedThreadIds : undefined}
                 onToggleBookmark={activeApiChannelId ? handleToggleThreadBookmark : undefined}
-                onEditThread={activeApiChannelId ? handleEditThreadMessage : undefined}
-                onDeleteThread={activeApiChannelId ? handleDeleteThreadMessage : undefined}
+                onEditThread={handleEditThreadMessage}
+                onDeleteThread={handleDeleteThreadMessage}
               />
             ) : repositories.find(r => r.id === selectedChannel) ? (
               <ChannelPanel
@@ -3945,13 +3970,13 @@ export function ChatPage() {
                 repoName={repositories.find(r => r.id === selectedChannel)?.name}
                 myMemberId={currentWorkspaceMemberId}
                 myDisplayName={currentDisplayName}
-                threads={currentMessages}
+                threads={currentChannelThreads}
                 reactions={currentMessageReactions}
                 replyCounts={mergedReplyCounts}
                 onOpenThread={handleOpenThread}
                 selectedThreadId={selectedThread?.id}
                 onOpenInvite={() => setTeamInviteOpen(true)}
-                onSendThread={activeApiChannelId ? handleSendMessage : undefined}
+                onSendThread={handleSendMessage}
                 onAddMessageAttachments={activeApiChannelId
                   ? (message, attachments) => attachToExistingServerMessage(
                       selectedChannel,
@@ -3965,8 +3990,8 @@ export function ChatPage() {
                 onToggleReaction={handleToggleReaction}
                 bookmarkedThreadIds={activeApiChannelId ? activeServerBookmarkedThreadIds : undefined}
                 onToggleBookmark={activeApiChannelId ? handleToggleThreadBookmark : undefined}
-                onEditThread={activeApiChannelId ? handleEditThreadMessage : undefined}
-                onDeleteThread={activeApiChannelId ? handleDeleteThreadMessage : undefined}
+                onEditThread={handleEditThreadMessage}
+                onDeleteThread={handleDeleteThreadMessage}
               />
             ) : selectedChannel === 'work-board' ? (
               <WorkBoardPanel
