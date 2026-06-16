@@ -337,6 +337,14 @@ function normalizeChannelName(name: string) {
   return name.trim().toLowerCase().replace(/[\s_-]+/g, "");
 }
 
+function canManageWorkspaceChannel(role?: string | null) {
+  const normalizedRole = (role ?? "").trim().toLowerCase();
+  return normalizedRole === "owner"
+    || normalizedRole === "admin"
+    || normalizedRole === "소유자"
+    || normalizedRole === "관리자";
+}
+
 function getApiChannelUiId(channel: Channel) {
   const channelType = String(channel.channelType ?? "").toLowerCase();
   const normalizedName = normalizeChannelName(channel.name);
@@ -822,7 +830,6 @@ export function ChatPage() {
   const [chatStompReadyKey, setChatStompReadyKey] = useState(0);
   const [serverBookmarkedThreadsByChannel, setServerBookmarkedThreadsByChannel] = useState<Record<string, Record<number, boolean>>>({});
   const [workspaceMentions, setWorkspaceMentions] = useState<MentionResponse[]>([]);
-  const [customChannels, setCustomChannels] = useState<CustomChannelItem[]>([]);
   const [channelMenuOpenId, setChannelMenuOpenId] = useState<string | null>(null);
   const [editingCustomChannelId, setEditingCustomChannelId] = useState<string | null>(null);
   const [editingCustomChannelLabel, setEditingCustomChannelLabel] = useState('');
@@ -875,6 +882,7 @@ export function ChatPage() {
   const hasRepositories = repositoriesImported && repositories.length > 0;
   const currentRepo = repositories.find(repo => repo.id === selectedRepository);
   const currentWorkspace = workspaceList.find(ws => ws.id === selectedWorkspace) ?? workspaceList[0];
+  const canManageWorkspaceChannels = canManageWorkspaceChannel(currentWorkspace?.myRole);
   const currentWorkspaceApiId = getWorkspaceApiId(selectedWorkspace, currentWorkspace);
   const currentWorkspaceMemberId = useMemo(() => {
     if (userId == null) return null;
@@ -961,8 +969,8 @@ export function ChatPage() {
       }));
   }, [apiChannels]);
   const allCustomChannels = useMemo(
-    () => [...apiCustomChannels, ...customChannels],
-    [apiCustomChannels, customChannels]
+    () => apiCustomChannels,
+    [apiCustomChannels]
   );
   const activeRemoteTypingNames = Object.values(remoteTypingByChannel[selectedChannel] ?? {});
   const activeRemoteTypingLabel = formatRemoteTypingLabel(activeRemoteTypingNames);
@@ -1524,9 +1532,13 @@ export function ChatPage() {
   useEffect(() => {
     const controller = new AbortController();
 
+    setChannelActionError('');
     refreshWorkspaceChannels(controller.signal)
       .catch(() => {
-        if (!controller.signal.aborted) setApiChannels([]);
+        if (!controller.signal.aborted) {
+          setApiChannels([]);
+          setChannelActionError('채널 목록을 불러오지 못했어요. 새로고침 후 다시 시도해주세요.');
+        }
       });
 
     return () => controller.abort();
@@ -1897,6 +1909,10 @@ export function ChatPage() {
   };
 
   const handleAddCustomChannel = () => {
+    if (!canManageWorkspaceChannels) {
+      setChannelActionError('채널 관리는 워크스페이스 owner/admin만 할 수 있습니다.');
+      return;
+    }
     setNewChannelName('');
     setNewRepoChannelUrl('');
     setChannelCreateError('');
@@ -1912,6 +1928,10 @@ export function ChatPage() {
 
   const handleSubmitAddChannel = async () => {
     if (isCreatingChannelRef.current) return;
+    if (!canManageWorkspaceChannels) {
+      setChannelCreateError('채널 관리는 워크스페이스 owner/admin만 할 수 있습니다.');
+      return;
+    }
     isCreatingChannelRef.current = true;
     setIsSubmittingChannel(true);
     setChannelCreateError('');
@@ -1954,23 +1974,10 @@ export function ChatPage() {
     const repoName = parseRepoNameFromUrl(newRepoChannelUrl);
     if (!repoName) return;
     isCreatingChannelRef.current = true;
-    const nextRepository: RepositoryItem = {
-      id: `repo-${Date.now()}`,
-      name: repoName,
-      openPRs: 0,
-      highRisk: 0,
-      activeIssues: 0,
-      connected: true,
-      membersOnline: 1,
-      workspaceId: selectedWorkspace
-    };
-    setRepositories(prev => [nextRepository, ...prev]);
-    setRepositoriesImported(true);
-    setSelectedRepository(nextRepository.id);
-    setSelectedChannel(nextRepository.id);
-    setAddChannelStep(null);
-    setNewRepoChannelUrl('');
-    setTimeout(() => { isCreatingChannelRef.current = false; }, 500);
+    setChannelCreateError(
+      `"${repoName}" 레포 채널은 로컬로 생성하지 않습니다. GitHub 저장소 연동 흐름에서 서버 채널이 생성된 뒤 표시됩니다.`
+    );
+    isCreatingChannelRef.current = false;
   };
 
   const handleCancelAddChannel = () => {
@@ -1986,21 +1993,29 @@ export function ChatPage() {
 
     const channel = allCustomChannels.find((item) => item.id === channelId);
     if (!channel) return;
+    const sourceApiChannel = channel.apiChannelId
+      ? apiChannels.find((apiChannel) => apiChannel.id === channel.apiChannelId)
+      : undefined;
+    if (!canManageWorkspaceChannels || !sourceApiChannel?.isDeletable) {
+      setChannelActionError('이 채널은 삭제할 수 없습니다.');
+      setChannelMenuOpenId(null);
+      return;
+    }
 
     channelActionInFlightRef.current = true;
     setChannelActionPendingId(channelId);
     setChannelActionError('');
 
     try {
-      if (channel.apiChannelId) {
-        await deleteWorkspaceChannel(currentWorkspaceApiId, channel.apiChannelId);
-        setApiChannels((prev) => prev.filter((apiChannel) => apiChannel.id !== channel.apiChannelId));
-        refreshWorkspaceChannels().catch(() => {
-          // The deleted channel has already been removed locally.
-        });
-      } else {
-        setCustomChannels(prev => prev.filter(ch => ch.id !== channelId));
+      if (!channel.apiChannelId) {
+        throw new Error("Server channel id is missing.");
       }
+
+      await deleteWorkspaceChannel(currentWorkspaceApiId, channel.apiChannelId);
+      setApiChannels((prev) => prev.filter((apiChannel) => apiChannel.id !== channel.apiChannelId));
+      refreshWorkspaceChannels().catch(() => {
+        // The deleted channel has already been removed locally after server success.
+      });
 
       if (selectedChannel === channelId) setSelectedChannel('general');
       setChannelMenuOpenId(null);
@@ -2025,7 +2040,16 @@ export function ChatPage() {
 
     const channel = allCustomChannels.find((item) => item.id === editingCustomChannelId);
     const nextLabel = editingCustomChannelLabel.trim();
+    const sourceApiChannel = channel?.apiChannelId
+      ? apiChannels.find((apiChannel) => apiChannel.id === channel.apiChannelId)
+      : undefined;
     if (!nextLabel || !channel) {
+      setEditingCustomChannelId(null);
+      setEditingCustomChannelLabel('');
+      return;
+    }
+    if (!canManageWorkspaceChannels || !sourceApiChannel?.isDeletable) {
+      setChannelActionError('이 채널은 수정할 수 없습니다.');
       setEditingCustomChannelId(null);
       setEditingCustomChannelLabel('');
       return;
@@ -2036,24 +2060,22 @@ export function ChatPage() {
     setChannelActionError('');
 
     try {
-      if (channel.apiChannelId) {
-        const currentApiChannel = apiChannels.find((apiChannel) => apiChannel.id === channel.apiChannelId);
-        const updatedChannel = await updateWorkspaceChannel(currentWorkspaceApiId, channel.apiChannelId, {
-          name: nextLabel,
-          description: currentApiChannel?.description ?? null
-        });
-
-        setApiChannels((prev) =>
-          prev.map((apiChannel) => (apiChannel.id === updatedChannel.id ? updatedChannel : apiChannel))
-        );
-        refreshWorkspaceChannels().catch(() => {
-          // Keep the updated channel in local state when only the follow-up sync fails.
-        });
-      } else {
-        setCustomChannels(prev =>
-          prev.map(ch => ch.id === editingCustomChannelId ? { ...ch, label: nextLabel } : ch)
-        );
+      if (!channel.apiChannelId) {
+        throw new Error("Server channel id is missing.");
       }
+
+      const currentApiChannel = apiChannels.find((apiChannel) => apiChannel.id === channel.apiChannelId);
+      const updatedChannel = await updateWorkspaceChannel(currentWorkspaceApiId, channel.apiChannelId, {
+        name: nextLabel,
+        description: currentApiChannel?.description ?? null
+      });
+
+      setApiChannels((prev) =>
+        prev.map((apiChannel) => (apiChannel.id === updatedChannel.id ? updatedChannel : apiChannel))
+      );
+      refreshWorkspaceChannels().catch(() => {
+        // Keep the updated channel in local state when only the follow-up sync fails.
+      });
 
       setEditingCustomChannelId(null);
       setEditingCustomChannelLabel('');
@@ -3087,9 +3109,9 @@ export function ChatPage() {
                   type="button"
                   onClick={handleAddCustomChannel}
                   className="grid h-5 w-5 place-items-center rounded border-0 transition-all hover:scale-110"
-                  style={{ background: 'transparent', color: 'var(--muted)', cursor: 'pointer' }}
+                  style={{ background: 'transparent', color: 'var(--muted)', cursor: 'pointer', opacity: canManageWorkspaceChannels ? 1 : 0.55 }}
                   aria-label="채널 추가"
-                  title="채널 추가"
+                  title={canManageWorkspaceChannels ? '채널 추가' : 'owner/admin만 채널을 관리할 수 있습니다'}
                 >
                   <Plus size={13} />
                 </button>
@@ -3267,6 +3289,11 @@ export function ChatPage() {
                         fontWeight: 850
                       }}
                     />
+                    {channelCreateError && (
+                      <p className="mb-0 mt-2 leading-relaxed tracking-tight" style={{ color: '#FF6B6B', fontSize: '12px', fontWeight: 850 }}>
+                        {channelCreateError}
+                      </p>
+                    )}
                     <div className="mt-2 flex gap-2">
                       <button
                         type="button"
@@ -3318,7 +3345,7 @@ export function ChatPage() {
                   ? apiChannels.find((apiChannel) => apiChannel.id === ch.apiChannelId)
                   : undefined;
                 const isChannelActionPending = channelActionPendingId === ch.id;
-                const canDeleteChannel = !sourceApiChannel || sourceApiChannel.isDeletable;
+                const canManageServerChannel = canManageWorkspaceChannels && Boolean(sourceApiChannel?.isDeletable);
                 return (
                   <div key={ch.id} className="grid gap-0.5">
                     <div className="relative isolate flex w-full items-center rounded-full">
@@ -3401,22 +3428,22 @@ export function ChatPage() {
                         <button
                           type="button"
                           onClick={() => handleStartRenameCustomChannel(ch)}
-                          disabled={isChannelActionPending}
+                          disabled={isChannelActionPending || !canManageServerChannel}
                           className="flex w-full items-center gap-2 border-0 px-3 py-2 text-left tracking-tight transition-all hover:bg-[rgba(var(--codedock-primary-rgb),0.08)]"
-                          style={{ background: 'transparent', color: 'var(--white)', fontSize: "var(--krds-body-xsmall)", fontWeight: 800, cursor: isChannelActionPending ? 'not-allowed' : 'pointer', opacity: isChannelActionPending ? 0.55 : 1, borderBottom: '1px solid rgba(var(--codedock-primary-rgb), 0.10)' }}
+                          style={{ background: 'transparent', color: 'var(--white)', fontSize: "var(--krds-body-xsmall)", fontWeight: 800, cursor: isChannelActionPending || !canManageServerChannel ? 'not-allowed' : 'pointer', opacity: isChannelActionPending || !canManageServerChannel ? 0.55 : 1, borderBottom: '1px solid rgba(var(--codedock-primary-rgb), 0.10)' }}
                         >
                           <Pencil size={13} style={{ color: 'var(--neon-cyan)' }} />
-                          이름 수정
+                          {canManageServerChannel ? '이름 수정' : '수정 불가'}
                         </button>
                         <button
                           type="button"
                           onClick={() => { void handleDeleteCustomChannel(ch.id); }}
-                          disabled={isChannelActionPending || !canDeleteChannel}
+                          disabled={isChannelActionPending || !canManageServerChannel}
                           className="flex w-full items-center gap-2 border-0 px-3 py-2 text-left tracking-tight transition-all hover:bg-[rgba(255,107,107,0.08)]"
-                          style={{ background: 'transparent', color: '#FF6B6B', fontSize: "var(--krds-body-xsmall)", fontWeight: 800, cursor: isChannelActionPending || !canDeleteChannel ? 'not-allowed' : 'pointer', opacity: isChannelActionPending || !canDeleteChannel ? 0.5 : 1 }}
+                          style={{ background: 'transparent', color: '#FF6B6B', fontSize: "var(--krds-body-xsmall)", fontWeight: 800, cursor: isChannelActionPending || !canManageServerChannel ? 'not-allowed' : 'pointer', opacity: isChannelActionPending || !canManageServerChannel ? 0.5 : 1 }}
                         >
                           <Trash2 size={13} />
-                          {isChannelActionPending ? '삭제 중' : canDeleteChannel ? '채널 삭제' : '삭제 불가'}
+                          {isChannelActionPending ? '삭제 중' : canManageServerChannel ? '채널 삭제' : '삭제 불가'}
                         </button>
                       </div>
                     )}
