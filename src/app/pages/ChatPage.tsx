@@ -1,4 +1,4 @@
-import { Hash, Users, GitPullRequest, Home, CheckSquare, ChevronDown, ChevronRight, GitBranch, Code2, Database, BookOpen, Maximize2, Minimize2, Plus, Pencil, Trash2, MoreVertical, X, LayoutGrid, Bell, BellOff, Check, Clock3, MessageCircle, Settings, UserRound, type LucideIcon } from "lucide-react";
+import { Hash, Users, GitPullRequest, Home, CheckSquare, ChevronDown, ChevronRight, GitBranch, Code2, Database, BookOpen, Maximize2, Minimize2, Plus, Pencil, Trash2, MoreVertical, X, LayoutGrid, Bell, BellOff, Check, Clock3, MessageCircle, Settings, UserRound, Wifi, WifiOff, type LucideIcon } from "lucide-react";
 import { WorkBoardPanel } from "../components/WorkBoardPanel";
 import { ChatPanel } from "../components/ChatPanel";
 import { PRReviewPanel } from "../components/PRReviewPanel";
@@ -59,6 +59,7 @@ import {
   type TypingEvent
 } from "../api";
 import type { ChatStompClient } from "../api/stomp";
+import { getAccessToken } from "../auth";
 import { useProfile } from "../contexts/ProfileContext";
 import { fetchMyWorkspaces, getWorkspaceMembers, updatePresence, type WorkspaceDto, type WorkspaceMember } from "../api/workspace";
 import { useWorkspace } from "../contexts/WorkspaceContext";
@@ -95,6 +96,30 @@ type SidebarGroupId = 'documentation';
 type UserPresence = 'active' | 'away' | 'busy' | 'offline';
 type NotificationMode = 'all' | 'mentions' | 'muted';
 type RemoteTypingMembers = Record<number, string>;
+type ChannelFetchStatus = "idle" | "loading" | "ready" | "failed";
+type RealtimeConnectionStatus = "idle" | "waiting" | "connecting" | "connected" | "blocked" | "failed" | "disconnected";
+type RealtimeConnectionReason =
+  | "missing-token"
+  | "workspace-unavailable"
+  | "channels-loading"
+  | "channels-failed"
+  | "no-api-channels"
+  | "non-api-channel"
+  | "stomp-error"
+  | "client-load-failed"
+  | "disconnected";
+
+type RealtimeConnectionState = {
+  status: RealtimeConnectionStatus;
+  reason?: RealtimeConnectionReason;
+  detail?: string;
+};
+
+type RealtimeConnectionNotice = {
+  tone: "info" | "warning" | "error";
+  title: string;
+  body: string;
+};
 
 interface RepositoryItem {
   id: string;
@@ -537,6 +562,113 @@ function formatRemoteTypingLabel(names: string[]) {
   return `${names[0]} 외 ${names.length - 1}명 입력 중입니다`;
 }
 
+function getReadableErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  if (error && typeof error === "object") {
+    const maybeError = error as {
+      body?: string;
+      message?: string;
+      type?: string;
+      headers?: { message?: string };
+    };
+    return maybeError.headers?.message
+      ?? maybeError.body
+      ?? maybeError.message
+      ?? maybeError.type
+      ?? "상세 오류 없음";
+  }
+
+  return "상세 오류 없음";
+}
+
+function getRealtimeBlockState(reason: RealtimeConnectionReason, detail?: string): RealtimeConnectionState {
+  const status: RealtimeConnectionStatus =
+    reason === "missing-token"
+    || reason === "workspace-unavailable"
+    || reason === "channels-failed"
+      ? "blocked"
+      : "waiting";
+
+  return { status, reason, detail };
+}
+
+function getRealtimeConnectionNotice(
+  connection: RealtimeConnectionState,
+  channelFetchError: string
+): RealtimeConnectionNotice | null {
+  if (connection.status === "connected" || connection.status === "idle") {
+    return null;
+  }
+
+  if (connection.status === "connecting") {
+    return {
+      tone: "info",
+      title: "실시간 연결 확인 중",
+      body: "채널 이벤트 구독을 준비하고 있습니다."
+    };
+  }
+
+  switch (connection.reason) {
+    case "missing-token":
+      return {
+        tone: "error",
+        title: "실시간 연결 대기 중",
+        body: "로그인 토큰이 없어 WebSocket 연결을 시작하지 않았습니다."
+      };
+    case "workspace-unavailable":
+      return {
+        tone: "error",
+        title: "워크스페이스 확인 필요",
+        body: "현재 워크스페이스를 확인할 수 없어 실시간 연결을 보류했습니다."
+      };
+    case "channels-loading":
+      return {
+        tone: "info",
+        title: "채널 목록 확인 중",
+        body: "채널 목록을 불러온 뒤 실시간 연결을 시작합니다."
+      };
+    case "channels-failed":
+      return {
+        tone: "error",
+        title: "채널 조회 실패",
+        body: channelFetchError || connection.detail || "채널 목록을 불러오지 못해 실시간 연결을 시작하지 못했습니다."
+      };
+    case "no-api-channels":
+      return {
+        tone: "warning",
+        title: "연결할 채널 없음",
+        body: "백엔드 채널 목록이 비어 있어 실시간 연결을 대기합니다."
+      };
+    case "non-api-channel":
+      return {
+        tone: "warning",
+        title: "로컬 채널 표시 중",
+        body: "현재 채널은 백엔드 채널과 매칭되지 않아 실시간 구독 대상이 아닙니다."
+      };
+    case "stomp-error":
+      return {
+        tone: "error",
+        title: "WebSocket 연결 실패",
+        body: connection.detail || "WebSocket 연결 중 오류가 발생했습니다."
+      };
+    case "client-load-failed":
+      return {
+        tone: "error",
+        title: "실시간 클라이언트 로드 실패",
+        body: connection.detail || "WebSocket 클라이언트를 불러오지 못했습니다."
+      };
+    case "disconnected":
+      return {
+        tone: "warning",
+        title: "실시간 연결 끊김",
+        body: "채널을 다시 확인하거나 잠시 후 재시도합니다."
+      };
+    default:
+      return null;
+  }
+}
+
 function upsertReactionSummary(
   reactions: MessageReaction[] | undefined,
   response: ReactionToggleResponse
@@ -961,6 +1093,11 @@ export function ChatPage() {
   const [expandedRepoSubmenus, setExpandedRepoSubmenus] = useState<Record<string, boolean>>({});
   const [repoMenuOpenId, setRepoMenuOpenId] = useState<string | null>(null);
   const [apiChannels, setApiChannels] = useState<Channel[]>([]);
+  const [channelFetchStatus, setChannelFetchStatus] = useState<ChannelFetchStatus>("idle");
+  const [channelFetchError, setChannelFetchError] = useState("");
+  const [realtimeConnection, setRealtimeConnection] = useState<RealtimeConnectionState>({
+    status: "idle"
+  });
   const [presenceOverrides, setPresenceOverrides] = useState<Record<string, string>>({});
   const [remoteTypingByChannel, setRemoteTypingByChannel] = useState<Record<string, RemoteTypingMembers>>({});
   const remoteTypingTimeoutsRef = useRef<Record<string, number>>({});
@@ -1067,6 +1204,23 @@ export function ChatPage() {
     if (userId == null) return null;
     return workspaceMembers.find((member) => Number(member.userId) === Number(userId))?.memberId ?? null;
   }, [userId, workspaceMembers]);
+  const updateRealtimeConnection = useCallback((next: RealtimeConnectionState) => {
+    setRealtimeConnection((prev) => {
+      if (
+        prev.status === next.status
+        && prev.reason === next.reason
+        && prev.detail === next.detail
+      ) {
+        return prev;
+      }
+
+      if (import.meta.env.DEV) {
+        console.info("[CodeDock realtime]", next);
+      }
+
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     if (apiWorkspaces.length === 0 || contextWorkspaceId === null) return;
@@ -1091,6 +1245,8 @@ export function ChatPage() {
     return getWorkspaceChannels(currentWorkspaceApiId, signal ? { signal } : undefined)
       .then((channels) => {
         setApiChannels(channels);
+        setChannelFetchStatus("ready");
+        setChannelFetchError("");
         return channels;
       });
   }, [currentWorkspaceApiId]);
@@ -1138,6 +1294,23 @@ export function ChatPage() {
   }, [apiChannels]);
   const activeApiChannelId = apiChannelIdByUiChannel[selectedChannel];
   const hasActiveApiChatChannel = activeApiChannelId !== undefined;
+  const hasChatAccessToken = Boolean(getAccessToken());
+  const realtimeConnectionBlockReason = useMemo<RealtimeConnectionReason | null>(() => {
+    if (!Number.isFinite(currentWorkspaceApiId)) return "workspace-unavailable";
+    if (!hasChatAccessToken) return "missing-token";
+    if (channelFetchStatus === "idle" || channelFetchStatus === "loading") return "channels-loading";
+    if (channelFetchStatus === "failed") return "channels-failed";
+    if (apiChannels.length === 0) return "no-api-channels";
+    if (!hasActiveApiChatChannel) return "non-api-channel";
+
+    return null;
+  }, [
+    apiChannels.length,
+    channelFetchStatus,
+    currentWorkspaceApiId,
+    hasActiveApiChatChannel,
+    hasChatAccessToken
+  ]);
   const apiCustomChannels = useMemo<CustomChannelItem[]>(() => {
     return apiChannels
       .filter((channel) => getApiChannelUiId(channel) !== "general")
@@ -1270,6 +1443,13 @@ export function ChatPage() {
     : selectedCustomChannel?.label
     ?? selectedChannelMeta?.label
     ?? selectedChannel.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+  const realtimeConnectionNotice = useMemo(
+    () => getRealtimeConnectionNotice(realtimeConnection, channelFetchError),
+    [channelFetchError, realtimeConnection]
+  );
+  const shouldShowRealtimeConnectionNotice =
+    Boolean(realtimeConnectionNotice)
+    && !['overview', 'api-spec', 'erd', 'docs', 'work-board', 'team'].includes(selectedChannel);
   const selectedRepositoryName = repositories.find((repo) => repo.id === selectedRepository)?.name ?? '전체 리포지토리';
 
   const currentPresence = presenceOptions.find((option) => option.id === userPresence) ?? presenceOptions[0];
@@ -1788,17 +1968,28 @@ export function ChatPage() {
   useEffect(() => {
     const controller = new AbortController();
 
+    setChannelFetchStatus("loading");
+    setChannelFetchError("");
     setChannelActionError('');
     refreshWorkspaceChannels(controller.signal)
-      .catch(() => {
+      .catch((error) => {
         if (!controller.signal.aborted) {
+          const message = getReadableErrorMessage(error);
           setApiChannels([]);
+          setChannelFetchStatus("failed");
+          setChannelFetchError(message);
+          if (import.meta.env.DEV) {
+            console.warn("[CodeDock realtime] Channel fetch failed; WebSocket connection is waiting.", {
+              workspaceId: currentWorkspaceApiId,
+              message
+            });
+          }
           setChannelActionError('채널 목록을 불러오지 못했어요. 새로고침 후 다시 시도해주세요.');
         }
       });
 
     return () => controller.abort();
-  }, [refreshWorkspaceChannels]);
+  }, [currentWorkspaceApiId, refreshWorkspaceChannels]);
 
   useEffect(() => {
     if (!activeApiChannelId) return;
@@ -1890,7 +2081,7 @@ export function ChatPage() {
   }, [activeApiChannelId, getThreadReplyStateKey, selectedThread?.backendMessageId, selectedThread?.id]);
 
   useEffect(() => {
-    if (apiChannels.length === 0 || !hasActiveApiChatChannel) {
+    if (realtimeConnectionBlockReason) {
       chatStompRef.current?.disconnect();
       chatStompRef.current = null;
       Object.values(remoteTypingTimeoutsRef.current).forEach((timeoutId) => {
@@ -1898,6 +2089,10 @@ export function ChatPage() {
       });
       remoteTypingTimeoutsRef.current = {};
       setRemoteTypingByChannel({});
+      updateRealtimeConnection(getRealtimeBlockState(
+        realtimeConnectionBlockReason,
+        realtimeConnectionBlockReason === "channels-failed" ? channelFetchError : undefined
+      ));
       return;
     }
 
@@ -1907,10 +2102,39 @@ export function ChatPage() {
     let typingSubscription: { unsubscribe: () => void } | null = null;
     let personalNotificationSubscription: { unsubscribe: () => void } | null = null;
 
+    updateRealtimeConnection({ status: "connecting" });
+
     void import("../api/stomp").then(({ createChatStompClient }) => {
       if (cancelled) return;
 
-      client = createChatStompClient();
+      client = createChatStompClient({
+        onConnect: () => {
+          if (!cancelled) {
+            updateRealtimeConnection({ status: "connected" });
+          }
+        },
+        onDisconnect: () => {
+          if (!cancelled) {
+            updateRealtimeConnection({ status: "disconnected", reason: "disconnected" });
+          }
+        },
+        onError: (error) => {
+          if (cancelled) return;
+          const detail = getReadableErrorMessage(error);
+          updateRealtimeConnection({ status: "failed", reason: "stomp-error", detail });
+          if (import.meta.env.DEV) {
+            console.warn("[CodeDock realtime] WebSocket connection failed.", {
+              workspaceId: currentWorkspaceApiId,
+              channelId: activeApiChannelId,
+              detail
+            });
+          }
+        },
+        onConnectionSkipped: (reason) => {
+          if (cancelled || reason === "already-active") return;
+          updateRealtimeConnection({ status: "blocked", reason: "missing-token" });
+        }
+      });
       chatStompRef.current = client;
       setChatStompReadyKey((key) => key + 1);
 
@@ -2022,6 +2246,13 @@ export function ChatPage() {
       );
 
       client.connect();
+    }).catch((error) => {
+      if (cancelled) return;
+      updateRealtimeConnection({
+        status: "failed",
+        reason: "client-load-failed",
+        detail: getReadableErrorMessage(error)
+      });
     });
 
     return () => {
@@ -2050,12 +2281,14 @@ export function ChatPage() {
     apiChannels,
     applyReactionResponse,
     appendServerMessage,
+    channelFetchError,
     currentWorkspaceApiId,
-    hasActiveApiChatChannel,
     incrementUnreadCount,
     isCurrentWorkspaceMember,
     replaceServerMessage,
-    selectedChannel
+    realtimeConnectionBlockReason,
+    selectedChannel,
+    updateRealtimeConnection
   ]);
 
   useEffect(() => {
@@ -3998,6 +4231,61 @@ export function ChatPage() {
                 {isMainExpanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
                 {isMainExpanded ? '작게 보기' : '크게 보기'}
               </button>
+            )}
+            {shouldShowRealtimeConnectionNotice && realtimeConnectionNotice && (
+              <div
+                className="pointer-events-none absolute right-5 top-16 z-30 flex max-w-[360px] items-start gap-2 rounded-2xl px-3 py-2 tracking-tight"
+                style={{
+                  background:
+                    realtimeConnectionNotice.tone === "error"
+                      ? "rgba(58, 13, 22, 0.88)"
+                      : realtimeConnectionNotice.tone === "warning"
+                      ? "rgba(62, 47, 12, 0.88)"
+                      : "rgba(8, 26, 42, 0.86)",
+                  border:
+                    realtimeConnectionNotice.tone === "error"
+                      ? "1px solid rgba(255, 107, 107, 0.34)"
+                      : realtimeConnectionNotice.tone === "warning"
+                      ? "1px solid rgba(255, 209, 102, 0.30)"
+                      : "1px solid rgba(var(--codedock-primary-rgb), 0.28)",
+                  boxShadow: "0 16px 36px rgba(0, 0, 0, 0.34)",
+                  backdropFilter: "blur(16px)",
+                  color: "var(--white)"
+                }}
+                title={realtimeConnectionNotice.body}
+              >
+                {realtimeConnectionNotice.tone === "info" ? (
+                  <Wifi size={15} style={{ color: "var(--neon-cyan)", flexShrink: 0, marginTop: 2 }} />
+                ) : (
+                  <WifiOff
+                    size={15}
+                    style={{
+                      color: realtimeConnectionNotice.tone === "error" ? "#FF6B6B" : "#FFD166",
+                      flexShrink: 0,
+                      marginTop: 2
+                    }}
+                  />
+                )}
+                <span className="min-w-0">
+                  <span
+                    className="block"
+                    style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}
+                  >
+                    {realtimeConnectionNotice.title}
+                  </span>
+                  <span
+                    className="block"
+                    style={{
+                      color: "rgba(234, 247, 255, 0.72)",
+                      fontSize: "var(--krds-body-xsmall)",
+                      fontWeight: 750,
+                      lineHeight: 1.35
+                    }}
+                  >
+                    {realtimeConnectionNotice.body}
+                  </span>
+                </span>
+              </div>
             )}
             {selectedChannel === 'overview' ? (
               <OverviewPanel

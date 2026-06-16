@@ -40,6 +40,7 @@ export type ChatStompClientOptions = {
   onConnect?: () => void;
   onDisconnect?: () => void;
   onError?: (error: Event | Error | IFrame) => void;
+  onConnectionSkipped?: (reason: "already-active" | "missing-token") => void;
 };
 
 function getDefaultStompUrl() {
@@ -163,10 +164,14 @@ export function createChatStompClient(options: ChatStompClientOptions = {}): Cha
   }
 
   const connect = () => {
-    if (stompClient.active) return;
+    if (stompClient.active) {
+      options.onConnectionSkipped?.("already-active");
+      return;
+    }
     const connectHeaders = getAuthorizationConnectHeaders();
     if (!connectHeaders) {
       pendingSends.length = 0;
+      options.onConnectionSkipped?.("missing-token");
       return;
     }
     stompClient.connectHeaders = connectHeaders;
@@ -197,7 +202,10 @@ export function createChatStompClient(options: ChatStompClientOptions = {}): Cha
 
   const send = (destination: string, body?: unknown, headers?: StompHeaders) => {
     if (!stompClient.connected) {
-      if (!getAccessToken()) return;
+      if (!getAccessToken()) {
+        options.onConnectionSkipped?.("missing-token");
+        return;
+      }
       pendingSends.push({ destination, body, headers });
       connect();
       return;
