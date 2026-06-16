@@ -11,6 +11,7 @@ import {
   Link as LinkIcon,
   MessageSquare,
   Plus,
+  Sparkles,
   Trash2,
   X,
 } from "lucide-react";
@@ -20,6 +21,7 @@ import {
   createApiSpec,
   updateApiSpec,
   deleteApiSpec,
+  generateAiChecklist,
   type ApiSpecResponse,
   type ApiSpecMethod,
   type ApiSpecStatus,
@@ -122,6 +124,8 @@ export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps)
   const [formData, setFormData] = useState<FormData>(EMPTY_FORM);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState("");
 
   const selectedApiData = apis.find((api) => api.id === selectedApiId) ?? apis[0] ?? null;
 
@@ -280,6 +284,26 @@ export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps)
     }
   }
 
+  async function handleGenerateAiChecklist() {
+    if (!workspaceId || isGenerating) return;
+
+    setIsGenerating(true);
+    setGenerateError("");
+
+    try {
+      const generated = await generateAiChecklist(workspaceId);
+      setApis((prev) => [...prev, ...generated]);
+    } catch (error) {
+      setGenerateError(
+        error instanceof ApiClientError
+          ? error.message
+          : "AI 체크리스트 생성에 실패했습니다.",
+      );
+    } finally {
+      setIsGenerating(false);
+    }
+  }
+
   async function handleDelete() {
     if (!workspaceId || !selectedApiData) return;
     if (!window.confirm(`"${selectedApiData.title}" 명세를 삭제할까요?`)) return;
@@ -297,17 +321,49 @@ export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps)
   return (
     <div className={embedded ? "codedock-scrollbar-hidden h-full overflow-y-auto px-5 py-5" : "w-[min(1400px,calc(100vw-36px))] mx-auto py-12 pb-20"}>
       <div className={embedded ? "mb-5" : "mb-8"}>
-        <h1
-          className="m-0 mb-3 leading-[0.9] tracking-tight"
-          style={{
-            fontSize: embedded ? "clamp(30px, 3vw, 44px)" : "clamp(48px, 6vw, 72px)",
-            fontWeight: 950,
-            color: "var(--white)",
-            textShadow: "0 0 22px rgba(var(--codedock-primary-rgb), 0.18)",
-          }}
-        >
-          API 명세
-        </h1>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <h1
+            className="m-0 leading-[0.9] tracking-tight"
+            style={{
+              fontSize: embedded ? "clamp(30px, 3vw, 44px)" : "clamp(48px, 6vw, 72px)",
+              fontWeight: 950,
+              color: "var(--white)",
+              textShadow: "0 0 22px rgba(var(--codedock-primary-rgb), 0.18)",
+            }}
+          >
+            API 명세
+          </h1>
+          <button
+            onClick={handleGenerateAiChecklist}
+            disabled={isGenerating || !workspaceId}
+            className="flex items-center gap-2 rounded-2xl border-0 px-4 py-2.5 text-sm font-black tracking-tight"
+            style={{
+              background: "linear-gradient(135deg, rgba(var(--codedock-primary-rgb), 0.22), rgba(var(--codedock-secondary-rgb), 0.12))",
+              border: "1px solid rgba(var(--codedock-primary-rgb), 0.32)",
+              color: "var(--neon-cyan)",
+              cursor: isGenerating || !workspaceId ? "not-allowed" : "pointer",
+              opacity: isGenerating || !workspaceId ? 0.6 : 1,
+            }}
+            type="button"
+          >
+            <Sparkles size={15} />
+            {isGenerating ? "생성 중..." : "AI 체크리스트 생성"}
+          </button>
+        </div>
+        {generateError && (
+          <div
+            className="mt-3 rounded-xl px-4 py-2 tracking-tight"
+            style={{
+              background: "rgba(255, 107, 107, 0.10)",
+              border: "1px solid rgba(255, 107, 107, 0.28)",
+              color: "#FFB4B4",
+              fontSize: "var(--krds-body-xsmall)",
+              fontWeight: 800,
+            }}
+          >
+            {generateError}
+          </div>
+        )}
       </div>
 
       <div className={embedded ? "grid grid-cols-2 gap-3 mb-5 xl:grid-cols-3" : "grid gap-4 mb-9 md:grid-cols-3"}>
