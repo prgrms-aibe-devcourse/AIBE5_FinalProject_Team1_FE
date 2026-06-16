@@ -75,6 +75,8 @@ const CHAT_THREAD_REPLY_COUNTS_KEY = "codedock-chat-thread-reply-counts-v1";
 const CHAT_REACTIONS_KEY = "codedock-chat-reactions-v1";
 const WORKSPACE_TEAMS_KEY = "codedock-workspace-teams-v1";
 const API_CHANNEL_ID_PREFIX = "api-channel-";
+const DEFAULT_WORKSPACE_API_ID = 1;
+const WORKSPACE_CHAT_STATE_KEY_PREFIX = "workspace";
 const ROLE_PRIVILEGE_ORDER = [
   "Tech Lead", "Backend Developer", "Frontend Developer", "DevOps Engineer",
   "QA Engineer", "Product Manager", "Designer", "Viewer"
@@ -298,6 +300,49 @@ function scheduleSaveJson(key: string, value: unknown, delay = 350) {
   }, delay);
 
   return () => window.clearTimeout(timeoutId);
+}
+
+function getWorkspaceScopedChatKey(workspaceApiId: number, key: string | number) {
+  return `${WORKSPACE_CHAT_STATE_KEY_PREFIX}:${workspaceApiId}:${String(key)}`;
+}
+
+function getChannelIdFromWorkspaceScopedChatKey(key: string) {
+  const match = key.match(/^workspace:\d+:(.+)$/);
+  return match?.[1] ?? key;
+}
+
+function getWorkspaceIdFromWorkspaceScopedChatKey(key: string) {
+  const match = key.match(/^workspace:(\d+):/);
+  return match ? Number(match[1]) : null;
+}
+
+function hasWorkspaceScopedChatKeys(value: Record<string, unknown>) {
+  return Object.keys(value).some((key) => key.startsWith(`${WORKSPACE_CHAT_STATE_KEY_PREFIX}:`));
+}
+
+function scopeChannelRecordByWorkspace<T>(
+  workspaceApiId: number,
+  record: Record<string, T>
+): Record<string, T> {
+  return Object.entries(record).reduce<Record<string, T>>((acc, [key, value]) => {
+    const scopedKey = key.startsWith(`${WORKSPACE_CHAT_STATE_KEY_PREFIX}:`)
+      ? key
+      : getWorkspaceScopedChatKey(workspaceApiId, key);
+    acc[scopedKey] = value;
+    return acc;
+  }, {});
+}
+
+function getSavedWorkspaceScopedRecord<T>(
+  key: string,
+  fallback: Record<string, T>,
+  workspaceApiId = DEFAULT_WORKSPACE_API_ID
+) {
+  const saved = getSavedJson<Record<string, T> | null>(key, null);
+  const source = saved ?? fallback;
+  return hasWorkspaceScopedChatKeys(source)
+    ? source
+    : scopeChannelRecordByWorkspace(workspaceApiId, source);
 }
 
 function toWorkspaceUiId(workspaceId: number) {
@@ -794,7 +839,7 @@ export function ChatPage() {
   const [selectedChannel, setSelectedChannel] = useState<string>('overview');
   const selectedChannelRef = useRef(selectedChannel);
   const [messages, setMessages] = useState<Record<string, any[]>>(() =>
-    getSavedJson(CHAT_MESSAGES_KEY, initialMessages)
+    getSavedWorkspaceScopedRecord(CHAT_MESSAGES_KEY, initialMessages)
   );
   const [selectedPR, setSelectedPR] = useState<any>(null);
   const [selectedIssue, setSelectedIssue] = useState<any>(null);
@@ -885,6 +930,14 @@ export function ChatPage() {
   const currentWorkspace = workspaceList.find(ws => ws.id === selectedWorkspace) ?? workspaceList[0];
   const canManageWorkspaceChannels = canManageWorkspaceChannel(currentWorkspace?.myRole);
   const currentWorkspaceApiId = getWorkspaceApiId(selectedWorkspace, currentWorkspace);
+  const selectedChannelMessageKey = useMemo(
+    () => getWorkspaceScopedChatKey(currentWorkspaceApiId, selectedChannel),
+    [currentWorkspaceApiId, selectedChannel]
+  );
+  const getMessageChannelKey = useCallback(
+    (channelId: string) => getWorkspaceScopedChatKey(currentWorkspaceApiId, channelId),
+    [currentWorkspaceApiId]
+  );
   const currentWorkspaceMemberId = useMemo(() => {
     if (userId == null) return null;
     return workspaceMembers.find((member) => Number(member.userId) === Number(userId))?.memberId ?? null;
@@ -1025,11 +1078,15 @@ export function ChatPage() {
     setSelectedChannel('general');
   }, [apiChannelIdByUiChannel, apiChannels.length, selectedChannel]);
 
-  const currentMessages = messages[selectedChannel] || [];
+  const currentMessages = messages[selectedChannelMessageKey] || [];
   const apiThreadTargets = useMemo(() => {
     const threadTargets = new Map<number, { channelId: string; thread: any }>();
 
-    Object.entries(messages).forEach(([channelId, channelMessages]) => {
+    Object.entries(messages).forEach(([channelStateKey, channelMessages]) => {
+      const workspaceId = getWorkspaceIdFromWorkspaceScopedChatKey(channelStateKey);
+      if (workspaceId !== null && workspaceId !== currentWorkspaceApiId) return;
+
+      const channelId = getChannelIdFromWorkspaceScopedChatKey(channelStateKey);
       if (!apiChannelIdByUiChannel[channelId]) return;
 
       channelMessages.forEach((message) => {
@@ -1047,7 +1104,7 @@ export function ChatPage() {
       threadId,
       ...target
     }));
-  }, [apiChannelIdByUiChannel, messages]);
+  }, [apiChannelIdByUiChannel, currentWorkspaceApiId, messages]);
   const isRepository = ['pull-requests', 'ai-review'].includes(selectedChannel);
   const sidebarColumn = "clamp(280px, 21vw, 340px)";
   const threadColumn = "clamp(320px, 26vw, 400px)";
@@ -1336,9 +1393,10 @@ export function ChatPage() {
 
   const appendServerMessage = useCallback((channelId: string, message: ChannelMessage) => {
     const mappedMessage = mapChannelMessageToWorkspaceMessage(message);
+    const channelStateKey = getMessageChannelKey(channelId);
 
     setMessages((prev) => {
-      const currentChannelMessages = prev[channelId] || [];
+      const currentChannelMessages = prev[channelStateKey] || [];
       const alreadyExists = currentChannelMessages.some((item) =>
         item.backendMessageId === message.id || (
           item.backendChannelId === message.channelId
@@ -1362,17 +1420,18 @@ export function ChatPage() {
 
       return {
         ...prev,
-        [channelId]: [...withoutMatchingPending, mappedMessage]
+        [channelStateKey]: [...withoutMatchingPending, mappedMessage]
       };
     });
-  }, []);
+  }, [getMessageChannelKey]);
 
   const replaceServerMessage = useCallback((channelId: string, message: ChannelMessage) => {
     const mappedMessage = mapChannelMessageToWorkspaceMessage(message);
+    const channelStateKey = getMessageChannelKey(channelId);
 
     setMessages((prev) => ({
       ...prev,
-      [channelId]: (prev[channelId] || []).map((item) =>
+      [channelStateKey]: (prev[channelStateKey] || []).map((item) =>
         item.backendMessageId === message.id || item.id === message.id
           ? { ...item, ...mappedMessage }
           : item
@@ -1383,7 +1442,7 @@ export function ChatPage() {
         ? { ...prevThread, ...mappedMessage }
         : prevThread
     );
-  }, []);
+  }, [getMessageChannelKey]);
 
   const attachToExistingServerMessage = useCallback((
     channelId: string,
@@ -1402,10 +1461,11 @@ export function ChatPage() {
 
     return addMessageAttachments(apiChannelId, messageId, attachmentPayload).then((serverAttachments) => {
       const mappedAttachments = serverAttachments.map(mapMessageAttachmentResponse);
+      const channelStateKey = getMessageChannelKey(channelId);
 
       setMessages((prev) => ({
         ...prev,
-        [channelId]: (prev[channelId] || []).map((item) =>
+        [channelStateKey]: (prev[channelStateKey] || []).map((item) =>
           Number(item.backendMessageId ?? item.id) === messageId
             ? { ...item, attachments: [...(item.attachments ?? []), ...mappedAttachments] }
             : item
@@ -1419,7 +1479,7 @@ export function ChatPage() {
 
       return mappedAttachments;
     });
-  }, []);
+  }, [getMessageChannelKey]);
 
   const appendServerThreadReply = useCallback((thread: any, reply: ThreadReply) => {
     const threadKey = getThreadKey(thread);
@@ -1558,7 +1618,7 @@ export function ChatPage() {
       .then((serverMessages) => {
         setMessages((prev) => ({
           ...prev,
-          [selectedChannel]: serverMessages.map(mapChannelMessageToWorkspaceMessage)
+          [selectedChannelMessageKey]: serverMessages.map(mapChannelMessageToWorkspaceMessage)
         }));
       })
       .catch(() => {
@@ -1566,7 +1626,7 @@ export function ChatPage() {
       });
 
     return () => controller.abort();
-  }, [activeApiChannelId, selectedChannel]);
+  }, [activeApiChannelId, selectedChannelMessageKey]);
 
   useEffect(() => {
     if (!activeApiChannelId) return;
@@ -2464,7 +2524,7 @@ export function ChatPage() {
   const handleMergePR = (messageId: number) => {
     setMessages(prevMessages => {
       const newMessages = { ...prevMessages };
-      const channelMessages = newMessages[selectedChannel];
+      const channelMessages = newMessages[selectedChannelMessageKey];
       if (channelMessages) {
         const originalPR = channelMessages.find(msg => msg.id === messageId);
 
@@ -2482,7 +2542,7 @@ export function ChatPage() {
             deletions: originalPR.deletions
           };
 
-          newMessages[selectedChannel] = [
+          newMessages[selectedChannelMessageKey] = [
             ...channelMessages.map(msg =>
               msg.id === messageId && msg.type === 'pr'
                 ? { ...msg, prStatus: 'completed' as const }
@@ -2615,8 +2675,9 @@ export function ChatPage() {
     setMessages((prev) => {
       const nextMessages = { ...prev };
       channelIds.forEach((channelId, index) => {
-        nextMessages[channelId] = [
-          ...(nextMessages[channelId] || []),
+        const channelStateKey = getMessageChannelKey(channelId);
+        nextMessages[channelStateKey] = [
+          ...(nextMessages[channelStateKey] || []),
           { ...sharedMessage, id: sharedMessage.id + index }
         ];
       });
@@ -2660,8 +2721,8 @@ export function ChatPage() {
     if (activeApiChannelId) {
       setMessages((prev) => ({
         ...prev,
-        [selectedChannel]: [
-          ...(prev[selectedChannel] || []),
+        [selectedChannelMessageKey]: [
+          ...(prev[selectedChannelMessageKey] || []),
           {
             ...nextMessage,
             pending: true,
@@ -2689,7 +2750,7 @@ export function ChatPage() {
         .catch((error) => {
           setMessages((prev) => ({
             ...prev,
-            [selectedChannel]: (prev[selectedChannel] || []).map((item) =>
+            [selectedChannelMessageKey]: (prev[selectedChannelMessageKey] || []).map((item) =>
               item.id === pendingMessageId
                 ? {
                     ...item,
@@ -2707,14 +2768,14 @@ export function ChatPage() {
 
     setMessages((prev) => ({
       ...prev,
-      [selectedChannel]: [...(prev[selectedChannel] || []), nextMessage]
+      [selectedChannelMessageKey]: [...(prev[selectedChannelMessageKey] || []), nextMessage]
     }));
   };
 
   const updateThreadMessageInState = (thread: any, patch: Record<string, unknown>) => {
     setMessages((prev) => ({
       ...prev,
-      [selectedChannel]: (prev[selectedChannel] || []).map((item) =>
+      [selectedChannelMessageKey]: (prev[selectedChannelMessageKey] || []).map((item) =>
         item.id === thread.id || item.backendMessageId === thread.backendMessageId
           ? { ...item, ...patch }
           : item
