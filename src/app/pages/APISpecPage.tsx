@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
-import SwaggerUI from "swagger-ui-react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import "swagger-ui-react/swagger-ui.css";
 import {
   CheckCircle2,
@@ -30,6 +29,8 @@ import {
 } from "../api/apiSpec";
 import { ApiClientError } from "../api/client";
 import { useWorkspace } from "../contexts/WorkspaceContext";
+
+const SwaggerUI = lazy(() => import("swagger-ui-react"));
 
 const colorAlpha = (color: string, percent: number) => `color-mix(in srgb, ${color} ${percent}%, transparent)`;
 
@@ -754,13 +755,15 @@ export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps)
         </div>
         <div className={`codedock-swagger codedock-scrollbar-hidden overflow-y-auto ${embedded ? "max-h-[520px]" : "max-h-[720px]"} px-4 py-4`}>
           {swaggerUrl ? (
-            <SwaggerUI
-              url={swaggerUrl}
-              docExpansion="none"
-              defaultModelsExpandDepth={0}
-              displayRequestDuration
-              tryItOutEnabled={false}
-            />
+            <Suspense fallback={<SwaggerPreviewFallback />}>
+              <SwaggerUI
+                url={swaggerUrl}
+                docExpansion="none"
+                defaultModelsExpandDepth={0}
+                displayRequestDuration
+                tryItOutEnabled={false}
+              />
+            </Suspense>
           ) : (
             <div className="flex items-center justify-center py-8 text-center">
               <p className="m-0 text-sm font-bold tracking-tight" style={{ color: "var(--muted)" }}>
@@ -998,6 +1001,19 @@ function StatusBadge({ status }: { status: ApiSpecStatus }) {
       {getStatusIcon(status)}
       {getStatusLabel(status)}
     </span>
+  );
+}
+
+function SwaggerPreviewFallback() {
+  return (
+    <div
+      aria-hidden="true"
+      className="min-h-[320px] rounded-2xl"
+      style={{
+        background: "rgba(5, 11, 20, 0.58)",
+        border: "1px solid rgba(var(--codedock-primary-rgb), 0.14)",
+      }}
+    />
   );
 }
 
