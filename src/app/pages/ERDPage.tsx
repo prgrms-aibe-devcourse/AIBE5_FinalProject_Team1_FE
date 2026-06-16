@@ -1,6 +1,5 @@
 import { ChevronDown, Database, Download, FileCode, ImageIcon, Minus, Plus, RotateCcw, Sparkles } from "lucide-react";
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
-import mermaid from "mermaid";
 import { getErd, getErdTables, generateErd, type ErdTable } from "../api/erd";
 import { ApiClientError } from "../api/client";
 
@@ -107,15 +106,23 @@ const mermaidConfig = {
 } as const;
 
 let isMermaidInitialized = false;
+let mermaidModulePromise: Promise<typeof import("mermaid").default> | null = null;
 
 function clampDiagramZoom(value: number, minZoom = minDiagramZoom) {
   return Math.min(maxDiagramZoom, Math.max(minZoom, Number(value.toFixed(2))));
 }
 
-function ensureMermaidInitialized() {
-  if (isMermaidInitialized) return;
+async function getMermaidModule() {
+  mermaidModulePromise ??= import("mermaid").then((module) => module.default);
+  return mermaidModulePromise;
+}
+
+async function ensureMermaidInitialized() {
+  const mermaid = await getMermaidModule();
+  if (isMermaidInitialized) return mermaid;
   mermaid.initialize(mermaidConfig);
   isMermaidInitialized = true;
+  return mermaid;
 }
 
 function cleanupMermaidRenderArtifacts() {
@@ -436,11 +443,10 @@ export function ERDPage({ embedded = false, workspaceId }: ERDPageProps) {
     });
     document.body.appendChild(renderContainer);
 
-    ensureMermaidInitialized();
-    cleanupMermaidRenderArtifacts();
-
     const renderDiagram = async () => {
       try {
+        const mermaid = await ensureMermaidInitialized();
+        cleanupMermaidRenderArtifacts();
         await mermaid.parse(renderableCode);
         const result = await mermaid.render(renderId, renderableCode, renderContainer);
         if (!cancelled) {
