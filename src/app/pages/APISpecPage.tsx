@@ -289,11 +289,15 @@ export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps)
       const generated = await generateAiChecklist(workspaceId);
       setApis((prev) => [...prev, ...generated]);
     } catch (error) {
-      setGenerateError(
-        error instanceof ApiClientError
-          ? error.message
-          : "AI 체크리스트 생성에 실패했습니다.",
-      );
+      if (error instanceof ApiClientError) {
+        if (error.code === "GITHUB_REPO_NOT_FOUND") {
+          setGenerateError("GitHub 레포지토리가 연결되지 않았습니다.");
+        } else {
+          setGenerateError(error.message || "AI 체크리스트 생성에 실패했습니다.");
+        }
+      } else {
+        setGenerateError("AI 체크리스트 생성에 실패했습니다.");
+      }
     } finally {
       setIsGenerating(false);
     }
