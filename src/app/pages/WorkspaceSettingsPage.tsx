@@ -22,7 +22,19 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useTheme } from "../contexts/ThemeContext";
-import { fetchMyWorkspaces, deleteWorkspace as deleteWorkspaceApi, type WorkspaceDto } from "../api/workspace";
+import {
+  fetchMyWorkspaces,
+  getWorkspace,
+  getWorkspaceMembers,
+  updateWorkspace,
+  leaveWorkspace,
+  transferOwnership,
+  deleteWorkspace as deleteWorkspaceApi,
+  type WorkspaceDto,
+  type WorkspaceUpdatePayload,
+  type WorkspaceMember as ApiWorkspaceMember,
+} from "../api/workspace";
+import { ApiClientError } from "../api/client";
 
 type WorkspaceRole = "owner" | "admin" | "member";
 
@@ -66,70 +78,26 @@ const ROLE_CONFIG: Record<WorkspaceRole, { label: string; color: string; icon: L
   member: { label: "멤버", color: "#94A3B8", icon: UserRound },
 };
 
-const INITIAL_WORKSPACES: Workspace[] = [
-  {
-    id: "codedock",
-    name: "CodeDock Team",
-    slug: "codedock-team",
-    description: "PR 리뷰, 보안 점검, 문서화를 한 흐름으로 모으는 메인 워크스페이스입니다.",
-    avatarUrl: "",
-    role: "owner",
-    memberCount: 6,
-    repoCount: 4,
-    members: [
-      { id: "u-jinpil", name: "김진필", role: "admin" },
-      { id: "u-junwoo", name: "김준우", role: "member" },
-      { id: "u-anhyeon", name: "안현", role: "member" },
-    ],
-    repos: [
-      { id: "r-fe", name: "codedock/frontend", connected: true },
-      { id: "r-be", name: "codedock/backend", connected: true },
-      { id: "r-infra", name: "codedock/infra", connected: false },
-    ],
-    webhookEnabled: true,
-    slack: true,
-    discord: false,
-  },
-  {
-    id: "secureflow",
-    name: "SecureFlow",
-    slug: "secureflow",
-    description: "보안 리뷰 자동화 실험용 워크스페이스.",
-    avatarUrl: "",
-    role: "admin",
-    memberCount: 4,
-    repoCount: 2,
-    members: [
-      { id: "u-sehun", name: "박세훈", role: "owner" },
-      { id: "u-jieun", name: "이지은", role: "member" },
-    ],
-    repos: [
-      { id: "r-sf-api", name: "secureflow/api", connected: true },
-      { id: "r-sf-scan", name: "secureflow/scanner", connected: false },
-    ],
+const toRole = (role: string): WorkspaceRole =>
+    role === "owner" ? "owner" : role === "admin" ? "admin" : "member";
+
+function dtoToWorkspace(dto: WorkspaceDto): Workspace {
+  return {
+    id: String(dto.id),
+    name: dto.name,
+    slug: dto.slug,
+    description: dto.description ?? "",
+    avatarUrl: dto.logoUrl ?? "",
+    role: toRole(dto.myRole),
+    memberCount: dto.memberCount,
+    repoCount: 0,
+    members: [],
+    repos: [],
     webhookEnabled: false,
     slack: false,
-    discord: true,
-  },
-  {
-    id: "aichat",
-    name: "AI Chat Squad",
-    slug: "ai-chat-squad",
-    description: "AI 채팅 기능 협업 공간.",
-    avatarUrl: "",
-    role: "member",
-    memberCount: 8,
-    repoCount: 3,
-    members: [{ id: "u-mina", name: "정미나", role: "owner" }],
-    repos: [
-      { id: "r-ai-web", name: "aichat/web", connected: true },
-      { id: "r-ai-core", name: "aichat/core", connected: true },
-    ],
-    webhookEnabled: true,
-    slack: true,
-    discord: true,
-  },
-];
+    discord: false,
+  };
+}
 
 export function WorkspaceSettingsPage() {
   const { colors } = useTheme();
@@ -138,39 +106,46 @@ export function WorkspaceSettingsPage() {
   const incomingWorkspaceId = (location.state as { workspaceId?: string } | null)?.workspaceId ?? null;
   const isSingleMode = incomingWorkspaceId !== null;
 
-  const [workspaces, setWorkspaces] = useState<Workspace[]>(INITIAL_WORKSPACES);
-  const [selectedId, setSelectedId] = useState<string>(INITIAL_WORKSPACES[0]?.id ?? "");
-  const [realApiId, setRealApiId] = useState<number | null>(null);
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [selectedId, setSelectedId] = useState<string>("");
   const [toast, setToast] = useState<{ message: string; tone: "ok" | "warn" } | null>(null);
 
   const selected = workspaces.find((workspace) => workspace.id === selectedId) ?? null;
 
-  // incomingWorkspaceId가 있으면 실제 API에서 워크스페이스 정보를 가져와 이름/권한을 동기화
   useEffect(() => {
-    if (!incomingWorkspaceId) return;
-    const numericId = parseInt(incomingWorkspaceId.replace(/[^0-9]/g, ""), 10);
-    if (isNaN(numericId)) return;
     fetchMyWorkspaces()
-      .then((list: WorkspaceDto[]) => {
-        const found = list.find((w) => w.id === numericId);
-        if (!found) return;
-        setRealApiId(found.id);
-        const role: WorkspaceRole =
-          found.myRole === "owner" ? "owner" : found.myRole === "admin" ? "admin" : "member";
-        setWorkspaces((prev) => {
-          const synced: Workspace = {
-            ...prev[0],
-            id: `real-${found.id}`,
-            name: found.name,
-            description: found.description ?? "",
-            role,
-          };
-          return [synced, ...prev.slice(1)];
-        });
-        setSelectedId(`real-${found.id}`);
-      })
-      .catch(() => {});
+        .then((list: WorkspaceDto[]) => {
+          const mapped = list.map(dtoToWorkspace);
+          setWorkspaces(mapped);
+          const incomingNumeric = incomingWorkspaceId ? incomingWorkspaceId.replace(/[^0-9]/g, "") : "";
+          const preferred = mapped.find((w) => w.id === incomingNumeric) ?? mapped[0] ?? null;
+          if (preferred) setSelectedId(preferred.id);
+        })
+        .catch(() => setWorkspaces([]));
   }, [incomingWorkspaceId]);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    const realId = Number(selectedId);
+    if (!Number.isFinite(realId)) return;
+    getWorkspace(realId)
+        .then((dto: WorkspaceDto) => {
+          setWorkspaces((prev) =>
+              prev.map((w) =>
+                  w.id === selectedId
+                      ? { ...w, name: dto.name, slug: dto.slug, description: dto.description ?? "", avatarUrl: dto.logoUrl ?? "", role: toRole(dto.myRole), memberCount: dto.memberCount }
+                      : w,
+              ),
+          );
+        })
+        .catch(() => {});
+    getWorkspaceMembers(realId)
+        .then((list: ApiWorkspaceMember[]) => {
+          const members: WorkspaceMember[] = list.map((m) => ({ id: String(m.memberId), name: m.username, role: toRole(m.role) }));
+          setWorkspaces((prev) => prev.map((w) => (w.id === selectedId ? { ...w, members, memberCount: members.length } : w)));
+        })
+        .catch(() => {});
+  }, [selectedId]);
 
   useEffect(() => {
     if (!toast) return;
@@ -180,25 +155,45 @@ export function WorkspaceSettingsPage() {
 
   const notify = (message: string, tone: "ok" | "warn" = "ok") => setToast({ message, tone });
 
+  const conflictMessage = (e: unknown, fallback: string) =>
+      e instanceof ApiClientError && e.code === "C006"
+          ? "다른 사용자가 먼저 변경했습니다. 최신 상태로 새로고침되었습니다."
+          : e instanceof Error
+              ? e.message
+              : fallback;
+
   const handleUpdate = (id: string, partial: Partial<Workspace>, message?: string) => {
     setWorkspaces((current) => current.map((workspace) => (workspace.id === id ? { ...workspace, ...partial } : workspace)));
+    const realId = Number(id);
+    const payload: WorkspaceUpdatePayload = {};
+    if (partial.name !== undefined) payload.name = partial.name;
+    if (partial.description !== undefined) payload.description = partial.description;
+    if (partial.avatarUrl !== undefined) payload.logoUrl = partial.avatarUrl;
+    if (Number.isFinite(realId) && Object.keys(payload).length > 0) {
+      updateWorkspace(realId, payload)
+          .then(() => { if (message) notify(message); })
+          .catch((e) => notify(conflictMessage(e, "저장에 실패했습니다."), "warn"));
+      return;
+    }
     if (message) notify(message);
   };
 
   const handleTransfer = (id: string, memberId: string) => {
-    let targetName = "";
-    setWorkspaces((current) =>
-      current.map((workspace) => {
-        if (workspace.id !== id) return workspace;
-        targetName = workspace.members.find((member) => member.id === memberId)?.name ?? "";
-        return {
-          ...workspace,
-          role: "admin",
-          members: workspace.members.map((member) => (member.id === memberId ? { ...member, role: "owner" } : member)),
-        };
-      }),
-    );
-    notify(`소유권을 ${targetName}님에게 이전했어요. 이제 관리자 권한입니다.`);
+    const realId = Number(id);
+    const realMemberId = Number(memberId);
+    if (!Number.isFinite(realId) || !Number.isFinite(realMemberId)) return;
+    const targetName = workspaces.find((w) => w.id === id)?.members.find((m) => m.id === memberId)?.name ?? "";
+    transferOwnership(realId, realMemberId)
+        .then(() => {
+          setWorkspaces((current) =>
+              current.map((workspace) => {
+                if (workspace.id !== id) return workspace;
+                return { ...workspace, role: "admin", members: workspace.members.map((member) => (member.id === memberId ? { ...member, role: "owner" } : member)) };
+              }),
+          );
+          notify(`소유권을 ${targetName}님에게 이전했어요. 이제 관리자 권한입니다.`);
+        })
+        .catch((e) => notify(conflictMessage(e, "소유권 이전에 실패했습니다."), "warn"));
   };
 
   const removeWorkspace = (id: string, message: string) => {
@@ -210,22 +205,23 @@ export function WorkspaceSettingsPage() {
     notify(message, "warn");
   };
 
-  const handleLeave = (id: string) => removeWorkspace(id, "워크스페이스에서 나갔어요.");
+  const handleLeave = (id: string) => {
+    const realId = Number(id);
+    if (!Number.isFinite(realId)) return;
+    leaveWorkspace(realId)
+        .then(() => removeWorkspace(id, "워크스페이스에서 나갔어요."))
+        .catch((e) => notify(conflictMessage(e, "팀 나가기에 실패했습니다."), "warn"));
+  };
 
   const handleDelete = (id: string) => {
-    if (realApiId !== null) {
-      deleteWorkspaceApi(realApiId)
+    const realId = Number(id);
+    if (!Number.isFinite(realId)) return;
+    deleteWorkspaceApi(realId)
         .then(() => {
           removeWorkspace(id, "워크스페이스를 삭제했어요.");
-          navigate(-1);
+          if (isSingleMode) navigate(-1);
         })
-        .catch((err: unknown) => {
-          const msg = err instanceof Error ? err.message : "팀 삭제에 실패했습니다.";
-          notify(msg, "warn");
-        });
-    } else {
-      removeWorkspace(id, "워크스페이스를 삭제했어요.");
-    }
+        .catch((e) => notify(conflictMessage(e, "팀 삭제에 실패했습니다."), "warn"));
   };
 
   return (
@@ -388,6 +384,12 @@ function WorkspaceDetail({
   const [transferTargetId, setTransferTargetId] = useState<string>(workspace.members[0]?.id ?? "");
   const [deleteText, setDeleteText] = useState("");
   const logoInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!transferTargetId && workspace.members.length > 0) {
+      setTransferTargetId(workspace.members[0].id);
+    }
+  }, [workspace.members, transferTargetId]);
 
   const role = ROLE_CONFIG[workspace.role];
   const RoleIcon = role.icon;
