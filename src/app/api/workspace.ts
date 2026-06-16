@@ -22,12 +22,19 @@ export type WorkspaceCreatePayload = {
   description?: string;
 };
 
+export type WorkspaceCreateResponse = {
+  id: number;
+  name: string;
+  slug: string;
+  defaultChannelId: number | null;
+};
+
 export function deleteWorkspace(workspaceId: number): Promise<void> {
   return fetchWithAuth<void>(`/api/v1/workspaces/${workspaceId}`, { method: "DELETE" });
 }
 
-export function createWorkspace(payload: WorkspaceCreatePayload): Promise<WorkspaceDto> {
-  return fetchWithAuth<WorkspaceDto>("/api/v1/workspaces", {
+export function createWorkspace(payload: WorkspaceCreatePayload): Promise<WorkspaceCreateResponse> {
+  return fetchWithAuth<WorkspaceCreateResponse>("/api/v1/workspaces", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),

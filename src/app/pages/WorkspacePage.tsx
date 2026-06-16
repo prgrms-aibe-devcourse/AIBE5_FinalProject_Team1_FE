@@ -7,7 +7,7 @@ import { HTML5Backend } from "react-dnd-html5-backend";
 import { fetchMyGithubRepos, fetchRepoCollaborators, type GithubCollaborator, type GithubRepo } from "../api/github";
 import { fetchMyWorkspaces, createWorkspace, deleteWorkspace, listReceivedInvites, acceptInvite, rejectInvite, createInvite, type WorkspaceDto, type ReceivedInviteDto } from "../api/workspace";
 import { useWorkspace } from "../contexts/WorkspaceContext";
-import { useProfile } from "../contexts/ProfileContext";
+import { ApiClientError } from "../api/client";
 
 const DRAG_TYPE = "TEAM_CARD";
 const WORKSPACE_COLORS_KEY = "codedock-workspace-colors-v1";
@@ -1006,7 +1006,6 @@ function workspaceDtoToOrg(w: WorkspaceDto): Org {
 
 export function WorkspacePage() {
   const navigate = useNavigate();
-  const { profile } = useProfile();
   const teamSectionRef = useRef<HTMLDivElement>(null);
 
   const [orgs, setOrgs] = useState<Org[]>([]);
@@ -1116,13 +1115,13 @@ export function WorkspacePage() {
       }
       localStorage.setItem(REPO_URLS_KEY, JSON.stringify(urls));
     }
-    const creatorEmail = profile.email.trim().toLowerCase();
-    const membersToInvite = invitedMembers.filter((m) => m.email.trim().toLowerCase() !== creatorEmail);
-    if (membersToInvite.length > 0) {
+    if (invitedMembers.length > 0) {
       const results = await Promise.allSettled(
-          membersToInvite.map((m) => createInvite(newWorkspace.id, { email: m.email, role: "viewer", expiresInHours: 168 }))
+          invitedMembers.map((m) => createInvite(newWorkspace.id, { email: m.email, role: "viewer", expiresInHours: 168 }))
       );
-      const failed = results.filter((r) => r.status === "rejected").length;
+      const failed = results.filter(
+          (r) => r.status === "rejected" && !(r.reason instanceof ApiClientError && r.reason.code === "C001")
+      ).length;
       if (failed > 0) alert(`${failed}건의 초대 생성에 실패했습니다.`);
     }
     const list = await fetchMyWorkspaces();
