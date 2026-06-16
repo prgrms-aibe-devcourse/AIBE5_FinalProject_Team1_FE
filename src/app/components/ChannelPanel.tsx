@@ -11,6 +11,7 @@ interface Thread {
   id: number;
   backendMessageId?: number;
   backendChannelId?: number;
+  senderMemberId?: number;
   user: string;
   avatar: string;
   message: string;
@@ -48,6 +49,8 @@ interface ChannelPanelProps {
   onEditThread?: (thread: Thread, nextMessage: string) => void;
   onDeleteThread?: (thread: Thread) => void;
   onAddMessageAttachments?: (thread: Thread, attachments: MessageAttachment[]) => Promise<void> | void;
+  myMemberId?: number | null;
+  myDisplayName?: string;
 }
 
 const CHANNEL_THREADS_KEY_PREFIX = "codedock-channel-threads-v1";
@@ -126,7 +129,7 @@ function getDisplayUserName(user?: string) {
   return isSelfUser(trimmed) ? currentUserDisplayName : trimmed;
 }
 
-export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, replyCounts = {}, onOpenThread, selectedThreadId, onOpenInvite, onSendThread, onTypingChange, remoteTypingLabel, onToggleReaction, bookmarkedThreadIds, onToggleBookmark, onEditThread, onDeleteThread, onAddMessageAttachments }: ChannelPanelProps) {
+export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, replyCounts = {}, onOpenThread, selectedThreadId, onOpenInvite, onSendThread, onTypingChange, remoteTypingLabel, onToggleReaction, bookmarkedThreadIds, onToggleBookmark, onEditThread, onDeleteThread, onAddMessageAttachments, myMemberId, myDisplayName }: ChannelPanelProps) {
   const channelStorageId = channelId ?? repoId ?? "general";
   const channelStorageKey = `${CHANNEL_THREADS_KEY_PREFIX}:${channelStorageId}`;
   const bookmarkStorageKey = `codedock-channel-bookmarks:${channelStorageId}`;
@@ -134,6 +137,8 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
     getSavedThreads(channelStorageKey, getDefaultThreads(repoId))
   );
   const displayedThreads = threads ?? localThreads;
+  const displayCurrentUserName = myDisplayName?.trim() || currentUserDisplayName;
+  const displayCurrentUserAvatar = displayCurrentUserName.charAt(0) || currentUserAvatar;
 
   const channelLabel = repoName ?? '일반';
   const [hoveredMessageId, setHoveredMessageId] = useState<number | null>(null);
@@ -166,6 +171,11 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
   const responderTypingTimerRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const isThreadMine = (thread: Thread) => (
+    myMemberId != null && thread.senderMemberId != null
+      ? Number(thread.senderMemberId) === Number(myMemberId)
+      : isSelfUser(thread.user)
+  );
 
   useEffect(() => {
     return () => {
@@ -240,7 +250,7 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
   const composerTyping = messageText.trim().length > 0;
   const localTypingLabel = responderTyping
     ? composerTyping
-      ? `CodeDock AI, ${currentUserDisplayName} 입력 중입니다`
+      ? `CodeDock AI, ${displayCurrentUserName} 입력 중입니다`
       : "CodeDock AI가 답변을 정리 중입니다"
     : composerTyping
       ? "내가 입력 중입니다"
@@ -400,7 +410,7 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
 
   const renderHoverMenu = (thread: Thread) => {
     const isBookmarked = isThreadBookmarked(thread);
-    const canManageThread = isSelfUser(thread.user) && !thread.deleted;
+    const canManageThread = isThreadMine(thread) && !thread.deleted;
     const bk = (label: string) => `${thread.id}:${label}`;
     const isHvr = (label: string) => hoveredBtn === bk(label);
     const currentLabel = hoveredBtn?.startsWith(`${thread.id}:`)
@@ -559,8 +569,8 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
 
     const nextThread: Thread = {
       id: Date.now(),
-      user: currentUserDisplayName,
-      avatar: currentUserAvatar,
+      user: displayCurrentUserName,
+      avatar: displayCurrentUserAvatar,
       message: outgoingMessage || `${outgoingAttachments.length}개 항목을 공유합니다.`,
       time: '방금',
       replies: 0,
@@ -647,7 +657,7 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
         <div className="grid gap-4">
           {displayedThreads.map((thread) => {
             const displayedReplyCount = replyCounts[thread.id] ?? thread.replies;
-            const isOwnThread = isSelfUser(thread.user);
+            const isOwnThread = isThreadMine(thread);
             const isEditingThread = editingThreadId === thread.id;
 
             return (
@@ -675,7 +685,7 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
                     fontSize: thread.avatar.length > 2 ? '18px' : '13px',
                     fontWeight: 950,
                     lineHeight: 1
-                  }}>{isOwnThread ? currentUserAvatar : thread.avatar}</span>
+                  }}>{isOwnThread ? displayCurrentUserAvatar : thread.avatar}</span>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="tracking-tight" style={{
@@ -683,7 +693,7 @@ export function ChannelPanel({ channelId, repoId, repoName, threads, reactions, 
                         fontWeight: 900,
                         color: isOwnThread ? 'var(--neon-cyan)' : 'var(--matrix-green)'
                       }}>
-                        {isOwnThread ? getDisplayUserName(thread.user) : thread.user}
+                        {isOwnThread ? displayCurrentUserName : thread.user}
                       </span>
                       {isOwnThread && (
                         <span className="rounded px-1.5 py-0.5 tracking-tight" style={{

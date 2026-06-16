@@ -8,6 +8,7 @@ interface ThreadMessage {
   id: number | string;
   backendReplyId?: number;
   backendThreadId?: number;
+  senderMemberId?: number;
   user: string;
   text: string;
   message?: string;
@@ -31,6 +32,8 @@ interface ThreadPanelProps {
   onEditReply?: (reply: ThreadMessage, nextText: string) => void;
   onDeleteReply?: (reply: ThreadMessage) => void;
   onToggleReaction?: (reactionKey: string, emoji: string) => void;
+  myMemberId?: number | null;
+  myDisplayName?: string;
 }
 
 const currentUserDisplayName = "김재준";
@@ -46,7 +49,9 @@ function getDisplayUserName(user?: string) {
   return isSelfUser(trimmed) ? currentUserDisplayName : trimmed;
 }
 
-export function ThreadPanel({ originalMessage, replies, displayReplyCount, reactionScope, reactions, onClose, onSendReply, onEditReply, onDeleteReply, onToggleReaction }: ThreadPanelProps) {
+export function ThreadPanel({ originalMessage, replies, displayReplyCount, reactionScope, reactions, onClose, onSendReply, onEditReply, onDeleteReply, onToggleReaction, myMemberId, myDisplayName }: ThreadPanelProps) {
+  const displayCurrentUserName = myDisplayName?.trim() || currentUserDisplayName;
+  const displayCurrentUserAvatar = displayCurrentUserName.charAt(0) || currentUserAvatar;
   const [replyText, setReplyText] = useState('');
   const [editingReplyId, setEditingReplyId] = useState<number | string | null>(null);
   const [editingReplyText, setEditingReplyText] = useState('');
@@ -109,7 +114,7 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
   const composerTyping = replyText.trim().length > 0;
   const typingLabel = responderTyping
     ? composerTyping
-      ? `CodeDock AI, ${currentUserDisplayName} 입력 중입니다`
+      ? `CodeDock AI, ${displayCurrentUserName} 입력 중입니다`
       : "CodeDock AI가 답글을 정리 중입니다"
     : composerTyping
       ? "내가 답글 입력 중입니다"
@@ -137,6 +142,11 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
     onEditReply?.(reply, nextText);
     handleCancelEditReply();
   };
+  const isReplyMine = (reply: ThreadMessage) => (
+    myMemberId != null && reply.senderMemberId != null
+      ? Number(reply.senderMemberId) === Number(myMemberId)
+      : isSelfUser(reply.user)
+  );
 
   const handleDeleteReply = (reply: ThreadMessage) => {
     if (editingReplyId === reply.id) {
@@ -252,7 +262,7 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
 
           {/* 답글 목록 */}
           {replies.map((reply) => {
-            const isMine = isSelfUser(reply.user);
+            const isMine = isReplyMine(reply);
             const hasDiffRef = reply.fileId && reply.line > 0;
             const isEditingReply = editingReplyId === reply.id;
             const canManageReply = isMine && !reply.deleted && (onEditReply || onDeleteReply);
@@ -277,7 +287,7 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
                         fontWeight: 900,
                         color: 'var(--neon-cyan)'
                       }}>
-                        {isMine ? currentUserAvatar : reply.user.charAt(0)}
+                        {isMine ? displayCurrentUserAvatar : reply.user.charAt(0)}
                       </span>
                     </div>
                     <div className="flex flex-col flex-1 min-w-0">
@@ -287,7 +297,7 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
                           fontWeight: 900,
                           color: isMine ? 'var(--neon-cyan)' : 'var(--white)'
                         }}>
-                          {isMine ? getDisplayUserName(reply.user) : reply.user}
+                          {isMine ? displayCurrentUserName : reply.user}
                         </span>
                         {isMine && (
                           <span className="rounded px-1.5 py-0.5" style={{ background: 'rgba(var(--codedock-primary-rgb), 0.14)', color: 'var(--neon-cyan)', fontSize: '9px', fontWeight: 950 }}>내 메시지</span>

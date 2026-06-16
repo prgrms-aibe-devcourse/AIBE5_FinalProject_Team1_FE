@@ -2,6 +2,12 @@ import { authHeader, refreshAccessToken, clearTokens } from "../auth";
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
+function buildApiUrl(path: string) {
+  const baseUrl = BASE.replace(/\/$/, "");
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${baseUrl}${normalizedPath}`;
+}
+
 /**
  * 인증 헤더를 자동으로 추가하고, 401 응답 시 토큰을 갱신한 뒤 한 번 재시도합니다.
  * 갱신에도 실패하면 localStorage의 토큰을 제거하고 에러를 던집니다.
@@ -11,7 +17,7 @@ export async function fetchWithAuth<T>(
   init?: RequestInit
 ): Promise<T> {
   const doFetch = () =>
-    fetch(`${BASE}${path}`, {
+    fetch(buildApiUrl(path), {
       ...init,
       headers: {
         Accept: "application/json",
