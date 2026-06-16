@@ -1,27 +1,107 @@
-<<<<<<< HEAD
-import { lazy, Suspense, useMemo, useState } from "react";
-=======
 import { useEffect, useMemo, useState } from "react";
 import SwaggerUI from "swagger-ui-react";
->>>>>>> 9485ae8 (feat: APISpecPage 목록 조회 API 연결)
 import "swagger-ui-react/swagger-ui.css";
 import {
   AlertTriangle,
   CheckCircle2,
   Code,
+  Edit2,
   FileText,
   GitBranch,
   Link as LinkIcon,
   MessageSquare,
   Plus,
   Trash2,
+  X,
 } from "lucide-react";
-import { getApiSpecs, type ApiSpecResponse, type ApiSpecMethod, type ApiSpecStatus } from "../api/apiSpec";
+import {
+  getApiSpecs,
+  createApiSpec,
+  updateApiSpec,
+  deleteApiSpec,
+  type ApiSpecResponse,
+  type ApiSpecMethod,
+  type ApiSpecStatus,
+} from "../api/apiSpec";
 import { ApiClientError } from "../api/client";
+import { useWorkspace } from "../contexts/WorkspaceContext";
 
 const SwaggerUI = lazy(() => import("swagger-ui-react"));
 
 const colorAlpha = (color: string, percent: number) => `color-mix(in srgb, ${color} ${percent}%, transparent)`;
+
+const inputStyle = {
+  width: "100%",
+  background: "rgba(5, 11, 20, 0.62)",
+  border: "1px solid rgba(var(--codedock-primary-rgb), 0.24)",
+  borderRadius: 12,
+  color: "var(--white)",
+  fontSize: 14,
+  padding: "9px 13px",
+  outline: "none",
+  fontFamily: "inherit",
+} as const;
+
+type FormMode = "view" | "create" | "edit";
+
+type FormData = {
+  title: string;
+  method: ApiSpecMethod;
+  endpoint: string;
+  groupName: string;
+  entityName: string;
+  summary: string;
+  description: string;
+  status: ApiSpecStatus;
+  pathParams: string;
+  headers: string;
+  queryParams: string;
+  requestBody: string;
+  responseBody: string;
+  responseStatus: string;
+  version: string;
+  note: string;
+};
+
+const EMPTY_FORM: FormData = {
+  title: "",
+  method: "GET",
+  endpoint: "",
+  groupName: "",
+  entityName: "",
+  summary: "",
+  description: "",
+  status: "design",
+  pathParams: "",
+  headers: "",
+  queryParams: "",
+  requestBody: "",
+  responseBody: "",
+  responseStatus: "",
+  version: "",
+  note: "",
+};
+
+function apiToForm(api: ApiSpecResponse): FormData {
+  return {
+    title: api.title,
+    method: api.method,
+    endpoint: api.endpoint,
+    groupName: api.groupName ?? "",
+    entityName: api.entityName ?? "",
+    summary: api.summary ?? "",
+    description: api.description ?? "",
+    status: api.status,
+    pathParams: api.pathParams ?? "",
+    headers: api.headers ?? "",
+    queryParams: api.queryParams ?? "",
+    requestBody: api.requestBody ?? "",
+    responseBody: api.responseBody ?? "",
+    responseStatus: api.responseStatus != null ? String(api.responseStatus) : "",
+    version: api.version ?? "",
+    note: api.note ?? "",
+  };
+}
 
 interface APISpecPageProps {
   embedded?: boolean;
@@ -29,11 +109,18 @@ interface APISpecPageProps {
 }
 
 export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps) {
+  const { myMemberId } = useWorkspace();
+
   const [apis, setApis] = useState<ApiSpecResponse[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [apiError, setApiError] = useState("");
   const [selectedApiId, setSelectedApiId] = useState<number | null>(null);
   const [swaggerUrl, setSwaggerUrl] = useState("");
+
+  const [mode, setMode] = useState<FormMode>("view");
+  const [formData, setFormData] = useState<FormData>(EMPTY_FORM);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState("");
 
   const selectedApiData = apis.find((api) => api.id === selectedApiId) ?? apis[0] ?? null;
 
@@ -86,6 +173,106 @@ export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps)
     };
   }, [workspaceId]);
 
+  function openCreateForm() {
+    setFormData(EMPTY_FORM);
+    setFormError("");
+    setMode("create");
+  }
+
+  function openEditForm() {
+    if (!selectedApiData) return;
+    setFormData(apiToForm(selectedApiData));
+    setFormError("");
+    setMode("edit");
+  }
+
+  function cancelForm() {
+    setMode("view");
+    setFormError("");
+  }
+
+  function handleFormChange(field: keyof FormData, value: string) {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  }
+
+  async function handleSubmit() {
+    if (!workspaceId || !myMemberId) return;
+    if (!formData.title.trim() || !formData.endpoint.trim()) {
+      setFormError("제목과 엔드포인트는 필수입니다.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setFormError("");
+
+    try {
+      if (mode === "create") {
+        const created = await createApiSpec(workspaceId, {
+          createdByMemberId: myMemberId,
+          title: formData.title,
+          method: formData.method,
+          endpoint: formData.endpoint,
+          groupName: formData.groupName || undefined,
+          entityName: formData.entityName || undefined,
+          summary: formData.summary || undefined,
+          description: formData.description || undefined,
+          status: formData.status,
+          pathParams: formData.pathParams || undefined,
+          headers: formData.headers || undefined,
+          queryParams: formData.queryParams || undefined,
+          requestBody: formData.requestBody || undefined,
+          responseBody: formData.responseBody || undefined,
+          responseStatus: formData.responseStatus ? Number(formData.responseStatus) : undefined,
+          version: formData.version || undefined,
+          note: formData.note || undefined,
+        });
+        setApis((prev) => [...prev, created]);
+        setSelectedApiId(created.id);
+      } else if (mode === "edit" && selectedApiData) {
+        const updated = await updateApiSpec(workspaceId, selectedApiData.id, {
+          title: formData.title,
+          method: formData.method,
+          endpoint: formData.endpoint,
+          groupName: formData.groupName || undefined,
+          entityName: formData.entityName || undefined,
+          summary: formData.summary || undefined,
+          description: formData.description || undefined,
+          status: formData.status,
+          pathParams: formData.pathParams || undefined,
+          headers: formData.headers || undefined,
+          queryParams: formData.queryParams || undefined,
+          requestBody: formData.requestBody || undefined,
+          responseBody: formData.responseBody || undefined,
+          responseStatus: formData.responseStatus ? Number(formData.responseStatus) : undefined,
+          version: formData.version || undefined,
+          note: formData.note || undefined,
+        });
+        setApis((prev) => prev.map((api) => (api.id === updated.id ? updated : api)));
+      }
+      setMode("view");
+    } catch (error) {
+      setFormError(
+        error instanceof ApiClientError ? error.message : "저장하지 못했습니다.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!workspaceId || !selectedApiData) return;
+    if (!window.confirm(`"${selectedApiData.title}" 명세를 삭제할까요?`)) return;
+
+    try {
+      await deleteApiSpec(workspaceId, selectedApiData.id);
+      setApis((prev) => prev.filter((api) => api.id !== selectedApiData.id));
+      setSelectedApiId(null);
+      setMode("view");
+    } catch (error) {
+      alert(error instanceof ApiClientError ? error.message : "삭제하지 못했습니다.");
+    }
+  }
+
   return (
     <div className={embedded ? "codedock-scrollbar-hidden h-full overflow-y-auto px-5 py-5" : "w-[min(1400px,calc(100vw-36px))] mx-auto py-12 pb-20"}>
       <div className={embedded ? "mb-5" : "mb-8"}>
@@ -109,6 +296,7 @@ export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps)
       </div>
 
       <div className={embedded ? "grid gap-5 xl:grid-cols-[340px_1fr]" : "grid gap-6 lg:grid-cols-[410px_1fr]"}>
+        {/* 왼쪽: 엔드포인트 목록 */}
         <section
           className={embedded ? "rounded-2xl px-5 py-5" : "rounded-[30px] px-6 py-6"}
           style={{
@@ -123,10 +311,12 @@ export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps)
               엔드포인트
             </h2>
             <button
+              onClick={openCreateForm}
               className="grid h-9 w-9 place-items-center rounded-xl border-0"
               style={{
                 background: "linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))",
                 color: "#021014",
+                cursor: "pointer",
               }}
               type="button"
             >
@@ -182,7 +372,7 @@ export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps)
               {apis.map((api) => (
                 <button
                   key={api.id}
-                  onClick={() => setSelectedApiId(api.id)}
+                  onClick={() => { setSelectedApiId(api.id); setMode("view"); }}
                   className="w-full rounded-2xl px-4 py-4 text-left transition-all"
                   style={{
                     background: selectedApiData?.id === api.id ? "rgba(var(--codedock-primary-rgb), 0.15)" : "rgba(5, 11, 20, 0.42)",
@@ -207,6 +397,7 @@ export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps)
           )}
         </section>
 
+        {/* 오른쪽: 상세 / 폼 */}
         <section
           className={embedded ? "rounded-2xl px-5 py-5" : "rounded-[30px] px-8 py-8"}
           style={{
@@ -216,7 +407,17 @@ export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps)
             backdropFilter: "blur(16px)",
           }}
         >
-          {!selectedApiData ? (
+          {mode === "create" || mode === "edit" ? (
+            <ApiSpecForm
+              mode={mode}
+              formData={formData}
+              onChange={handleFormChange}
+              onSubmit={handleSubmit}
+              onCancel={cancelForm}
+              isSubmitting={isSubmitting}
+              formError={formError}
+            />
+          ) : !selectedApiData ? (
             <div className="flex h-full min-h-[200px] items-center justify-center text-center">
               <p className="m-0 text-sm font-bold tracking-tight" style={{ color: "var(--muted)" }}>
                 왼쪽에서 API 명세를 선택하세요.
@@ -242,7 +443,28 @@ export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps)
                     {selectedApiData.summary}
                   </p>
                 </div>
-                {selectedApiData.method === "DELETE" && <Trash2 size={26} strokeWidth={2.4} style={{ color: "#FF6B6B" }} />}
+                <div className="flex shrink-0 items-center gap-2">
+                  {selectedApiData.sourceType !== "swagger" && (
+                    <button
+                      onClick={openEditForm}
+                      className="flex items-center gap-1.5 rounded-xl border-0 px-3 py-2 text-sm font-black tracking-tight"
+                      style={{ background: "rgba(var(--codedock-primary-rgb), 0.12)", color: "var(--neon-cyan)", cursor: "pointer" }}
+                      type="button"
+                    >
+                      <Edit2 size={14} />
+                      편집
+                    </button>
+                  )}
+                  <button
+                    onClick={handleDelete}
+                    className="flex items-center gap-1.5 rounded-xl border-0 px-3 py-2 text-sm font-black tracking-tight"
+                    style={{ background: "rgba(255, 107, 107, 0.10)", color: "#FF6B6B", cursor: "pointer" }}
+                    type="button"
+                  >
+                    <Trash2 size={14} />
+                    삭제
+                  </button>
+                </div>
               </div>
 
               <p className="mb-6 mt-0 text-sm font-semibold leading-7 tracking-tight" style={{ color: "#DFFAFF" }}>
@@ -279,6 +501,7 @@ export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps)
         </section>
       </div>
 
+      {/* Swagger 섹션 */}
       <section
         className={embedded ? "mt-5 overflow-hidden rounded-2xl" : "mt-7 overflow-hidden rounded-[30px]"}
         style={{
@@ -386,18 +609,175 @@ export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps)
   );
 }
 
-function SwaggerPreviewFallback() {
+// ─── 폼 컴포넌트 ──────────────────────────────────────────────────────────────
+
+interface ApiSpecFormProps {
+  mode: "create" | "edit";
+  formData: FormData;
+  onChange: (field: keyof FormData, value: string) => void;
+  onSubmit: () => void;
+  onCancel: () => void;
+  isSubmitting: boolean;
+  formError: string;
+}
+
+function ApiSpecForm({ mode, formData, onChange, onSubmit, onCancel, isSubmitting, formError }: ApiSpecFormProps) {
   return (
-    <div
-      aria-hidden="true"
-      className="min-h-[320px] rounded-2xl"
-      style={{
-        background: "rgba(5, 11, 20, 0.58)",
-        border: "1px solid rgba(var(--codedock-primary-rgb), 0.14)"
-      }}
-    />
+    <div>
+      <div className="mb-6 flex items-center justify-between">
+        <h2 className="m-0 text-xl font-black tracking-tight" style={{ color: "var(--white)" }}>
+          {mode === "create" ? "새 API 명세 추가" : "API 명세 편집"}
+        </h2>
+        <button
+          onClick={onCancel}
+          className="grid h-8 w-8 place-items-center rounded-xl border-0"
+          style={{ background: "rgba(234, 247, 255, 0.07)", color: "var(--muted)", cursor: "pointer" }}
+          type="button"
+        >
+          <X size={16} />
+        </button>
+      </div>
+
+      <div className="grid gap-4">
+        <div className="grid gap-4 md:grid-cols-2">
+          <FormField label="제목 *">
+            <input
+              style={inputStyle}
+              value={formData.title}
+              onChange={(e) => onChange("title", e.target.value)}
+              placeholder="API 제목"
+            />
+          </FormField>
+          <FormField label="엔드포인트 *">
+            <input
+              style={{ ...inputStyle, fontFamily: "monospace" }}
+              value={formData.endpoint}
+              onChange={(e) => onChange("endpoint", e.target.value)}
+              placeholder="/api/..."
+            />
+          </FormField>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-3">
+          <FormField label="메서드">
+            <select style={inputStyle} value={formData.method} onChange={(e) => onChange("method", e.target.value as ApiSpecMethod)}>
+              {(["GET", "POST", "PUT", "PATCH", "DELETE"] as ApiSpecMethod[]).map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          </FormField>
+          <FormField label="상태">
+            <select style={inputStyle} value={formData.status} onChange={(e) => onChange("status", e.target.value as ApiSpecStatus)}>
+              <option value="design">설계</option>
+              <option value="in_progress">구현중</option>
+              <option value="completed">완료</option>
+            </select>
+          </FormField>
+          <FormField label="버전">
+            <input style={inputStyle} value={formData.version} onChange={(e) => onChange("version", e.target.value)} placeholder="v1.0" />
+          </FormField>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <FormField label="그룹명">
+            <input style={inputStyle} value={formData.groupName} onChange={(e) => onChange("groupName", e.target.value)} placeholder="사용자 관리" />
+          </FormField>
+          <FormField label="엔티티명">
+            <input style={inputStyle} value={formData.entityName} onChange={(e) => onChange("entityName", e.target.value)} placeholder="User" />
+          </FormField>
+        </div>
+
+        <FormField label="요약">
+          <input style={inputStyle} value={formData.summary} onChange={(e) => onChange("summary", e.target.value)} placeholder="한 줄 요약" />
+        </FormField>
+
+        <FormField label="설명">
+          <textarea
+            style={{ ...inputStyle, resize: "vertical", minHeight: 72 }}
+            value={formData.description}
+            onChange={(e) => onChange("description", e.target.value)}
+            placeholder="API 상세 설명"
+          />
+        </FormField>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <FormField label="Path Params">
+            <textarea style={{ ...inputStyle, resize: "vertical", minHeight: 64, fontFamily: "monospace" }} value={formData.pathParams} onChange={(e) => onChange("pathParams", e.target.value)} placeholder='{"id": "number"}' />
+          </FormField>
+          <FormField label="Query Params">
+            <textarea style={{ ...inputStyle, resize: "vertical", minHeight: 64, fontFamily: "monospace" }} value={formData.queryParams} onChange={(e) => onChange("queryParams", e.target.value)} placeholder='{"page": "number"}' />
+          </FormField>
+        </div>
+
+        <FormField label="Headers">
+          <textarea style={{ ...inputStyle, resize: "vertical", minHeight: 64, fontFamily: "monospace" }} value={formData.headers} onChange={(e) => onChange("headers", e.target.value)} placeholder='{"Authorization": "Bearer ..."}' />
+        </FormField>
+
+        <FormField label="Request Body">
+          <textarea style={{ ...inputStyle, resize: "vertical", minHeight: 80, fontFamily: "monospace" }} value={formData.requestBody} onChange={(e) => onChange("requestBody", e.target.value)} placeholder="{}" />
+        </FormField>
+
+        <div className="grid gap-4 md:grid-cols-[1fr_120px]">
+          <FormField label="Response Body">
+            <textarea style={{ ...inputStyle, resize: "vertical", minHeight: 80, fontFamily: "monospace" }} value={formData.responseBody} onChange={(e) => onChange("responseBody", e.target.value)} placeholder="{}" />
+          </FormField>
+          <FormField label="응답 상태코드">
+            <input style={inputStyle} value={formData.responseStatus} onChange={(e) => onChange("responseStatus", e.target.value)} placeholder="200" type="number" />
+          </FormField>
+        </div>
+
+        <FormField label="메모">
+          <textarea style={{ ...inputStyle, resize: "vertical", minHeight: 64 }} value={formData.note} onChange={(e) => onChange("note", e.target.value)} placeholder="주의사항 등" />
+        </FormField>
+      </div>
+
+      {formError && (
+        <p className="mt-4 mb-0 text-sm font-bold tracking-tight" style={{ color: "#FFB4B4" }}>
+          {formError}
+        </p>
+      )}
+
+      <div className="mt-6 flex justify-end gap-3">
+        <button
+          onClick={onCancel}
+          className="rounded-xl border-0 px-5 py-2.5 text-sm font-black tracking-tight"
+          style={{ background: "rgba(234, 247, 255, 0.07)", color: "var(--muted)", cursor: "pointer" }}
+          type="button"
+        >
+          취소
+        </button>
+        <button
+          onClick={onSubmit}
+          disabled={isSubmitting}
+          className="rounded-xl border-0 px-5 py-2.5 text-sm font-black tracking-tight"
+          style={{
+            background: "linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))",
+            color: "#021014",
+            cursor: isSubmitting ? "not-allowed" : "pointer",
+            opacity: isSubmitting ? 0.6 : 1,
+          }}
+          type="button"
+        >
+          {isSubmitting ? "저장 중..." : mode === "create" ? "추가" : "저장"}
+        </button>
+      </div>
+    </div>
   );
 }
+
+function FormField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="mb-1.5 block text-xs font-black tracking-tight" style={{ color: "var(--neon-cyan)" }}>
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+// ─── 헬퍼 컴포넌트 ────────────────────────────────────────────────────────────
+
 
 function StatCard({ label, value, color }: { label: string; value: number; color: string }) {
   return (
