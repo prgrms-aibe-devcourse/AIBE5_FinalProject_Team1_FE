@@ -29,8 +29,6 @@ import {
 import { ApiClientError } from "../api/client";
 import { useWorkspace } from "../contexts/WorkspaceContext";
 
-const SwaggerUI = lazy(() => import("swagger-ui-react"));
-
 const colorAlpha = (color: string, percent: number) => `color-mix(in srgb, ${color} ${percent}%, transparent)`;
 
 const inputStyle = {
@@ -126,7 +124,9 @@ export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps)
   const [formError, setFormError] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generateError, setGenerateError] = useState("");
+  const [filterMethod, setFilterMethod] = useState<ApiSpecMethod | null>(null);
 
+  const filteredApis = filterMethod ? apis.filter((api) => api.method === filterMethod) : apis;
   const selectedApiData = apis.find((api) => api.id === selectedApiId) ?? apis[0] ?? null;
 
   const groups = useMemo(() => {
@@ -366,10 +366,12 @@ export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps)
         )}
       </div>
 
-      <div className={embedded ? "grid grid-cols-2 gap-3 mb-5 xl:grid-cols-3" : "grid gap-4 mb-9 md:grid-cols-3"}>
-        <StatCard label="전체 엔드포인트" value={apis.length} color="var(--neon-cyan)" />
-        <StatCard label="PATCH" value={methodCounts.PATCH} color="#FFD93D" />
-        <StatCard label="DELETE" value={methodCounts.DELETE} color="#FF6B6B" />
+      <div className={embedded ? "grid grid-cols-3 gap-3 mb-5 xl:grid-cols-5" : "grid gap-4 mb-9 grid-cols-3 md:grid-cols-5"}>
+        <StatCard label="GET" value={methodCounts.GET} color="#6BCF7F" active={filterMethod === "GET"} onClick={() => setFilterMethod(filterMethod === "GET" ? null : "GET")} />
+        <StatCard label="POST" value={methodCounts.POST} color="var(--neon-cyan)" active={filterMethod === "POST"} onClick={() => setFilterMethod(filterMethod === "POST" ? null : "POST")} />
+        <StatCard label="PUT" value={methodCounts.PUT} color="#A78BFA" active={filterMethod === "PUT"} onClick={() => setFilterMethod(filterMethod === "PUT" ? null : "PUT")} />
+        <StatCard label="PATCH" value={methodCounts.PATCH} color="#FFD93D" active={filterMethod === "PATCH"} onClick={() => setFilterMethod(filterMethod === "PATCH" ? null : "PATCH")} />
+        <StatCard label="DELETE" value={methodCounts.DELETE} color="#FF6B6B" active={filterMethod === "DELETE"} onClick={() => setFilterMethod(filterMethod === "DELETE" ? null : "DELETE")} />
       </div>
 
       <div className={embedded ? "grid gap-5 xl:grid-cols-[340px_1fr]" : "grid gap-6 lg:grid-cols-[410px_1fr]"}>
@@ -384,8 +386,17 @@ export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps)
           }}
         >
           <div className="mb-6 flex items-center justify-between">
-            <h2 className="m-0 text-xl font-black tracking-tight" style={{ color: "var(--white)" }}>
+            <h2 className="m-0 flex items-center gap-2 text-xl font-black tracking-tight" style={{ color: "var(--white)" }}>
               엔드포인트
+              <span
+                className="rounded-lg px-2 py-0.5 text-sm font-black tracking-tight"
+                style={{
+                  background: filterMethod ? colorAlpha(getMethodColor(filterMethod), 15) : "rgba(234, 247, 255, 0.08)",
+                  color: filterMethod ? getMethodColor(filterMethod) : "var(--muted)",
+                }}
+              >
+                {filterMethod ? `${filteredApis.length} / ${apis.length}` : apis.length}
+              </span>
             </h2>
             <button
               onClick={openCreateForm}
@@ -429,7 +440,7 @@ export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps)
             <div className="rounded-2xl px-4 py-4" style={{ background: "rgba(255, 107, 107, 0.09)", border: "1px solid rgba(255, 107, 107, 0.28)" }}>
               <p className="m-0 text-sm font-bold tracking-tight" style={{ color: "#FFB4B4" }}>{apiError}</p>
             </div>
-          ) : apis.length === 0 ? (
+          ) : filteredApis.length === 0 ? (
             <div
               className="rounded-2xl px-4 py-8 text-center tracking-tight"
               style={{
@@ -438,15 +449,15 @@ export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps)
               }}
             >
               <p className="m-0 text-sm font-black" style={{ color: "var(--white)" }}>
-                API 명세가 없습니다
+                {filterMethod ? `${filterMethod} 명세가 없습니다` : "API 명세가 없습니다"}
               </p>
               <p className="m-0 mt-1 text-[var(--krds-body-xsmall)] font-bold" style={{ color: "var(--muted)" }}>
-                추가 버튼으로 명세를 등록할 수 있어요.
+                {filterMethod ? "다른 메서드를 선택하거나 추가 버튼으로 등록하세요." : "추가 버튼으로 명세를 등록할 수 있어요."}
               </p>
             </div>
           ) : (
             <div className={`grid gap-2 overflow-y-auto pr-1 ${embedded ? "codedock-scrollbar-hidden max-h-[420px]" : "max-h-[650px]"}`}>
-              {apis.map((api) => (
+              {filteredApis.map((api) => (
                 <button
                   key={api.id}
                   onClick={() => { setSelectedApiId(api.id); setMode("view"); }}
@@ -855,23 +866,24 @@ function FormField({ label, children }: { label: string; children: React.ReactNo
 
 // ─── 헬퍼 컴포넌트 ────────────────────────────────────────────────────────────
 
-
-function StatCard({ label, value, color }: { label: string; value: number; color: string }) {
+function StatCard({ label, value, color, active, onClick }: { label: string; value: number; color: string; active?: boolean; onClick?: () => void }) {
   return (
     <div
-      className="rounded-3xl px-5 py-5"
+      onClick={onClick}
+      className="rounded-3xl px-4 py-4"
       style={{
-        background: "rgba(11, 22, 40, 0.82)",
-        border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)",
+        background: active ? `color-mix(in srgb, ${color} 12%, rgba(11, 22, 40, 0.95))` : "rgba(11, 22, 40, 0.82)",
+        border: active ? `1px solid ${color}` : "1px solid rgba(var(--codedock-primary-rgb), 0.16)",
         boxShadow: "0 20px 60px rgba(0, 0, 0, 0.32)",
         backdropFilter: "blur(16px)",
+        cursor: onClick ? "pointer" : "default",
       }}
     >
-      <FileText size={20} style={{ color, marginBottom: 8 }} />
-      <p className="m-0 mb-2 text-[var(--krds-body-xsmall)] font-black tracking-tight" style={{ color: "var(--muted)" }}>
+      <FileText size={18} style={{ color, marginBottom: 6 }} />
+      <p className="m-0 mb-1 text-[var(--krds-body-xsmall)] font-black tracking-tight" style={{ color: "var(--muted)" }}>
         {label}
       </p>
-      <p className="m-0 text-4xl font-black tracking-tight" style={{ color }}>
+      <p className="m-0 text-3xl font-black tracking-tight" style={{ color }}>
         {value}
       </p>
     </div>
