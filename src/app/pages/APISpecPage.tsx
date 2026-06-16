@@ -1,4 +1,9 @@
+<<<<<<< HEAD
 import { lazy, Suspense, useMemo, useState } from "react";
+=======
+import { useEffect, useMemo, useState } from "react";
+import SwaggerUI from "swagger-ui-react";
+>>>>>>> 9485ae8 (feat: APISpecPage 목록 조회 API 연결)
 import "swagger-ui-react/swagger-ui.css";
 import {
   AlertTriangle,
@@ -11,7 +16,8 @@ import {
   Plus,
   Trash2,
 } from "lucide-react";
-import { type ApiSpecResponse, type ApiSpecMethod, type ApiSpecStatus } from "../api/apiSpec";
+import { getApiSpecs, type ApiSpecResponse, type ApiSpecMethod, type ApiSpecStatus } from "../api/apiSpec";
+import { ApiClientError } from "../api/client";
 
 const SwaggerUI = lazy(() => import("swagger-ui-react"));
 
@@ -24,6 +30,8 @@ interface APISpecPageProps {
 
 export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps) {
   const [apis, setApis] = useState<ApiSpecResponse[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [apiError, setApiError] = useState("");
   const [selectedApiId, setSelectedApiId] = useState<number | null>(null);
   const [swaggerUrl, setSwaggerUrl] = useState("");
 
@@ -48,6 +56,35 @@ export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps)
       { GET: 0, POST: 0, PUT: 0, PATCH: 0, DELETE: 0 },
     );
   }, [apis]);
+
+  useEffect(() => {
+    if (!workspaceId) return;
+
+    const controller = new AbortController();
+    setIsLoading(true);
+    setApiError("");
+
+    getApiSpecs(workspaceId, undefined, { signal: controller.signal })
+      .then((data) => {
+        setApis(data);
+      })
+      .catch((error) => {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          setApiError(
+            error instanceof ApiClientError
+              ? error.message
+              : "API 명세를 불러오지 못했습니다.",
+          );
+        }
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+
+    return () => {
+      controller.abort();
+    };
+  }, [workspaceId]);
 
   return (
     <div className={embedded ? "codedock-scrollbar-hidden h-full overflow-y-auto px-5 py-5" : "w-[min(1400px,calc(100vw-36px))] mx-auto py-12 pb-20"}>
@@ -117,7 +154,15 @@ export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps)
             ))}
           </div>
 
-          {apis.length === 0 ? (
+          {isLoading ? (
+            <div className="rounded-2xl px-4 py-8 text-center tracking-tight" style={{ background: "rgba(234, 247, 255, 0.045)", border: "1px dashed rgba(var(--codedock-primary-rgb), 0.24)" }}>
+              <p className="m-0 text-sm font-bold" style={{ color: "var(--muted)" }}>불러오는 중...</p>
+            </div>
+          ) : apiError ? (
+            <div className="rounded-2xl px-4 py-4" style={{ background: "rgba(255, 107, 107, 0.09)", border: "1px solid rgba(255, 107, 107, 0.28)" }}>
+              <p className="m-0 text-sm font-bold tracking-tight" style={{ color: "#FFB4B4" }}>{apiError}</p>
+            </div>
+          ) : apis.length === 0 ? (
             <div
               className="rounded-2xl px-4 py-8 text-center tracking-tight"
               style={{
