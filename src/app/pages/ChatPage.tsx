@@ -7,10 +7,7 @@ import { ThreadPanel } from "../components/ThreadPanel";
 import { ChannelPanel } from "../components/ChannelPanel";
 import { OverviewPanel } from "../components/OverviewPanel";
 import { ErrorBoundary } from "../components/ErrorBoundary";
-import { APISpecPage } from "./APISpecPage";
-import { ERDPage } from "./ERDPage";
-import { DocsPage } from "./DocsPage";
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router";
 import { AnimatePresence, motion } from "motion/react";
 import {
@@ -64,6 +61,10 @@ import type { ChatStompClient } from "../api/stomp";
 import { useProfile } from "../contexts/ProfileContext";
 import { fetchMyWorkspaces, getWorkspaceMembers, updatePresence, type WorkspaceDto, type WorkspaceMember } from "../api/workspace";
 import { useWorkspace } from "../contexts/WorkspaceContext";
+
+const APISpecPage = lazy(() => import("./APISpecPage").then((module) => ({ default: module.APISpecPage })));
+const ERDPage = lazy(() => import("./ERDPage").then((module) => ({ default: module.ERDPage })));
+const DocsPage = lazy(() => import("./DocsPage").then((module) => ({ default: module.DocsPage })));
 
 const REPOSITORY_IMPORTED_KEY = "codedock-repository-imported";
 const REPOSITORY_LIST_KEY = "codedock-repositories-v2";
@@ -4001,7 +4002,22 @@ function EmbeddedPanelBoundary({ children }: { children: ReactNode }) {
       fallbackTitle="탭 화면을 불러오지 못했습니다"
       fallbackMessage="API 명세, ERD, 문서 화면 렌더링 중 오류가 발생했습니다. 다른 채널로 이동한 뒤 다시 열어주세요."
     >
-      {children}
+      <Suspense fallback={<EmbeddedPanelFallback />}>
+        {children}
+      </Suspense>
     </ErrorBoundary>
+  );
+}
+
+function EmbeddedPanelFallback() {
+  return (
+    <div
+      aria-hidden="true"
+      className="h-full min-h-0 rounded-2xl"
+      style={{
+        background: "rgba(5, 11, 20, 0.64)",
+        border: "1px solid rgba(var(--codedock-primary-rgb), 0.12)"
+      }}
+    />
   );
 }

@@ -1,5 +1,4 @@
-import { useMemo, useState } from "react";
-import SwaggerUI from "swagger-ui-react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import "swagger-ui-react/swagger-ui.css";
 import {
   AlertTriangle,
@@ -16,6 +15,8 @@ import {
 
 type ApiMethod = "GET" | "POST" | "PATCH" | "DELETE";
 type ApiStatus = "completed" | "in_progress" | "design";
+
+const SwaggerUI = lazy(() => import("swagger-ui-react"));
 
 const colorAlpha = (color: string, percent: number) => `color-mix(in srgb, ${color} ${percent}%, transparent)`;
 
@@ -875,16 +876,31 @@ export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps)
           </span>
         </div>
         <div className={`codedock-swagger codedock-scrollbar-hidden overflow-y-auto ${embedded ? "max-h-[520px]" : "max-h-[720px]"} px-4 py-4`}>
-          <SwaggerUI
-            spec={openApiSpec}
-            docExpansion="none"
-            defaultModelsExpandDepth={0}
-            displayRequestDuration
-            tryItOutEnabled={false}
-          />
+          <Suspense fallback={<SwaggerPreviewFallback />}>
+            <SwaggerUI
+              spec={openApiSpec}
+              docExpansion="none"
+              defaultModelsExpandDepth={0}
+              displayRequestDuration
+              tryItOutEnabled={false}
+            />
+          </Suspense>
         </div>
       </section>
     </div>
+  );
+}
+
+function SwaggerPreviewFallback() {
+  return (
+    <div
+      aria-hidden="true"
+      className="min-h-[320px] rounded-2xl"
+      style={{
+        background: "rgba(5, 11, 20, 0.58)",
+        border: "1px solid rgba(var(--codedock-primary-rgb), 0.14)"
+      }}
+    />
   );
 }
 
