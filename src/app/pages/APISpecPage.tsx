@@ -26,6 +26,7 @@ import {
   type ApiSpecResponse,
   type ApiSpecMethod,
   type ApiSpecStatus,
+  type ApiSpecSourceType,
 } from "../api/apiSpec";
 import { ApiClientError } from "../api/client";
 import { useWorkspace } from "../contexts/WorkspaceContext";
@@ -488,6 +489,7 @@ export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps)
                   <div className="mb-2 flex items-center gap-2">
                     <MethodBadge method={api.method} />
                     <StatusBadge status={api.status} />
+                    <SourceBadge sourceType={api.sourceType} />
                   </div>
                   <p className="m-0 mb-1 break-all font-mono text-sm font-black tracking-tight" style={{ color: "var(--white)" }}>
                     {api.endpoint}
@@ -534,6 +536,7 @@ export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps)
                   <div className="mb-3 flex flex-wrap items-center gap-2">
                     <MethodBadge method={selectedApiData.method} large />
                     <StatusBadge status={selectedApiData.status} />
+                    <SourceBadge sourceType={selectedApiData.sourceType} />
                     {selectedApiData.groupName && (
                       <span className="rounded-full px-3 py-1 text-[var(--krds-body-xsmall)] font-black tracking-tight" style={{ background: "rgba(234, 247, 255, 0.055)", color: "var(--muted)" }}>
                         {selectedApiData.groupName}
@@ -990,6 +993,21 @@ function StatusBadge({ status }: { status: ApiSpecStatus }) {
     >
       {getStatusIcon(status)}
       {getStatusLabel(status)}
+    </span>
+  );
+}
+
+function SourceBadge({ sourceType }: { sourceType: ApiSpecSourceType }) {
+  const isAuto = sourceType !== "manual";
+  return (
+    <span
+      className="rounded-lg px-2 py-0.5 text-[var(--krds-body-xsmall)] font-black tracking-tight"
+      style={{
+        background: isAuto ? "rgba(var(--codedock-primary-rgb), 0.12)" : "rgba(234, 247, 255, 0.06)",
+        color: isAuto ? "var(--neon-cyan)" : "var(--muted)",
+      }}
+    >
+      {isAuto ? "자동 작성" : "직접 작성"}
     </span>
   );
 }
