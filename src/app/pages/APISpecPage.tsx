@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import SwaggerUI from "swagger-ui-react";
 import "swagger-ui-react/swagger-ui.css";
 import {
-  AlertTriangle,
   CheckCircle2,
   Code,
   Edit2,
@@ -523,7 +522,7 @@ export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps)
                     {api.endpoint}
                   </p>
                   <p className="m-0 text-[var(--krds-body-xsmall)] font-bold leading-5 tracking-tight" style={{ color: "var(--muted)" }}>
-                    {api.summary}
+                    {api.title}
                   </p>
                 </button>
               ))}
@@ -569,10 +568,18 @@ export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps)
                         {selectedApiData.groupName}
                       </span>
                     )}
+                    {selectedApiData.entityName && (
+                      <span className="rounded-full px-3 py-1 text-[var(--krds-body-xsmall)] font-black tracking-tight" style={{ background: "rgba(234, 247, 255, 0.055)", color: "var(--muted)" }}>
+                        {selectedApiData.entityName}
+                      </span>
+                    )}
                   </div>
-                  <h2 className="m-0 font-mono text-2xl font-black leading-snug tracking-tight" style={{ color: "var(--white)" }}>
-                    {selectedApiData.endpoint}
+                  <h2 className="m-0 text-2xl font-black leading-snug tracking-tight" style={{ color: "var(--white)" }}>
+                    {selectedApiData.title}
                   </h2>
+                  <p className="m-0 mt-1 font-mono text-sm font-bold tracking-tight" style={{ color: "var(--neon-cyan)" }}>
+                    {selectedApiData.endpoint}
+                  </p>
                   <p className="m-0 mt-2 text-base font-bold leading-7 tracking-tight" style={{ color: "var(--muted)" }}>
                     {selectedApiData.summary}
                   </p>
@@ -609,12 +616,12 @@ export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps)
                 <div
                   className="mb-6 flex items-start gap-3 rounded-2xl px-5 py-4"
                   style={{
-                    background: "rgba(255, 107, 107, 0.09)",
-                    border: "1px solid rgba(255, 107, 107, 0.28)",
+                    background: "rgba(234, 247, 255, 0.045)",
+                    border: "1px solid rgba(var(--codedock-primary-rgb), 0.14)",
                   }}
                 >
-                  <AlertTriangle size={20} style={{ color: "#FF6B6B", flexShrink: 0, marginTop: 2 }} />
-                  <p className="m-0 text-sm font-bold leading-6 tracking-tight" style={{ color: "#FFB4B4" }}>
+                  <MessageSquare size={16} style={{ color: "var(--muted)", flexShrink: 0, marginTop: 2 }} />
+                  <p className="m-0 text-sm font-bold leading-6 tracking-tight" style={{ color: "var(--muted)" }}>
                     {selectedApiData.note}
                   </p>
                 </div>
