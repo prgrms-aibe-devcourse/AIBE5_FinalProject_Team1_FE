@@ -62,6 +62,7 @@ interface Message {
   issueHistory?: IssueHistoryEvent[];
   attachments?: MessageAttachment[];
   replyTo?: { user: string; text: string };
+  deleted?: boolean;
   sendError?: string;
 }
 
@@ -74,6 +75,7 @@ interface ChatPanelProps {
   replyCounts?: Record<number, number>;
   onSendMessage?: (message: string, attachments?: MessageAttachment[], replyTo?: { user: string; text: string }, metadata?: MessageMetadata) => void;
   onAddMessageAttachments?: (message: Message, attachments: MessageAttachment[]) => Promise<void> | void;
+  onDeleteMessageAttachment?: (message: Message, attachment: MessageAttachment) => Promise<void> | void;
   onSharePR?: (prData: any, message: string, channelIds: string[]) => void;
   showAISummary?: boolean;
   onMergePR?: (messageId: number) => void;
@@ -130,7 +132,7 @@ function getUserInitial(user?: string) {
   return trimmed ? trimmed.charAt(0).toUpperCase() : "?";
 }
 
-export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messages, reactions, replyCounts = {}, onSendMessage, onAddMessageAttachments, onSharePR, showAISummary = true, onMergePR, onReviewPR, onViewIssue, onOpenThread, selectedThreadId, onToggleReaction, isRepository = false, myMemberId, myDisplayName }: ChatPanelProps) {
+export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messages, reactions, replyCounts = {}, onSendMessage, onAddMessageAttachments, onDeleteMessageAttachment, onSharePR, showAISummary = true, onMergePR, onReviewPR, onViewIssue, onOpenThread, selectedThreadId, onToggleReaction, isRepository = false, myMemberId, myDisplayName }: ChatPanelProps) {
   const bookmarkStorageKey = `codedock-chat-bookmarks:${bookmarkScopeId ?? channelId}`;
   const displayCurrentUserName = myDisplayName?.trim() || currentUserDisplayName;
   const displayCurrentUserAvatar = displayCurrentUserName.charAt(0) || currentUserAvatar;
@@ -156,6 +158,7 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
   const [selectedAttachments, setSelectedAttachments] = useState<MessageAttachment[]>([]);
   const [attachmentError, setAttachmentError] = useState("");
   const [attachmentTarget, setAttachmentTarget] = useState<Message | null>(null);
+  const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null);
   const [linkUrl, setLinkUrl] = useState("");
   const [linkTitle, setLinkTitle] = useState("");
   const [urlAttachmentType, setUrlAttachmentType] = useState<"link" | "image" | "file">("link");
@@ -408,6 +411,20 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
     setActivePanel("attachment");
   };
 
+  const handleDeleteExistingAttachment = (message: Message, attachment: MessageAttachment) => {
+    if (!onDeleteMessageAttachment || deletingAttachmentId) return;
+
+    setDeletingAttachmentId(attachment.id);
+    setAttachmentError("");
+    Promise.resolve(onDeleteMessageAttachment(message, attachment))
+      .catch((error) => {
+        setAttachmentError(error instanceof Error ? error.message : "첨부파일 삭제에 실패했습니다.");
+      })
+      .finally(() => {
+        setDeletingAttachmentId(null);
+      });
+  };
+
   const renderHoverMenu = (msg: Message) => {
     const isBookmarked = bookmarkedMessageIds[msg.id];
     const isPR = msg.type === 'pr';
@@ -486,7 +503,7 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
             onClick={(e) => { e.stopPropagation(); handleMentionClick(msg.user); }}
             title="멘션"
           ><AtSign size={14} /></button>
-          {onAddMessageAttachments && Number.isFinite(Number(msg.backendMessageId)) && (
+          {onAddMessageAttachments && !msg.deleted && Number.isFinite(Number(msg.backendMessageId)) && (
             <button
               className="w-7 h-7 rounded flex items-center justify-center"
               style={btnStyle('첨부 추가')}
@@ -1136,7 +1153,20 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
                     {msg.attachments && msg.attachments.length > 0 && (
                       <div className="grid gap-2 mt-3">
                         {msg.attachments.map((attachment) => (
-                          <MessageAttachmentCard key={attachment.id} attachment={attachment} />
+                          <MessageAttachmentCard
+                            key={attachment.id}
+                            attachment={attachment}
+                            onDelete={
+                              onDeleteMessageAttachment
+                              && isOwnMessage
+                              && !msg.deleted
+                              && Number.isFinite(Number(msg.backendMessageId))
+                              && Number.isFinite(Number(attachment.id))
+                                ? () => handleDeleteExistingAttachment(msg, attachment)
+                                : undefined
+                            }
+                            deleteDisabled={deletingAttachmentId === attachment.id}
+                          />
                         ))}
                       </div>
                     )}

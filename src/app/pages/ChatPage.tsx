@@ -28,6 +28,7 @@ import {
   createChannelMessage,
   createWorkspaceChannel,
   createThreadReply,
+  deleteMessageAttachment,
   deleteWorkspaceChannel,
   deleteChannelMessage,
   deleteThreadReply,
@@ -1630,6 +1631,37 @@ export function ChatPage() {
       );
 
       return mappedAttachments;
+    });
+  }, [getMessageChannelKey]);
+
+  const deleteExistingServerMessageAttachment = useCallback((
+    channelId: string,
+    apiChannelId: number,
+    messageId: number,
+    attachmentId: number
+  ) => {
+    if (!Number.isFinite(apiChannelId) || !Number.isFinite(messageId) || !Number.isFinite(attachmentId)) {
+      return Promise.reject(new Error("삭제할 첨부파일 정보를 확인할 수 없습니다."));
+    }
+
+    return deleteMessageAttachment(apiChannelId, messageId, attachmentId).then(() => {
+      const channelStateKey = getMessageChannelKey(channelId);
+      const removeAttachment = (attachments?: MessageAttachment[]) =>
+        (attachments ?? []).filter((attachment) => Number(attachment.id) !== attachmentId);
+
+      setMessages((prev) => ({
+        ...prev,
+        [channelStateKey]: (prev[channelStateKey] || []).map((item) =>
+          Number(item.backendMessageId ?? item.id) === messageId
+            ? { ...item, attachments: removeAttachment(item.attachments) }
+            : item
+        )
+      }));
+      setSelectedThread((prevThread: any) =>
+        prevThread && Number(prevThread.backendMessageId ?? prevThread.id) === messageId
+          ? { ...prevThread, attachments: removeAttachment(prevThread.attachments) }
+          : prevThread
+      );
     });
   }, [getMessageChannelKey]);
 
@@ -4007,6 +4039,14 @@ export function ChatPage() {
                       attachments
                     ).then(() => undefined)
                   : undefined}
+                onDeleteMessageAttachment={activeApiChannelId
+                  ? (message, attachment) => deleteExistingServerMessageAttachment(
+                      selectedChannel,
+                      activeApiChannelId,
+                      Number(message.backendMessageId),
+                      Number(attachment.id)
+                    )
+                  : undefined}
                 onTypingChange={activeApiChannelId ? handleChannelTypingChange : undefined}
                 remoteTypingLabel={activeRemoteTypingLabel}
                 onToggleReaction={handleToggleReaction}
@@ -4038,6 +4078,14 @@ export function ChatPage() {
                       attachments
                     ).then(() => undefined)
                   : undefined}
+                onDeleteMessageAttachment={activeApiChannelId
+                  ? (message, attachment) => deleteExistingServerMessageAttachment(
+                      selectedChannel,
+                      activeApiChannelId,
+                      Number(message.backendMessageId),
+                      Number(attachment.id)
+                    )
+                  : undefined}
                 onTypingChange={activeApiChannelId ? handleChannelTypingChange : undefined}
                 remoteTypingLabel={activeRemoteTypingLabel}
                 onToggleReaction={handleToggleReaction}
@@ -4068,6 +4116,14 @@ export function ChatPage() {
                       Number(message.backendMessageId),
                       attachments
                     ).then(() => undefined)
+                  : undefined}
+                onDeleteMessageAttachment={activeApiChannelId
+                  ? (message, attachment) => deleteExistingServerMessageAttachment(
+                      selectedChannel,
+                      activeApiChannelId,
+                      Number(message.backendMessageId),
+                      Number(attachment.id)
+                    )
                   : undefined}
                 onTypingChange={activeApiChannelId ? handleChannelTypingChange : undefined}
                 remoteTypingLabel={activeRemoteTypingLabel}
@@ -4114,6 +4170,14 @@ export function ChatPage() {
                       Number(message.backendMessageId),
                       attachments
                     ).then(() => undefined)
+                  : undefined}
+                onDeleteMessageAttachment={activeApiChannelId
+                  ? (message, attachment) => deleteExistingServerMessageAttachment(
+                      selectedChannel,
+                      activeApiChannelId,
+                      Number(message.backendMessageId),
+                      Number(attachment.id)
+                    )
                   : undefined}
                 onSharePR={handleSharePR}
                 showAISummary={false}
@@ -4172,6 +4236,14 @@ export function ChatPage() {
               onSendReply={handleSendThreadReply}
               onEditReply={activeApiChannelId ? handleEditThreadReply : undefined}
               onDeleteReply={activeApiChannelId ? handleDeleteThreadReply : undefined}
+              onDeleteMessageAttachment={activeApiChannelId
+                ? (message, attachment) => deleteExistingServerMessageAttachment(
+                    selectedChannel,
+                    activeApiChannelId,
+                    Number(message.backendMessageId),
+                    Number(attachment.id)
+                  )
+                : undefined}
               onToggleReaction={handleToggleReaction}
             />
           </section>

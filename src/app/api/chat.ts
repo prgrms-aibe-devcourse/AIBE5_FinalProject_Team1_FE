@@ -286,6 +286,18 @@ export function addMessageAttachments(
   );
 }
 
+export function deleteMessageAttachment(
+  channelId: number,
+  messageId: number,
+  attachmentId: number,
+  options?: ApiRequestOptions
+) {
+  return apiClient.delete<void>(
+    `/api/channels/${channelId}/messages/${messageId}/attachments/${attachmentId}`,
+    options
+  );
+}
+
 export function updateChannelMessage(
   channelId: number,
   messageId: number,

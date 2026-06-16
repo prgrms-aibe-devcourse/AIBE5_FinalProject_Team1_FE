@@ -50,6 +50,7 @@ interface ChannelPanelProps {
   onEditThread?: (thread: Thread, nextMessage: string) => void;
   onDeleteThread?: (thread: Thread) => void;
   onAddMessageAttachments?: (thread: Thread, attachments: MessageAttachment[]) => Promise<void> | void;
+  onDeleteMessageAttachment?: (thread: Thread, attachment: MessageAttachment) => Promise<void> | void;
   myMemberId?: number | null;
   myDisplayName?: string;
 }
@@ -142,7 +143,7 @@ function getThreadBody(thread: Thread) {
   return thread.message ?? (thread as any).text ?? "";
 }
 
-export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, threads, reactions, replyCounts = {}, onOpenThread, selectedThreadId, onOpenInvite, onSendThread, onTypingChange, remoteTypingLabel, onToggleReaction, bookmarkedThreadIds, onToggleBookmark, onEditThread, onDeleteThread, onAddMessageAttachments, myMemberId, myDisplayName }: ChannelPanelProps) {
+export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, threads, reactions, replyCounts = {}, onOpenThread, selectedThreadId, onOpenInvite, onSendThread, onTypingChange, remoteTypingLabel, onToggleReaction, bookmarkedThreadIds, onToggleBookmark, onEditThread, onDeleteThread, onAddMessageAttachments, onDeleteMessageAttachment, myMemberId, myDisplayName }: ChannelPanelProps) {
   const channelStorageId = storageScopeId ?? channelId ?? repoId ?? "general";
   const reactionChannelId = channelId ?? repoId ?? "general";
   const channelStorageKey = `${CHANNEL_THREADS_KEY_PREFIX}:${channelStorageId}`;
@@ -177,6 +178,7 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
   const [emojiPickerPos, setEmojiPickerPos] = useState<{ top: number; right: number } | null>(null);
   const [replyTo, setReplyTo] = useState<Thread | null>(null);
   const [attachmentTarget, setAttachmentTarget] = useState<Thread | null>(null);
+  const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null);
   const [editingThreadId, setEditingThreadId] = useState<number | null>(null);
   const [editingMessageText, setEditingMessageText] = useState("");
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -388,6 +390,20 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
     setEditingMessageText(getThreadBody(thread));
   };
 
+  const handleDeleteExistingAttachment = (thread: Thread, attachment: MessageAttachment) => {
+    if (!onDeleteMessageAttachment || deletingAttachmentId) return;
+
+    setDeletingAttachmentId(attachment.id);
+    setAttachmentError("");
+    Promise.resolve(onDeleteMessageAttachment(thread, attachment))
+      .catch((error) => {
+        setAttachmentError(error instanceof Error ? error.message : "첨부파일 삭제에 실패했습니다.");
+      })
+      .finally(() => {
+        setDeletingAttachmentId(null);
+      });
+  };
+
   const handleCancelEditThread = () => {
     setEditingThreadId(null);
     setEditingMessageText("");
@@ -494,7 +510,7 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
             }}
           ><AtSign size={14} /></button>
 
-          {onAddMessageAttachments && Number.isFinite(Number(thread.backendMessageId)) && (
+          {onAddMessageAttachments && !thread.deleted && Number.isFinite(Number(thread.backendMessageId)) && (
             <button className="w-7 h-7 rounded flex items-center justify-center"
               style={btnStyle('첨부 추가')}
               onMouseEnter={() => setHoveredBtn(bk('첨부 추가'))}
@@ -810,6 +826,16 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
                           <MessageAttachmentCard
                             key={attachment.id}
                             attachment={attachment}
+                            onDelete={
+                              onDeleteMessageAttachment
+                              && isOwnThread
+                              && !thread.deleted
+                              && Number.isFinite(Number(thread.backendMessageId))
+                              && Number.isFinite(Number(attachment.id))
+                                ? () => handleDeleteExistingAttachment(thread, attachment)
+                                : undefined
+                            }
+                            deleteDisabled={deletingAttachmentId === attachment.id}
                             onClick={(event) => event.stopPropagation()}
                           />
                         ))}
