@@ -9,6 +9,7 @@ export type WorkspaceDto = {
   myRole: string; // "owner" | "admin" | "editor" | "viewer"
   memberCount: number;
   createdAt: string;
+  logoUrl?: string | null;
 };
 
 export function fetchMyWorkspaces(): Promise<WorkspaceDto[]> {
@@ -62,6 +63,7 @@ export function getWorkspace(workspaceId: number): Promise<WorkspaceDto> {
 export type WorkspaceUpdatePayload = {
   name?: string;
   description?: string;
+  logoUrl?: string;
 };
 
 export function updateWorkspace(workspaceId: number, payload: WorkspaceUpdatePayload): Promise<WorkspaceDto> {
