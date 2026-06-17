@@ -142,7 +142,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         githubUsername: me.githubUsername ?? "",
         githubEmail: me.githubEmail ?? "",
         connectedAt: me.githubConnectedAt ? String(me.githubConnectedAt) : "",
-        hasPassword: me.hasPassword,
+        hasPassword: me.hasPassword ?? false,
       }));
     } catch {
     } finally {
