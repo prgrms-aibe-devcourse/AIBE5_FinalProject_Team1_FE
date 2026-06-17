@@ -63,6 +63,7 @@ import { getAccessToken } from "../auth";
 import { useProfile } from "../contexts/ProfileContext";
 import { fetchMyWorkspaces, getWorkspaceMembers, updatePresence, type WorkspaceDto, type WorkspaceMember } from "../api/workspace";
 import { useWorkspace } from "../contexts/WorkspaceContext";
+import { ApiClientError } from "../api/client";
 
 const APISpecPage = lazy(() => import("./APISpecPage").then((module) => ({ default: module.APISpecPage })));
 const ERDPage = lazy(() => import("./ERDPage").then((module) => ({ default: module.ERDPage })));
@@ -486,6 +487,56 @@ function canManageWorkspaceChannel(role?: string | null) {
     || normalizedRole === "admin"
     || normalizedRole === "소유자"
     || normalizedRole === "관리자";
+}
+
+function getChannelActionErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof ApiClientError) {
+    const serverMessage = error.response?.message ?? error.message;
+    const normalizedMessage = serverMessage.toLowerCase();
+
+    if (error.status === 401) {
+      return "로그인이 만료되었습니다. 다시 로그인한 뒤 시도해주세요.";
+    }
+    if (error.status === 403) {
+      return "채널 관리는 워크스페이스 owner/admin만 할 수 있습니다.";
+    }
+    if (error.status === 404) {
+      return "워크스페이스 또는 채널 정보를 찾을 수 없습니다. 새로고침 후 다시 시도해주세요.";
+    }
+    if (error.status === 409 || normalizedMessage.includes("already exists")) {
+      return "이미 같은 이름의 채널이 있습니다.";
+    }
+    if (error.status === 400) {
+      if (normalizedMessage.includes("already exists")) {
+        return "이미 같은 이름의 채널이 있습니다.";
+      }
+      if (normalizedMessage.includes("must not be blank")) {
+        return "채널 이름을 입력해주세요.";
+      }
+      if (normalizedMessage.includes("120")) {
+        return "채널 이름은 120자 이하로 입력해주세요.";
+      }
+      if (normalizedMessage.includes("cannot be modified")) {
+        return "이 채널은 수정할 수 없습니다.";
+      }
+      if (normalizedMessage.includes("cannot be deleted")) {
+        return "이 채널은 삭제할 수 없습니다.";
+      }
+      if (normalizedMessage.includes("with pull requests")) {
+        return "PR이 연결된 채널은 삭제할 수 없습니다.";
+      }
+      if (normalizedMessage.includes("with issues")) {
+        return "이슈가 연결된 채널은 삭제할 수 없습니다.";
+      }
+      return serverMessage || fallback;
+    }
+    if (error.status >= 500 || error.code === "C005") {
+      return "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.";
+    }
+    return serverMessage || fallback;
+  }
+
+  return error instanceof Error && error.message ? error.message : fallback;
 }
 
 function getApiChannelUiId(channel: Channel) {
@@ -1115,6 +1166,7 @@ export function ChatPage() {
   const [channelCreateError, setChannelCreateError] = useState('');
   const [channelActionError, setChannelActionError] = useState('');
   const [channelActionPendingId, setChannelActionPendingId] = useState<string | null>(null);
+  const [deleteChannelTargetId, setDeleteChannelTargetId] = useState<string | null>(null);
   const [channelUnreadCounts, setChannelUnreadCounts] = useState<Record<string, number>>({
     ...scopeChannelRecordByWorkspace(DEFAULT_WORKSPACE_API_ID, {
       general: 3,
@@ -1433,6 +1485,9 @@ export function ChatPage() {
     : "grid h-[calc(100svh-128px)] min-h-0 gap-[clamp(16px,1.8vw,24px)] overflow-hidden";
   const selectedChannelMeta = ALL_SIDEBAR_CHANNELS.find((channel) => channel.id === selectedChannel);
   const selectedCustomChannel = allCustomChannels.find(ch => ch.id === selectedChannel);
+  const deleteChannelTarget = deleteChannelTargetId
+    ? allCustomChannels.find((channel) => channel.id === deleteChannelTargetId) ?? null
+    : null;
   const selectedRepoForChannel = visibleRepositories.find(r => r.id === selectedChannel);
   const selectedChannelTitle = selectedChannel === 'pull-requests'
     ? `${cleanChannelLabel(currentRepo?.name ?? '레포')} - PR`
@@ -1984,7 +2039,7 @@ export function ChatPage() {
               message
             });
           }
-          setChannelActionError('채널 목록을 불러오지 못했어요. 새로고침 후 다시 시도해주세요.');
+          setChannelActionError(getChannelActionErrorMessage(error, '채널 목록을 불러오지 못했어요. 새로고침 후 다시 시도해주세요.'));
         }
       });
 
@@ -2433,6 +2488,10 @@ export function ChatPage() {
       setChannelCreateError('채널 관리는 워크스페이스 owner/admin만 할 수 있습니다.');
       return;
     }
+    if (!Number.isFinite(currentWorkspaceApiId) || currentWorkspaceApiId <= 0) {
+      setChannelCreateError("워크스페이스 정보를 확인할 수 없습니다. 새로고침 후 다시 시도해주세요.");
+      return;
+    }
     isCreatingChannelRef.current = true;
     setIsSubmittingChannel(true);
     setChannelCreateError('');
@@ -2462,8 +2521,8 @@ export function ChatPage() {
       setSelectedChannel(getApiChannelUiId(selectedCreatedChannel));
       setAddChannelStep(null);
       setNewChannelName('');
-    } catch {
-      setChannelCreateError('채널을 만들지 못했어요. 잠시 후 다시 시도해주세요.');
+    } catch (error) {
+      setChannelCreateError(getChannelActionErrorMessage(error, '채널을 만들지 못했어요. 잠시 후 다시 시도해주세요.'));
     } finally {
       setIsSubmittingChannel(false);
       isCreatingChannelRef.current = false;
@@ -2502,6 +2561,29 @@ export function ChatPage() {
       setChannelMenuOpenId(null);
       return;
     }
+    if (!Number.isFinite(currentWorkspaceApiId) || currentWorkspaceApiId <= 0) {
+      setChannelActionError("워크스페이스 정보를 확인할 수 없습니다. 새로고침 후 다시 시도해주세요.");
+      setChannelMenuOpenId(null);
+      return;
+    }
+    setDeleteChannelTargetId(channelId);
+    setChannelMenuOpenId(null);
+  };
+
+  const handleCancelDeleteCustomChannel = () => {
+    if (channelActionInFlightRef.current) return;
+    setDeleteChannelTargetId(null);
+  };
+
+  const handleConfirmDeleteCustomChannel = async () => {
+    if (channelActionInFlightRef.current || !deleteChannelTargetId) return;
+
+    const channelId = deleteChannelTargetId;
+    const channel = allCustomChannels.find((item) => item.id === channelId);
+    if (!channel) {
+      setDeleteChannelTargetId(null);
+      return;
+    }
 
     channelActionInFlightRef.current = true;
     setChannelActionPendingId(channelId);
@@ -2514,14 +2596,16 @@ export function ChatPage() {
 
       await deleteWorkspaceChannel(currentWorkspaceApiId, channel.apiChannelId);
       setApiChannels((prev) => prev.filter((apiChannel) => apiChannel.id !== channel.apiChannelId));
+      setDeleteChannelTargetId(null);
       refreshWorkspaceChannels().catch(() => {
         // The deleted channel has already been removed locally after server success.
       });
 
       if (selectedChannel === channelId) setSelectedChannel('general');
       setChannelMenuOpenId(null);
-    } catch {
-      setChannelActionError('채널을 삭제하지 못했어요. 잠시 후 다시 시도해주세요.');
+    } catch (error) {
+      setDeleteChannelTargetId(null);
+      setChannelActionError(getChannelActionErrorMessage(error, '채널을 삭제하지 못했어요. 잠시 후 다시 시도해주세요.'));
     } finally {
       setChannelActionPendingId(null);
       channelActionInFlightRef.current = false;
@@ -2555,6 +2639,12 @@ export function ChatPage() {
       setEditingCustomChannelLabel('');
       return;
     }
+    if (!Number.isFinite(currentWorkspaceApiId) || currentWorkspaceApiId <= 0) {
+      setChannelActionError("워크스페이스 정보를 확인할 수 없습니다. 새로고침 후 다시 시도해주세요.");
+      setEditingCustomChannelId(null);
+      setEditingCustomChannelLabel('');
+      return;
+    }
 
     channelActionInFlightRef.current = true;
     setChannelActionPendingId(editingCustomChannelId);
@@ -2580,8 +2670,8 @@ export function ChatPage() {
 
       setEditingCustomChannelId(null);
       setEditingCustomChannelLabel('');
-    } catch {
-      setChannelActionError('채널 이름을 수정하지 못했어요. 잠시 후 다시 시도해주세요.');
+    } catch (error) {
+      setChannelActionError(getChannelActionErrorMessage(error, '채널 이름을 수정하지 못했어요. 잠시 후 다시 시도해주세요.'));
     } finally {
       setChannelActionPendingId(null);
       channelActionInFlightRef.current = false;
@@ -3846,7 +3936,7 @@ export function ChatPage() {
               </AnimatePresence>
 
               <div
-                className="grid min-h-[44px] max-h-[164px] gap-1 overflow-y-auto pr-1"
+                className={`grid min-h-[44px] gap-1 pr-1 ${channelMenuOpenId ? 'overflow-visible' : 'max-h-[164px] overflow-y-auto'}`}
                 style={{ scrollbarWidth: 'none' }}
               >
               {renderSidebarChannel({ id: 'general', label: '일반', icon: Hash, badge: getChannelBadge('general') })}
@@ -3877,21 +3967,37 @@ export function ChatPage() {
                         />
                       )}
                       {isEditing ? (
-                        <div className="relative z-10 flex min-w-0 flex-1 items-center gap-3 px-4 py-3">
+                        <div className="relative z-10 flex min-w-0 flex-1 items-center gap-2 px-4 py-2.5">
                           <Hash size={15} style={{ color: 'var(--neon-cyan)', flexShrink: 0 }} />
                           <input
                             value={editingCustomChannelLabel}
                             onChange={e => setEditingCustomChannelLabel(e.target.value)}
-                            onBlur={() => { void handleCommitRenameCustomChannel(); }}
                             onKeyDown={e => {
                               if (e.key === 'Enter') { e.preventDefault(); void handleCommitRenameCustomChannel(); }
                               if (e.key === 'Escape') { e.preventDefault(); setEditingCustomChannelId(null); setEditingCustomChannelLabel(''); }
                             }}
                             disabled={isChannelActionPending}
                             autoFocus
-                            className="min-w-0 flex-1 rounded-md border-0 bg-transparent px-0 py-0 outline-none tracking-tight"
+                            className="min-w-0 flex-1 rounded-md border-0 bg-transparent px-0 py-1 outline-none tracking-tight"
                             style={{ color: 'var(--white)', fontSize: '13px', fontWeight: 900 }}
                           />
+                          <button
+                            type="button"
+                            onClick={() => { void handleCommitRenameCustomChannel(); }}
+                            disabled={isChannelActionPending || !editingCustomChannelLabel.trim()}
+                            className="flex flex-shrink-0 items-center gap-1 rounded-full border-0 px-2.5 py-1.5 tracking-tight"
+                            style={{
+                              background: 'linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))',
+                              color: '#021014',
+                              cursor: isChannelActionPending || !editingCustomChannelLabel.trim() ? 'not-allowed' : 'pointer',
+                              fontSize: '11px',
+                              fontWeight: 950,
+                              opacity: isChannelActionPending || !editingCustomChannelLabel.trim() ? 0.55 : 1
+                            }}
+                          >
+                            <Check size={12} />
+                            완료
+                          </button>
                         </div>
                       ) : (
                         <button
@@ -4542,6 +4648,131 @@ export function ChatPage() {
         isOpen={teamInviteOpen}
         onClose={() => setTeamInviteOpen(false)}
       />
+
+      {createPortal(
+        <AnimatePresence>
+          {deleteChannelTarget && (
+            <motion.div
+              className="fixed inset-0 z-[9998] grid place-items-center px-4"
+              style={{
+                background: 'rgba(1, 6, 12, 0.68)',
+                backdropFilter: 'blur(10px) saturate(150%)'
+              }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onMouseDown={(event) => {
+                if (event.target === event.currentTarget) {
+                  handleCancelDeleteCustomChannel();
+                }
+              }}
+            >
+              <motion.div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="delete-channel-dialog-title"
+                className="w-full max-w-[420px] overflow-hidden rounded-2xl"
+                style={{
+                  background: 'linear-gradient(145deg, rgba(8, 18, 32, 0.98), rgba(4, 10, 18, 0.98))',
+                  border: '1px solid rgba(var(--codedock-primary-rgb), 0.28)',
+                  boxShadow: '0 28px 90px rgba(0, 0, 0, 0.58), 0 0 42px rgba(var(--codedock-primary-rgb), 0.14)',
+                  backdropFilter: 'blur(20px) saturate(180%)'
+                }}
+                initial={{ opacity: 0, y: 14, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.96 }}
+                transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+              >
+                <div className="grid gap-4 px-5 py-5">
+                  <div className="flex items-start gap-3">
+                    <div
+                      className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-xl"
+                      style={{
+                        background: 'rgba(255, 107, 107, 0.12)',
+                        border: '1px solid rgba(255, 107, 107, 0.24)',
+                        color: '#FF6B6B'
+                      }}
+                    >
+                      <Trash2 size={18} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h2
+                        id="delete-channel-dialog-title"
+                        className="m-0 tracking-tight"
+                        style={{ color: 'var(--white)', fontSize: '16px', fontWeight: 950 }}
+                      >
+                        채널 삭제
+                      </h2>
+                      <p
+                        className="m-0 mt-1 leading-relaxed tracking-tight"
+                        style={{ color: 'var(--muted)', fontSize: '13px', fontWeight: 800 }}
+                      >
+                        <span style={{ color: 'var(--neon-cyan)', fontWeight: 950 }}>
+                          {deleteChannelTarget.label}
+                        </span>
+                        {' '}채널을 삭제할까요? 채널에 연결된 채팅 기록과 관련 데이터도 함께 정리됩니다.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleCancelDeleteCustomChannel}
+                      disabled={channelActionPendingId === deleteChannelTarget.id}
+                      className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg border-0"
+                      style={{
+                        background: 'rgba(234, 247, 255, 0.06)',
+                        color: 'var(--muted)',
+                        cursor: channelActionPendingId === deleteChannelTarget.id ? 'not-allowed' : 'pointer',
+                        opacity: channelActionPendingId === deleteChannelTarget.id ? 0.55 : 1
+                      }}
+                      aria-label="삭제 취소"
+                    >
+                      <X size={15} />
+                    </button>
+                  </div>
+
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={handleCancelDeleteCustomChannel}
+                      disabled={channelActionPendingId === deleteChannelTarget.id}
+                      className="rounded-full border-0 px-4 py-2 tracking-tight"
+                      style={{
+                        background: 'rgba(234, 247, 255, 0.07)',
+                        border: '1px solid rgba(var(--codedock-primary-rgb), 0.14)',
+                        color: 'var(--muted)',
+                        cursor: channelActionPendingId === deleteChannelTarget.id ? 'not-allowed' : 'pointer',
+                        fontSize: '12px',
+                        fontWeight: 900,
+                        opacity: channelActionPendingId === deleteChannelTarget.id ? 0.55 : 1
+                      }}
+                    >
+                      취소
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { void handleConfirmDeleteCustomChannel(); }}
+                      disabled={channelActionPendingId === deleteChannelTarget.id}
+                      className="rounded-full border-0 px-4 py-2 tracking-tight"
+                      style={{
+                        background: 'linear-gradient(135deg, #FF6B6B, #D94848)',
+                        color: '#fff',
+                        cursor: channelActionPendingId === deleteChannelTarget.id ? 'not-allowed' : 'pointer',
+                        fontSize: '12px',
+                        fontWeight: 950,
+                        opacity: channelActionPendingId === deleteChannelTarget.id ? 0.72 : 1,
+                        boxShadow: '0 10px 24px rgba(255, 107, 107, 0.20)'
+                      }}
+                    >
+                      {channelActionPendingId === deleteChannelTarget.id ? '삭제 중' : '삭제'}
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
 
       {/* Team member list — compact anchored popup near "X명 접속 중" */}
       {createPortal(
