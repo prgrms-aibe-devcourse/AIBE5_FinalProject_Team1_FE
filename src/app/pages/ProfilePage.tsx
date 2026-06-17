@@ -170,14 +170,7 @@ export function ProfilePage() {
   };
 
   const handleGithubConnect = async () => {
-    let popup: Window | null = null;
-    try {
-      const { authorizeUrl } = await apiClient.post<{ authorizeUrl: string }>("/api/v1/users/me/github/connect/start");
-      popup = window.open(authorizeUrl, "gh-connect", "width=600,height=720");
-    } catch {
-      alert("GitHub 연결을 시작하지 못했습니다.");
-      return;
-    }
+    const popup = window.open("", "gh-connect", "width=600,height=720");
     if (!popup) {
       alert("팝업을 허용해주세요.");
       return;
@@ -186,7 +179,7 @@ export function ProfilePage() {
       if (event.origin !== window.location.origin) return;
       const data = event.data;
       if (!data || data.type !== "github-connect") return;
-      window.removeEventListener("message", handler);
+      finish();
       if (data.status === "success") {
         void reloadProfile();
       } else if (data.status === "conflict") {
@@ -195,7 +188,22 @@ export function ProfilePage() {
         alert("GitHub 연결에 실패했습니다.");
       }
     };
+    const timer = window.setInterval(() => {
+      if (popup.closed) finish();
+    }, 500);
+    function finish() {
+      window.removeEventListener("message", handler);
+      window.clearInterval(timer);
+    }
     window.addEventListener("message", handler);
+    try {
+      const { authorizeUrl } = await apiClient.post<{ authorizeUrl: string }>("/api/v1/users/me/github/connect/start");
+      popup.location.href = authorizeUrl;
+    } catch {
+      finish();
+      popup.close();
+      alert("GitHub 연결을 시작하지 못했습니다.");
+    }
   };
 
   const handleGithubDisconnect = async () => {
