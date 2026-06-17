@@ -28,6 +28,7 @@ const WorkspaceSettingsPage = lazy(() => import("./pages/WorkspaceSettingsPage")
 const LegalPage = lazy(() => import("./pages/LegalPage").then((module) => ({ default: module.LegalPage })));
 const OAuthCallbackPage = lazy(() => import("./pages/OAuthCallbackPage").then((module) => ({ default: module.OAuthCallbackPage })));
 const OAuthPopupCallbackPage = lazy(() => import("./pages/OAuthPopupCallbackPage").then((module) => ({ default: module.OAuthPopupCallbackPage })));
+const OAuthConnectCallbackPage = lazy(() => import("./pages/OAuthConnectCallbackPage").then((module) => ({ default: module.OAuthConnectCallbackPage })));
 const InviteAcceptPage = lazy(() => import("./pages/InviteAcceptPage").then((module) => ({ default: module.InviteAcceptPage })));
 
 function HomeRoute() {
@@ -60,6 +61,7 @@ export default function App() {
                 <Route path="/" element={<HomeRoute />} />
                 <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
                 <Route path="/oauth/popup-callback" element={<OAuthPopupCallbackPage />} />
+                <Route path="/oauth/connect-callback" element={<OAuthConnectCallbackPage />} />
                 <Route path="/invite/:token" element={<InviteAcceptPage />} />
                 <Route path="/terms" element={<LegalPage kind="terms" />} />
                 <Route path="/privacy" element={<LegalPage kind="privacy" />} />

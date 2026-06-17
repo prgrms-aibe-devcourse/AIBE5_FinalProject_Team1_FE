@@ -29,6 +29,7 @@ export interface ProfileUser {
   githubUsername: string;
   githubEmail: string;
   connectedAt: string;
+  hasPassword: boolean;
 }
 
 export const STATUS_OPTIONS: { id: ProfileStatus; label: string; color: string }[] = [
@@ -52,6 +53,7 @@ export const DEFAULT_PROFILE: ProfileUser = {
   githubUsername: "",
   githubEmail: "",
   connectedAt: "",
+  hasPassword: false,
 };
 
 const PROFILE_STORAGE_KEY = "codedock-profile-v1";
@@ -99,6 +101,7 @@ type MeResponse = {
   githubUsername: string | null;
   githubEmail: string | null;
   githubConnectedAt: string | null;
+  hasPassword: boolean;
 };
 
 interface ProfileContextValue {
@@ -139,6 +142,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         githubUsername: me.githubUsername ?? "",
         githubEmail: me.githubEmail ?? "",
         connectedAt: me.githubConnectedAt ? String(me.githubConnectedAt) : "",
+        hasPassword: me.hasPassword,
       }));
     } catch {
     } finally {
