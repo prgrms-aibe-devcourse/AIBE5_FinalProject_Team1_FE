@@ -1,20 +1,49 @@
-const emojiGroups = [
+// BE ALLOWED_REACTION_KEYS와 1:1 대응하는 키→이모지 맵
+export const REACTION_KEY_TO_EMOJI: Record<string, string> = {
+  like:      "👍",
+  dislike:   "👎",
+  heart:     "❤️",
+  laugh:     "😂",
+  smile:     "😄",
+  surprised: "😮",
+  sad:       "😢",
+  cry:       "😭",
+  angry:     "😡",
+  thinking:  "🤔",
+  clap:      "👏",
+  pray:      "🙏",
+  eyes:      "👀",
+  fire:      "🔥",
+  rocket:    "🚀",
+  party:     "🎉",
+  check:     "✅",
+  cross:     "❌",
+  star:      "⭐",
+  bulb:      "💡",
+  bug:       "🐛",
+  fix:       "🔧",
+  memo:      "📝",
+  coffee:    "☕",
+};
+
+// EmojiPicker는 reaction key를 전송 → BE가 그대로 저장/반환
+const emojiGroups: { label: string; keys: string[] }[] = [
   {
     label: "반응",
-    emojis: ["👍", "👏", "🙌", "🔥", "✨", "🎉", "✅", "💯"]
+    keys: ["like", "clap", "pray", "fire", "check", "party", "star", "heart"]
   },
   {
     label: "대화",
-    emojis: ["😀", "🙂", "😊", "😂", "🤔", "😎", "🙏", "👀"]
+    keys: ["smile", "laugh", "thinking", "surprised", "sad", "cry", "angry", "eyes"]
   },
   {
     label: "작업",
-    emojis: ["🚀", "🛠️", "🔍", "📌", "📝", "⚠️", "🐛", "💡"]
+    keys: ["rocket", "fix", "bulb", "memo", "bug", "coffee", "dislike", "cross"]
   }
 ];
 
 interface EmojiPickerProps {
-  onSelect: (emoji: string) => void;
+  onSelect: (reactionKey: string) => void;
 }
 
 export function EmojiPicker({ onSelect }: EmojiPickerProps) {
@@ -41,24 +70,27 @@ export function EmojiPicker({ onSelect }: EmojiPickerProps) {
               {group.label}
             </p>
             <div className="grid grid-cols-8 gap-1.5">
-              {group.emojis.map((emoji) => (
-                <button
-                  key={`${group.label}-${emoji}`}
-                  type="button"
-                  onClick={() => onSelect(emoji)}
-                  className="flex h-9 w-9 items-center justify-center rounded-lg border-0 transition-all"
-                  style={{
-                    background: "rgba(var(--codedock-primary-rgb), 0.08)",
-                    border: "1px solid rgba(var(--codedock-primary-rgb), 0.12)",
-                    cursor: "pointer",
-                    fontSize: "18px"
-                  }}
-                  aria-label={`${emoji} 이모티콘 입력`}
-                  title={`${emoji} 입력`}
-                >
-                  {emoji}
-                </button>
-              ))}
+              {group.keys.map((key) => {
+                const emoji = REACTION_KEY_TO_EMOJI[key] ?? key;
+                return (
+                  <button
+                    key={`${group.label}-${key}`}
+                    type="button"
+                    onClick={() => onSelect(key)}
+                    className="flex h-9 w-9 items-center justify-center rounded-lg border-0 transition-all"
+                    style={{
+                      background: "rgba(var(--codedock-primary-rgb), 0.08)",
+                      border: "1px solid rgba(var(--codedock-primary-rgb), 0.12)",
+                      cursor: "pointer",
+                      fontSize: "18px"
+                    }}
+                    aria-label={`${emoji} 이모티콘 입력`}
+                    title={`${key} 입력`}
+                  >
+                    {emoji}
+                  </button>
+                );
+              })}
             </div>
           </div>
         ))}

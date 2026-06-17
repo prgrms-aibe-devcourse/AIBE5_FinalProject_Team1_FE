@@ -2,7 +2,7 @@ import { Hash, MessageSquare, Send, Bookmark, Reply, AtSign, X, Paperclip, Smile
 import { motion } from "motion/react";
 import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import { MAX_MESSAGE_ATTACHMENTS, createLinkMessageAttachmentFromText, createUrlMessageAttachment, getMessageAttachmentTypeLabel, isSendableMessageAttachment, messageAttachmentGroups, type MessageAttachment, type MessageAttachmentType } from "./messageAttachments";
-import { EmojiPicker } from "./EmojiPicker";
+import { EmojiPicker, REACTION_KEY_TO_EMOJI } from "./EmojiPicker";
 import { MessageReactions, toggleMessageReaction, type MessageReaction } from "./MessageReactions";
 import { MessageAttachmentCard } from "./MessageAttachmentCard";
 import { TypingIndicatorBar } from "./TypingIndicatorBar";
@@ -388,7 +388,8 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
     setActivePanel(null);
   };
 
-  const handleEmojiSelect = (emoji: string) => {
+  const handleEmojiSelect = (key: string) => {
+    const emoji = REACTION_KEY_TO_EMOJI[key] ?? key;
     setMessageText((prev) => `${prev}${emoji}`);
     setActivePanel(null);
   };

@@ -2,7 +2,7 @@ import { Send, Sparkles, Code, AtSign, Smile, GitPullRequest, FileText, Plus, Mi
 import { motion } from "motion/react";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { MAX_MESSAGE_ATTACHMENTS, createLinkMessageAttachmentFromText, createUrlMessageAttachment, getMessageAttachmentTypeLabel, isSendableMessageAttachment, messageAttachmentGroups, type MessageAttachment, type MessageAttachmentType } from "./messageAttachments";
-import { EmojiPicker } from "./EmojiPicker";
+import { EmojiPicker, REACTION_KEY_TO_EMOJI } from "./EmojiPicker";
 import { MessageReactions, toggleMessageReaction, type MessageReaction } from "./MessageReactions";
 import { MessageAttachmentCard } from "./MessageAttachmentCard";
 import { TypingIndicatorBar } from "./TypingIndicatorBar";
@@ -435,7 +435,8 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
     setActivePanel(null);
   };
 
-  const handleEmojiSelect = (emoji: string) => {
+  const handleEmojiSelect = (key: string) => {
+    const emoji = REACTION_KEY_TO_EMOJI[key] ?? key;
     setMessage((prev) => `${prev}${emoji}`);
     setActivePanel(null);
   };

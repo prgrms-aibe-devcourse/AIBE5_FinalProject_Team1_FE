@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { SmilePlus } from "lucide-react";
-import { EmojiPicker } from "./EmojiPicker";
+import { EmojiPicker, REACTION_KEY_TO_EMOJI } from "./EmojiPicker";
 
 export interface MessageReaction {
   emoji: string;
@@ -116,10 +116,10 @@ export function MessageReactions({ reactions = [], onToggle }: MessageReactionsP
             fontSize: "var(--krds-body-xsmall)",
             fontWeight: 900
           }}
-          aria-label={`${reaction.emoji} 반응 ${reaction.count}개`}
+          aria-label={`${REACTION_KEY_TO_EMOJI[reaction.emoji] ?? reaction.emoji} 반응 ${reaction.count}개`}
           title={`${reaction.emoji} 반응`}
         >
-          <span aria-hidden="true">{reaction.emoji}</span>
+          <span aria-hidden="true">{REACTION_KEY_TO_EMOJI[reaction.emoji] ?? reaction.emoji}</span>
           <span className="ml-1">{reaction.count}</span>
         </button>
       ))}
