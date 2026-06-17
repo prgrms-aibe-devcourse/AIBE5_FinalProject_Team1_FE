@@ -50,7 +50,7 @@ export function ProfilePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialSection = getProfileSection(searchParams.get("section"));
   const [activeSection, setActiveSection] = useState<ProfileSection>(initialSection);
-  const { profile: user, setProfile: setUser } = useProfile();
+  const { profile: user, setProfile: setUser, reloadProfile } = useProfile();
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({
@@ -169,9 +169,44 @@ export function ProfilePage() {
     }));
   };
 
-  const handleGithubConnect = () => {};
+  const handleGithubConnect = async () => {
+    let popup: Window | null = null;
+    try {
+      const { authorizeUrl } = await apiClient.post<{ authorizeUrl: string }>("/api/v1/users/me/github/connect/start");
+      popup = window.open(authorizeUrl, "gh-connect", "width=600,height=720");
+    } catch {
+      alert("GitHub 연결을 시작하지 못했습니다.");
+      return;
+    }
+    if (!popup) {
+      alert("팝업을 허용해주세요.");
+      return;
+    }
+    const handler = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      const data = event.data;
+      if (!data || data.type !== "github-connect") return;
+      window.removeEventListener("message", handler);
+      if (data.status === "success") {
+        void reloadProfile();
+      } else if (data.status === "conflict") {
+        alert("이미 다른 계정에 연결된 GitHub입니다.");
+      } else {
+        alert("GitHub 연결에 실패했습니다.");
+      }
+    };
+    window.addEventListener("message", handler);
+  };
 
-  const handleGithubDisconnect = () => {};
+  const handleGithubDisconnect = async () => {
+    if (!window.confirm("GitHub 연동을 해제하시겠습니까?")) return;
+    try {
+      await apiClient.delete("/api/v1/users/me/github");
+      await reloadProfile();
+    } catch {
+      alert("GitHub 연동 해제에 실패했습니다.");
+    }
+  };
 
   return (
     <div className="mx-auto w-[min(1120px,calc(100vw-36px))] py-12 pb-20">
@@ -758,7 +793,7 @@ function GithubSection({ user, colors, onConnect, onDisconnect }: { user: Profil
             </div>
           </div>
 
-          <button type="button" onClick={onDisconnect} className="rounded-2xl border-0 px-5 py-3 text-sm font-black" style={{ background: "rgba(255,107,107,0.10)", color: "#FF6B6B", border: "1px solid rgba(255,107,107,0.28)", cursor: "pointer" }}>
+          <button type="button" onClick={onDisconnect} disabled={!user.hasPassword} title={!user.hasPassword ? "GitHub로 가입한 계정은 GitHub 연동을 해제할 수 없습니다." : undefined} className="rounded-2xl border-0 px-5 py-3 text-sm font-black" style={{ background: "rgba(255,107,107,0.10)", color: "#FF6B6B", border: "1px solid rgba(255,107,107,0.28)", cursor: user.hasPassword ? "pointer" : "not-allowed", opacity: user.hasPassword ? 1 : 0.5 }}>
             GitHub 연동 해제
           </button>
         </div>
@@ -772,7 +807,7 @@ function GithubSection({ user, colors, onConnect, onDisconnect }: { user: Profil
               연결하면 리포지토리 가져오기, PR 리뷰, 이슈 동기화 흐름을 바로 사용할 수 있습니다.
             </p>
           </div>
-          <button type="button" onClick={onConnect} className="flex items-center justify-center gap-2 rounded-2xl border-0 px-5 py-4 text-base font-black" style={{ background: `linear-gradient(135deg, ${colors.primaryHex}, ${colors.secondary})`, color: "#021014", cursor: "pointer" }}>
+          <button type="button" onClick={onConnect} disabled={!user.hasPassword} title={!user.hasPassword ? "GitHub로 가입한 계정은 GitHub 연동을 변경할 수 없습니다." : undefined} className="flex items-center justify-center gap-2 rounded-2xl border-0 px-5 py-4 text-base font-black" style={{ background: `linear-gradient(135deg, ${colors.primaryHex}, ${colors.secondary})`, color: "#021014", cursor: user.hasPassword ? "pointer" : "not-allowed", opacity: user.hasPassword ? 1 : 0.5 }}>
             <Github size={20} />
             GitHub 계정 연결하기
           </button>
