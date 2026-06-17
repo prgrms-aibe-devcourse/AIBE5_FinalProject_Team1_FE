@@ -1,6 +1,6 @@
 import { Check, Pencil, Trash2, X, Send, Smile, FileCode } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { EmojiPicker } from "./EmojiPicker";
+import { EmojiPicker, REACTION_KEY_TO_EMOJI } from "./EmojiPicker";
 import { MessageReactions, toggleMessageReaction, type MessageReaction } from "./MessageReactions";
 import { TypingIndicatorBar } from "./TypingIndicatorBar";
 import { MessageAttachmentCard } from "./MessageAttachmentCard";
@@ -125,7 +125,8 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
       ? "내가 답글 입력 중입니다"
       : "";
 
-  const handleEmojiSelect = (emoji: string) => {
+  const handleEmojiSelect = (key: string) => {
+    const emoji = REACTION_KEY_TO_EMOJI[key] ?? key;
     setReplyText((prev) => `${prev}${emoji}`);
     setEmojiPickerOpen(false);
   };
