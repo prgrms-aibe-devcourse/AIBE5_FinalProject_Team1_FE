@@ -5,8 +5,9 @@ import { WorkspaceSettingsModal } from "../components/WorkspaceSettingsModal";
 import { DndProvider, useDrag, useDrop, useDragLayer } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { fetchMyGithubRepos, fetchRepoCollaborators, type GithubCollaborator, type GithubRepo } from "../api/github";
-import { fetchMyWorkspaces, createWorkspace, deleteWorkspace, listReceivedInvites, acceptInvite, rejectInvite, type WorkspaceDto, type ReceivedInviteDto } from "../api/workspace";
+import { fetchMyWorkspaces, createWorkspace, deleteWorkspace, listReceivedInvites, acceptInvite, rejectInvite, createInvite, type WorkspaceDto, type ReceivedInviteDto } from "../api/workspace";
 import { useWorkspace } from "../contexts/WorkspaceContext";
+import { ApiClientError } from "../api/client";
 
 const DRAG_TYPE = "TEAM_CARD";
 const WORKSPACE_COLORS_KEY = "codedock-workspace-colors-v1";
@@ -1093,15 +1094,11 @@ export function WorkspacePage() {
     setSettingsOrg(null);
   };
 
-  const handleCreateTeam = async (name: string, selectedRepos: GithubRepo[], _invitedMembers: TeamInviteDraft[]) => {
+  const handleCreateTeam = async (name: string, selectedRepos: GithubRepo[], invitedMembers: TeamInviteDraft[]) => {
     const base = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
     const slug = (base || "team") + "-" + Date.now().toString(36);
-    await createWorkspace({ name: name.trim(), slug });
-    // 생성 후 서버에서 최신 목록을 다시 로드
-    const list = await fetchMyWorkspaces();
-    // 방금 만든 워크스페이스를 slug으로 찾아 확실한 ID를 사용
-    const newWorkspace = list.find((w) => w.slug === slug);
-    if (newWorkspace && selectedRepos.length > 0) {
+    const newWorkspace = await createWorkspace({ name: name.trim(), slug });
+    if (selectedRepos.length > 0) {
       const CHAT_REPOS_KEY = "codedock-workspace-repos-v1";
       const REPO_URLS_KEY = "codedock-repo-urls-v1";
       const wsId = String(newWorkspace.id);
@@ -1118,6 +1115,16 @@ export function WorkspacePage() {
       }
       localStorage.setItem(REPO_URLS_KEY, JSON.stringify(urls));
     }
+    if (invitedMembers.length > 0) {
+      const results = await Promise.allSettled(
+          invitedMembers.map((m) => createInvite(newWorkspace.id, { email: m.email, role: "viewer", expiresInHours: 168 }))
+      );
+      const failed = results.filter(
+          (r) => r.status === "rejected" && !(r.reason instanceof ApiClientError && r.reason.code === "C001")
+      ).length;
+      if (failed > 0) alert(`${failed}건의 초대 생성에 실패했습니다.`);
+    }
+    const list = await fetchMyWorkspaces();
     setOrgs(list.map(workspaceDtoToOrg));
   };
 
