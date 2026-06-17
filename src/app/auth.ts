@@ -1,5 +1,6 @@
 const ACCESS_TOKEN_KEY  = "codedock-access-token";
 const REFRESH_TOKEN_KEY = "codedock-refresh-token";
+export const PROFILE_STORAGE_KEY = "codedock-profile-v1";
 
 function getApiBaseUrl() {
   return import.meta.env.VITE_API_BASE_URL ?? "";
@@ -27,6 +28,7 @@ export function setTokens(accessToken: string, refreshToken: string) {
 export function clearTokens() {
   localStorage.removeItem(ACCESS_TOKEN_KEY);
   localStorage.removeItem(REFRESH_TOKEN_KEY);
+  localStorage.removeItem(PROFILE_STORAGE_KEY);
 }
 
 export function isAuthenticated(): boolean {

@@ -10,7 +10,7 @@ import {
 } from "react";
 
 import { apiClient } from "../api/client";
-import { isAuthenticated } from "../auth";
+import { isAuthenticated, PROFILE_STORAGE_KEY } from "../auth";
 
 export type ProfileStatus = "available" | "focus" | "away";
 
@@ -55,8 +55,6 @@ export const DEFAULT_PROFILE: ProfileUser = {
   connectedAt: "",
   hasPassword: false,
 };
-
-const PROFILE_STORAGE_KEY = "codedock-profile-v1";
 
 function getSavedProfile(fallback: ProfileUser): ProfileUser {
   if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
@@ -110,6 +108,7 @@ interface ProfileContextValue {
   loading: boolean;
   userId: number | null;
   reloadProfile: () => Promise<void>;
+  clearProfile: () => void;
 }
 
 const ProfileContext = createContext<ProfileContextValue | null>(null);
@@ -155,11 +154,18 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   }, [reloadProfile]);
 
   useEffect(() => {
-    saveProfile(profile);
+    if (isAuthenticated()) {
+      saveProfile(profile);
+    }
   }, [profile]);
 
+  const clearProfile = useCallback(() => {
+    setProfile(DEFAULT_PROFILE);
+    setUserId(null);
+  }, []);
+
   return (
-      <ProfileContext.Provider value={{ profile, setProfile, loading, userId, reloadProfile }}>
+      <ProfileContext.Provider value={{ profile, setProfile, loading, userId, reloadProfile, clearProfile }}>
         {children}
       </ProfileContext.Provider>
   );
