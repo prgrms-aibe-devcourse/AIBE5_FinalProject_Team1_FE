@@ -2427,11 +2427,6 @@ export function ChatPage() {
             );
           if (!notification) return;
 
-          if (notification.channelId) {
-            const uiChannelId = apiChannelUiById[notification.channelId] ?? String(notification.channelId);
-            incrementUnreadCount(uiChannelId);
-          }
-
           if (notification.workspaceId === undefined || notification.workspaceId === currentWorkspaceApiId) {
             getWorkspaceMentions(currentWorkspaceApiId)
               .then(setWorkspaceMentions)
