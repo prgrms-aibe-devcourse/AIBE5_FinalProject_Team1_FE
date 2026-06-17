@@ -1,5 +1,5 @@
 import { type ReactNode, lazy, Suspense } from "react";
-import { BrowserRouter, Navigate, Routes, Route } from "react-router";
+import { BrowserRouter, Navigate, Outlet, Routes, Route, useLocation } from "react-router";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import { ProfileProvider } from "./contexts/ProfileContext";
@@ -33,6 +33,15 @@ const InviteAcceptPage = lazy(() => import("./pages/InviteAcceptPage").then((mod
 
 function HomeRoute() {
   return isAuthenticated() ? <Navigate to="/workspace" replace /> : <HomePage />;
+}
+
+function RequireAuth() {
+  const location = useLocation();
+  if (isAuthenticated()) {
+    return <Outlet />;
+  }
+  const next = encodeURIComponent(`${location.pathname}${location.search}`);
+  return <Navigate to={`/login?next=${next}`} replace />;
 }
 
 function RouteFallback() {
@@ -72,17 +81,19 @@ export default function App() {
                 <Route path="/account-recovery" element={<AccountRecoveryPage />} />
                 <Route path="/forgot-password" element={<AccountRecoveryPage />} />
               </Route>
-              <Route element={<Layout />}>
-                <Route path="/profile" element={<ProfilePage />} />
-                <Route path="/settings" element={<SettingsPage />} />
-                <Route path="/workspace-settings" element={<WorkspaceSettingsPage />} />
-                <Route path="/workspace" element={<WorkspacePage />} />
-                <Route path="/project" element={<ProjectPage />} />
-                <Route path="/issues" element={<IssueBoardPage />} />
-                <Route path="/chat" element={<ChatPage />} />
-                <Route path="/api-spec" element={<PageBoundary><APISpecPage /></PageBoundary>} />
-                <Route path="/erd" element={<PageBoundary><ERDPage /></PageBoundary>} />
-                <Route path="/docs" element={<PageBoundary><DocsPage /></PageBoundary>} />
+              <Route element={<RequireAuth />}>
+                <Route element={<Layout />}>
+                  <Route path="/profile" element={<ProfilePage />} />
+                  <Route path="/settings" element={<SettingsPage />} />
+                  <Route path="/workspace-settings" element={<WorkspaceSettingsPage />} />
+                  <Route path="/workspace" element={<WorkspacePage />} />
+                  <Route path="/project" element={<ProjectPage />} />
+                  <Route path="/issues" element={<IssueBoardPage />} />
+                  <Route path="/chat" element={<ChatPage />} />
+                  <Route path="/api-spec" element={<PageBoundary><APISpecPage /></PageBoundary>} />
+                  <Route path="/erd" element={<PageBoundary><ERDPage /></PageBoundary>} />
+                  <Route path="/docs" element={<PageBoundary><DocsPage /></PageBoundary>} />
+                </Route>
               </Route>
             </Routes>
           </Suspense>
