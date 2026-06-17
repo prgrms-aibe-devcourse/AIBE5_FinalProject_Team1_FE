@@ -1,4 +1,5 @@
 import { Hash, MessageSquare, Send, Bookmark, Reply, AtSign, X, Paperclip, Smile, UserPlus, FileUp, Code, Pencil, Trash2, Image as ImageIcon, Link2 } from "lucide-react";
+import { motion } from "motion/react";
 import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import { MAX_MESSAGE_ATTACHMENTS, createLinkMessageAttachmentFromText, createUrlMessageAttachment, getMessageAttachmentTypeLabel, isSendableMessageAttachment, messageAttachmentGroups, type MessageAttachment, type MessageAttachmentType } from "./messageAttachments";
 import { EmojiPicker } from "./EmojiPicker";
@@ -35,6 +36,7 @@ interface ChannelPanelProps {
   replyCounts?: Record<number | string, number>;
   onOpenThread?: (message: any) => void;
   selectedThreadId?: number | string;
+  focusedThreadId?: number | string;
   onOpenInvite?: () => void;
   onSendThread?: (
     message: string,
@@ -56,6 +58,59 @@ interface ChannelPanelProps {
 }
 
 const CHANNEL_THREADS_KEY_PREFIX = "codedock-channel-threads-v1";
+
+function renderMessageTextWithCodeBlocks(text: string, color: string) {
+  const blocks: Array<{ type: "text" | "code"; content: string }> = [];
+  const codeFencePattern = /```(?:[a-zA-Z0-9_-]+)?\n?([\s\S]*?)```/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = codeFencePattern.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      blocks.push({ type: "text", content: text.slice(lastIndex, match.index) });
+    }
+    blocks.push({ type: "code", content: match[1].trimEnd() });
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    blocks.push({ type: "text", content: text.slice(lastIndex) });
+  }
+
+  if (blocks.length === 0) blocks.push({ type: "text", content: text });
+
+  return blocks.map((block, index) => block.type === "code" ? (
+    <pre
+      key={`code-${index}`}
+      className="m-0 mb-3 overflow-x-auto rounded-xl px-3 py-2 tracking-tight"
+      style={{
+        background: "rgba(5, 11, 20, 0.86)",
+        border: "1px solid rgba(var(--codedock-primary-rgb), 0.18)",
+        color: "var(--soft-mint)",
+        fontSize: "13px",
+        fontWeight: 750,
+        lineHeight: 1.55,
+        whiteSpace: "pre-wrap"
+      }}
+    >
+      <code>{block.content}</code>
+    </pre>
+  ) : (
+    <p
+      key={`text-${index}`}
+      className="m-0 mb-3 tracking-tight"
+      style={{
+        fontSize: "14px",
+        fontWeight: 700,
+        color,
+        lineHeight: "1.5",
+        whiteSpace: "pre-wrap"
+      }}
+    >
+      {block.content}
+    </p>
+  ));
+}
 
 const GENERAL_THREADS: Thread[] = [
   { id: 1, user: '김재준', avatar: '👨‍💼', message: '이번 주 스프린트 계획 공유드립니다', time: '10:23 AM', replies: 3, lastReply: '안현' },
@@ -143,7 +198,7 @@ function getThreadBody(thread: Thread) {
   return thread.message ?? (thread as any).text ?? "";
 }
 
-export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, threads, reactions, replyCounts = {}, onOpenThread, selectedThreadId, onOpenInvite, onSendThread, onTypingChange, remoteTypingLabel, onToggleReaction, bookmarkedThreadIds, onToggleBookmark, onEditThread, onDeleteThread, onAddMessageAttachments, onDeleteMessageAttachment, myMemberId, myDisplayName }: ChannelPanelProps) {
+export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, threads, reactions, replyCounts = {}, onOpenThread, selectedThreadId, focusedThreadId, onOpenInvite, onSendThread, onTypingChange, remoteTypingLabel, onToggleReaction, bookmarkedThreadIds, onToggleBookmark, onEditThread, onDeleteThread, onAddMessageAttachments, onDeleteMessageAttachment, myMemberId, myDisplayName }: ChannelPanelProps) {
   const channelStorageId = storageScopeId ?? channelId ?? repoId ?? "general";
   const reactionChannelId = channelId ?? repoId ?? "general";
   const channelStorageKey = `${CHANNEL_THREADS_KEY_PREFIX}:${channelStorageId}`;
@@ -182,6 +237,7 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
   const [editingThreadId, setEditingThreadId] = useState<number | null>(null);
   const [editingMessageText, setEditingMessageText] = useState("");
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const threadElementRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const skipThreadSaveRef = useRef(false);
   const skipBookmarkSaveRef = useRef(false);
   const responderTypingTimerRef = useRef<number | null>(null);
@@ -192,6 +248,15 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
       ? Number(thread.senderMemberId) === Number(myMemberId)
       : isSelfUser(thread.user)
   );
+
+  useEffect(() => {
+    if (focusedThreadId == null) return;
+
+    const target = threadElementRefs.current[String(focusedThreadId)];
+    if (!target) return;
+
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [focusedThreadId, displayedThreads]);
 
   useEffect(() => {
     return () => {
@@ -443,9 +508,6 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
     const canManageThread = isThreadMine(thread) && !thread.deleted;
     const bk = (label: string) => `${thread.id}:${label}`;
     const isHvr = (label: string) => hoveredBtn === bk(label);
-    const currentLabel = hoveredBtn?.startsWith(`${thread.id}:`)
-      ? hoveredBtn.replace(`${thread.id}:`, '')
-      : null;
 
     const btnStyle = (label: string, active = false): React.CSSProperties => ({
       background: isHvr(label) ? 'rgba(32, 227, 255, 0.15)' : 'transparent',
@@ -537,16 +599,6 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
             </>
           )}
         </div>
-
-        {currentLabel && (
-          <span className="rounded px-2 py-0.5 tracking-tight" style={{
-            background: 'rgba(11, 22, 40, 0.95)',
-            border: '1px solid rgba(32, 227, 255, 0.2)',
-            color: 'var(--neon-cyan)',
-            fontSize: '10px',
-            fontWeight: 900,
-          }}>{currentLabel}</span>
-        )}
 
       </div>
     );
@@ -686,24 +738,45 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
       <div ref={scrollContainerRef} className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
         <div className="grid gap-4">
           {displayedThreads.map((thread) => {
-            const displayedReplyCount = replyCounts[thread.id] ?? thread.replies ?? 0;
+            const displayedReplyCount =
+              replyCounts[thread.id]
+              ?? (thread.backendMessageId != null ? replyCounts[thread.backendMessageId] : undefined)
+              ?? thread.replies
+              ?? 0;
             const isOwnThread = isThreadMine(thread);
             const isEditingThread = editingThreadId === thread.id;
             const threadAvatar = getThreadAvatar(thread);
             const threadBody = getThreadBody(thread);
+            const isSelectedThread = selectedThreadId === thread.id;
+            const isFocusedThread =
+              focusedThreadId != null
+              && (
+                String(thread.id) === String(focusedThreadId)
+                || String(thread.backendMessageId ?? "") === String(focusedThreadId)
+              );
 
             return (
             <div
               key={thread.id}
+              ref={(element) => {
+                threadElementRefs.current[String(thread.id)] = element;
+                if (thread.backendMessageId != null) {
+                  threadElementRefs.current[String(thread.backendMessageId)] = element;
+                }
+              }}
               className="rounded-xl overflow-hidden relative group"
               style={{
                 width: '100%',
                 background: isOwnThread ? 'rgba(var(--codedock-primary-rgb), 0.075)' : 'rgba(5, 11, 20, 0.54)',
-                border: selectedThreadId === thread.id
+                border: isFocusedThread
+                  ? '2px solid rgba(255, 217, 61, 0.78)'
+                  : isSelectedThread
                   ? '2px solid rgba(var(--codedock-primary-rgb), 0.6)'
                   : isOwnThread ? '1px solid rgba(var(--codedock-primary-rgb), 0.18)' : '1px solid rgba(var(--codedock-primary-rgb), 0.14)',
                 borderRadius: '12px',
-                boxShadow: selectedThreadId === thread.id ? '0 0 12px rgba(32, 227, 255, 0.15)' : 'none'
+                boxShadow: isFocusedThread
+                  ? '0 0 0 4px rgba(255, 217, 61, 0.12), 0 0 24px rgba(255, 217, 61, 0.20)'
+                  : isSelectedThread ? '0 0 12px rgba(32, 227, 255, 0.15)' : 'none'
               }}
               onMouseEnter={() => setHoveredMessageId(thread.id)}
               onMouseLeave={() => setHoveredMessageId(null)}
@@ -797,26 +870,27 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
                         </div>
                       </div>
                     ) : (
-                      <p className="m-0 mb-3 tracking-tight" style={{
-                        fontSize: '14px',
-                        fontWeight: 700,
-                        color: thread.deleted ? 'var(--muted)' : 'var(--white)',
-                        lineHeight: '1.5'
-                      }}>
-                        {threadBody}
-                      </p>
+                      <div>
+                        {renderMessageTextWithCodeBlocks(threadBody, thread.deleted ? 'var(--muted)' : 'var(--white)')}
+                      </div>
                     )}
                     {thread.mentions && thread.mentions.length > 0 && (
                       <div className="mb-3 flex flex-wrap gap-2">
                         {thread.mentions.map((mention, idx) => (
-                          <span key={idx} className="px-2 py-0.5 rounded tracking-tight" style={{
+                          <motion.span
+                            key={idx}
+                            className="px-2 py-0.5 rounded tracking-tight"
+                            initial={{ opacity: 0, y: 4, scale: 0.96 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            transition={{ delay: idx * 0.04, duration: 0.18 }}
+                            style={{
                             background: 'rgba(var(--codedock-secondary-rgb), 0.15)',
                             fontSize: "var(--krds-body-xsmall)",
                             fontWeight: 900,
                             color: 'var(--matrix-green)'
                           }}>
                             @{mention}
-                          </span>
+                          </motion.span>
                         ))}
                       </div>
                     )}

@@ -1,4 +1,4 @@
-import { Hash, Users, GitPullRequest, Home, CheckSquare, ChevronDown, ChevronRight, GitBranch, Code2, Database, BookOpen, Maximize2, Minimize2, Plus, Pencil, Trash2, MoreVertical, X, LayoutGrid, Bell, BellOff, Check, Clock3, MessageCircle, Settings, UserRound, Wifi, WifiOff, type LucideIcon } from "lucide-react";
+import { Hash, Users, GitPullRequest, Home, CheckSquare, ChevronDown, ChevronRight, GitBranch, Code2, Database, BookOpen, Maximize2, Minimize2, Plus, Pencil, Trash2, MoreVertical, X, LayoutGrid, Bell, BellOff, Bookmark, Check, Clock3, MessageCircle, Settings, UserRound, Wifi, WifiOff, type LucideIcon } from "lucide-react";
 import { WorkBoardPanel } from "../components/WorkBoardPanel";
 import { ChatPanel } from "../components/ChatPanel";
 import { PRReviewPanel } from "../components/PRReviewPanel";
@@ -7,7 +7,7 @@ import { ThreadPanel } from "../components/ThreadPanel";
 import { ChannelPanel } from "../components/ChannelPanel";
 import { OverviewPanel } from "../components/OverviewPanel";
 import { ErrorBoundary } from "../components/ErrorBoundary";
-import { type ReactNode, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, type MouseEvent as ReactMouseEvent, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router";
 import { AnimatePresence, motion } from "motion/react";
 import {
@@ -50,6 +50,7 @@ import {
   type ChannelEventPayload,
   type ChannelMessage,
   type ChatEvent,
+  type BookmarkResponse,
   type MentionResponse,
   type PersonalNotification,
   type ReactionSummary,
@@ -653,11 +654,7 @@ function getRealtimeConnectionNotice(
   }
 
   if (connection.status === "connecting") {
-    return {
-      tone: "info",
-      title: "실시간 연결 확인 중",
-      body: "채널 이벤트 구독을 준비하고 있습니다."
-    };
+    return null;
   }
 
   switch (connection.reason) {
@@ -1098,6 +1095,7 @@ export function ChatPage() {
   const sidebarRef = useRef<HTMLElement>(null);
   const isCreatingChannelRef = useRef(false);
   const channelActionInFlightRef = useRef(false);
+  const keepFocusedMessageOnChannelChangeRef = useRef(false);
 
   useEffect(() => {
     if (!showRepoDropdown) return;
@@ -1124,6 +1122,7 @@ export function ChatPage() {
   const [selectedPR, setSelectedPR] = useState<any>(null);
   const [selectedIssue, setSelectedIssue] = useState<any>(null);
   const [selectedThread, setSelectedThread] = useState<any>(null);
+  const [focusedMessageTarget, setFocusedMessageTarget] = useState<{ channelId: string; messageId: number } | null>(null);
   const [threadReplies, setThreadReplies] = useState<Record<number | string, any[]>>(() =>
     getLocalPersistableThreadReplies(
       getSavedWorkspaceScopedRecord(CHAT_THREAD_REPLIES_KEY, initialThreadReplies)
@@ -1155,11 +1154,16 @@ export function ChatPage() {
   const chatStompRef = useRef<ChatStompClient | null>(null);
   const [chatStompReadyKey, setChatStompReadyKey] = useState(0);
   const [serverBookmarkedThreadsByChannel, setServerBookmarkedThreadsByChannel] = useState<Record<string, Record<number, boolean>>>({});
+  const [workspaceBookmarks, setWorkspaceBookmarks] = useState<BookmarkResponse[]>([]);
   const [workspaceMentions, setWorkspaceMentions] = useState<MentionResponse[]>([]);
+  const [dismissedMentionIds, setDismissedMentionIds] = useState<Record<number, boolean>>({});
+  const [channelBookmarkMenuOpen, setChannelBookmarkMenuOpen] = useState(false);
   const [channelMenuOpenId, setChannelMenuOpenId] = useState<string | null>(null);
+  const [channelMenuPosition, setChannelMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const [editingCustomChannelId, setEditingCustomChannelId] = useState<string | null>(null);
   const [editingCustomChannelLabel, setEditingCustomChannelLabel] = useState('');
   const [addChannelStep, setAddChannelStep] = useState<null | 'select' | 'chat' | 'repo'>(null);
+  const [addChannelPosition, setAddChannelPosition] = useState<{ top: number; left: number } | null>(null);
   const [newChannelName, setNewChannelName] = useState('');
   const [newRepoChannelUrl, setNewRepoChannelUrl] = useState('');
   const [isSubmittingChannel, setIsSubmittingChannel] = useState(false);
@@ -1379,12 +1383,65 @@ export function ChatPage() {
   const activeRemoteTypingNames = Object.values(remoteTypingByChannel[selectedChannel] ?? {});
   const activeRemoteTypingLabel = formatRemoteTypingLabel(activeRemoteTypingNames);
   const activeServerBookmarkedThreadIds = serverBookmarkedThreadsByChannel[selectedChannelMessageKey] ?? {};
-  const unreadMentionCount = workspaceMentions.filter((mention) => !mention.read).length;
+  const visibleWorkspaceMentions = workspaceMentions.filter((mention) => !dismissedMentionIds[mention.id]);
+  const unreadMentionCount = visibleWorkspaceMentions.filter((mention) => !mention.read).length;
 
   const getChannelBadge = (channelId: string): string | undefined => {
     const count = currentChannelUnreadCounts[channelId];
     return count && count > 0 ? String(count) : undefined;
   };
+
+  const closeChannelMenu = useCallback(() => {
+    setChannelMenuOpenId(null);
+    setChannelMenuPosition(null);
+  }, []);
+
+  const handleToggleChannelMenu = useCallback((
+    channelId: string,
+    event: ReactMouseEvent<HTMLButtonElement>
+  ) => {
+    event.stopPropagation();
+
+    if (channelMenuOpenId === channelId) {
+      closeChannelMenu();
+      return;
+    }
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const menuWidth = 144;
+    const menuHeight = 92;
+    const viewportPadding = 12;
+    const left = Math.min(
+      window.innerWidth - menuWidth - viewportPadding,
+      Math.max(viewportPadding, rect.right - menuWidth)
+    );
+    const top = Math.min(
+      window.innerHeight - menuHeight - viewportPadding,
+      Math.max(viewportPadding, rect.bottom + 6)
+    );
+
+    setChannelMenuOpenId(channelId);
+    setChannelMenuPosition({ top, left });
+  }, [channelMenuOpenId, closeChannelMenu]);
+
+  useEffect(() => {
+    if (!channelMenuOpenId) return;
+
+    const handleDismiss = () => closeChannelMenu();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeChannelMenu();
+    };
+
+    window.addEventListener('resize', handleDismiss);
+    window.addEventListener('scroll', handleDismiss, true);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('resize', handleDismiss);
+      window.removeEventListener('scroll', handleDismiss, true);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [channelMenuOpenId, closeChannelMenu]);
 
   useEffect(() => {
     if (apiChannels.length === 0) return;
@@ -1428,11 +1485,68 @@ export function ChatPage() {
     setSelectedChannel('general');
   }, [apiChannelIdByUiChannel, apiChannels.length, selectedChannel]);
 
+  useEffect(() => {
+    setChannelBookmarkMenuOpen(false);
+    if (keepFocusedMessageOnChannelChangeRef.current) {
+      keepFocusedMessageOnChannelChangeRef.current = false;
+      return;
+    }
+    setFocusedMessageTarget(null);
+  }, [selectedChannel]);
+
   const currentMessages = messages[selectedChannelMessageKey] || [];
   const currentChannelThreads = useMemo(
     () => currentMessages.map(mapMessageToChannelThread),
     [currentMessages]
   );
+  const currentChannelBookmarkItems = useMemo(() => {
+    return Object.keys(activeServerBookmarkedThreadIds)
+      .filter((messageId) => activeServerBookmarkedThreadIds[Number(messageId)])
+      .map((messageId) => {
+        const numericMessageId = Number(messageId);
+        const message = currentMessages.find((item) =>
+          Number(item.backendMessageId ?? item.id) === numericMessageId
+        );
+        const content = String(message?.message ?? message?.text ?? `메시지 #${messageId}`);
+
+        return {
+          messageId: numericMessageId,
+          content,
+          message
+        };
+      });
+  }, [activeServerBookmarkedThreadIds, currentMessages]);
+  const workspaceBookmarkGroups = useMemo(() => {
+    const groups = new Map<string, {
+      channelId: string;
+      channelLabel: string;
+      items: Array<{ messageId: number; content: string }>;
+    }>();
+
+    workspaceBookmarks.forEach((bookmark) => {
+      const uiChannelId = apiChannelUiById[bookmark.channelId] ?? String(bookmark.channelId);
+      const channelStateKey = getMessageChannelKey(uiChannelId);
+      const channelMeta = ALL_SIDEBAR_CHANNELS.find((channel) => channel.id === uiChannelId);
+      const customChannel = allCustomChannels.find((channel) => channel.id === uiChannelId);
+      const channelLabel = customChannel?.label ?? channelMeta?.label ?? `채널 #${bookmark.channelId}`;
+      const loadedMessage = (messages[channelStateKey] ?? []).find((item) =>
+        Number(item.backendMessageId ?? item.id) === Number(bookmark.messageId)
+      );
+      const existingGroup = groups.get(uiChannelId) ?? {
+        channelId: uiChannelId,
+        channelLabel,
+        items: []
+      };
+
+      existingGroup.items.push({
+        messageId: bookmark.messageId,
+        content: String(loadedMessage?.message ?? loadedMessage?.text ?? bookmark.content ?? `메시지 #${bookmark.messageId}`)
+      });
+      groups.set(uiChannelId, existingGroup);
+    });
+
+    return Array.from(groups.values());
+  }, [allCustomChannels, apiChannelUiById, getMessageChannelKey, messages, workspaceBookmarks]);
   const apiThreadTargets = useMemo(() => {
     const threadTargets = new Map<number, { channelId: string; thread: any }>();
 
@@ -1488,6 +1602,16 @@ export function ChatPage() {
   const deleteChannelTarget = deleteChannelTargetId
     ? allCustomChannels.find((channel) => channel.id === deleteChannelTargetId) ?? null
     : null;
+  const channelMenuTarget = channelMenuOpenId
+    ? allCustomChannels.find((channel) => channel.id === channelMenuOpenId) ?? null
+    : null;
+  const channelMenuTargetSource = channelMenuTarget?.apiChannelId
+    ? apiChannels.find((apiChannel) => apiChannel.id === channelMenuTarget.apiChannelId)
+    : undefined;
+  const isChannelMenuTargetPending = channelMenuTarget
+    ? channelActionPendingId === channelMenuTarget.id
+    : false;
+  const canManageChannelMenuTarget = canManageWorkspaceChannels && Boolean(channelMenuTargetSource?.isDeletable);
   const selectedRepoForChannel = visibleRepositories.find(r => r.id === selectedChannel);
   const selectedChannelTitle = selectedChannel === 'pull-requests'
     ? `${cleanChannelLabel(currentRepo?.name ?? '레포')} - PR`
@@ -1668,36 +1792,40 @@ export function ChatPage() {
     });
   }, [activeApiChannelId]);
 
+  const applyWorkspaceBookmarks = useCallback((bookmarks: BookmarkResponse[]) => {
+    setWorkspaceBookmarks(bookmarks);
+
+    const nextBookmarks = bookmarks.reduce<Record<string, Record<number, boolean>>>((acc, bookmark) => {
+      const uiChannelId = apiChannelUiById[bookmark.channelId] ?? String(bookmark.channelId);
+      const channelStateKey = getMessageChannelKey(uiChannelId);
+      acc[channelStateKey] = {
+        ...(acc[channelStateKey] ?? {}),
+        [bookmark.messageId]: true
+      };
+      return acc;
+    }, {});
+
+    setServerBookmarkedThreadsByChannel((prev) => ({
+      ...Object.fromEntries(
+        Object.entries(prev).filter(([key]) => getWorkspaceIdFromWorkspaceScopedChatKey(key) !== currentWorkspaceApiId)
+      ),
+      ...nextBookmarks
+    }));
+  }, [apiChannelUiById, currentWorkspaceApiId, getMessageChannelKey]);
+
   useEffect(() => {
     const controller = new AbortController();
 
     getWorkspaceBookmarks(currentWorkspaceApiId, {
       signal: controller.signal
     })
-      .then((bookmarks) => {
-        const nextBookmarks = bookmarks.reduce<Record<string, Record<number, boolean>>>((acc, bookmark) => {
-          const uiChannelId = apiChannelUiById[bookmark.channelId] ?? String(bookmark.channelId);
-          const channelStateKey = getMessageChannelKey(uiChannelId);
-          acc[channelStateKey] = {
-            ...(acc[channelStateKey] ?? {}),
-            [bookmark.messageId]: true
-          };
-          return acc;
-        }, {});
-
-        setServerBookmarkedThreadsByChannel((prev) => ({
-          ...Object.fromEntries(
-            Object.entries(prev).filter(([key]) => getWorkspaceIdFromWorkspaceScopedChatKey(key) !== currentWorkspaceApiId)
-          ),
-          ...nextBookmarks
-        }));
-      })
+      .then(applyWorkspaceBookmarks)
       .catch(() => {
         // Keep local bookmark state when the backend is unavailable.
       });
 
     return () => controller.abort();
-  }, [apiChannelUiById, currentWorkspaceApiId, getMessageChannelKey]);
+  }, [applyWorkspaceBookmarks, currentWorkspaceApiId]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -1755,11 +1883,16 @@ export function ChatPage() {
     toggleMessageBookmark(channelId, messageId)
       .then((response) => {
         setServerBookmarkState(uiChannelId, response.messageId, response.bookmarked);
+        void getWorkspaceBookmarks(currentWorkspaceApiId)
+          .then(applyWorkspaceBookmarks)
+          .catch(() => {
+            // The optimistic state above remains valid when the bookmark list refresh fails.
+          });
       })
       .catch(() => {
         setServerBookmarkState(uiChannelId, messageId, !nextBookmarked);
       });
-  }, [activeApiChannelId, apiChannelUiById, selectedChannel, setServerBookmarkState]);
+  }, [activeApiChannelId, apiChannelUiById, applyWorkspaceBookmarks, currentWorkspaceApiId, selectedChannel, setServerBookmarkState]);
 
   const handleMarkMentionAsRead = useCallback((mentionId: number) => {
     setWorkspaceMentions((prev) =>
@@ -1777,6 +1910,15 @@ export function ChatPage() {
           prev.map((mention) => mention.id === mentionId ? { ...mention, read: false } : mention)
         );
       });
+  }, []);
+
+  const focusChannelMessage = useCallback((channelId: string, messageId: number) => {
+    keepFocusedMessageOnChannelChangeRef.current = channelId !== selectedChannelRef.current;
+    setSelectedChannel(channelId);
+    setSelectedThread(null);
+    setSelectedPR(null);
+    setSelectedIssue(null);
+    setFocusedMessageTarget({ channelId, messageId });
   }, []);
 
   const appendServerMessage = useCallback((channelId: string, message: ChannelMessage) => {
@@ -2464,19 +2606,43 @@ export function ChatPage() {
     saveRepositories(nextRepositories);
   };
 
-  const handleAddCustomChannel = () => {
+  const handleAddCustomChannel = (event: ReactMouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+
     if (!canManageWorkspaceChannels) {
       setChannelActionError('채널 관리는 워크스페이스 owner/admin만 할 수 있습니다.');
       return;
     }
+    if (addChannelStep) {
+      setAddChannelStep(null);
+      setAddChannelPosition(null);
+      setChannelCreateError('');
+      return;
+    }
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const popoverWidth = 252;
+    const viewportPadding = 12;
+    const left = Math.min(
+      window.innerWidth - popoverWidth - viewportPadding,
+      Math.max(viewportPadding, rect.right - popoverWidth)
+    );
+    const top = Math.min(
+      window.innerHeight - 230 - viewportPadding,
+      Math.max(viewportPadding, rect.bottom + 8)
+    );
+
+    closeChannelMenu();
     setNewChannelName('');
     setNewRepoChannelUrl('');
     setChannelCreateError('');
     setChannelActionError('');
-    setAddChannelStep((prev) => (prev ? null : 'select'));
+    setAddChannelPosition({ top, left });
+    setAddChannelStep('select');
   };
 
   const handleSelectChannelType = (type: 'chat' | 'repo') => {
+    closeChannelMenu();
     setChannelCreateError('');
     setChannelActionError('');
     setAddChannelStep(type);
@@ -2520,6 +2686,7 @@ export function ChatPage() {
 
       setSelectedChannel(getApiChannelUiId(selectedCreatedChannel));
       setAddChannelStep(null);
+      setAddChannelPosition(null);
       setNewChannelName('');
     } catch (error) {
       setChannelCreateError(getChannelActionErrorMessage(error, '채널을 만들지 못했어요. 잠시 후 다시 시도해주세요.'));
@@ -2541,7 +2708,9 @@ export function ChatPage() {
   };
 
   const handleCancelAddChannel = () => {
+    closeChannelMenu();
     setAddChannelStep(null);
+    setAddChannelPosition(null);
     setNewChannelName('');
     setNewRepoChannelUrl('');
     setChannelCreateError('');
@@ -2558,16 +2727,16 @@ export function ChatPage() {
       : undefined;
     if (!canManageWorkspaceChannels || !sourceApiChannel?.isDeletable) {
       setChannelActionError('이 채널은 삭제할 수 없습니다.');
-      setChannelMenuOpenId(null);
+      closeChannelMenu();
       return;
     }
     if (!Number.isFinite(currentWorkspaceApiId) || currentWorkspaceApiId <= 0) {
       setChannelActionError("워크스페이스 정보를 확인할 수 없습니다. 새로고침 후 다시 시도해주세요.");
-      setChannelMenuOpenId(null);
+      closeChannelMenu();
       return;
     }
     setDeleteChannelTargetId(channelId);
-    setChannelMenuOpenId(null);
+    closeChannelMenu();
   };
 
   const handleCancelDeleteCustomChannel = () => {
@@ -2602,7 +2771,7 @@ export function ChatPage() {
       });
 
       if (selectedChannel === channelId) setSelectedChannel('general');
-      setChannelMenuOpenId(null);
+      closeChannelMenu();
     } catch (error) {
       setDeleteChannelTargetId(null);
       setChannelActionError(getChannelActionErrorMessage(error, '채널을 삭제하지 못했어요. 잠시 후 다시 시도해주세요.'));
@@ -2616,7 +2785,7 @@ export function ChatPage() {
     setChannelActionError('');
     setEditingCustomChannelId(channel.id);
     setEditingCustomChannelLabel(channel.label);
-    setChannelMenuOpenId(null);
+    closeChannelMenu();
   };
 
   const handleCommitRenameCustomChannel = async () => {
@@ -2972,7 +3141,7 @@ export function ChatPage() {
               })}
             </div>
 
-            {workspaceMentions.length > 0 && (
+            {visibleWorkspaceMentions.length > 0 && (
               <>
                 <div className="my-3" style={{ borderTop: '1px solid rgba(var(--codedock-primary-rgb), 0.14)' }} />
 
@@ -2983,39 +3152,63 @@ export function ChatPage() {
                 </div>
 
                 <div className="grid gap-1.5">
-                  {workspaceMentions.slice(0, 4).map((mention) => (
-                    <button
+                  {visibleWorkspaceMentions.slice(0, 6).map((mention) => (
+                    <div
                       key={mention.id}
-                      type="button"
-                      onClick={() => {
-                        if (!mention.read) {
-                          handleMarkMentionAsRead(mention.id);
-                        }
-                        const uiChannelId = apiChannelUiById[mention.channelId];
-                        if (uiChannelId) {
-                          setSelectedChannel(uiChannelId);
-                        }
-                        setProfileMenuOpen(false);
-                      }}
-                      className="flex w-full items-start gap-3 rounded-xl border-0 px-3 py-2.5 text-left tracking-tight"
+                      className="flex w-full items-start gap-2 rounded-xl px-3 py-2.5 tracking-tight"
                       style={{
                         background: mention.read ? 'transparent' : 'rgba(var(--codedock-primary-rgb), 0.10)',
                         border: mention.read ? '1px solid transparent' : '1px solid rgba(var(--codedock-primary-rgb), 0.18)',
-                        cursor: 'pointer'
                       }}
                     >
-                      <span className="mt-1 h-2 w-2 flex-shrink-0 rounded-full" style={{
-                        background: mention.read ? 'rgba(234, 247, 255, 0.22)' : 'var(--matrix-green)'
-                      }} />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate" style={{ color: 'var(--white)', fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}>
-                          {mention.mentionedByName}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!mention.read) {
+                            handleMarkMentionAsRead(mention.id);
+                          }
+                          const uiChannelId = apiChannelUiById[mention.channelId];
+                          if (uiChannelId) {
+                            focusChannelMessage(uiChannelId, Number(mention.threadId));
+                          }
+                          setProfileMenuOpen(false);
+                        }}
+                        className="flex min-w-0 flex-1 items-start gap-3 border-0 bg-transparent p-0 text-left tracking-tight"
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <span className="mt-1 h-2 w-2 flex-shrink-0 rounded-full" style={{
+                          background: mention.read ? 'rgba(234, 247, 255, 0.22)' : 'var(--matrix-green)'
+                        }} />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate" style={{ color: 'var(--white)', fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}>
+                            {mention.mentionedByName}
+                          </span>
+                          <span className="block truncate" style={{ color: 'var(--muted)', fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>
+                            {mention.content}
+                          </span>
                         </span>
-                        <span className="block truncate" style={{ color: 'var(--muted)', fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>
-                          {mention.content}
-                        </span>
-                      </span>
-                    </button>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setDismissedMentionIds((prev) => ({ ...prev, [mention.id]: true }));
+                          if (!mention.read) {
+                            handleMarkMentionAsRead(mention.id);
+                          }
+                        }}
+                        className="grid h-6 w-6 flex-shrink-0 place-items-center rounded-full border-0"
+                        style={{
+                          background: 'rgba(234, 247, 255, 0.06)',
+                          color: 'var(--muted)',
+                          cursor: 'pointer'
+                        }}
+                        aria-label="멘션 알림 삭제"
+                        title="멘션 알림 삭제"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
                   ))}
                 </div>
               </>
@@ -3111,6 +3304,7 @@ export function ChatPage() {
   };
 
   const handleOpenThread = (message: any) => {
+    setFocusedMessageTarget(null);
     setSelectedThread(message);
     setSelectedPR(null);    // 스레드 열 때 PR 리뷰 닫기
     setSelectedIssue(null); // 스레드 열 때 이슈 패널 닫기
@@ -3720,223 +3914,8 @@ export function ChatPage() {
                   <Plus size={13} />
                 </button>
               </div>
-              <AnimatePresence mode="popLayout" initial={false}>
-                {addChannelStep === 'select' && (
-                  <motion.div
-                    key="select"
-                    className="mx-1 rounded-xl px-3 py-3"
-                    style={{
-                      background: 'rgba(5, 11, 20, 0.58)',
-                      border: '1px solid rgba(var(--codedock-primary-rgb), 0.18)',
-                      boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.06)'
-                    }}
-                    initial={{ opacity: 0, y: -6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -6 }}
-                    transition={{ type: 'spring', stiffness: 360, damping: 32 }}
-                  >
-                    <p style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 900, color: 'var(--muted)', margin: '0 0 10px 0' }}>채널 유형 선택</p>
-                    <div className="flex flex-col gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleSelectChannelType('chat')}
-                        className="flex items-center gap-3 rounded-xl border-0 px-3 py-2.5 text-left tracking-tight transition-all hover:scale-[1.01]"
-                        style={{
-                          background: 'rgba(var(--codedock-primary-rgb), 0.08)',
-                          border: '1px solid rgba(var(--codedock-primary-rgb), 0.2)',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        <Hash size={14} style={{ color: 'var(--neon-cyan)', flexShrink: 0 }} />
-                        <div>
-                          <p className="m-0 tracking-tight" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 900, color: 'var(--white)' }}>대화 채널</p>
-                          <p className="m-0 tracking-tight" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 800, color: 'var(--muted)' }}>팀 대화용 채널</p>
-                        </div>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSelectChannelType('repo')}
-                        className="flex items-center gap-3 rounded-xl border-0 px-3 py-2.5 text-left tracking-tight transition-all hover:scale-[1.01]"
-                        style={{
-                          background: 'rgba(var(--codedock-secondary-rgb), 0.08)',
-                          border: '1px solid rgba(var(--codedock-secondary-rgb), 0.2)',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        <GitBranch size={14} style={{ color: 'var(--matrix-green)', flexShrink: 0 }} />
-                        <div>
-                          <p className="m-0 tracking-tight" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 900, color: 'var(--white)' }}>레포 채널</p>
-                          <p className="m-0 tracking-tight" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 800, color: 'var(--muted)' }}>GitHub 저장소 연결</p>
-                        </div>
-                      </button>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleCancelAddChannel}
-                      className="mt-2 w-full rounded-full border-0 px-3 py-2 tracking-tight"
-                      style={{
-                        background: 'rgba(234, 247, 255, 0.07)',
-                        border: '1px solid rgba(var(--codedock-primary-rgb), 0.12)',
-                        color: 'var(--muted)',
-                        cursor: 'pointer',
-                        fontSize: "var(--krds-body-xsmall)",
-                        fontWeight: 900
-                      }}
-                    >
-                      취소
-                    </button>
-                  </motion.div>
-                )}
-                {addChannelStep === 'chat' && (
-                  <motion.div
-                    key="chat"
-                    className="mx-1 rounded-xl px-3 py-3"
-                    style={{
-                      background: 'rgba(5, 11, 20, 0.58)',
-                      border: '1px solid rgba(var(--codedock-primary-rgb), 0.18)',
-                      boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.06)'
-                    }}
-                    initial={{ opacity: 0, y: -6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -6 }}
-                    transition={{ type: 'spring', stiffness: 360, damping: 32 }}
-                  >
-                    <p style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 900, color: 'var(--muted)', margin: '0 0 8px 0' }}>채널 이름</p>
-                    <input
-                      value={newChannelName}
-                      onChange={e => setNewChannelName(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === 'Escape') { e.preventDefault(); handleCancelAddChannel(); }
-                        if (e.key === 'Enter') { e.preventDefault(); void handleSubmitAddChannel(); }
-                      }}
-                      autoFocus
-                      placeholder="새 채널 이름..."
-                      className="w-full rounded-lg px-3 py-2 outline-none tracking-tight"
-                      style={{
-                        background: 'rgba(234, 247, 255, 0.08)',
-                        border: '1px solid rgba(var(--codedock-primary-rgb), 0.22)',
-                        color: 'var(--white)',
-                        fontSize: '13px',
-                        fontWeight: 850
-                      }}
-                    />
-                    {channelCreateError && (
-                      <p className="mb-0 mt-2 leading-relaxed tracking-tight" style={{ color: '#FF6B6B', fontSize: '12px', fontWeight: 850 }}>
-                        {channelCreateError}
-                      </p>
-                    )}
-                    <div className="mt-2 flex gap-2">
-                      <button
-                        type="button"
-                        onClick={handleCancelAddChannel}
-                        className="flex-1 rounded-full border-0 px-3 py-2 tracking-tight"
-                        style={{
-                          background: 'rgba(234, 247, 255, 0.07)',
-                          border: '1px solid rgba(var(--codedock-primary-rgb), 0.12)',
-                          color: 'var(--muted)',
-                          cursor: 'pointer',
-                          fontSize: "var(--krds-body-xsmall)",
-                          fontWeight: 900
-                        }}
-                      >
-                        취소
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { void handleSubmitAddChannel(); }}
-                        disabled={isSubmittingChannel}
-                        className="flex-1 rounded-full border-0 px-3 py-2 tracking-tight"
-                        style={{
-                          background: 'linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))',
-                          color: '#021014',
-                          cursor: isSubmittingChannel ? 'not-allowed' : 'pointer',
-                          opacity: isSubmittingChannel ? 0.72 : 1,
-                          fontSize: "var(--krds-body-xsmall)",
-                          fontWeight: 950
-                        }}
-                      >
-                        {isSubmittingChannel ? '생성 중' : '만들기'}
-                      </button>
-                    </div>
-                  </motion.div>
-                )}
-                {addChannelStep === 'repo' && (
-                  <motion.div
-                    key="repo"
-                    className="mx-1 rounded-xl px-3 py-3"
-                    style={{
-                      background: 'rgba(5, 11, 20, 0.58)',
-                      border: '1px solid rgba(var(--codedock-secondary-rgb), 0.18)',
-                      boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.06)'
-                    }}
-                    initial={{ opacity: 0, y: -6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -6 }}
-                    transition={{ type: 'spring', stiffness: 360, damping: 32 }}
-                  >
-                    <p style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 900, color: 'var(--muted)', margin: '0 0 4px 0' }}>레포 채널</p>
-                    <p style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 800, color: 'var(--muted)', margin: '0 0 8px 0' }}>GitHub 저장소 URL을 입력하세요</p>
-                    <input
-                      value={newRepoChannelUrl}
-                      onChange={e => setNewRepoChannelUrl(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === 'Escape') { e.preventDefault(); handleCancelAddChannel(); }
-                      }}
-                      autoFocus
-                      placeholder="https://github.com/owner/repository"
-                      className="w-full rounded-lg px-3 py-2 outline-none tracking-tight"
-                      style={{
-                        background: 'rgba(234, 247, 255, 0.08)',
-                        border: '1px solid rgba(var(--codedock-secondary-rgb), 0.22)',
-                        color: 'var(--white)',
-                        fontSize: '13px',
-                        fontWeight: 850
-                      }}
-                    />
-                    {channelCreateError && (
-                      <p className="mb-0 mt-2 leading-relaxed tracking-tight" style={{ color: '#FF6B6B', fontSize: '12px', fontWeight: 850 }}>
-                        {channelCreateError}
-                      </p>
-                    )}
-                    <div className="mt-2 flex gap-2">
-                      <button
-                        type="button"
-                        onClick={handleCancelAddChannel}
-                        className="flex-1 rounded-full border-0 px-3 py-2 tracking-tight"
-                        style={{
-                          background: 'rgba(234, 247, 255, 0.07)',
-                          border: '1px solid rgba(var(--codedock-primary-rgb), 0.12)',
-                          color: 'var(--muted)',
-                          cursor: 'pointer',
-                          fontSize: "var(--krds-body-xsmall)",
-                          fontWeight: 900
-                        }}
-                      >
-                        취소
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleSubmitAddRepoChannel}
-                        disabled={!parseRepoNameFromUrl(newRepoChannelUrl)}
-                        className="flex flex-1 items-center justify-center gap-1 rounded-full border-0 px-3 py-2 tracking-tight transition-all disabled:opacity-40"
-                        style={{
-                          background: 'linear-gradient(135deg, var(--matrix-green), var(--deep-teal))',
-                          color: '#021014',
-                          cursor: parseRepoNameFromUrl(newRepoChannelUrl) ? 'pointer' : 'not-allowed',
-                          fontSize: "var(--krds-body-xsmall)",
-                          fontWeight: 950
-                        }}
-                      >
-                        <Plus size={13} />
-                        등록
-                      </button>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
               <div
-                className={`grid min-h-[44px] gap-1 pr-1 ${channelMenuOpenId ? 'overflow-visible' : 'max-h-[164px] overflow-y-auto'}`}
+                className="grid max-h-[164px] min-h-[44px] gap-1 overflow-y-auto pr-1"
                 style={{ scrollbarWidth: 'none' }}
               >
               {renderSidebarChannel({ id: 'general', label: '일반', icon: Hash, badge: getChannelBadge('general') })}
@@ -3945,11 +3924,7 @@ export function ChatPage() {
                 const isActive = selectedChannel === ch.id;
                 const isEditing = editingCustomChannelId === ch.id;
                 const isMenuOpen = channelMenuOpenId === ch.id;
-                const sourceApiChannel = ch.apiChannelId
-                  ? apiChannels.find((apiChannel) => apiChannel.id === ch.apiChannelId)
-                  : undefined;
                 const isChannelActionPending = channelActionPendingId === ch.id;
-                const canManageServerChannel = canManageWorkspaceChannels && Boolean(sourceApiChannel?.isDeletable);
                 return (
                   <div key={ch.id} className="grid gap-0.5">
                     <div className="relative isolate flex w-full items-center rounded-full">
@@ -3967,7 +3942,7 @@ export function ChatPage() {
                         />
                       )}
                       {isEditing ? (
-                        <div className="relative z-10 flex min-w-0 flex-1 items-center gap-2 px-4 py-2.5">
+                        <div className="relative z-10 flex min-w-0 flex-1 items-center gap-1.5 px-3 py-2.5">
                           <Hash size={15} style={{ color: 'var(--neon-cyan)', flexShrink: 0 }} />
                           <input
                             value={editingCustomChannelLabel}
@@ -3985,7 +3960,7 @@ export function ChatPage() {
                             type="button"
                             onClick={() => { void handleCommitRenameCustomChannel(); }}
                             disabled={isChannelActionPending || !editingCustomChannelLabel.trim()}
-                            className="flex flex-shrink-0 items-center gap-1 rounded-full border-0 px-2.5 py-1.5 tracking-tight"
+                            className="flex flex-shrink-0 items-center gap-1 rounded-full border-0 px-2 py-1.5 tracking-tight"
                             style={{
                               background: 'linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))',
                               color: '#021014',
@@ -4002,7 +3977,7 @@ export function ChatPage() {
                       ) : (
                         <button
                           type="button"
-                          onClick={() => { setSelectedChannel(ch.id); setChannelMenuOpenId(null); }}
+                          onClick={() => { setSelectedChannel(ch.id); closeChannelMenu(); }}
                           className="relative z-10 flex min-w-0 flex-1 items-center gap-3 border-0 bg-transparent px-4 py-3 text-left"
                           style={{ cursor: 'pointer' }}
                         >
@@ -4027,46 +4002,20 @@ export function ChatPage() {
                           )}
                         </button>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => setChannelMenuOpenId(isMenuOpen ? null : ch.id)}
-                        disabled={isChannelActionPending}
-                        className="relative z-10 grid h-7 w-7 flex-shrink-0 place-items-center rounded-full border-0 bg-transparent transition-all hover:bg-[rgba(var(--codedock-primary-rgb),0.10)]"
-                        style={{ cursor: isChannelActionPending ? 'not-allowed' : 'pointer', opacity: isChannelActionPending ? 0.5 : 1 }}
-                        aria-label="채널 옵션"
-                      >
-                        <MoreVertical size={13} style={{ color: 'var(--muted)' }} />
-                      </button>
+                      {!isEditing && (
+                        <button
+                          type="button"
+                          onClick={(event) => handleToggleChannelMenu(ch.id, event)}
+                          disabled={isChannelActionPending}
+                          className="relative z-10 grid h-7 w-7 flex-shrink-0 place-items-center rounded-full border-0 bg-transparent transition-all hover:bg-[rgba(var(--codedock-primary-rgb),0.10)]"
+                          style={{ cursor: isChannelActionPending ? 'not-allowed' : 'pointer', opacity: isChannelActionPending ? 0.5 : 1 }}
+                          aria-label="채널 옵션"
+                        >
+                          <MoreVertical size={13} style={{ color: isMenuOpen ? 'var(--neon-cyan)' : 'var(--muted)' }} />
+                        </button>
+                      )}
                       <div className="mr-2" />
                     </div>
-                    {isMenuOpen && (
-                      <div className="mx-2 overflow-hidden rounded-lg" style={{
-                        background: 'rgba(5, 11, 20, 0.92)',
-                        border: '1px solid rgba(var(--codedock-primary-rgb), 0.18)',
-                        boxShadow: '0 4px 16px rgba(0,0,0,0.4)'
-                      }}>
-                        <button
-                          type="button"
-                          onClick={() => handleStartRenameCustomChannel(ch)}
-                          disabled={isChannelActionPending || !canManageServerChannel}
-                          className="flex w-full items-center gap-2 border-0 px-3 py-2 text-left tracking-tight transition-all hover:bg-[rgba(var(--codedock-primary-rgb),0.08)]"
-                          style={{ background: 'transparent', color: 'var(--white)', fontSize: "var(--krds-body-xsmall)", fontWeight: 800, cursor: isChannelActionPending || !canManageServerChannel ? 'not-allowed' : 'pointer', opacity: isChannelActionPending || !canManageServerChannel ? 0.55 : 1, borderBottom: '1px solid rgba(var(--codedock-primary-rgb), 0.10)' }}
-                        >
-                          <Pencil size={13} style={{ color: 'var(--neon-cyan)' }} />
-                          {canManageServerChannel ? '이름 수정' : '수정 불가'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => { void handleDeleteCustomChannel(ch.id); }}
-                          disabled={isChannelActionPending || !canManageServerChannel}
-                          className="flex w-full items-center gap-2 border-0 px-3 py-2 text-left tracking-tight transition-all hover:bg-[rgba(255,107,107,0.08)]"
-                          style={{ background: 'transparent', color: '#FF6B6B', fontSize: "var(--krds-body-xsmall)", fontWeight: 800, cursor: isChannelActionPending || !canManageServerChannel ? 'not-allowed' : 'pointer', opacity: isChannelActionPending || !canManageServerChannel ? 0.5 : 1 }}
-                        >
-                          <Trash2 size={13} />
-                          {isChannelActionPending ? '삭제 중' : canManageServerChannel ? '채널 삭제' : '삭제 불가'}
-                        </button>
-                      </div>
-                    )}
                   </div>
                 );
               })}
@@ -4317,26 +4266,128 @@ export function ChatPage() {
             backdropFilter: 'blur(16px)'
           }}>
             {hasRepositories && selectedChannel !== 'team' && (
-              <button
-                type="button"
-                onClick={() => setIsMainExpanded((expanded) => !expanded)}
-                className="absolute right-4 top-4 z-20 inline-flex items-center gap-2 rounded-full border-0 px-4 py-2 tracking-tight transition-all hover:scale-[1.03]"
-                style={{
-                  background: 'rgba(5, 11, 20, 0.78)',
-                  border: '1px solid rgba(var(--codedock-primary-rgb), 0.24)',
-                  color: 'var(--neon-cyan)',
-                  fontSize: "var(--krds-body-xsmall)",
-                  fontWeight: 950,
-                  cursor: 'pointer',
-                  boxShadow: '0 12px 30px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.08)',
-                  backdropFilter: 'blur(16px)'
-                }}
-                aria-label={isMainExpanded ? '채팅 박스 작게 보기' : '채팅 박스 크게 보기'}
-                title={isMainExpanded ? '작게 보기' : '크게 보기'}
-              >
-                {isMainExpanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
-                {isMainExpanded ? '작게 보기' : '크게 보기'}
-              </button>
+              <div className="absolute right-4 top-4 z-20 flex items-start gap-2">
+                {selectedChannel !== 'overview' && (
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setChannelBookmarkMenuOpen((open) => !open)}
+                    className="inline-flex items-center gap-2 rounded-full border-0 px-4 py-2 tracking-tight transition-all hover:scale-[1.03]"
+                    style={{
+                      background: channelBookmarkMenuOpen ? 'rgba(var(--codedock-primary-rgb), 0.16)' : 'rgba(5, 11, 20, 0.78)',
+                      border: '1px solid rgba(var(--codedock-primary-rgb), 0.24)',
+                      color: 'var(--neon-cyan)',
+                      fontSize: "var(--krds-body-xsmall)",
+                      fontWeight: 950,
+                      cursor: 'pointer',
+                      boxShadow: '0 12px 30px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.08)',
+                      backdropFilter: 'blur(16px)'
+                    }}
+                    aria-label="현재 채널 북마크 목록"
+                    title="현재 채널 북마크 목록"
+                  >
+                    <Bookmark size={15} />
+                    북마크 {currentChannelBookmarkItems.length}
+                  </button>
+
+                  <AnimatePresence>
+                    {channelBookmarkMenuOpen && (
+                      <motion.div
+                        className="absolute right-0 top-[calc(100%+8px)] w-[300px] overflow-hidden rounded-2xl p-2.5"
+                        style={{
+                          background: 'linear-gradient(145deg, rgba(8, 18, 32, 0.98), rgba(4, 10, 18, 0.98))',
+                          border: '1px solid rgba(var(--codedock-primary-rgb), 0.24)',
+                          boxShadow: '0 20px 56px rgba(0, 0, 0, 0.48), 0 0 26px rgba(var(--codedock-primary-rgb), 0.10)',
+                          backdropFilter: 'blur(18px) saturate(170%)'
+                        }}
+                        initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                        transition={{ duration: 0.14 }}
+                      >
+                        <div className="mb-2 flex items-center justify-between gap-2 px-1">
+                          <p className="m-0 tracking-tight" style={{ color: 'var(--white)', fontSize: '13px', fontWeight: 950 }}>
+                            현재 채널 북마크
+                          </p>
+                          <span className="rounded-full px-2 py-0.5 tracking-tight" style={{
+                            background: 'rgba(var(--codedock-primary-rgb), 0.10)',
+                            border: '1px solid rgba(var(--codedock-primary-rgb), 0.16)',
+                            color: 'var(--neon-cyan)',
+                            fontSize: '10px',
+                            fontWeight: 950
+                          }}>
+                            {currentChannelBookmarkItems.length}
+                          </span>
+                        </div>
+
+                        {currentChannelBookmarkItems.length > 0 ? (
+                          <div className="grid max-h-[260px] gap-1.5 overflow-y-auto pr-1">
+                            {currentChannelBookmarkItems.map((bookmark) => (
+                              <button
+                                key={bookmark.messageId}
+                                type="button"
+                                onClick={() => {
+                                  focusChannelMessage(selectedChannel, bookmark.messageId);
+                                  setChannelBookmarkMenuOpen(false);
+                                }}
+                                className="flex w-full items-start gap-3 rounded-xl border-0 px-3 py-2.5 text-left tracking-tight"
+                                style={{
+                                  background: 'rgba(var(--codedock-primary-rgb), 0.08)',
+                                  border: '1px solid rgba(var(--codedock-primary-rgb), 0.14)',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                <Bookmark size={14} style={{ color: 'var(--neon-cyan)', flexShrink: 0, marginTop: 2 }} />
+                                <span className="min-w-0 flex-1">
+                                  <span className="block truncate" style={{ color: 'var(--white)', fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}>
+                                    메시지 #{bookmark.messageId}
+                                  </span>
+                                  <span className="block truncate" style={{ color: 'var(--muted)', fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>
+                                    {bookmark.content}
+                                  </span>
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="rounded-xl px-3 py-3 tracking-tight" style={{
+                            background: 'rgba(234, 247, 255, 0.04)',
+                            border: '1px solid rgba(var(--codedock-primary-rgb), 0.10)',
+                            color: 'var(--muted)',
+                            fontSize: "var(--krds-body-xsmall)",
+                            fontWeight: 850,
+                            lineHeight: 1.5
+                          }}>
+                            현재 채널에 북마크한 메시지가 없습니다.
+                          </div>
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setIsMainExpanded((expanded) => !expanded)}
+                  className="inline-flex items-center gap-2 rounded-full border-0 px-4 py-2 tracking-tight transition-all hover:scale-[1.03]"
+                  style={{
+                    background: 'rgba(5, 11, 20, 0.78)',
+                    border: '1px solid rgba(var(--codedock-primary-rgb), 0.24)',
+                    color: 'var(--neon-cyan)',
+                    fontSize: "var(--krds-body-xsmall)",
+                    fontWeight: 950,
+                    cursor: 'pointer',
+                    boxShadow: '0 12px 30px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.08)',
+                    backdropFilter: 'blur(16px)'
+                  }}
+                  aria-label={isMainExpanded ? '채팅 박스 작게 보기' : '채팅 박스 크게 보기'}
+                  title={isMainExpanded ? '작게 보기' : '크게 보기'}
+                >
+                  {isMainExpanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+                  {isMainExpanded ? '작게 보기' : '크게 보기'}
+                </button>
+              </div>
             )}
             {shouldShowRealtimeConnectionNotice && realtimeConnectionNotice && (
               <div
@@ -4398,6 +4449,8 @@ export function ChatPage() {
                 repositories={visibleRepositories}
                 selectedRepositoryId={selectedRepository}
                 onSelectRepository={setSelectedRepository}
+                bookmarkGroups={workspaceBookmarkGroups}
+                onOpenBookmark={focusChannelMessage}
               />
             ) : selectedChannel === 'api-spec' ? (
               <EmbeddedPanelBoundary key="api-spec">
@@ -4423,6 +4476,7 @@ export function ChatPage() {
                 replyCounts={mergedReplyCounts}
                 onOpenThread={handleOpenThread}
                 selectedThreadId={selectedThread?.id}
+                focusedThreadId={focusedMessageTarget?.channelId === selectedChannel ? focusedMessageTarget.messageId : undefined}
                 onOpenInvite={() => setTeamInviteOpen(true)}
                 onSendThread={handleSendMessage}
                 onAddMessageAttachments={activeApiChannelId
@@ -4462,6 +4516,7 @@ export function ChatPage() {
                 replyCounts={mergedReplyCounts}
                 onOpenThread={handleOpenThread}
                 selectedThreadId={selectedThread?.id}
+                focusedThreadId={focusedMessageTarget?.channelId === selectedChannel ? focusedMessageTarget.messageId : undefined}
                 onOpenInvite={() => setTeamInviteOpen(true)}
                 onSendThread={handleSendMessage}
                 onAddMessageAttachments={activeApiChannelId
@@ -4501,6 +4556,7 @@ export function ChatPage() {
                 replyCounts={mergedReplyCounts}
                 onOpenThread={handleOpenThread}
                 selectedThreadId={selectedThread?.id}
+                focusedThreadId={focusedMessageTarget?.channelId === selectedChannel ? focusedMessageTarget.messageId : undefined}
                 onOpenInvite={() => setTeamInviteOpen(true)}
                 onSendThread={handleSendMessage}
                 onAddMessageAttachments={activeApiChannelId
@@ -4648,6 +4704,275 @@ export function ChatPage() {
         isOpen={teamInviteOpen}
         onClose={() => setTeamInviteOpen(false)}
       />
+
+      {createPortal(
+        <AnimatePresence>
+          {addChannelStep && addChannelPosition && (
+            <motion.div
+              className="fixed z-[9998] w-[252px] rounded-xl p-2.5"
+              style={{
+                top: addChannelPosition.top,
+                left: addChannelPosition.left,
+                background: 'linear-gradient(145deg, rgba(8, 18, 32, 0.98), rgba(4, 10, 18, 0.98))',
+                border: `1px solid ${addChannelStep === 'repo' ? 'rgba(var(--codedock-secondary-rgb), 0.24)' : 'rgba(var(--codedock-primary-rgb), 0.24)'}`,
+                boxShadow: `0 16px 44px rgba(0,0,0,0.46), 0 0 24px ${addChannelStep === 'repo' ? 'rgba(var(--codedock-secondary-rgb),0.10)' : 'rgba(var(--codedock-primary-rgb),0.10)'}`,
+                backdropFilter: 'blur(16px) saturate(160%)'
+              }}
+              initial={{ opacity: 0, y: -6, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -6, scale: 0.98 }}
+              transition={{ type: 'spring', stiffness: 360, damping: 32 }}
+            >
+              {addChannelStep === 'select' && (
+                <>
+                  <div className="mb-2 flex items-center justify-between gap-2 px-0.5">
+                    <p style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 950, color: 'var(--white)', margin: 0 }}>채널 유형 선택</p>
+                    <button
+                      type="button"
+                      onClick={handleCancelAddChannel}
+                      className="grid h-6 w-6 place-items-center rounded-full border-0 transition-all hover:bg-[rgba(234,247,255,0.08)]"
+                      style={{ background: 'transparent', color: 'var(--muted)', cursor: 'pointer' }}
+                      aria-label="채널 생성 닫기"
+                    >
+                      <X size={13} />
+                    </button>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleSelectChannelType('chat')}
+                      className="flex items-center gap-2.5 rounded-lg border-0 px-2.5 py-2 text-left tracking-tight transition-all hover:scale-[1.01]"
+                      style={{
+                        background: 'rgba(var(--codedock-primary-rgb), 0.08)',
+                        border: '1px solid rgba(var(--codedock-primary-rgb), 0.2)',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <Hash size={13} style={{ color: 'var(--neon-cyan)', flexShrink: 0 }} />
+                      <div className="min-w-0">
+                        <p className="m-0 tracking-tight" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 900, color: 'var(--white)' }}>대화 채널</p>
+                        <p className="m-0 tracking-tight" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 800, color: 'var(--muted)' }}>팀 대화용 채널</p>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectChannelType('repo')}
+                      className="flex items-center gap-2.5 rounded-lg border-0 px-2.5 py-2 text-left tracking-tight transition-all hover:scale-[1.01]"
+                      style={{
+                        background: 'rgba(var(--codedock-secondary-rgb), 0.08)',
+                        border: '1px solid rgba(var(--codedock-secondary-rgb), 0.2)',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <GitBranch size={13} style={{ color: 'var(--matrix-green)', flexShrink: 0 }} />
+                      <div className="min-w-0">
+                        <p className="m-0 tracking-tight" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 900, color: 'var(--white)' }}>레포 채널</p>
+                        <p className="m-0 tracking-tight" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 800, color: 'var(--muted)' }}>GitHub 저장소 연결</p>
+                      </div>
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {addChannelStep === 'chat' && (
+                <>
+                  <p style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 900, color: 'var(--muted)', margin: '0 0 8px 0' }}>채널 이름</p>
+                  <input
+                    value={newChannelName}
+                    onChange={e => setNewChannelName(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Escape') { e.preventDefault(); handleCancelAddChannel(); }
+                      if (e.key === 'Enter') { e.preventDefault(); void handleSubmitAddChannel(); }
+                    }}
+                    autoFocus
+                    placeholder="새 채널 이름..."
+                    className="w-full rounded-lg px-3 py-2 outline-none tracking-tight"
+                    style={{
+                      background: 'rgba(234, 247, 255, 0.08)',
+                      border: '1px solid rgba(var(--codedock-primary-rgb), 0.22)',
+                      color: 'var(--white)',
+                      fontSize: '13px',
+                      fontWeight: 850
+                    }}
+                  />
+                  {channelCreateError && (
+                    <p className="mb-0 mt-2 leading-relaxed tracking-tight" style={{ color: '#FF6B6B', fontSize: '12px', fontWeight: 850 }}>
+                      {channelCreateError}
+                    </p>
+                  )}
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={handleCancelAddChannel}
+                      className="flex-1 rounded-full border-0 px-3 py-2 tracking-tight"
+                      style={{
+                        background: 'rgba(234, 247, 255, 0.07)',
+                        border: '1px solid rgba(var(--codedock-primary-rgb), 0.12)',
+                        color: 'var(--muted)',
+                        cursor: 'pointer',
+                        fontSize: "var(--krds-body-xsmall)",
+                        fontWeight: 900
+                      }}
+                    >
+                      취소
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { void handleSubmitAddChannel(); }}
+                      disabled={isSubmittingChannel}
+                      className="flex-1 rounded-full border-0 px-3 py-2 tracking-tight"
+                      style={{
+                        background: 'linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))',
+                        color: '#021014',
+                        cursor: isSubmittingChannel ? 'not-allowed' : 'pointer',
+                        opacity: isSubmittingChannel ? 0.72 : 1,
+                        fontSize: "var(--krds-body-xsmall)",
+                        fontWeight: 950
+                      }}
+                    >
+                      {isSubmittingChannel ? '생성 중' : '만들기'}
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {addChannelStep === 'repo' && (
+                <>
+                  <p style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 900, color: 'var(--muted)', margin: '0 0 4px 0' }}>레포 채널</p>
+                  <p style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 800, color: 'var(--muted)', margin: '0 0 8px 0' }}>GitHub 저장소 URL을 입력하세요</p>
+                  <input
+                    value={newRepoChannelUrl}
+                    onChange={e => setNewRepoChannelUrl(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Escape') { e.preventDefault(); handleCancelAddChannel(); }
+                    }}
+                    autoFocus
+                    placeholder="https://github.com/owner/repository"
+                    className="w-full rounded-lg px-3 py-2 outline-none tracking-tight"
+                    style={{
+                      background: 'rgba(234, 247, 255, 0.08)',
+                      border: '1px solid rgba(var(--codedock-secondary-rgb), 0.22)',
+                      color: 'var(--white)',
+                      fontSize: '13px',
+                      fontWeight: 850
+                    }}
+                  />
+                  {channelCreateError && (
+                    <p className="mb-0 mt-2 leading-relaxed tracking-tight" style={{ color: '#FF6B6B', fontSize: '12px', fontWeight: 850 }}>
+                      {channelCreateError}
+                    </p>
+                  )}
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={handleCancelAddChannel}
+                      className="flex-1 rounded-full border-0 px-3 py-2 tracking-tight"
+                      style={{
+                        background: 'rgba(234, 247, 255, 0.07)',
+                        border: '1px solid rgba(var(--codedock-primary-rgb), 0.12)',
+                        color: 'var(--muted)',
+                        cursor: 'pointer',
+                        fontSize: "var(--krds-body-xsmall)",
+                        fontWeight: 900
+                      }}
+                    >
+                      취소
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSubmitAddRepoChannel}
+                      disabled={!parseRepoNameFromUrl(newRepoChannelUrl)}
+                      className="flex flex-1 items-center justify-center gap-1 rounded-full border-0 px-3 py-2 tracking-tight transition-all disabled:opacity-40"
+                      style={{
+                        background: 'linear-gradient(135deg, var(--matrix-green), var(--deep-teal))',
+                        color: '#021014',
+                        cursor: parseRepoNameFromUrl(newRepoChannelUrl) ? 'pointer' : 'not-allowed',
+                        fontSize: "var(--krds-body-xsmall)",
+                        fontWeight: 950
+                      }}
+                    >
+                      <Plus size={13} />
+                      등록
+                    </button>
+                  </div>
+                </>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+
+      {createPortal(
+        <AnimatePresence>
+          {channelMenuTarget && channelMenuPosition && (
+            <>
+              <motion.button
+                type="button"
+                className="fixed inset-0 z-[9997] cursor-default border-0 bg-transparent"
+                aria-label="채널 옵션 닫기"
+                onClick={closeChannelMenu}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              />
+              <motion.div
+                className="fixed z-[9998] w-36 overflow-hidden rounded-lg"
+                style={{
+                  top: channelMenuPosition.top,
+                  left: channelMenuPosition.left,
+                  background: 'rgba(5, 11, 20, 0.96)',
+                  border: '1px solid rgba(var(--codedock-primary-rgb), 0.18)',
+                  boxShadow: '0 12px 32px rgba(0,0,0,0.46), 0 0 20px rgba(var(--codedock-primary-rgb),0.10)',
+                  backdropFilter: 'blur(14px) saturate(160%)'
+                }}
+                onClick={(event) => event.stopPropagation()}
+                initial={{ opacity: 0, y: -4, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                transition={{ duration: 0.12 }}
+              >
+                <button
+                  type="button"
+                  onClick={() => handleStartRenameCustomChannel(channelMenuTarget)}
+                  disabled={isChannelMenuTargetPending || !canManageChannelMenuTarget}
+                  className="flex w-full items-center gap-2 border-0 px-3 py-2 text-left tracking-tight transition-all hover:bg-[rgba(var(--codedock-primary-rgb),0.08)]"
+                  style={{
+                    background: 'transparent',
+                    color: 'var(--white)',
+                    fontSize: "var(--krds-body-xsmall)",
+                    fontWeight: 800,
+                    cursor: isChannelMenuTargetPending || !canManageChannelMenuTarget ? 'not-allowed' : 'pointer',
+                    opacity: isChannelMenuTargetPending || !canManageChannelMenuTarget ? 0.55 : 1,
+                    borderBottom: '1px solid rgba(var(--codedock-primary-rgb), 0.10)'
+                  }}
+                >
+                  <Pencil size={13} style={{ color: 'var(--neon-cyan)' }} />
+                  {canManageChannelMenuTarget ? '이름 수정' : '수정 불가'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { void handleDeleteCustomChannel(channelMenuTarget.id); }}
+                  disabled={isChannelMenuTargetPending || !canManageChannelMenuTarget}
+                  className="flex w-full items-center gap-2 border-0 px-3 py-2 text-left tracking-tight transition-all hover:bg-[rgba(255,107,107,0.08)]"
+                  style={{
+                    background: 'transparent',
+                    color: '#FF6B6B',
+                    fontSize: "var(--krds-body-xsmall)",
+                    fontWeight: 800,
+                    cursor: isChannelMenuTargetPending || !canManageChannelMenuTarget ? 'not-allowed' : 'pointer',
+                    opacity: isChannelMenuTargetPending || !canManageChannelMenuTarget ? 0.5 : 1
+                  }}
+                >
+                  <Trash2 size={13} />
+                  {isChannelMenuTargetPending ? '삭제 중' : canManageChannelMenuTarget ? '채널 삭제' : '삭제 불가'}
+                </button>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
 
       {createPortal(
         <AnimatePresence>

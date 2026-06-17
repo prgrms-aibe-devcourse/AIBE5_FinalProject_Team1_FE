@@ -1,4 +1,5 @@
 import { Send, Sparkles, Code, AtSign, Smile, GitPullRequest, FileText, Plus, Minus, MessageSquare, Bookmark, Share2, Reply, MoreVertical, X, CheckCircle, Clock, AlertCircle, ExternalLink, GitMerge, Hash, Paperclip, FileUp, Image as ImageIcon, Link2, CircleDot, CircleCheck, CircleMinus } from "lucide-react";
+import { motion } from "motion/react";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { MAX_MESSAGE_ATTACHMENTS, createLinkMessageAttachmentFromText, createUrlMessageAttachment, getMessageAttachmentTypeLabel, isSendableMessageAttachment, messageAttachmentGroups, type MessageAttachment, type MessageAttachmentType } from "./messageAttachments";
 import { EmojiPicker } from "./EmojiPicker";
@@ -21,6 +22,58 @@ export interface IssueHistoryEvent {
 }
 
 const colorAlpha = (color: string, percent: number) => `color-mix(in srgb, ${color} ${percent}%, transparent)`;
+
+function renderMessageTextWithCodeBlocks(text: string, color: string) {
+  const blocks: Array<{ type: "text" | "code"; content: string }> = [];
+  const codeFencePattern = /```(?:[a-zA-Z0-9_-]+)?\n?([\s\S]*?)```/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = codeFencePattern.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      blocks.push({ type: "text", content: text.slice(lastIndex, match.index) });
+    }
+    blocks.push({ type: "code", content: match[1].trimEnd() });
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    blocks.push({ type: "text", content: text.slice(lastIndex) });
+  }
+
+  if (blocks.length === 0) blocks.push({ type: "text", content: text });
+
+  return blocks.map((block, index) => block.type === "code" ? (
+    <pre
+      key={`code-${index}`}
+      className="m-0 mb-3 overflow-x-auto rounded-xl px-3 py-2 tracking-tight"
+      style={{
+        background: "rgba(5, 11, 20, 0.86)",
+        border: "1px solid rgba(var(--codedock-primary-rgb), 0.18)",
+        color: "var(--soft-mint)",
+        fontSize: "13px",
+        fontWeight: 750,
+        lineHeight: 1.55,
+        whiteSpace: "pre-wrap"
+      }}
+    >
+      <code>{block.content}</code>
+    </pre>
+  ) : (
+    <p
+      key={`text-${index}`}
+      className="m-0 mb-3 leading-[1.5] tracking-tight"
+      style={{
+        fontSize: "14px",
+        fontWeight: 700,
+        color,
+        whiteSpace: "pre-wrap"
+      }}
+    >
+      {block.content}
+    </p>
+  ));
+}
 
 interface Message {
   id: number;
@@ -430,9 +483,6 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
     const isPR = msg.type === 'pr';
     const bk = (label: string) => `${msg.id}:${label}`;
     const isHvr = (label: string) => hoveredBtn === bk(label);
-    const currentLabel = hoveredBtn?.startsWith(`${msg.id}:`)
-      ? hoveredBtn.replace(`${msg.id}:`, '')
-      : null;
 
     const btnStyle = (label: string, active = false): React.CSSProperties => ({
       background: isHvr(label) ? 'rgba(32, 227, 255, 0.15)' : 'transparent',
@@ -514,16 +564,6 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
             ><Paperclip size={14} /></button>
           )}
         </div>
-
-        {currentLabel && (
-          <span className="rounded px-2 py-0.5 tracking-tight" style={{
-            background: 'rgba(11, 22, 40, 0.95)',
-            border: '1px solid rgba(32, 227, 255, 0.2)',
-            color: 'var(--neon-cyan)',
-            fontSize: '10px',
-            fontWeight: 900,
-          }}>{currentLabel}</span>
-        )}
 
       </div>
     );
@@ -1129,24 +1169,26 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
                     borderRadius: '12px',
                     boxShadow: 'none'
                   }}>
-                    <p className="m-0 leading-[1.5] tracking-tight whitespace-pre-wrap" style={{
-                      fontSize: '14px',
-                      fontWeight: 700,
-                      color: msg.type === 'system' ? 'var(--neon-cyan)' : 'var(--white)'
-                    }}>
-                      {msg.text}
-                    </p>
+                    <div>
+                      {renderMessageTextWithCodeBlocks(msg.text, msg.type === 'system' ? 'var(--neon-cyan)' : 'var(--white)')}
+                    </div>
                     {msg.mentions && msg.mentions.length > 0 && (
                       <div className="flex gap-2 mt-2">
                         {msg.mentions.map((mention, idx) => (
-                          <span key={idx} className="px-2 py-0.5 rounded tracking-tight" style={{
+                          <motion.span
+                            key={idx}
+                            className="px-2 py-0.5 rounded tracking-tight"
+                            initial={{ opacity: 0, y: 4, scale: 0.96 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            transition={{ delay: idx * 0.04, duration: 0.18 }}
+                            style={{
                             background: 'rgba(var(--codedock-secondary-rgb), 0.15)',
                             fontSize: "var(--krds-body-xsmall)",
                             fontWeight: 900,
                             color: 'var(--matrix-green)'
                           }}>
                             @{mention}
-                          </span>
+                          </motion.span>
                         ))}
                       </div>
                     )}

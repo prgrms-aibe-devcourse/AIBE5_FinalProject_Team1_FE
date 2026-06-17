@@ -2,6 +2,7 @@ import {
   Activity,
   AlertCircle,
   ArrowLeft,
+  Bookmark,
   CheckCircle,
   Clock,
   GitBranch,
@@ -30,6 +31,15 @@ interface OverviewPanelProps {
   repositories: OverviewRepository[];
   selectedRepositoryId?: string;
   onSelectRepository?: (repositoryId: string) => void;
+  bookmarkGroups?: Array<{
+    channelId: string;
+    channelLabel: string;
+    items: Array<{
+      messageId: number;
+      content: string;
+    }>;
+  }>;
+  onOpenBookmark?: (channelId: string, messageId: number) => void;
 }
 
 const repositoryDetails = {
@@ -168,7 +178,7 @@ function StatCard({
   );
 }
 
-export function OverviewPanel({ repositories, selectedRepositoryId, onSelectRepository }: OverviewPanelProps) {
+export function OverviewPanel({ repositories, selectedRepositoryId, onSelectRepository, bookmarkGroups = [], onOpenBookmark }: OverviewPanelProps) {
   const [activeRepositoryId, setActiveRepositoryId] = useState<string | null>(null);
   const scrollRootRef = useRef<HTMLDivElement | null>(null);
   const activeRepository = repositories.find((repo) => repo.id === activeRepositoryId);
@@ -445,6 +455,96 @@ export function OverviewPanel({ repositories, selectedRepositoryId, onSelectRepo
             </button>
           ))}
         </div>
+      </section>
+
+      <section className="mb-6 rounded-2xl px-5 py-5" style={{
+        background: "rgba(5, 11, 20, 0.50)",
+        border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)"
+      }}>
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <div>
+            <h3 className="m-0 mb-1 tracking-tight" style={{ color: "var(--white)", fontSize: 18, fontWeight: 950 }}>
+              채널별 북마크
+            </h3>
+            <p className="m-0 tracking-tight" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>
+              워크스페이스의 북마크를 채널 기준으로 모아봅니다.
+            </p>
+          </div>
+          <Bookmark size={20} style={{ color: "var(--neon-cyan)", flexShrink: 0 }} />
+        </div>
+
+        {bookmarkGroups.length > 0 ? (
+          <div className="grid gap-4 xl:grid-cols-2">
+            {bookmarkGroups.map((group) => (
+              <div
+                key={group.channelId}
+                className="rounded-2xl px-4 py-4"
+                style={{
+                  background: "rgba(11, 22, 40, 0.74)",
+                  border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)"
+                }}
+              >
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="m-0 truncate tracking-tight" style={{ color: "var(--white)", fontSize: 14, fontWeight: 950 }}>
+                      # {group.channelLabel}
+                    </p>
+                    <p className="m-0 tracking-tight" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>
+                      {group.items.length}개 북마크
+                    </p>
+                  </div>
+                  <span className="rounded-full px-2 py-0.5 tracking-tight" style={{
+                    background: "rgba(var(--codedock-primary-rgb), 0.10)",
+                    border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)",
+                    color: "var(--neon-cyan)",
+                    fontSize: 11,
+                    fontWeight: 950
+                  }}>
+                    {group.items.length}
+                  </span>
+                </div>
+
+                <div className="grid max-h-[220px] gap-2 overflow-y-auto pr-1">
+                  {group.items.map((item) => (
+                    <button
+                      key={`${group.channelId}-${item.messageId}`}
+                      type="button"
+                      onClick={() => onOpenBookmark?.(group.channelId, item.messageId)}
+                      disabled={!onOpenBookmark}
+                      className="flex w-full items-start gap-3 rounded-xl border-0 px-3 py-2.5 text-left tracking-tight transition-all hover:translate-y-[-1px]"
+                      style={{
+                        background: "rgba(234, 247, 255, 0.045)",
+                        border: "1px solid rgba(var(--codedock-primary-rgb), 0.10)",
+                        cursor: onOpenBookmark ? "pointer" : "default",
+                        opacity: onOpenBookmark ? 1 : 0.72
+                      }}
+                    >
+                      <Bookmark size={14} style={{ color: "var(--neon-cyan)", flexShrink: 0, marginTop: 2 }} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate" style={{ color: "var(--white)", fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}>
+                          메시지 #{item.messageId}
+                        </span>
+                        <span className="block truncate" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>
+                          {item.content}
+                        </span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-2xl px-4 py-4 tracking-tight" style={{
+            background: "rgba(234, 247, 255, 0.045)",
+            border: "1px solid rgba(var(--codedock-primary-rgb), 0.10)",
+            color: "var(--muted)",
+            fontSize: 13,
+            fontWeight: 850
+          }}>
+            아직 북마크한 메시지가 없습니다.
+          </div>
+        )}
       </section>
 
       <section className="rounded-2xl px-5 py-5" style={{

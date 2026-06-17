@@ -235,8 +235,13 @@ export function createLinkMessageAttachment(rawUrl: string, rawTitle?: string): 
   return createUrlMessageAttachment(rawUrl, rawTitle, "link");
 }
 
+function stripFencedCodeBlocks(text: string) {
+  return text.replace(/```[\s\S]*?```/g, " ");
+}
+
 export function createLinkMessageAttachmentFromText(text: string): MessageAttachment | null {
-  const match = text.match(/(?:https?:\/\/|www\.)[^\s<>()]+|[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+(?:\/[^\s<>()]*)?/);
+  const searchableText = stripFencedCodeBlocks(text);
+  const match = searchableText.match(/(?:https?:\/\/|www\.)[^\s<>()]+|[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+(?:\/[^\s<>()]*)?/);
   if (!match) return null;
 
   const url = match[0].replace(/[.,;:!?]+$/, "");
