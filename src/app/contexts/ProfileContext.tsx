@@ -10,7 +10,7 @@ import {
 } from "react";
 
 import { apiClient } from "../api/client";
-import { isAuthenticated } from "../auth";
+import { isAuthenticated, PROFILE_STORAGE_KEY } from "../auth";
 
 export type ProfileStatus = "available" | "focus" | "away";
 
@@ -29,6 +29,7 @@ export interface ProfileUser {
   githubUsername: string;
   githubEmail: string;
   connectedAt: string;
+  hasPassword: boolean;
 }
 
 export const STATUS_OPTIONS: { id: ProfileStatus; label: string; color: string }[] = [
@@ -52,9 +53,8 @@ export const DEFAULT_PROFILE: ProfileUser = {
   githubUsername: "",
   githubEmail: "",
   connectedAt: "",
+  hasPassword: false,
 };
-
-const PROFILE_STORAGE_KEY = "codedock-profile-v1";
 
 function getSavedProfile(fallback: ProfileUser): ProfileUser {
   if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
@@ -99,6 +99,7 @@ type MeResponse = {
   githubUsername: string | null;
   githubEmail: string | null;
   githubConnectedAt: string | null;
+  hasPassword: boolean;
 };
 
 interface ProfileContextValue {
@@ -107,6 +108,7 @@ interface ProfileContextValue {
   loading: boolean;
   userId: number | null;
   reloadProfile: () => Promise<void>;
+  clearProfile: () => void;
 }
 
 const ProfileContext = createContext<ProfileContextValue | null>(null);
@@ -139,6 +141,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         githubUsername: me.githubUsername ?? "",
         githubEmail: me.githubEmail ?? "",
         connectedAt: me.githubConnectedAt ? String(me.githubConnectedAt) : "",
+        hasPassword: me.hasPassword ?? false,
       }));
     } catch {
     } finally {
@@ -151,11 +154,18 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   }, [reloadProfile]);
 
   useEffect(() => {
-    saveProfile(profile);
+    if (isAuthenticated()) {
+      saveProfile(profile);
+    }
   }, [profile]);
 
+  const clearProfile = useCallback(() => {
+    setProfile(DEFAULT_PROFILE);
+    setUserId(null);
+  }, []);
+
   return (
-      <ProfileContext.Provider value={{ profile, setProfile, loading, userId, reloadProfile }}>
+      <ProfileContext.Provider value={{ profile, setProfile, loading, userId, reloadProfile, clearProfile }}>
         {children}
       </ProfileContext.Provider>
   );

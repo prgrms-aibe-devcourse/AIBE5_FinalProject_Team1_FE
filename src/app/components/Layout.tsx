@@ -16,9 +16,19 @@ import {
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import { useTheme } from "../contexts/ThemeContext";
-import { useProfile, STATUS_OPTIONS } from "../contexts/ProfileContext";
+import { useProfile, STATUS_OPTIONS, type ProfileUser } from "../contexts/ProfileContext";
 import { logout } from "../auth";
 
+function resolveDisplayEmail(profile: ProfileUser): string {
+    const isReal = (value: string) => value.length > 0 && !value.endsWith("@users.noreply.github.com");
+    if (isReal(profile.email)) {
+        return profile.email;
+    }
+    if (isReal(profile.githubEmail)) {
+        return profile.githubEmail;
+    }
+    return profile.email || profile.githubEmail || "";
+}
 
 export function Layout() {
   const location = useLocation();
@@ -26,13 +36,14 @@ export function Layout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [remoteNav, setRemoteNav] = useState(false);
   const { colors } = useTheme();
-  const { profile } = useProfile();
+    const { profile, clearProfile } = useProfile();
 
   const isActive = (path: string) => location.pathname === path;
   const hideFooter = location.pathname === "/chat";
   const handleLogout = async () => {
-    await logout();
-    navigate("/login");
+      await logout();
+      clearProfile();
+      navigate("/login");
   };
 
   useEffect(() => {
@@ -128,7 +139,7 @@ export function Layout() {
                 backdropFilter: "blur(16px) saturate(180%)",
               }}
               aria-label="계정 정보 보기"
-              title={`${profile.name} - ${profile.email}`}
+              title={`${profile.name} - ${resolveDisplayEmail(profile)}`}
             >
               <AccountAvatar />
               <span className="grid min-w-0 leading-none">
@@ -151,7 +162,7 @@ export function Layout() {
                 color: colors.primaryHex,
               }}
               aria-label="계정 정보 보기"
-              title={`${profile.name} - ${profile.email}`}
+              title={`${profile.name} - ${resolveDisplayEmail(profile)}`}
             >
               <UserRound size={19} strokeWidth={2.4} />
             </Link>
@@ -192,7 +203,7 @@ export function Layout() {
             }}
             aria-label="계정 정보 보기"
             tabIndex={remoteNav ? 0 : -1}
-            title={`${profile.name} - ${profile.email}`}
+            title={`${profile.name} - ${resolveDisplayEmail(profile)}`}
           >
             <AccountAvatar />
             <span className="max-w-[92px] truncate text-sm font-black tracking-tight">{profile.name}</span>
@@ -216,7 +227,7 @@ export function Layout() {
               <span className="grid min-w-0 leading-none">
                 <span className="truncate text-sm font-black tracking-tight">{profile.name}</span>
                 <span className="mt-1 truncate text-xs font-bold tracking-tight" style={{ color: "var(--muted)" }}>
-                  {profile.email}
+                    {resolveDisplayEmail(profile)}
                 </span>
               </span>
             </Link>
@@ -313,7 +324,7 @@ function AccountMenu({ variant, onLogout, tabIndex }: AccountMenuProps) {
                   }
           }
           aria-label="계정 메뉴 열기"
-          title={`${profile.name} - ${profile.email}`}
+          title={`${profile.name} - ${resolveDisplayEmail(profile)}`}
           tabIndex={tabIndex}
         >
           {variant === "icon" ? (
@@ -364,7 +375,7 @@ function AccountMenu({ variant, onLogout, tabIndex }: AccountMenuProps) {
         <DropdownMenuLabel className="px-3 py-2">
           <span className="block truncate text-sm font-black tracking-tight">{profile.name}</span>
           <span className="mt-1 block truncate text-xs font-bold tracking-tight" style={{ color: "var(--muted)" }}>
-            {profile.email}
+              {resolveDisplayEmail(profile)}
           </span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator style={{ background: `${colors.primary}, 0.14)` }} />

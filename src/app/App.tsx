@@ -1,5 +1,5 @@
 import { type ReactNode, lazy, Suspense } from "react";
-import { BrowserRouter, Navigate, Routes, Route } from "react-router";
+import { BrowserRouter, Navigate, Outlet, Routes, Route, useLocation } from "react-router";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import { ProfileProvider } from "./contexts/ProfileContext";
@@ -28,10 +28,20 @@ const WorkspaceSettingsPage = lazy(() => import("./pages/WorkspaceSettingsPage")
 const LegalPage = lazy(() => import("./pages/LegalPage").then((module) => ({ default: module.LegalPage })));
 const OAuthCallbackPage = lazy(() => import("./pages/OAuthCallbackPage").then((module) => ({ default: module.OAuthCallbackPage })));
 const OAuthPopupCallbackPage = lazy(() => import("./pages/OAuthPopupCallbackPage").then((module) => ({ default: module.OAuthPopupCallbackPage })));
+const OAuthConnectCallbackPage = lazy(() => import("./pages/OAuthConnectCallbackPage").then((module) => ({ default: module.OAuthConnectCallbackPage })));
 const InviteAcceptPage = lazy(() => import("./pages/InviteAcceptPage").then((module) => ({ default: module.InviteAcceptPage })));
 
 function HomeRoute() {
   return isAuthenticated() ? <Navigate to="/workspace" replace /> : <HomePage />;
+}
+
+function RequireAuth() {
+  const location = useLocation();
+  if (isAuthenticated()) {
+    return <Outlet />;
+  }
+  const next = encodeURIComponent(`${location.pathname}${location.search}`);
+  return <Navigate to={`/login?next=${next}`} replace />;
 }
 
 function RouteFallback() {
@@ -60,6 +70,7 @@ export default function App() {
                 <Route path="/" element={<HomeRoute />} />
                 <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
                 <Route path="/oauth/popup-callback" element={<OAuthPopupCallbackPage />} />
+                <Route path="/oauth/connect-callback" element={<OAuthConnectCallbackPage />} />
                 <Route path="/invite/:token" element={<InviteAcceptPage />} />
                 <Route path="/terms" element={<LegalPage kind="terms" />} />
                 <Route path="/privacy" element={<LegalPage kind="privacy" />} />
@@ -70,17 +81,19 @@ export default function App() {
                 <Route path="/account-recovery" element={<AccountRecoveryPage />} />
                 <Route path="/forgot-password" element={<AccountRecoveryPage />} />
               </Route>
-              <Route element={<Layout />}>
-                <Route path="/profile" element={<ProfilePage />} />
-                <Route path="/settings" element={<SettingsPage />} />
-                <Route path="/workspace-settings" element={<WorkspaceSettingsPage />} />
-                <Route path="/workspace" element={<WorkspacePage />} />
-                <Route path="/project" element={<ProjectPage />} />
-                <Route path="/issues" element={<IssueBoardPage />} />
-                <Route path="/chat" element={<ChatPage />} />
-                <Route path="/api-spec" element={<PageBoundary><APISpecPage /></PageBoundary>} />
-                <Route path="/erd" element={<PageBoundary><ERDPage /></PageBoundary>} />
-                <Route path="/docs" element={<PageBoundary><DocsPage /></PageBoundary>} />
+              <Route element={<RequireAuth />}>
+                <Route element={<Layout />}>
+                  <Route path="/profile" element={<ProfilePage />} />
+                  <Route path="/settings" element={<SettingsPage />} />
+                  <Route path="/workspace-settings" element={<WorkspaceSettingsPage />} />
+                  <Route path="/workspace" element={<WorkspacePage />} />
+                  <Route path="/project" element={<ProjectPage />} />
+                  <Route path="/issues" element={<IssueBoardPage />} />
+                  <Route path="/chat" element={<ChatPage />} />
+                  <Route path="/api-spec" element={<PageBoundary><APISpecPage /></PageBoundary>} />
+                  <Route path="/erd" element={<PageBoundary><ERDPage /></PageBoundary>} />
+                  <Route path="/docs" element={<PageBoundary><DocsPage /></PageBoundary>} />
+                </Route>
               </Route>
             </Routes>
           </Suspense>
