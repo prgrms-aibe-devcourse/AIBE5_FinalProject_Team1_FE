@@ -1136,6 +1136,7 @@ export function ChatPage() {
     getSavedWorkspaceScopedRecord(CHAT_REACTIONS_KEY, {})
   );
   const [isMainExpanded, setIsMainExpanded] = useState(false);
+  const prevMainExpanded = useRef(false);
   const [teamInviteOpen, setTeamInviteOpen] = useState(false);
   const [expandedSidebarGroups, setExpandedSidebarGroups] = useState<Record<SidebarGroupId, boolean>>({
     documentation: true
@@ -3273,6 +3274,7 @@ export function ChatPage() {
   };
 
   const handleReviewPR = (prData: any) => {
+    prevMainExpanded.current = isMainExpanded;
     setIsMainExpanded(true);
     setSelectedPR(prData);
     setSelectedIssue(null);
@@ -3282,10 +3284,11 @@ export function ChatPage() {
   const handleClosePRReview = () => {
     setSelectedPR(null);
     setSelectedThread(null);
-    setIsMainExpanded(false);
+    setIsMainExpanded(prevMainExpanded.current);
   };
 
   const handleViewIssue = (issueData: any) => {
+    prevMainExpanded.current = isMainExpanded;
     setIsMainExpanded(true);
     setSelectedIssue(issueData);
     setSelectedPR(null);
@@ -3295,7 +3298,7 @@ export function ChatPage() {
   const handleCloseIssue = () => {
     setSelectedIssue(null);
     setSelectedThread(null);
-    setIsMainExpanded(false);
+    setIsMainExpanded(prevMainExpanded.current);
   };
 
   const handleOpenThread = (message: any) => {
