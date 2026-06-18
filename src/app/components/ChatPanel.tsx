@@ -222,7 +222,8 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const skipBookmarkSaveRef = useRef(false);
   const responderTypingTimerRef = useRef<number | null>(null);
-  const typingHeartbeatRef = useRef<number | null>(null);
+  const typingDebounceRef = useRef<number | null>(null);
+  const isSendingTypingRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const isMessageMine = (message: Message) => (
@@ -236,8 +237,8 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
       if (responderTypingTimerRef.current) {
         window.clearTimeout(responderTypingTimerRef.current);
       }
-      if (typingHeartbeatRef.current) {
-        window.clearInterval(typingHeartbeatRef.current);
+      if (typingDebounceRef.current) {
+        window.clearTimeout(typingDebounceRef.current);
       }
     };
   }, []);
@@ -385,25 +386,31 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
   const composerTyping = message.trim().length > 0;
 
   useEffect(() => {
-    if (typingHeartbeatRef.current) {
-      window.clearInterval(typingHeartbeatRef.current);
-      typingHeartbeatRef.current = null;
+    if (typingDebounceRef.current) {
+      window.clearTimeout(typingDebounceRef.current);
+      typingDebounceRef.current = null;
     }
     if (composerTyping) {
-      onTypingChange?.(true);
-      typingHeartbeatRef.current = window.setInterval(() => {
+      if (!isSendingTypingRef.current) {
         onTypingChange?.(true);
-      }, 2500);
-    } else {
+        isSendingTypingRef.current = true;
+      }
+      typingDebounceRef.current = window.setTimeout(() => {
+        onTypingChange?.(false);
+        isSendingTypingRef.current = false;
+        typingDebounceRef.current = null;
+      }, 1500);
+    } else if (isSendingTypingRef.current) {
       onTypingChange?.(false);
+      isSendingTypingRef.current = false;
     }
     return () => {
-      if (typingHeartbeatRef.current) {
-        window.clearInterval(typingHeartbeatRef.current);
-        typingHeartbeatRef.current = null;
+      if (typingDebounceRef.current) {
+        window.clearTimeout(typingDebounceRef.current);
+        typingDebounceRef.current = null;
       }
     };
-  }, [composerTyping, onTypingChange]);
+  }, [message, onTypingChange]);
 
   const localTypingLabel = responderTyping
     ? composerTyping
