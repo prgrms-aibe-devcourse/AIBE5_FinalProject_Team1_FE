@@ -357,6 +357,10 @@ export function markMentionAsRead(mentionId: number, options?: ApiRequestOptions
   return apiClient.patch<MentionResponse>(`/api/mentions/${mentionId}/read`, undefined, options);
 }
 
+export function deleteMention(mentionId: number, options?: ApiRequestOptions) {
+  return apiClient.delete<void>(`/api/mentions/${mentionId}`, options);
+}
+
 export function markChannelAsRead(channelId: number, options?: ApiRequestOptions) {
   return apiClient.put<ChannelReadStatusResponse>(`/api/channels/${channelId}/read`, undefined, options);
 }
