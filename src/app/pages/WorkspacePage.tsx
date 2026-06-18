@@ -280,7 +280,7 @@ function DraggableTeamCard({
               리뷰받은 PR: <span style={{ color: "#FFD93D" }}>{org.myReviewedPRs}</span>
             </span>
             <span className="tracking-tight" style={{ fontSize: "14px", fontWeight: 800, color: "var(--muted)" }}>
-              미해결 이슈: <span style={{ color: org.myOpenIssues > 0 ? "#FF6B6B" : "var(--matrix-green)" }}>{org.myOpenIssues}</span>
+              미해결 이슈: <span style={{ color: "#FF6B6B" }}>{org.myOpenIssues}</span>
             </span>
             <span
               className="flex items-center gap-1 tracking-tight"
@@ -1015,8 +1015,17 @@ export function WorkspacePage() {
 
   // 실제 워크스페이스 목록을 API에서 로드
   useEffect(() => {
+    const saved = localStorage.getItem("codedock-team-sort-order");
+    const order: "name" | "latest" = saved === "name" ? "name" : "latest";
     fetchMyWorkspaces()
-      .then((list) => setOrgs(list.map(workspaceDtoToOrg)))
+      .then((list) => {
+        const mapped = list.map(workspaceDtoToOrg);
+        setOrgs(
+          order === "name"
+            ? mapped.sort((a, b) => a.name.localeCompare(b.name, "ko"))
+            : mapped.sort((a, b) => b.id - a.id)
+        );
+      })
       .catch(() => setOrgs([]))
       .finally(() => setOrgsLoading(false));
   }, []);
@@ -1060,6 +1069,20 @@ export function WorkspacePage() {
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showInvitesModal, setShowInvitesModal] = useState(false);
+  const [sortOrder, setSortOrder] = useState<"name" | "latest">(() => {
+    const saved = localStorage.getItem("codedock-team-sort-order");
+    return saved === "name" ? "name" : "latest";
+  });
+
+  const handleSortOrgs = (order: "name" | "latest") => {
+    setSortOrder(order);
+    localStorage.setItem("codedock-team-sort-order", order);
+    setOrgs((prev) =>
+      order === "name"
+        ? [...prev].sort((a, b) => a.name.localeCompare(b.name, "ko"))
+        : [...prev].sort((a, b) => b.id - a.id)
+    );
+  };
 
   const moveOrg = useCallback((from: number, to: number) => {
     setOrgs((prev) => {
@@ -1141,6 +1164,7 @@ export function WorkspacePage() {
   const handleRejectInvite = (id: number) => {
     const invite = invites.find((i) => i.id === id);
     if (!invite) return;
+    if (!window.confirm(`"${invite.teamName}" 초대를 거절하시겠습니까?`)) return;
     rejectInvite(invite.token)
         .then(() => setInvites((prev) => prev.filter((i) => i.id !== id)))
         .catch((e) => alert(e instanceof Error ? e.message : "초대 거절에 실패했습니다."));
@@ -1222,8 +1246,29 @@ export function WorkspacePage() {
           <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
             <h2 className="m-0 leading-none tracking-[-0.075em]" style={{ fontSize: "clamp(28px, 4vw, 44px)", fontWeight: 950 }}>
               내 팀
+              {!orgsLoading && (
+                <span style={{ fontSize: "clamp(18px, 2.5vw, 28px)", fontWeight: 950, color: "var(--neon-cyan)", marginLeft: "0.35em" }}>
+                  {orgs.length}
+                </span>
+              )}
             </h2>
             <div className="flex flex-wrap items-center gap-3">
+              <select
+                value={sortOrder}
+                onChange={(e) => handleSortOrgs(e.target.value as "name" | "latest")}
+                className="rounded-xl px-3 py-2 outline-none tracking-tight"
+                style={{
+                  background: "rgba(255,255,255,0.05)",
+                  border: "1.5px solid rgba(var(--codedock-primary-rgb), 0.20)",
+                  color: "var(--white)",
+                  fontSize: "13px",
+                  fontWeight: 850,
+                  cursor: "pointer",
+                }}
+              >
+                <option value="latest" style={{ background: "#121827", color: "#EAF7FF" }}>최신 순</option>
+                <option value="name" style={{ background: "#121827", color: "#EAF7FF" }}>이름 순</option>
+              </select>
               <button
                 onClick={() => setShowInvitesModal(true)}
                 className="flex items-center gap-2 rounded-xl px-5 py-3 tracking-tight transition-all hover:brightness-110"
