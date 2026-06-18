@@ -280,7 +280,7 @@ function DraggableTeamCard({
               리뷰받은 PR: <span style={{ color: "#FFD93D" }}>{org.myReviewedPRs}</span>
             </span>
             <span className="tracking-tight" style={{ fontSize: "14px", fontWeight: 800, color: "var(--muted)" }}>
-              미해결 이슈: <span style={{ color: org.myOpenIssues > 0 ? "#FF6B6B" : "var(--matrix-green)" }}>{org.myOpenIssues}</span>
+              미해결 이슈: <span style={{ color: "#FF6B6B" }}>{org.myOpenIssues}</span>
             </span>
             <span
               className="flex items-center gap-1 tracking-tight"
