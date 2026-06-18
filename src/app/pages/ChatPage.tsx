@@ -1164,6 +1164,7 @@ export function ChatPage() {
   const [serverBookmarkedThreadsByChannel, setServerBookmarkedThreadsByChannel] = useState<Record<string, Record<number, boolean>>>({});
   const [workspaceBookmarks, setWorkspaceBookmarks] = useState<BookmarkResponse[]>([]);
   const [workspaceMentions, setWorkspaceMentions] = useState<MentionResponse[]>([]);
+  const [optimisticMentionBumps, setOptimisticMentionBumps] = useState(0);
   const [channelBookmarkMenuOpen, setChannelBookmarkMenuOpen] = useState(false);
   const [channelMenuOpenId, setChannelMenuOpenId] = useState<string | null>(null);
   const [channelMenuPosition, setChannelMenuPosition] = useState<{ top: number; left: number } | null>(null);
@@ -1390,7 +1391,8 @@ export function ChatPage() {
   const activeServerBookmarkedThreadIds = serverBookmarkedThreadsByChannel[selectedChannelMessageKey] ?? {};
   // Mentions are removed from workspaceMentions on delete (server-backed), so the list is the source of truth.
   const visibleWorkspaceMentions = workspaceMentions;
-  const unreadMentionCount = visibleWorkspaceMentions.filter((mention) => !mention.read).length;
+  const unreadMentionCount =
+    visibleWorkspaceMentions.filter((mention) => !mention.read).length + optimisticMentionBumps;
 
   const getChannelBadge = (channelId: string): string | undefined => {
     const count = currentChannelUnreadCounts[channelId];
@@ -1860,6 +1862,7 @@ export function ChatPage() {
     if (!currentWorkspaceApiId) return;
     const controller = new AbortController();
 
+    setOptimisticMentionBumps(0);
     getWorkspaceMentions(currentWorkspaceApiId, {
       signal: controller.signal
     })
@@ -2343,6 +2346,8 @@ export function ChatPage() {
     return () => controller.abort();
   }, [activeApiChannelId, getThreadReplyStateKey, selectedThread?.backendMessageId, selectedThread?.id]);
 
+  const mentionRefetchTimeoutRef = useRef<number | null>(null);
+
   // Latest channel event handlers in a ref so the WebSocket subscriptions always call fresh
   // callbacks without listing every handler as an effect dep (which caused full reconnects on
   // every state update — e.g. appendServerMessage changing when a new message arrived).
@@ -2498,11 +2503,21 @@ export function ChatPage() {
 
           const wsId = wsChannelHandlersRef.current.currentWorkspaceApiId;
           if (notification.workspaceId === undefined || notification.workspaceId === wsId) {
-            getWorkspaceMentions(wsId)
-              .then(setWorkspaceMentions)
-              .catch(() => {
-                // The notification badge stays driven by local unread state if mention refresh fails.
-              });
+            setOptimisticMentionBumps((count) => count + 1);
+            if (mentionRefetchTimeoutRef.current) {
+              window.clearTimeout(mentionRefetchTimeoutRef.current);
+            }
+            mentionRefetchTimeoutRef.current = window.setTimeout(() => {
+              mentionRefetchTimeoutRef.current = null;
+              const freshWsId = wsChannelHandlersRef.current.currentWorkspaceApiId;
+              if (!freshWsId) return;
+              getWorkspaceMentions(freshWsId)
+                .then((mentions) => {
+                  setWorkspaceMentions(mentions);
+                  setOptimisticMentionBumps(0);
+                })
+                .catch(() => {});
+            }, 300);
           }
         }
       );
