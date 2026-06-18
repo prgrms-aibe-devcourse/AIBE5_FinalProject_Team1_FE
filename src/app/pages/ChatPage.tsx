@@ -453,8 +453,7 @@ function getWorkspaceApiId(workspaceId: string, workspace?: WorkspaceItem | null
     return workspace.apiId;
   }
 
-  const numericSuffix = workspaceId.match(/\d+$/)?.[0];
-  return numericSuffix ? Number(numericSuffix) : 1;
+  return 0;
 }
 
 function parseWorkspaceApiId(value: unknown) {
@@ -561,8 +560,14 @@ function formatApiDateTime(value: string) {
   }).format(date);
 }
 
+// Must stay in sync with the backend Thread.DELETED_MESSAGE_CONTENT constant (no trailing period).
+const DELETED_MESSAGE_CONTENT = "삭제된 메시지입니다";
+
 function mapChannelMessageToWorkspaceMessage(message: ChannelMessage) {
   const attachments = (message.attachments ?? []).map(mapMessageAttachmentResponse);
+  // The backend marks soft-deleted messages by replacing the content with a sentinel string.
+  // Detect it here so a page refresh keeps the message in the "deleted" state (no edit/delete buttons).
+  const isDeleted = message.isDeleted === true || message.content === DELETED_MESSAGE_CONTENT;
 
   return {
     id: message.id,
@@ -575,7 +580,8 @@ function mapChannelMessageToWorkspaceMessage(message: ChannelMessage) {
     text: message.content,
     time: formatApiDateTime(message.createdAt),
     replies: 0,
-    attachments
+    attachments,
+    ...(isDeleted ? { deleted: true } : {})
   };
 }
 
@@ -1352,7 +1358,7 @@ export function ChatPage() {
   const hasActiveApiChatChannel = activeApiChannelId !== undefined;
   const hasChatAccessToken = Boolean(getAccessToken());
   const realtimeConnectionBlockReason = useMemo<RealtimeConnectionReason | null>(() => {
-    if (!Number.isFinite(currentWorkspaceApiId)) return "workspace-unavailable";
+    if (!Number.isFinite(currentWorkspaceApiId) || currentWorkspaceApiId <= 0) return "workspace-unavailable";
     if (!hasChatAccessToken) return "missing-token";
     if (channelFetchStatus === "idle" || channelFetchStatus === "loading") return "channels-loading";
     if (channelFetchStatus === "failed") return "channels-failed";
@@ -1814,6 +1820,7 @@ export function ChatPage() {
   }, [apiChannelUiById, currentWorkspaceApiId, getMessageChannelKey]);
 
   useEffect(() => {
+    if (!currentWorkspaceApiId) return;
     const controller = new AbortController();
 
     getWorkspaceBookmarks(currentWorkspaceApiId, {
@@ -1828,6 +1835,7 @@ export function ChatPage() {
   }, [applyWorkspaceBookmarks, currentWorkspaceApiId]);
 
   useEffect(() => {
+    if (!currentWorkspaceApiId) return;
     const controller = new AbortController();
 
     getWorkspaceMentions(currentWorkspaceApiId, {
@@ -2163,6 +2171,8 @@ export function ChatPage() {
   }, [currentWorkspaceApiId, getInteractionStateKey, selectedChannel, selectedThread]);
 
   useEffect(() => {
+    if (!currentWorkspaceApiId) return;
+
     const controller = new AbortController();
 
     setChannelFetchStatus("loading");
@@ -2351,11 +2361,15 @@ export function ChatPage() {
               return;
             }
 
-            const updatedMessagePayload =
-              getChatEventPayload<ChannelMessage>(event, CHAT_EVENT_TYPE.MESSAGE_UPDATED)
-              ?? getChatEventPayload<ChannelMessage>(event, CHAT_EVENT_TYPE.MESSAGE_DELETED);
+            const updatedMessagePayload = getChatEventPayload<ChannelMessage>(event, CHAT_EVENT_TYPE.MESSAGE_UPDATED);
             if (updatedMessagePayload) {
               replaceServerMessage(uiChannelId, updatedMessagePayload);
+              return;
+            }
+
+            const deletedMessagePayload = getChatEventPayload<ChannelMessage>(event, CHAT_EVENT_TYPE.MESSAGE_DELETED);
+            if (deletedMessagePayload) {
+              replaceServerMessage(uiChannelId, { ...deletedMessagePayload, isDeleted: true });
               return;
             }
 
@@ -2392,7 +2406,7 @@ export function ChatPage() {
                   )
                 }));
                 delete remoteTypingTimeoutsRef.current[typingKey];
-              }, 3200);
+              }, 10000);
             }
 
             setRemoteTypingByChannel((prev) => {
@@ -3543,7 +3557,9 @@ export function ChatPage() {
     if (!activeApiChannelId || !Number.isFinite(backendMessageId)) return;
 
     deleteChannelMessage(activeApiChannelId, backendMessageId, {})
-      .then((serverMessage) => replaceServerMessage(selectedChannel, serverMessage))
+      .then((serverMessage) => {
+        replaceServerMessage(selectedChannel, { ...serverMessage, isDeleted: true });
+      })
       .catch(() => {
         // Keep the optimistic delete so the local mock workflow is not interrupted.
       });

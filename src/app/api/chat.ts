@@ -34,6 +34,7 @@ export type ChannelMessage = {
   content: string;
   createdAt: ISODateTime;
   attachments?: MessageAttachmentResponse[];
+  isDeleted?: boolean;
 };
 
 export type ChannelMessageCreateRequest = {

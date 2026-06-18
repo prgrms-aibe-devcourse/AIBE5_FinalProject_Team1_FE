@@ -117,7 +117,7 @@ export function MessageReactions({ reactions = [], onToggle }: MessageReactionsP
             fontWeight: 900
           }}
           aria-label={`${REACTION_KEY_TO_EMOJI[reaction.emoji] ?? reaction.emoji} 반응 ${reaction.count}개`}
-          title={`${reaction.emoji} 반응`}
+          title={`${REACTION_KEY_TO_EMOJI[reaction.emoji] ?? reaction.emoji} 반응`}
         >
           <span aria-hidden="true">{REACTION_KEY_TO_EMOJI[reaction.emoji] ?? reaction.emoji}</span>
           <span className="ml-1">{reaction.count}</span>

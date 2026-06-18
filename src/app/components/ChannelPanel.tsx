@@ -241,7 +241,8 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
   const skipThreadSaveRef = useRef(false);
   const skipBookmarkSaveRef = useRef(false);
   const responderTypingTimerRef = useRef<number | null>(null);
-  const typingHeartbeatRef = useRef<number | null>(null);
+  const typingDebounceRef = useRef<number | null>(null);
+  const isSendingTypingRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const isThreadMine = (thread: Thread) => (
@@ -250,13 +251,28 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
       : isSelfUser(thread.user)
   );
 
+  const focusedThreadIdRef = useRef(focusedThreadId);
   useEffect(() => {
-    if (focusedThreadId == null) return;
+    focusedThreadIdRef.current = focusedThreadId;
+  }, [focusedThreadId]);
+
+  // Tracks which focus target we have already scrolled to, so we scroll exactly once
+  // when the message becomes available (messages can load asynchronously) and never
+  // re-yank the view on later message updates. The highlight itself persists until the
+  // channel changes or the page reloads (focusedThreadId clears upstream).
+  const scrolledFocusRef = useRef<typeof focusedThreadId>(undefined);
+  useEffect(() => {
+    if (focusedThreadId == null) {
+      scrolledFocusRef.current = undefined;
+      return;
+    }
+    if (scrolledFocusRef.current === focusedThreadId) return;
 
     const target = threadElementRefs.current[String(focusedThreadId)];
     if (!target) return;
 
     target.scrollIntoView({ behavior: "smooth", block: "center" });
+    scrolledFocusRef.current = focusedThreadId;
   }, [focusedThreadId, displayedThreads]);
 
   useEffect(() => {
@@ -264,8 +280,8 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
       if (responderTypingTimerRef.current) {
         window.clearTimeout(responderTypingTimerRef.current);
       }
-      if (typingHeartbeatRef.current) {
-        window.clearInterval(typingHeartbeatRef.current);
+      if (typingDebounceRef.current) {
+        window.clearTimeout(typingDebounceRef.current);
       }
     };
   }, []);
@@ -299,6 +315,9 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
   }, [bookmarkStorageKey, localBookmarkedThreadIds]);
 
   useEffect(() => {
+    // Read the focus flag from a ref so that *clearing* the focus target does not
+    // re-run this effect and snap the view back down to the latest message.
+    if (focusedThreadIdRef.current != null) return;
     const scrollContainer = scrollContainerRef.current;
     if (!scrollContainer) return;
 
@@ -343,25 +362,31 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
   const typingLabel = remoteTypingLabel || localTypingLabel;
 
   useEffect(() => {
-    if (typingHeartbeatRef.current) {
-      window.clearInterval(typingHeartbeatRef.current);
-      typingHeartbeatRef.current = null;
+    if (typingDebounceRef.current) {
+      window.clearTimeout(typingDebounceRef.current);
+      typingDebounceRef.current = null;
     }
     if (composerTyping) {
-      onTypingChange?.(true);
-      typingHeartbeatRef.current = window.setInterval(() => {
+      if (!isSendingTypingRef.current) {
         onTypingChange?.(true);
-      }, 2500);
-    } else {
+        isSendingTypingRef.current = true;
+      }
+      typingDebounceRef.current = window.setTimeout(() => {
+        onTypingChange?.(false);
+        isSendingTypingRef.current = false;
+        typingDebounceRef.current = null;
+      }, 1500);
+    } else if (isSendingTypingRef.current) {
       onTypingChange?.(false);
+      isSendingTypingRef.current = false;
     }
     return () => {
-      if (typingHeartbeatRef.current) {
-        window.clearInterval(typingHeartbeatRef.current);
-        typingHeartbeatRef.current = null;
+      if (typingDebounceRef.current) {
+        window.clearTimeout(typingDebounceRef.current);
+        typingDebounceRef.current = null;
       }
     };
-  }, [composerTyping, onTypingChange]);
+  }, [messageText, onTypingChange]);
 
   const handleAttachmentToggle = (attachment: MessageAttachment) => {
     setSelectedAttachments((prev) => {

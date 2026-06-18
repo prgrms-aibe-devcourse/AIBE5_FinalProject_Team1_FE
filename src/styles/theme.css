@@ -2,7 +2,7 @@
 
 :root {
   --font-size: 16px;
-  --codedock-font-family: "Pretendard GOV", "Pretendard", "Noto Sans KR", "Spoqa Han Sans Neo", "Apple SD Gothic Neo", "Segoe UI", system-ui, sans-serif;
+  --codedock-font-family: "Pretendard GOV", "Pretendard", "Noto Sans KR", "Spoqa Han Sans Neo", "Apple SD Gothic Neo", "Segoe UI", system-ui, "Apple Color Emoji", "Noto Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif;
   --krds-body-medium: 1.0625rem;
   --krds-body-small: 0.9375rem;
   --krds-body-xsmall: 0.8125rem;
