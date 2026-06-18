@@ -4633,6 +4633,8 @@ export function ChatPage() {
                 selectedThreadId={selectedThread?.id}
                 onToggleReaction={handleToggleReaction}
                 isRepository={isRepository}
+                onTypingChange={activeApiChannelId ? handleChannelTypingChange : undefined}
+                remoteTypingLabel={activeRemoteTypingLabel}
               />
             )}
           </section>

@@ -140,6 +140,8 @@ interface ChatPanelProps {
   isRepository?: boolean;
   myMemberId?: number | null;
   myDisplayName?: string;
+  onTypingChange?: (typing: boolean) => void;
+  remoteTypingLabel?: string;
 }
 
 const riskLabel: Record<NonNullable<Message["aiRisk"]>, string> = {
@@ -185,7 +187,7 @@ function getUserInitial(user?: string) {
   return trimmed ? trimmed.charAt(0).toUpperCase() : "?";
 }
 
-export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messages, reactions, replyCounts = {}, onSendMessage, onAddMessageAttachments, onDeleteMessageAttachment, onSharePR, showAISummary = true, onMergePR, onReviewPR, onViewIssue, onOpenThread, selectedThreadId, onToggleReaction, isRepository = false, myMemberId, myDisplayName }: ChatPanelProps) {
+export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messages, reactions, replyCounts = {}, onSendMessage, onAddMessageAttachments, onDeleteMessageAttachment, onSharePR, showAISummary = true, onMergePR, onReviewPR, onViewIssue, onOpenThread, selectedThreadId, onToggleReaction, isRepository = false, myMemberId, myDisplayName, onTypingChange, remoteTypingLabel }: ChatPanelProps) {
   const bookmarkStorageKey = `codedock-chat-bookmarks:${bookmarkScopeId ?? channelId}`;
   const displayCurrentUserName = myDisplayName?.trim() || currentUserDisplayName;
   const displayCurrentUserAvatar = displayCurrentUserName.charAt(0) || currentUserAvatar;
@@ -220,6 +222,7 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const skipBookmarkSaveRef = useRef(false);
   const responderTypingTimerRef = useRef<number | null>(null);
+  const typingHeartbeatRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const isMessageMine = (message: Message) => (
@@ -232,6 +235,9 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
     return () => {
       if (responderTypingTimerRef.current) {
         window.clearTimeout(responderTypingTimerRef.current);
+      }
+      if (typingHeartbeatRef.current) {
+        window.clearInterval(typingHeartbeatRef.current);
       }
     };
   }, []);
@@ -377,13 +383,36 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
     ? selectedAttachments.length > 0
     : message.trim().length > 0 || codeBlockText.trim().length > 0 || selectedAttachments.length > 0;
   const composerTyping = message.trim().length > 0;
-  const typingLabel = responderTyping
+
+  useEffect(() => {
+    if (typingHeartbeatRef.current) {
+      window.clearInterval(typingHeartbeatRef.current);
+      typingHeartbeatRef.current = null;
+    }
+    if (composerTyping) {
+      onTypingChange?.(true);
+      typingHeartbeatRef.current = window.setInterval(() => {
+        onTypingChange?.(true);
+      }, 2500);
+    } else {
+      onTypingChange?.(false);
+    }
+    return () => {
+      if (typingHeartbeatRef.current) {
+        window.clearInterval(typingHeartbeatRef.current);
+        typingHeartbeatRef.current = null;
+      }
+    };
+  }, [composerTyping, onTypingChange]);
+
+  const localTypingLabel = responderTyping
     ? composerTyping
       ? `CodeDock AI, ${displayCurrentUserName} 입력 중입니다`
       : "CodeDock AI가 답변을 정리 중입니다"
     : composerTyping
       ? "내가 입력 중입니다"
       : "";
+  const typingLabel = remoteTypingLabel || localTypingLabel;
 
   const handleAttachmentToggle = (attachment: MessageAttachment) => {
     setSelectedAttachments((prev) => {

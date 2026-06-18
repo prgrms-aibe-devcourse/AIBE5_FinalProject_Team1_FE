@@ -241,6 +241,7 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
   const skipThreadSaveRef = useRef(false);
   const skipBookmarkSaveRef = useRef(false);
   const responderTypingTimerRef = useRef<number | null>(null);
+  const typingHeartbeatRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const isThreadMine = (thread: Thread) => (
@@ -262,6 +263,9 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
     return () => {
       if (responderTypingTimerRef.current) {
         window.clearTimeout(responderTypingTimerRef.current);
+      }
+      if (typingHeartbeatRef.current) {
+        window.clearInterval(typingHeartbeatRef.current);
       }
     };
   }, []);
@@ -339,8 +343,24 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
   const typingLabel = remoteTypingLabel || localTypingLabel;
 
   useEffect(() => {
-    onTypingChange?.(composerTyping);
-    return () => onTypingChange?.(false);
+    if (typingHeartbeatRef.current) {
+      window.clearInterval(typingHeartbeatRef.current);
+      typingHeartbeatRef.current = null;
+    }
+    if (composerTyping) {
+      onTypingChange?.(true);
+      typingHeartbeatRef.current = window.setInterval(() => {
+        onTypingChange?.(true);
+      }, 2500);
+    } else {
+      onTypingChange?.(false);
+    }
+    return () => {
+      if (typingHeartbeatRef.current) {
+        window.clearInterval(typingHeartbeatRef.current);
+        typingHeartbeatRef.current = null;
+      }
+    };
   }, [composerTyping, onTypingChange]);
 
   const handleAttachmentToggle = (attachment: MessageAttachment) => {
