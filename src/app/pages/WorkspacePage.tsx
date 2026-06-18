@@ -1222,6 +1222,11 @@ export function WorkspacePage() {
           <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
             <h2 className="m-0 leading-none tracking-[-0.075em]" style={{ fontSize: "clamp(28px, 4vw, 44px)", fontWeight: 950 }}>
               내 팀
+              {!orgsLoading && (
+                <span style={{ fontSize: "clamp(18px, 2.5vw, 28px)", fontWeight: 950, color: "var(--neon-cyan)", marginLeft: "0.35em" }}>
+                  {orgs.length}
+                </span>
+              )}
             </h2>
             <div className="flex flex-wrap items-center gap-3">
               <button
