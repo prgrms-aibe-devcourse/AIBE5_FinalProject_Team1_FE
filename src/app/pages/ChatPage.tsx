@@ -1580,6 +1580,13 @@ export function ChatPage() {
       ...target
     }));
   }, [apiChannelIdByUiChannel, currentWorkspaceApiId, messages]);
+  // Stable signature of the subscribed thread-id set. Re-subscribing only when this changes
+  // (a thread is added/removed) avoids tearing down every thread subscription on each new
+  // message — the unsubscribe→subscribe gap was dropping real-time THREAD_REPLY_CREATED events.
+  const threadSubscriptionKey = useMemo(
+    () => apiThreadTargets.map((target) => target.threadId).sort((a, b) => a - b).join(","),
+    [apiThreadTargets]
+  );
   const isRepository = ['pull-requests', 'ai-review'].includes(selectedChannel);
   const sidebarColumn = "clamp(280px, 21vw, 340px)";
   const threadColumn = "clamp(320px, 26vw, 400px)";
@@ -2498,12 +2505,30 @@ export function ChatPage() {
     updateRealtimeConnection
   ]);
 
+  // Keep the latest targets/handlers in a ref so the subscription effect below can read fresh
+  // values without listing them as dependencies (which would force a re-subscribe each render).
+  const threadSubLatestRef = useRef({
+    targets: apiThreadTargets,
+    appendServerThreadReply,
+    isCurrentWorkspaceMember,
+    incrementUnreadCount
+  });
+  useEffect(() => {
+    threadSubLatestRef.current = {
+      targets: apiThreadTargets,
+      appendServerThreadReply,
+      isCurrentWorkspaceMember,
+      incrementUnreadCount
+    };
+  }, [apiThreadTargets, appendServerThreadReply, isCurrentWorkspaceMember, incrementUnreadCount]);
+
   useEffect(() => {
     const client = chatStompRef.current;
     if (!client) return;
-    if (apiThreadTargets.length === 0) return;
+    const initialTargets = threadSubLatestRef.current.targets;
+    if (initialTargets.length === 0) return;
 
-    const threadSubscriptions = apiThreadTargets.map(({ channelId, thread, threadId }) =>
+    const threadSubscriptions = initialTargets.map(({ threadId }) =>
       client.subscribe<ChatEvent<ThreadEventPayload>>(
         chatWebSocketDestinations.subscribeThreadEvents(threadId),
         (event) => {
@@ -2511,26 +2536,24 @@ export function ChatPage() {
           if (!reply) return;
           if (Number(reply.threadId) !== threadId) return;
 
-          appendServerThreadReply(thread, reply);
-          if (!isCurrentWorkspaceMember(reply.senderMemberId)) {
-            incrementUnreadCount(channelId);
+          // Resolve target/handlers from the ref so a new message arriving (which changes the
+          // thread objects but not the id set) does not require re-subscribing.
+          const latest = threadSubLatestRef.current;
+          const target = latest.targets.find((item) => item.threadId === threadId);
+          if (!target) return;
+
+          latest.appendServerThreadReply(target.thread, reply);
+          if (!latest.isCurrentWorkspaceMember(reply.senderMemberId)) {
+            latest.incrementUnreadCount(target.channelId);
           }
         }
       )
     );
 
-    client.connect();
-
     return () => {
       threadSubscriptions.forEach((subscription) => subscription.unsubscribe());
     };
-  }, [
-    appendServerThreadReply,
-    apiThreadTargets,
-    chatStompReadyKey,
-    incrementUnreadCount,
-    isCurrentWorkspaceMember
-  ]);
+  }, [threadSubscriptionKey, chatStompReadyKey]);
 
   useEffect(() => {
     if (!currentWorkspaceApiId || !chatStompRef.current?.isConnected()) return;
