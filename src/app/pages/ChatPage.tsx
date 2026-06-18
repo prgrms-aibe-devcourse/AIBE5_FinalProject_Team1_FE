@@ -1164,8 +1164,6 @@ export function ChatPage() {
   const [serverBookmarkedThreadsByChannel, setServerBookmarkedThreadsByChannel] = useState<Record<string, Record<number, boolean>>>({});
   const [workspaceBookmarks, setWorkspaceBookmarks] = useState<BookmarkResponse[]>([]);
   const [workspaceMentions, setWorkspaceMentions] = useState<MentionResponse[]>([]);
-  // Mentions received via WS since the last authoritative fetch. Bumps the unread badge instantly
-  // (the payload lacks id/author for a full list entry), then resets to 0 once a refetch reconciles.
   const [optimisticMentionBumps, setOptimisticMentionBumps] = useState(0);
   const [channelBookmarkMenuOpen, setChannelBookmarkMenuOpen] = useState(false);
   const [channelMenuOpenId, setChannelMenuOpenId] = useState<string | null>(null);
@@ -1393,7 +1391,6 @@ export function ChatPage() {
   const activeServerBookmarkedThreadIds = serverBookmarkedThreadsByChannel[selectedChannelMessageKey] ?? {};
   // Mentions are removed from workspaceMentions on delete (server-backed), so the list is the source of truth.
   const visibleWorkspaceMentions = workspaceMentions;
-  // Add optimistic bumps so a freshly received mention shows on the badge before the refetch lands.
   const unreadMentionCount =
     visibleWorkspaceMentions.filter((mention) => !mention.read).length + optimisticMentionBumps;
 
@@ -1865,7 +1862,6 @@ export function ChatPage() {
     if (!currentWorkspaceApiId) return;
     const controller = new AbortController();
 
-    // Authoritative load reconciles the list, so any pending optimistic bumps are now accounted for.
     setOptimisticMentionBumps(0);
     getWorkspaceMentions(currentWorkspaceApiId, {
       signal: controller.signal
@@ -2350,8 +2346,6 @@ export function ChatPage() {
     return () => controller.abort();
   }, [activeApiChannelId, getThreadReplyStateKey, selectedThread?.backendMessageId, selectedThread?.id]);
 
-  // A burst of incoming mentions would otherwise fire one full-list refetch each, racing on resolve
-  // order. Coalesce them into a single trailing refetch; the instant badge bump covers the gap.
   const mentionRefetchTimeoutRef = useRef<number | null>(null);
 
   // Latest channel event handlers in a ref so the WebSocket subscriptions always call fresh
@@ -2509,9 +2503,6 @@ export function ChatPage() {
 
           const wsId = wsChannelHandlersRef.current.currentWorkspaceApiId;
           if (notification.workspaceId === undefined || notification.workspaceId === wsId) {
-            // Reflect the new mention on the badge immediately (the payload lacks id/author for a
-            // full list entry), then reconcile the list — and clear the bump — via a debounced
-            // refetch so a burst of mentions collapses to a single authoritative fetch.
             setOptimisticMentionBumps((count) => count + 1);
             if (mentionRefetchTimeoutRef.current) {
               window.clearTimeout(mentionRefetchTimeoutRef.current);
@@ -2525,9 +2516,7 @@ export function ChatPage() {
                   setWorkspaceMentions(mentions);
                   setOptimisticMentionBumps(0);
                 })
-                .catch(() => {
-                  // Refetch failed: keep the optimistic bump so the badge still reflects the mention.
-                });
+                .catch(() => {});
             }, 300);
           }
         }
