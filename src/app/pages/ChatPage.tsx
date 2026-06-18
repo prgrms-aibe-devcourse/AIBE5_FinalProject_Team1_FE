@@ -1364,14 +1364,12 @@ export function ChatPage() {
     if (channelFetchStatus === "idle" || channelFetchStatus === "loading") return "channels-loading";
     if (channelFetchStatus === "failed") return "channels-failed";
     if (apiChannels.length === 0) return "no-api-channels";
-    if (!hasActiveApiChatChannel) return "non-api-channel";
 
     return null;
   }, [
     apiChannels.length,
     channelFetchStatus,
     currentWorkspaceApiId,
-    hasActiveApiChatChannel,
     hasChatAccessToken
   ]);
   const apiCustomChannels = useMemo<CustomChannelItem[]>(() => {
@@ -1450,17 +1448,26 @@ export function ChatPage() {
     };
   }, [channelMenuOpenId, closeChannelMenu]);
 
+  // Seed unread badges from the server's per-channel unreadCount ONCE per workspace. Re-running on
+  // every apiChannels reference change would clobber real-time increments accumulated since the
+  // fetch — after the initial seed the client owns the count (WS increments + read resets).
+  const unreadSeededWorkspaceRef = useRef<number | null>(null);
   useEffect(() => {
     if (apiChannels.length === 0) return;
+    if (unreadSeededWorkspaceRef.current === currentWorkspaceApiId) return;
+    unreadSeededWorkspaceRef.current = currentWorkspaceApiId;
 
+    const selectedKey = getMessageChannelKey(selectedChannelRef.current);
     setChannelUnreadCounts((prev) => {
       const nextCounts = { ...prev };
       apiChannels.forEach((channel) => {
-        nextCounts[getMessageChannelKey(getApiChannelUiId(channel))] = channel.unreadCount ?? 0;
+        const channelKey = getMessageChannelKey(getApiChannelUiId(channel));
+        // The channel currently in view has just been read — never seed a stale badge onto it.
+        nextCounts[channelKey] = channelKey === selectedKey ? 0 : (channel.unreadCount ?? 0);
       });
       return nextCounts;
     });
-  }, [apiChannels, getMessageChannelKey]);
+  }, [apiChannels, currentWorkspaceApiId, getMessageChannelKey]);
 
   useEffect(() => {
     if (!currentWorkspaceApiId || userId == null) {
@@ -1580,6 +1587,12 @@ export function ChatPage() {
       ...target
     }));
   }, [apiChannelIdByUiChannel, currentWorkspaceApiId, messages]);
+  // Stable signature of the subscribed channel-id set. The main WS effect re-runs only when
+  // channels are added or removed — not on every channel switch or message arrival.
+  const channelSubscriptionKey = useMemo(
+    () => apiChannels.map((ch) => ch.id).sort((a, b) => a - b).join(","),
+    [apiChannels]
+  );
   // Stable signature of the subscribed thread-id set. Re-subscribing only when this changes
   // (a thread is added/removed) avoids tearing down every thread subscription on each new
   // message — the unsubscribe→subscribe gap was dropping real-time THREAD_REPLY_CREATED events.
@@ -1866,6 +1879,23 @@ export function ChatPage() {
       [channelStateKey]: (prev[channelStateKey] ?? 0) + 1
     }));
   }, [getMessageChannelKey]);
+
+  // A message arrived in the channel the user is actively viewing: the local badge stays 0, but the
+  // server's last-read pointer must advance too — otherwise a refresh re-counts these as unread.
+  // Trailing-debounced per channel so a burst of incoming messages collapses to a single PUT.
+  const activeChannelReadTimeoutsRef = useRef<Record<number, number>>({});
+  const markActiveChannelRead = useCallback((apiChannelId: number) => {
+    const timeouts = activeChannelReadTimeoutsRef.current;
+    if (timeouts[apiChannelId]) {
+      window.clearTimeout(timeouts[apiChannelId]);
+    }
+    timeouts[apiChannelId] = window.setTimeout(() => {
+      delete timeouts[apiChannelId];
+      markChannelAsRead(apiChannelId).catch(() => {
+        // Best-effort; the local badge is already 0 and the next channel entry retries the sync.
+      });
+    }, 500);
+  }, []);
 
   const setServerBookmarkState = useCallback((uiChannelId: string, messageId: number, bookmarked: boolean) => {
     setServerBookmarkedThreadsByChannel((prev) => {
@@ -2295,7 +2325,51 @@ export function ChatPage() {
     return () => controller.abort();
   }, [activeApiChannelId, getThreadReplyStateKey, selectedThread?.backendMessageId, selectedThread?.id]);
 
+  // Latest channel event handlers in a ref so the WebSocket subscriptions always call fresh
+  // callbacks without listing every handler as an effect dep (which caused full reconnects on
+  // every state update — e.g. appendServerMessage changing when a new message arrived).
+  const wsChannelHandlersRef = useRef({
+    appendServerMessage,
+    isCurrentWorkspaceMember,
+    incrementUnreadCount,
+    markActiveChannelRead,
+    replaceServerMessage,
+    applyReactionResponse,
+    currentWorkspaceApiId,
+    updateRealtimeConnection,
+    channelFetchError,
+  });
   useEffect(() => {
+    wsChannelHandlersRef.current = {
+      appendServerMessage,
+      isCurrentWorkspaceMember,
+      incrementUnreadCount,
+      markActiveChannelRead,
+      replaceServerMessage,
+      applyReactionResponse,
+      currentWorkspaceApiId,
+      updateRealtimeConnection,
+      channelFetchError,
+    };
+  }, [
+    appendServerMessage,
+    isCurrentWorkspaceMember,
+    incrementUnreadCount,
+    markActiveChannelRead,
+    replaceServerMessage,
+    applyReactionResponse,
+    currentWorkspaceApiId,
+    updateRealtimeConnection,
+    channelFetchError,
+  ]);
+
+  // Main WebSocket client effect. Deps are narrowed to the channel-id set and workspace/auth
+  // conditions — NOT individual channel callbacks or the active channel. This means:
+  //   • channel switches do NOT reconnect (only the typing sub below reconnects)
+  //   • overview / repository tabs do NOT disconnect (unread counts stay live)
+  //   • handler changes (new message arriving) do NOT reconnect
+  useEffect(() => {
+    const h = wsChannelHandlersRef.current;
     if (realtimeConnectionBlockReason) {
       chatStompRef.current?.disconnect();
       chatStompRef.current = null;
@@ -2304,9 +2378,9 @@ export function ChatPage() {
       });
       remoteTypingTimeoutsRef.current = {};
       setRemoteTypingByChannel({});
-      updateRealtimeConnection(getRealtimeBlockState(
+      h.updateRealtimeConnection(getRealtimeBlockState(
         realtimeConnectionBlockReason,
-        realtimeConnectionBlockReason === "channels-failed" ? channelFetchError : undefined
+        realtimeConnectionBlockReason === "channels-failed" ? h.channelFetchError : undefined
       ));
       return;
     }
@@ -2314,10 +2388,9 @@ export function ChatPage() {
     let cancelled = false;
     let client: ChatStompClient | null = null;
     let eventSubscriptions: Array<{ unsubscribe: () => void }> = [];
-    let typingSubscription: { unsubscribe: () => void } | null = null;
     let personalNotificationSubscription: { unsubscribe: () => void } | null = null;
 
-    updateRealtimeConnection({ status: "connecting" });
+    wsChannelHandlersRef.current.updateRealtimeConnection({ status: "connecting" });
 
     void import("../api/stomp").then(({ createChatStompClient }) => {
       if (cancelled) return;
@@ -2325,29 +2398,28 @@ export function ChatPage() {
       client = createChatStompClient({
         onConnect: () => {
           if (!cancelled) {
-            updateRealtimeConnection({ status: "connected" });
+            wsChannelHandlersRef.current.updateRealtimeConnection({ status: "connected" });
           }
         },
         onDisconnect: () => {
           if (!cancelled) {
-            updateRealtimeConnection({ status: "disconnected", reason: "disconnected" });
+            wsChannelHandlersRef.current.updateRealtimeConnection({ status: "disconnected", reason: "disconnected" });
           }
         },
         onError: (error) => {
           if (cancelled) return;
           const detail = getReadableErrorMessage(error);
-          updateRealtimeConnection({ status: "failed", reason: "stomp-error", detail });
+          wsChannelHandlersRef.current.updateRealtimeConnection({ status: "failed", reason: "stomp-error", detail });
           if (import.meta.env.DEV) {
             console.warn("[CodeDock realtime] WebSocket connection failed.", {
-              workspaceId: currentWorkspaceApiId,
-              channelId: activeApiChannelId,
+              workspaceId: wsChannelHandlersRef.current.currentWorkspaceApiId,
               detail
             });
           }
         },
         onConnectionSkipped: (reason) => {
           if (cancelled || reason === "already-active") return;
-          updateRealtimeConnection({ status: "blocked", reason: "missing-token" });
+          wsChannelHandlersRef.current.updateRealtimeConnection({ status: "blocked", reason: "missing-token" });
         }
       });
       chatStompRef.current = client;
@@ -2359,84 +2431,41 @@ export function ChatPage() {
         return client!.subscribe<ChatEvent<ChannelEventPayload>>(
           chatWebSocketDestinations.subscribeChannelEvents(channel.id),
           (event) => {
+            const ch = wsChannelHandlersRef.current;
+
             const createdMessagePayload = getChatEventPayload<ChannelMessage>(event, CHAT_EVENT_TYPE.MESSAGE_CREATED);
             if (createdMessagePayload) {
-              const messagePayload = createdMessagePayload;
-              appendServerMessage(uiChannelId, messagePayload);
-              if (!isCurrentWorkspaceMember(messagePayload.senderMemberId)) {
-                incrementUnreadCount(uiChannelId);
+              ch.appendServerMessage(uiChannelId, createdMessagePayload);
+              if (!ch.isCurrentWorkspaceMember(createdMessagePayload.senderMemberId)) {
+                if (uiChannelId === selectedChannelRef.current) {
+                  // Viewing this channel: keep the server's read pointer in sync so a refresh shows 0.
+                  ch.markActiveChannelRead(createdMessagePayload.channelId);
+                } else {
+                  ch.incrementUnreadCount(uiChannelId);
+                }
               }
               return;
             }
 
             const updatedMessagePayload = getChatEventPayload<ChannelMessage>(event, CHAT_EVENT_TYPE.MESSAGE_UPDATED);
             if (updatedMessagePayload) {
-              replaceServerMessage(uiChannelId, updatedMessagePayload);
+              ch.replaceServerMessage(uiChannelId, updatedMessagePayload);
               return;
             }
 
             const deletedMessagePayload = getChatEventPayload<ChannelMessage>(event, CHAT_EVENT_TYPE.MESSAGE_DELETED);
             if (deletedMessagePayload) {
-              replaceServerMessage(uiChannelId, { ...deletedMessagePayload, isDeleted: true });
+              ch.replaceServerMessage(uiChannelId, { ...deletedMessagePayload, isDeleted: true });
               return;
             }
 
             const reactionPayload = getChatEventPayload<ReactionToggleResponse>(event, CHAT_EVENT_TYPE.REACTION_UPDATED);
             if (reactionPayload) {
-              applyReactionResponse(reactionPayload, uiChannelId);
+              ch.applyReactionResponse(reactionPayload, uiChannelId);
             }
           }
         );
       });
-
-      if (activeApiChannelId) {
-        typingSubscription = client.subscribe<ChatEvent<TypingEvent>>(
-          chatWebSocketDestinations.subscribeChannelTyping(activeApiChannelId),
-          (event) => {
-            const typingPayload = getChatEventPayload<TypingEvent>(event, CHAT_EVENT_TYPE.TYPING);
-            if (!typingPayload) return;
-            if (isCurrentWorkspaceMember(typingPayload.workspaceMemberId)) return;
-            const typingKey = `${selectedChannel}:${typingPayload.workspaceMemberId}`;
-
-            if (remoteTypingTimeoutsRef.current[typingKey]) {
-              window.clearTimeout(remoteTypingTimeoutsRef.current[typingKey]);
-              delete remoteTypingTimeoutsRef.current[typingKey];
-            }
-
-            if (typingPayload.typing) {
-              remoteTypingTimeoutsRef.current[typingKey] = window.setTimeout(() => {
-                setRemoteTypingByChannel((prev) => ({
-                  ...prev,
-                  [selectedChannel]: Object.fromEntries(
-                    Object.entries(prev[selectedChannel] ?? {}).filter(
-                      ([memberId]) => Number(memberId) !== typingPayload.workspaceMemberId
-                    )
-                  )
-                }));
-                delete remoteTypingTimeoutsRef.current[typingKey];
-              }, 10000);
-            }
-
-            setRemoteTypingByChannel((prev) => {
-              const currentTypers = prev[selectedChannel] ?? {};
-              const {
-                [typingPayload.workspaceMemberId]: _removedTypingMember,
-                ...withoutTypingMember
-              } = currentTypers;
-
-              return {
-                ...prev,
-                [selectedChannel]: typingPayload.typing
-                  ? {
-                      ...currentTypers,
-                      [typingPayload.workspaceMemberId]: typingPayload.senderName
-                    }
-                  : withoutTypingMember
-              };
-            });
-          }
-        );
-      }
 
       personalNotificationSubscription = client.subscribe<ChatEvent<PersonalNotification> | PersonalNotification>(
         chatWebSocketDestinations.subscribePersonalNotifications(),
@@ -2449,8 +2478,9 @@ export function ChatPage() {
             );
           if (!notification) return;
 
-          if (notification.workspaceId === undefined || notification.workspaceId === currentWorkspaceApiId) {
-            getWorkspaceMentions(currentWorkspaceApiId)
+          const wsId = wsChannelHandlersRef.current.currentWorkspaceApiId;
+          if (notification.workspaceId === undefined || notification.workspaceId === wsId) {
+            getWorkspaceMentions(wsId)
               .then(setWorkspaceMentions)
               .catch(() => {
                 // The notification badge stays driven by local unread state if mention refresh fails.
@@ -2462,7 +2492,7 @@ export function ChatPage() {
       client.connect();
     }).catch((error) => {
       if (cancelled) return;
-      updateRealtimeConnection({
+      wsChannelHandlersRef.current.updateRealtimeConnection({
         status: "failed",
         reason: "client-load-failed",
         detail: getReadableErrorMessage(error)
@@ -2472,12 +2502,69 @@ export function ChatPage() {
     return () => {
       cancelled = true;
       eventSubscriptions.forEach((subscription) => subscription.unsubscribe());
-      typingSubscription?.unsubscribe();
       personalNotificationSubscription?.unsubscribe();
       client?.disconnect();
       if (chatStompRef.current === client) {
         chatStompRef.current = null;
       }
+    };
+  }, [channelSubscriptionKey, realtimeConnectionBlockReason]);
+
+  // Typing subscription — channel-specific, so it re-subscribes on every channel switch.
+  // Isolated from the main WS effect so channel switches do NOT reconnect the STOMP client.
+  useEffect(() => {
+    const client = chatStompRef.current;
+    if (!client || !activeApiChannelId) return;
+
+    const subscription = client.subscribe<ChatEvent<TypingEvent>>(
+      chatWebSocketDestinations.subscribeChannelTyping(activeApiChannelId),
+      (event) => {
+        const typingPayload = getChatEventPayload<TypingEvent>(event, CHAT_EVENT_TYPE.TYPING);
+        if (!typingPayload) return;
+        if (isCurrentWorkspaceMember(typingPayload.workspaceMemberId)) return;
+        const typingKey = `${selectedChannel}:${typingPayload.workspaceMemberId}`;
+
+        if (remoteTypingTimeoutsRef.current[typingKey]) {
+          window.clearTimeout(remoteTypingTimeoutsRef.current[typingKey]);
+          delete remoteTypingTimeoutsRef.current[typingKey];
+        }
+
+        if (typingPayload.typing) {
+          remoteTypingTimeoutsRef.current[typingKey] = window.setTimeout(() => {
+            setRemoteTypingByChannel((prev) => ({
+              ...prev,
+              [selectedChannel]: Object.fromEntries(
+                Object.entries(prev[selectedChannel] ?? {}).filter(
+                  ([memberId]) => Number(memberId) !== typingPayload.workspaceMemberId
+                )
+              )
+            }));
+            delete remoteTypingTimeoutsRef.current[typingKey];
+          }, 10000);
+        }
+
+        setRemoteTypingByChannel((prev) => {
+          const currentTypers = prev[selectedChannel] ?? {};
+          const {
+            [typingPayload.workspaceMemberId]: _removedTypingMember,
+            ...withoutTypingMember
+          } = currentTypers;
+
+          return {
+            ...prev,
+            [selectedChannel]: typingPayload.typing
+              ? {
+                  ...currentTypers,
+                  [typingPayload.workspaceMemberId]: typingPayload.senderName
+                }
+              : withoutTypingMember
+          };
+        });
+      }
+    );
+
+    return () => {
+      subscription.unsubscribe();
       Object.entries(remoteTypingTimeoutsRef.current)
         .filter(([key]) => key.startsWith(`${selectedChannel}:`))
         .forEach(([key, timeoutId]) => {
@@ -2489,21 +2576,7 @@ export function ChatPage() {
         [selectedChannel]: {}
       }));
     };
-  }, [
-    activeApiChannelId,
-    apiChannelUiById,
-    apiChannels,
-    applyReactionResponse,
-    appendServerMessage,
-    channelFetchError,
-    currentWorkspaceApiId,
-    incrementUnreadCount,
-    isCurrentWorkspaceMember,
-    replaceServerMessage,
-    realtimeConnectionBlockReason,
-    selectedChannel,
-    updateRealtimeConnection
-  ]);
+  }, [activeApiChannelId, selectedChannel, chatStompReadyKey, isCurrentWorkspaceMember]);
 
   // Keep the latest targets/handlers in a ref so the subscription effect below can read fresh
   // values without listing them as dependencies (which would force a re-subscribe each render).
