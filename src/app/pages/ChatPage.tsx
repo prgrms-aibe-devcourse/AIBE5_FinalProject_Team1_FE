@@ -41,6 +41,7 @@ import {
   getWorkspaceChannels,
   markChannelAsRead,
   markMentionAsRead,
+  deleteMention,
   toggleChannelReaction,
   toggleMessageBookmark,
   updateWorkspaceChannel,
@@ -1163,7 +1164,6 @@ export function ChatPage() {
   const [serverBookmarkedThreadsByChannel, setServerBookmarkedThreadsByChannel] = useState<Record<string, Record<number, boolean>>>({});
   const [workspaceBookmarks, setWorkspaceBookmarks] = useState<BookmarkResponse[]>([]);
   const [workspaceMentions, setWorkspaceMentions] = useState<MentionResponse[]>([]);
-  const [dismissedMentionIds, setDismissedMentionIds] = useState<Record<number, boolean>>({});
   const [channelBookmarkMenuOpen, setChannelBookmarkMenuOpen] = useState(false);
   const [channelMenuOpenId, setChannelMenuOpenId] = useState<string | null>(null);
   const [channelMenuPosition, setChannelMenuPosition] = useState<{ top: number; left: number } | null>(null);
@@ -1388,7 +1388,8 @@ export function ChatPage() {
   const activeRemoteTypingNames = Object.values(remoteTypingByChannel[selectedChannel] ?? {});
   const activeRemoteTypingLabel = formatRemoteTypingLabel(activeRemoteTypingNames);
   const activeServerBookmarkedThreadIds = serverBookmarkedThreadsByChannel[selectedChannelMessageKey] ?? {};
-  const visibleWorkspaceMentions = workspaceMentions.filter((mention) => !dismissedMentionIds[mention.id]);
+  // Mentions are removed from workspaceMentions on delete (server-backed), so the list is the source of truth.
+  const visibleWorkspaceMentions = workspaceMentions;
   const unreadMentionCount = visibleWorkspaceMentions.filter((mention) => !mention.read).length;
 
   const getChannelBadge = (channelId: string): string | undefined => {
@@ -1957,6 +1958,23 @@ export function ChatPage() {
         );
       });
   }, []);
+
+  const handleDeleteMention = useCallback((mentionId: number) => {
+    // Optimistically drop the mention so the badge/list update instantly; the server DELETE makes it
+    // permanent (a local-only hide would reappear on refresh once getWorkspaceMentions re-fetches).
+    setWorkspaceMentions((prev) => prev.filter((mention) => mention.id !== mentionId));
+
+    deleteMention(mentionId).catch(() => {
+      // The delete failed, so the mention still exists server-side — re-sync from the server to
+      // restore it (authoritative, and avoids fragile client-side rollback bookkeeping).
+      if (!currentWorkspaceApiId) return;
+      getWorkspaceMentions(currentWorkspaceApiId)
+        .then(setWorkspaceMentions)
+        .catch(() => {
+          // Keep the optimistic state if the refetch also fails.
+        });
+    });
+  }, [currentWorkspaceApiId]);
 
   const focusChannelMessage = useCallback((channelId: string, messageId: number) => {
     keepFocusedMessageOnChannelChangeRef.current = channelId !== selectedChannelRef.current;
@@ -3298,10 +3316,7 @@ export function ChatPage() {
                         type="button"
                         onClick={(event) => {
                           event.stopPropagation();
-                          setDismissedMentionIds((prev) => ({ ...prev, [mention.id]: true }));
-                          if (!mention.read) {
-                            handleMarkMentionAsRead(mention.id);
-                          }
+                          handleDeleteMention(mention.id);
                         }}
                         className="grid h-6 w-6 flex-shrink-0 place-items-center rounded-full border-0"
                         style={{
