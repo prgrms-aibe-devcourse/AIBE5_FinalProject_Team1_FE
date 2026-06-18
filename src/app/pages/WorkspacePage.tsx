@@ -1141,6 +1141,7 @@ export function WorkspacePage() {
   const handleRejectInvite = (id: number) => {
     const invite = invites.find((i) => i.id === id);
     if (!invite) return;
+    if (!window.confirm(`"${invite.teamName}" 초대를 거절하시겠습니까?`)) return;
     rejectInvite(invite.token)
         .then(() => setInvites((prev) => prev.filter((i) => i.id !== id)))
         .catch((e) => alert(e instanceof Error ? e.message : "초대 거절에 실패했습니다."));
