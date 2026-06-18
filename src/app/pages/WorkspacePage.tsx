@@ -1015,8 +1015,17 @@ export function WorkspacePage() {
 
   // 실제 워크스페이스 목록을 API에서 로드
   useEffect(() => {
+    const saved = localStorage.getItem("codedock-team-sort-order");
+    const order: "name" | "latest" = saved === "name" ? "name" : "latest";
     fetchMyWorkspaces()
-      .then((list) => setOrgs(list.map(workspaceDtoToOrg)))
+      .then((list) => {
+        const mapped = list.map(workspaceDtoToOrg);
+        setOrgs(
+          order === "name"
+            ? mapped.sort((a, b) => a.name.localeCompare(b.name, "ko"))
+            : mapped.sort((a, b) => b.id - a.id)
+        );
+      })
       .catch(() => setOrgs([]))
       .finally(() => setOrgsLoading(false));
   }, []);
@@ -1060,14 +1069,14 @@ export function WorkspacePage() {
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showInvitesModal, setShowInvitesModal] = useState(false);
-  const [sortOrder, setSortOrder] = useState<"default" | "name" | "latest">("default");
+  const [sortOrder, setSortOrder] = useState<"name" | "latest">(() => {
+    const saved = localStorage.getItem("codedock-team-sort-order");
+    return saved === "name" ? "name" : "latest";
+  });
 
   const handleSortOrgs = (order: "name" | "latest") => {
-    if (sortOrder === order) {
-      setSortOrder("default");
-      return;
-    }
     setSortOrder(order);
+    localStorage.setItem("codedock-team-sort-order", order);
     setOrgs((prev) =>
       order === "name"
         ? [...prev].sort((a, b) => a.name.localeCompare(b.name, "ko"))
@@ -1244,23 +1253,22 @@ export function WorkspacePage() {
               )}
             </h2>
             <div className="flex flex-wrap items-center gap-3">
-              {(["name", "latest"] as const).map((order) => (
-                <button
-                  key={order}
-                  onClick={() => handleSortOrgs(order)}
-                  className="rounded-xl px-4 py-2 tracking-tight transition-all hover:brightness-110"
-                  style={{
-                    background: sortOrder === order ? "rgba(var(--codedock-primary-rgb), 0.18)" : "transparent",
-                    border: `1.5px solid ${sortOrder === order ? "rgba(var(--codedock-primary-rgb), 0.6)" : "rgba(var(--codedock-primary-rgb), 0.25)"}`,
-                    color: sortOrder === order ? "var(--neon-cyan)" : "var(--muted)",
-                    fontSize: "13px",
-                    fontWeight: 900,
-                    cursor: "pointer",
-                  }}
-                >
-                  {order === "name" ? "이름 순" : "최신 순"}
-                </button>
-              ))}
+              <select
+                value={sortOrder}
+                onChange={(e) => handleSortOrgs(e.target.value as "name" | "latest")}
+                className="rounded-xl px-3 py-2 outline-none tracking-tight"
+                style={{
+                  background: "rgba(255,255,255,0.05)",
+                  border: "1.5px solid rgba(var(--codedock-primary-rgb), 0.20)",
+                  color: "var(--white)",
+                  fontSize: "13px",
+                  fontWeight: 850,
+                  cursor: "pointer",
+                }}
+              >
+                <option value="latest" style={{ background: "#121827", color: "#EAF7FF" }}>최신 순</option>
+                <option value="name" style={{ background: "#121827", color: "#EAF7FF" }}>이름 순</option>
+              </select>
               <button
                 onClick={() => setShowInvitesModal(true)}
                 className="flex items-center gap-2 rounded-xl px-5 py-3 tracking-tight transition-all hover:brightness-110"
