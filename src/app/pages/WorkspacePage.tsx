@@ -1060,6 +1060,20 @@ export function WorkspacePage() {
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showInvitesModal, setShowInvitesModal] = useState(false);
+  const [sortOrder, setSortOrder] = useState<"default" | "name" | "latest">("default");
+
+  const handleSortOrgs = (order: "name" | "latest") => {
+    if (sortOrder === order) {
+      setSortOrder("default");
+      return;
+    }
+    setSortOrder(order);
+    setOrgs((prev) =>
+      order === "name"
+        ? [...prev].sort((a, b) => a.name.localeCompare(b.name, "ko"))
+        : [...prev].sort((a, b) => b.id - a.id)
+    );
+  };
 
   const moveOrg = useCallback((from: number, to: number) => {
     setOrgs((prev) => {
@@ -1230,6 +1244,23 @@ export function WorkspacePage() {
               )}
             </h2>
             <div className="flex flex-wrap items-center gap-3">
+              {(["name", "latest"] as const).map((order) => (
+                <button
+                  key={order}
+                  onClick={() => handleSortOrgs(order)}
+                  className="rounded-xl px-4 py-2 tracking-tight transition-all hover:brightness-110"
+                  style={{
+                    background: sortOrder === order ? "rgba(var(--codedock-primary-rgb), 0.18)" : "transparent",
+                    border: `1.5px solid ${sortOrder === order ? "rgba(var(--codedock-primary-rgb), 0.6)" : "rgba(var(--codedock-primary-rgb), 0.25)"}`,
+                    color: sortOrder === order ? "var(--neon-cyan)" : "var(--muted)",
+                    fontSize: "13px",
+                    fontWeight: 900,
+                    cursor: "pointer",
+                  }}
+                >
+                  {order === "name" ? "이름 순" : "최신 순"}
+                </button>
+              ))}
               <button
                 onClick={() => setShowInvitesModal(true)}
                 className="flex items-center gap-2 rounded-xl px-5 py-3 tracking-tight transition-all hover:brightness-110"
