@@ -246,8 +246,16 @@ export function WorkspaceSettingsModal({
   onLeave: (orgId: number) => void;
   onColorChange: (orgId: number, color: string) => void;
 }) {
-  const isAdmin = org.myRole === "소유자" || org.myRole === "관리자";
-  const isOwner = org.myRole === "소유자";
+
+  const { myAuthority, workspaceId, setWorkspaceId } = useWorkspace();
+
+  useEffect(() => {
+    setWorkspaceId(org.id);
+  }, [org.id, setWorkspaceId]);
+
+  const liveRole = workspaceId === org.id && myAuthority ? myAuthority : null;
+  const isAdmin = liveRole ? liveRole === "owner" || liveRole === "admin" : org.myRole === "소유자" || org.myRole === "관리자";
+  const isOwner = liveRole ? liveRole === "owner" : org.myRole === "소유자";
 
   const [activeTab, setActiveTab] = useState<SettingsTab>("일반");
 
@@ -613,7 +621,7 @@ function MembersTab({ org, isAdmin, isOwner, onUpdate }: {
   onUpdate: (u: Partial<Org> & { id: number }) => void;
 }) {
 
-  const { memberList, changeAuthority, removeMember, transferOwnership, setWorkspaceId } = useWorkspace();
+  const { memberList, changeAuthority, removeMember, transferOwnership, setWorkspaceId, inviteSignal } = useWorkspace();
 
   useEffect(() => {
     setWorkspaceId(org.id);
@@ -670,6 +678,11 @@ function MembersTab({ org, isAdmin, isOwner, onUpdate }: {
   useEffect(() => {
     loadInvitations();
   }, [loadInvitations]);
+
+  useEffect(() => {
+    if (inviteSignal === 0) return;
+    loadInvitations();
+  }, [inviteSignal, loadInvitations]);
 
   const handleRevokeInvite = (invitationId: number) => {
     void revokeInvitation(org.id, invitationId)
