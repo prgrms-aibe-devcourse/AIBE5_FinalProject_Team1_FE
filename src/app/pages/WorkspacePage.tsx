@@ -4,7 +4,7 @@ import { ArrowRight, AtSign, Check, CircleDot, CornerDownRight, GitFork, GitPull
 import { WorkspaceSettingsModal } from "../components/WorkspaceSettingsModal";
 import { DndProvider, useDrag, useDrop, useDragLayer } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
-import { fetchMyGithubRepos, fetchRepoCollaborators, type GithubCollaborator, type GithubRepo } from "../api/github";
+import { fetchMyGithubRepos, fetchRepoCollaborators, connectWorkspaceRepository, type GithubCollaborator, type GithubRepo } from "../api/github";
 import { fetchMyWorkspaces, createWorkspace, deleteWorkspace, listReceivedInvites, acceptInvite, rejectInvite, createInvite, type WorkspaceDto, type ReceivedInviteDto } from "../api/workspace";
 import { fetchMyEvents, type WorkspaceEventDto, type EventType } from "../api/events";
 import { useWorkspace } from "../contexts/WorkspaceContext";
@@ -1171,14 +1171,27 @@ export function WorkspacePage() {
       const REPO_URLS_KEY = "codedock-repo-urls-v1";
       const wsId = String(newWorkspace.id);
       const raw = localStorage.getItem(CHAT_REPOS_KEY);
-      const allRepos: { id: string; name: string; workspaceId?: string }[] = raw ? JSON.parse(raw) : [];
-      const newEntries = selectedRepos.map((r) => ({ id: `${r.owner}-${r.name}-${wsId}`, name: r.name, workspaceId: wsId }));
-      const merged = [...allRepos, ...newEntries.filter((nr) => !allRepos.some((r) => r.id === nr.id))];
-      localStorage.setItem(CHAT_REPOS_KEY, JSON.stringify(merged));
+      const allRepos: { id: string; name: string; workspaceId?: string; channelId?: number; dbRepoId?: string }[] = raw ? JSON.parse(raw) : [];
+      const newEntries: typeof allRepos = [];
+      for (const r of selectedRepos) {
+        let repoId = `repo-${r.owner}-${r.name}-${wsId}`;
+        let channelId: number | undefined;
+        let dbRepoId: string | undefined;
+        try {
+          const res = await connectWorkspaceRepository(newWorkspace.id, r.owner, r.name);
+          repoId = `repo-${res.id}`;
+          channelId = res.channelId ?? undefined;
+          dbRepoId = String(res.id);
+        } catch { /* 백엔드 실패 시 로컬 ID로 폴백 */ }
+        if (!allRepos.some((e) => e.id === repoId)) {
+          newEntries.push({ id: repoId, name: r.name, workspaceId: wsId, channelId, dbRepoId });
+        }
+      }
+      localStorage.setItem(CHAT_REPOS_KEY, JSON.stringify([...allRepos, ...newEntries]));
       const urlsRaw = localStorage.getItem(REPO_URLS_KEY);
       const urls: Record<string, string> = urlsRaw ? JSON.parse(urlsRaw) : {};
       for (const entry of newEntries) {
-        const src = selectedRepos.find((r) => `${r.owner}-${r.name}-${wsId}` === entry.id);
+        const src = selectedRepos.find((r) => entry.name === r.name);
         if (src) urls[entry.id] = src.htmlUrl;
       }
       localStorage.setItem(REPO_URLS_KEY, JSON.stringify(urls));
