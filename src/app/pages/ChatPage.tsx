@@ -76,6 +76,7 @@ const DocsPage = lazy(() => import("./DocsPage").then((module) => ({ default: mo
 const REPOSITORY_IMPORTED_KEY = "codedock-repository-imported";
 const REPOSITORY_LIST_KEY = "codedock-repositories-v2";
 const WORKSPACE_REPOS_KEY = "codedock-workspace-repos-v1";
+const HIDDEN_WORKSPACE_REPOS_KEY = "codedock-hidden-workspace-repos-v1";
 const CHAT_MESSAGES_KEY = "codedock-chat-messages-v1";
 const CHAT_THREAD_REPLIES_KEY = "codedock-chat-thread-replies-v1";
 const CHAT_THREAD_REPLY_COUNTS_KEY = "codedock-chat-thread-reply-counts-v1";
@@ -140,6 +141,8 @@ interface RepositoryItem {
   channelId?: number;   // 백엔드 repository channel DB id
   dbRepoId?: string;    // github_repositories DB id
 }
+
+type RepositoryReference = Pick<RepositoryItem, "id" | "name" | "dbRepoId" | "channelId">;
 
 interface WorkspaceItem {
   id: string;
@@ -321,6 +324,76 @@ function saveJson(key: string, value: unknown) {
     window.localStorage.setItem(key, JSON.stringify(value));
   } catch {
     // Storage can be unavailable in embedded previews; the in-memory state still updates.
+  }
+}
+
+function getRepositoryReferenceId(repository: RepositoryReference) {
+  const dbRepoId = typeof repository.dbRepoId === "string" ? repository.dbRepoId.trim() : "";
+  return dbRepoId ? `db:${dbRepoId}` : `local:${repository.id}`;
+}
+
+function getHiddenRepositoryKey(workspaceApiId: number, repository: RepositoryReference) {
+  return `${workspaceApiId}:${getRepositoryReferenceId(repository)}`;
+}
+
+function getHiddenWorkspaceRepositories() {
+  return getSavedJson<Record<string, true>>(HIDDEN_WORKSPACE_REPOS_KEY, {});
+}
+
+function saveHiddenWorkspaceRepositories(hiddenRepositories: Record<string, true>) {
+  saveJson(HIDDEN_WORKSPACE_REPOS_KEY, hiddenRepositories);
+}
+
+function isWorkspaceRepositoryHidden(
+  workspaceApiId: number,
+  repository: RepositoryReference,
+  hiddenRepositories = getHiddenWorkspaceRepositories()
+) {
+  return Boolean(hiddenRepositories[getHiddenRepositoryKey(workspaceApiId, repository)]);
+}
+
+function hideWorkspaceRepository(workspaceApiId: number, repository: RepositoryReference) {
+  const hiddenRepositories = getHiddenWorkspaceRepositories();
+  hiddenRepositories[getHiddenRepositoryKey(workspaceApiId, repository)] = true;
+  saveHiddenWorkspaceRepositories(hiddenRepositories);
+}
+
+function unhideWorkspaceRepository(workspaceApiId: number, repository: RepositoryReference) {
+  const hiddenRepositories = getHiddenWorkspaceRepositories();
+  const hiddenKey = getHiddenRepositoryKey(workspaceApiId, repository);
+  if (!hiddenRepositories[hiddenKey]) return;
+
+  delete hiddenRepositories[hiddenKey];
+  saveHiddenWorkspaceRepositories(hiddenRepositories);
+}
+
+function isSameRepositoryReference(a: Partial<RepositoryReference>, b: Partial<RepositoryReference>) {
+  return Boolean(
+    (a.dbRepoId && b.dbRepoId && a.dbRepoId === b.dbRepoId)
+    || (a.channelId && b.channelId && a.channelId === b.channelId)
+    || (a.id && b.id && a.id === b.id)
+  );
+}
+
+function removeWorkspaceRepositoryFromStorage(workspaceApiId: number, repository: RepositoryReference) {
+  if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
+    return;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(WORKSPACE_REPOS_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(parsed)) return;
+
+    const workspaceId = String(workspaceApiId);
+    const next = parsed.filter((item) => {
+      if (!item || item.workspaceId !== workspaceId) return true;
+      return !isSameRepositoryReference(item, repository);
+    });
+
+    window.localStorage.setItem(WORKSPACE_REPOS_KEY, JSON.stringify(next));
+  } catch {
+    // Keep in-memory state as the source of truth if storage is unavailable.
   }
 }
 
@@ -1382,15 +1455,33 @@ export function ChatPage() {
   useEffect(() => {
     if (!currentWorkspaceApiId || currentWorkspaceApiId <= 0) return;
     fetchWorkspaceRepositories(currentWorkspaceApiId).then((list) => {
-      if (!list.length) return;
+      const wsId = String(currentWorkspaceApiId);
+      const hiddenRepositories = getHiddenWorkspaceRepositories();
+      const visibleBackendRepositories = list.filter((repo) =>
+        !isWorkspaceRepositoryHidden(
+          currentWorkspaceApiId,
+          { id: `repo-${repo.id}`, name: repo.name, channelId: repo.channelId, dbRepoId: String(repo.id) },
+          hiddenRepositories
+        )
+      );
+
+      if (!visibleBackendRepositories.length) {
+        setRepositories((prev) => {
+          const next = prev.filter((repo) =>
+            repo.workspaceId !== wsId
+            || !isWorkspaceRepositoryHidden(currentWorkspaceApiId, repo, hiddenRepositories)
+          );
+          return next.length === prev.length ? prev : next;
+        });
+        return;
+      }
 
       // 기존 이슈 상태 동기화 (DB meta와 실제 GitHub 이슈 상태 일치)
-      list.forEach((repo) => {
+      visibleBackendRepositories.forEach((repo) => {
         syncRepositoryIssueStatuses(String(repo.id)).catch(() => { /* ignore */ });
       });
 
-      const wsId = String(currentWorkspaceApiId);
-      const apiRepositoryEntries: RepositoryItem[] = list.map((repo) => ({
+      const apiRepositoryEntries: RepositoryItem[] = visibleBackendRepositories.map((repo) => ({
         id: `repo-${repo.id}`,
         name: repo.name,
         openPRs: 0,
@@ -1408,9 +1499,14 @@ export function ChatPage() {
         const parsed = raw ? JSON.parse(raw) : [];
         if (!Array.isArray(parsed)) return;
         let changed = false;
-        const updated = parsed.map((r) => {
+        const updated = parsed.filter((r) => {
+          if (!r || r.workspaceId !== wsId) return true;
+          const shouldKeep = !isWorkspaceRepositoryHidden(currentWorkspaceApiId, r, hiddenRepositories);
+          if (!shouldKeep) changed = true;
+          return shouldKeep;
+        }).map((r) => {
           if (r.workspaceId !== wsId) return r;
-          const match = list.find(
+          const match = visibleBackendRepositories.find(
             (b) => r.dbRepoId === String(b.id) || r.name === b.name
           );
           if (match && (r.channelId !== match.channelId || r.dbRepoId !== String(match.id))) {
@@ -1449,7 +1545,12 @@ export function ChatPage() {
       } catch { /* ignore */ }
       setRepositories((prev) => {
         let stateChanged = false;
-        const next = [...prev];
+        const next = prev.filter((repo) => {
+          if (repo.workspaceId !== wsId) return true;
+          const shouldKeep = !isWorkspaceRepositoryHidden(currentWorkspaceApiId, repo, hiddenRepositories);
+          if (!shouldKeep) stateChanged = true;
+          return shouldKeep;
+        });
 
         apiRepositoryEntries.forEach((entry) => {
           const index = next.findIndex((repo) =>
@@ -1492,8 +1593,14 @@ export function ChatPage() {
   const visibleRepositories = useMemo(() => {
     try {
       const wsId = String(currentWorkspaceApiId);
+      const hiddenRepositories = getHiddenWorkspaceRepositories();
       const stateConnected = repositories.filter(
-        (repo) => repo && typeof repo.id === "string" && typeof repo.name === "string" && repo.workspaceId === wsId
+        (repo) =>
+          repo
+          && typeof repo.id === "string"
+          && typeof repo.name === "string"
+          && repo.workspaceId === wsId
+          && !isWorkspaceRepositoryHidden(currentWorkspaceApiId, repo, hiddenRepositories)
       );
       if (stateConnected.length > 0) {
         return stateConnected;
@@ -1504,7 +1611,12 @@ export function ChatPage() {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
           const connected = parsed.filter(
-            (r) => r && typeof r.id === "string" && typeof r.name === "string" && r.workspaceId === wsId
+            (r) =>
+              r
+              && typeof r.id === "string"
+              && typeof r.name === "string"
+              && r.workspaceId === wsId
+              && !isWorkspaceRepositoryHidden(currentWorkspaceApiId, r, hiddenRepositories)
           );
           if (connected.length > 0) {
             return connected.map((r): RepositoryItem => ({
@@ -3018,7 +3130,14 @@ export function ChatPage() {
         channelId: res.channelId,
         dbRepoId: String(res.id),
       };
-      setRepositories(prev => [nextRepository, ...prev]);
+      unhideWorkspaceRepository(currentWorkspaceApiId, nextRepository);
+      setRepositories(prev => [
+        nextRepository,
+        ...prev.filter((repo) =>
+          repo.workspaceId !== nextRepository.workspaceId
+          || !isSameRepositoryReference(repo, nextRepository)
+        )
+      ]);
       setRepositoriesImported(true);
       setSelectedRepository(nextRepository.id);
       setSelectedChannel('overview');
@@ -3035,7 +3154,14 @@ export function ChatPage() {
         membersOnline: 1,
         workspaceId: String(currentWorkspaceApiId),
       };
-      setRepositories(prev => [nextRepository, ...prev]);
+      unhideWorkspaceRepository(currentWorkspaceApiId, nextRepository);
+      setRepositories(prev => [
+        nextRepository,
+        ...prev.filter((repo) =>
+          repo.workspaceId !== nextRepository.workspaceId
+          || !isSameRepositoryReference(repo, nextRepository)
+        )
+      ]);
       setRepositoriesImported(true);
       setSelectedRepository(nextRepository.id);
       setSelectedChannel('overview');
@@ -3044,11 +3170,23 @@ export function ChatPage() {
   };
 
   const handleDeleteRepository = (repositoryId: string) => {
+    const removedRepository = repositories.find((repo) => repo.id === repositoryId)
+      ?? visibleRepositories.find((repo) => repo.id === repositoryId);
+    if (removedRepository) {
+      hideWorkspaceRepository(currentWorkspaceApiId, removedRepository);
+      removeWorkspaceRepositoryFromStorage(currentWorkspaceApiId, removedRepository);
+    }
+
     const nextRepositories = repositories.filter((repo) => repo.id !== repositoryId);
     setRepositories(nextRepositories);
     if (selectedRepository === repositoryId) {
-      const nextVisible = nextRepositories.filter(r => !r.workspaceId || r.workspaceId === selectedWorkspace);
-      setSelectedRepository(nextVisible[0]?.id ?? nextRepositories[0]?.id ?? "");
+      const workspaceId = String(currentWorkspaceApiId);
+      const hiddenRepositories = getHiddenWorkspaceRepositories();
+      const nextVisible = nextRepositories.filter((repo) =>
+        repo.workspaceId === workspaceId
+        && !isWorkspaceRepositoryHidden(currentWorkspaceApiId, repo, hiddenRepositories)
+      );
+      setSelectedRepository(nextVisible[0]?.id ?? "");
       setSelectedChannel('general');
     }
     if (nextRepositories.length === 0) {
