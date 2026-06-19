@@ -1218,7 +1218,7 @@ export function WorkspacePage() {
   const [events, setEvents] = useState<WorkspaceEventDto[]>([]);
 
   useEffect(() => {
-    fetchMyEvents().then(setEvents).catch(() => setEvents([]));
+    fetchMyEvents().then((data) => setEvents(data ?? [])).catch(() => setEvents([]));
   }, []);
 
   const getEventMeta = (type: EventType) => {

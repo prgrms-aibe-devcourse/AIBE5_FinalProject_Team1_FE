@@ -20,6 +20,9 @@ export type WorkspaceEventDto = {
 };
 
 export function fetchMyEvents(): Promise<WorkspaceEventDto[]> {
-  return fetchWithAuth<{ success: boolean; data: WorkspaceEventDto[] }>("/api/v1/events")
-    .then((res) => res.data);
+  return fetchWithAuth<WorkspaceEventDto[] | { success: boolean; data: WorkspaceEventDto[] }>("/api/v1/events")
+    .then((res) => {
+      if (Array.isArray(res)) return res;
+      return res.data ?? [];
+    });
 }
