@@ -1408,8 +1408,9 @@ export function WorkspacePage() {
               return (
                 <div
                   key={event.id}
-                  className="px-5 py-4 rounded-2xl"
+                  className="px-5 py-4 rounded-2xl cursor-pointer transition-all hover:brightness-110"
                   style={{ background: "rgba(5, 11, 20, 0.42)", border: "1px solid rgba(32, 227, 255, 0.10)" }}
+                  onClick={() => navigate("/chat", { state: { pendingEvent: event } })}
                 >
                   <div className="flex items-start gap-3">
                     <span className="flex-shrink-0 mt-0.5">

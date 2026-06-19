@@ -8,10 +8,13 @@ export type WorkspaceEventDto = {
   type: EventType;
   actorName: string;
   prId: number | null;
+  prNumber: number | null;
   issueId: number | null;
+  issueNumber: number | null;
   channelId: number | null;
   threadId: number | null;
   repositoryId: number | null;
+  repositoryName: string | null;
   content: string;
   createdAt: string;
 };
