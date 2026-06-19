@@ -569,7 +569,6 @@ function mapChannelMessageToWorkspaceMessage(message: ChannelMessage) {
   // The backend marks soft-deleted messages by replacing the content with a sentinel string.
   // Detect it here so a page refresh keeps the message in the "deleted" state (no edit/delete buttons).
   const isDeleted = message.isDeleted === true || message.content === DELETED_MESSAGE_CONTENT;
-  // Normalize the server reply summary into the { user, text } shape the message bubble renders.
   const replyTo = message.replyTo
     ? { user: message.replyTo.senderName ?? "", text: message.replyTo.content }
     : undefined;
@@ -3605,7 +3604,6 @@ export function ChatPage() {
     const pendingMessageId = Date.now();
     const attachmentPayload = attachments.map(toMessageAttachmentRequest);
     const messageText = trimmedText || `${attachments.length}개 항목을 공유합니다.`;
-    // Only forward a server-backed message id; optimistic/local ids must not be sent as reply targets.
     const replyToMessageId = replyTo?.messageId;
 
     const nextMessage: any = {
