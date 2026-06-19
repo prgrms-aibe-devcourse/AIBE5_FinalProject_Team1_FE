@@ -3098,6 +3098,19 @@ export function ChatPage() {
     }
   };
 
+  const parseRepoPartsFromUrl = (url: string): { owner: string; repoName: string } | null => {
+    try {
+      const trimmed = url.trim().replace(/\.git$/, '');
+      const parts = trimmed.split('/').filter(Boolean);
+      const repoName = parts[parts.length - 1];
+      const owner = parts[parts.length - 2];
+      if (!owner || !repoName) return null;
+      return { owner, repoName };
+    } catch {
+      return null;
+    }
+  };
+
   const handleOpenRepoForm = () => {
     setShowRepoDropdown(false);
     setShowRepoForm(true);
@@ -3299,6 +3312,70 @@ export function ChatPage() {
       `"${repoName}" 레포 채널은 로컬로 생성하지 않습니다. GitHub 저장소 연동 흐름에서 서버 채널이 생성된 뒤 표시됩니다.`
     );
     isCreatingChannelRef.current = false;
+  };
+
+  const handleSubmitConnectedRepoChannel = async () => {
+    if (isCreatingChannelRef.current) return;
+    const repoParts = parseRepoPartsFromUrl(newRepoChannelUrl);
+    if (!repoParts) {
+      setChannelCreateError('GitHub 저장소 URL을 owner/repository 형식으로 입력해주세요.');
+      return;
+    }
+    if (!canManageWorkspaceChannels) {
+      setChannelCreateError('채널 관리는 워크스페이스 owner/admin만 가능합니다.');
+      return;
+    }
+    if (!Number.isFinite(currentWorkspaceApiId) || currentWorkspaceApiId <= 0) {
+      setChannelCreateError('워크스페이스 정보를 확인할 수 없습니다. 새로고침 후 다시 시도해주세요.');
+      return;
+    }
+
+    isCreatingChannelRef.current = true;
+    setIsSubmittingChannel(true);
+    setChannelCreateError('');
+
+    try {
+      const res = await connectWorkspaceRepository(currentWorkspaceApiId, repoParts.owner, repoParts.repoName);
+      const nextRepository: RepositoryItem = {
+        id: `repo-${res.id}`,
+        name: res.name,
+        openPRs: 0,
+        highRisk: 0,
+        activeIssues: 0,
+        connected: true,
+        membersOnline: 1,
+        workspaceId: String(currentWorkspaceApiId),
+        channelId: res.channelId,
+        dbRepoId: String(res.id),
+      };
+
+      unhideWorkspaceRepository(currentWorkspaceApiId, nextRepository);
+      setRepositories(prev => [
+        nextRepository,
+        ...prev.filter((repo) =>
+          repo.workspaceId !== nextRepository.workspaceId
+          || !isSameRepositoryReference(repo, nextRepository)
+        )
+      ]);
+      setRepositoriesImported(true);
+
+      try {
+        await refreshWorkspaceChannels();
+      } catch {
+        // The repository connection already created the backend channel; keep local state if sync fails.
+      }
+
+      setSelectedRepository(nextRepository.id);
+      setSelectedChannel(getApiChannelUiIdById(res.channelId));
+      setAddChannelStep(null);
+      setAddChannelPosition(null);
+      setNewRepoChannelUrl('');
+    } catch (error) {
+      setChannelCreateError(getChannelActionErrorMessage(error, '레포지토리 채널을 만들지 못했어요. 저장소 권한과 URL을 확인해주세요.'));
+    } finally {
+      setIsSubmittingChannel(false);
+      isCreatingChannelRef.current = false;
+    }
   };
 
   const handleCancelAddChannel = () => {
@@ -5571,8 +5648,8 @@ export function ChatPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={handleSubmitAddRepoChannel}
-                      disabled={!parseRepoNameFromUrl(newRepoChannelUrl)}
+                      onClick={handleSubmitConnectedRepoChannel}
+                      disabled={!parseRepoPartsFromUrl(newRepoChannelUrl)}
                       className="flex flex-1 items-center justify-center gap-1 rounded-full border-0 px-3 py-2 tracking-tight transition-all disabled:opacity-40"
                       style={{
                         background: 'linear-gradient(135deg, var(--matrix-green), var(--deep-teal))',
