@@ -6,6 +6,7 @@ import { DndProvider, useDrag, useDrop, useDragLayer } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { fetchMyGithubRepos, fetchRepoCollaborators, type GithubCollaborator, type GithubRepo } from "../api/github";
 import { fetchMyWorkspaces, createWorkspace, deleteWorkspace, listReceivedInvites, acceptInvite, rejectInvite, createInvite, type WorkspaceDto, type ReceivedInviteDto } from "../api/workspace";
+import { fetchMyEvents, type WorkspaceEventDto, type EventType } from "../api/events";
 import { useWorkspace } from "../contexts/WorkspaceContext";
 import { ApiClientError } from "../api/client";
 
@@ -1214,25 +1215,30 @@ export function WorkspacePage() {
         .catch((e) => alert(e instanceof Error ? e.message : "초대 거절에 실패했습니다."));
   };
 
-  type KeyEventType = "pr_opened" | "issue_opened" | "review" | "mention" | "reply";
+  const [events, setEvents] = useState<WorkspaceEventDto[]>([]);
 
-  const keyEvents: { type: KeyEventType; user: string; workspace: string; channel: string; content: string; time: string }[] = [
-    { type: "pr_opened",    user: "김진필", workspace: "SecureFlow Workspace", channel: "backend",  content: "PR #234: 인증 미들웨어 추가 — 보안 변경 포함",         time: "10분 전" },
-    { type: "review",       user: "김준우", workspace: "SecureFlow Workspace", channel: "frontend", content: "PR #231 승인 — LGTM, 배포 가능합니다.",                 time: "25분 전" },
-    { type: "issue_opened", user: "안현",   workspace: "AI Chat Platform",     channel: "general",  content: "Issue #145: 요청 제한이 작동하지 않음",                 time: "1시간 전" },
-    { type: "mention",      user: "김재준", workspace: "SecureFlow Workspace", channel: "backend",  content: "@김준우 이 부분 리뷰 부탁드려요, 인증 흐름 변경됐어요.", time: "2시간 전" },
-    { type: "reply",        user: "김진현", workspace: "Dashboard UI Kit",     channel: "general",  content: "맞아요, 그 방식으로 처리하면 됩니다.",                   time: "3시간 전" },
-    { type: "review",       user: "김진필", workspace: "AI Chat Platform",     channel: "backend",  content: "PR #230 변경 요청 — 에러 처리 로직 수정 필요합니다.",   time: "5시간 전" },
-  ];
+  useEffect(() => {
+    fetchMyEvents().then(setEvents).catch(() => setEvents([]));
+  }, []);
 
-  const getEventMeta = (type: KeyEventType) => {
+  const getEventMeta = (type: EventType) => {
     switch (type) {
-      case "pr_opened":    return { label: "PR 올라옴",   icon: GitPullRequest, color: "var(--neon-cyan)" };
-      case "issue_opened": return { label: "이슈 올라옴", icon: CircleDot,      color: "#FFD93D" };
-      case "review":       return { label: "리뷰 받음",   icon: MessageSquare,  color: "var(--matrix-green)" };
-      case "mention":      return { label: "멘션됨",      icon: AtSign,         color: "#C084FC" };
-      case "reply":        return { label: "답장 받음",   icon: CornerDownRight, color: "var(--soft-mint)" };
+      case "PR_CREATED":  return { label: "PR 올라옴",   icon: GitPullRequest,  color: "var(--neon-cyan)" };
+      case "ISSUE_CREATED": return { label: "이슈 올라옴", icon: CircleDot,     color: "#FFD93D" };
+      case "PR_REVIEW":   return { label: "리뷰 받음",   icon: MessageSquare,   color: "var(--matrix-green)" };
+      case "MENTION":     return { label: "멘션됨",      icon: AtSign,          color: "#C084FC" };
+      case "REPLY":       return { label: "답장 받음",   icon: CornerDownRight, color: "var(--soft-mint)" };
     }
+  };
+
+  const formatRelativeTime = (createdAt: string) => {
+    const diff = Date.now() - new Date(createdAt).getTime();
+    const minutes = Math.floor(diff / 60000);
+    if (minutes < 1) return "방금 전";
+    if (minutes < 60) return `${minutes}분 전`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}시간 전`;
+    return `${Math.floor(hours / 24)}일 전`;
   };
 
   return (
@@ -1392,11 +1398,16 @@ export function WorkspacePage() {
             주요 이벤트
           </h2>
           <div className="grid gap-3">
-            {keyEvents.map((event, idx) => {
+            {events.length === 0 ? (
+              <p className="m-0 py-6 text-center tracking-tight" style={{ fontSize: "14px", fontWeight: 700, color: "var(--muted)" }}>
+                최근 이벤트가 없습니다.
+              </p>
+            ) : events.map((event) => {
               const { label, icon: Icon, color } = getEventMeta(event.type);
+              const workspaceName = orgs.find((o) => o.id === event.workspaceId)?.name ?? "";
               return (
                 <div
-                  key={idx}
+                  key={event.id}
                   className="px-5 py-4 rounded-2xl"
                   style={{ background: "rgba(5, 11, 20, 0.42)", border: "1px solid rgba(32, 227, 255, 0.10)" }}
                 >
@@ -1407,20 +1418,22 @@ export function WorkspacePage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <span className="tracking-tight" style={{ fontSize: "15px", fontWeight: 900, color: "var(--white)" }}>
-                          <span style={{ color: "var(--matrix-green)" }}>{event.user}</span>
+                          <span style={{ color: "var(--matrix-green)" }}>{event.actorName}</span>
                           {"  "}
                           <span style={{ color, fontSize: "13px", fontWeight: 800 }}>{label}</span>
                         </span>
-                        <span className="tracking-tight" style={{ fontSize: "12px", fontWeight: 700, color: "var(--muted)" }}>
-                          {event.workspace} · #{event.channel}
-                        </span>
+                        {workspaceName && (
+                          <span className="tracking-tight" style={{ fontSize: "12px", fontWeight: 700, color: "var(--muted)" }}>
+                            {workspaceName}
+                          </span>
+                        )}
                       </div>
                       <p className="m-0 tracking-tight truncate" style={{ fontSize: "13px", fontWeight: 700, color: "rgba(255,255,255,0.55)" }}>
                         {event.content}
                       </p>
                     </div>
                     <span className="flex-shrink-0 tracking-tight" style={{ fontSize: "12px", fontWeight: 700, color: "var(--muted)", whiteSpace: "nowrap" }}>
-                      {event.time}
+                      {formatRelativeTime(event.createdAt)}
                     </span>
                   </div>
                 </div>
