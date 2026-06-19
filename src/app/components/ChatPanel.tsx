@@ -126,7 +126,7 @@ interface ChatPanelProps {
   messages: Message[];
   reactions?: Record<string, MessageReaction[]>;
   replyCounts?: Record<number, number>;
-  onSendMessage?: (message: string, attachments?: MessageAttachment[], replyTo?: { user: string; text: string }, metadata?: MessageMetadata) => void;
+  onSendMessage?: (message: string, attachments?: MessageAttachment[], replyTo?: { user: string; text: string; messageId?: number }, metadata?: MessageMetadata) => void;
   onAddMessageAttachments?: (message: Message, attachments: MessageAttachment[]) => Promise<void> | void;
   onDeleteMessageAttachment?: (message: Message, attachment: MessageAttachment) => Promise<void> | void;
   onSharePR?: (prData: any, message: string, channelIds: string[]) => void;
@@ -314,7 +314,11 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
 
     if ((outgoingMessage || outgoingAttachments.length > 0) && onSendMessage) {
       const replyToPayload = replyTo
-        ? { user: replyTo.user, text: replyTo.text || replyTo.prTitle || replyTo.issueTitle || replyTo.code || '' }
+        ? {
+            user: replyTo.user,
+            text: replyTo.text || replyTo.prTitle || replyTo.issueTitle || replyTo.code || '',
+            messageId: replyTo.backendMessageId
+          }
         : undefined;
       const mentions = extractMentionNames(outgoingMessage);
       onSendMessage(outgoingMessage, outgoingAttachments, replyToPayload, mentions.length ? { mentions } : undefined);
