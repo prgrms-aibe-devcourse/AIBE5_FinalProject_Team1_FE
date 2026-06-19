@@ -569,6 +569,9 @@ function mapChannelMessageToWorkspaceMessage(message: ChannelMessage) {
   // The backend marks soft-deleted messages by replacing the content with a sentinel string.
   // Detect it here so a page refresh keeps the message in the "deleted" state (no edit/delete buttons).
   const isDeleted = message.isDeleted === true || message.content === DELETED_MESSAGE_CONTENT;
+  const replyTo = message.replyTo
+    ? { user: message.replyTo.senderName ?? "", text: message.replyTo.content }
+    : undefined;
 
   return {
     id: message.id,
@@ -582,6 +585,7 @@ function mapChannelMessageToWorkspaceMessage(message: ChannelMessage) {
     time: formatApiDateTime(message.createdAt),
     replies: 0,
     attachments,
+    ...(replyTo ? { replyTo } : {}),
     ...(isDeleted ? { deleted: true } : {})
   };
 }
@@ -3591,7 +3595,7 @@ export function ChatPage() {
     });
   };
 
-  const handleSendMessage = (text: string, attachments: MessageAttachment[] = [], replyTo?: { user: string; text: string }, metadata?: MessageMetadata) => {
+  const handleSendMessage = (text: string, attachments: MessageAttachment[] = [], replyTo?: { user: string; text: string; messageId?: number }, metadata?: MessageMetadata) => {
     const trimmedText = text.trim();
     if (!trimmedText && attachments.length === 0) return;
     if (attachments.length > 10) return;
@@ -3600,6 +3604,7 @@ export function ChatPage() {
     const pendingMessageId = Date.now();
     const attachmentPayload = attachments.map(toMessageAttachmentRequest);
     const messageText = trimmedText || `${attachments.length}개 항목을 공유합니다.`;
+    const replyToMessageId = replyTo?.messageId;
 
     const nextMessage: any = {
       id: pendingMessageId,
@@ -3634,7 +3639,8 @@ export function ChatPage() {
           stompClient.send(
             chatWebSocketDestinations.sendChannelMessage(activeApiChannelId),
             {
-              content: messageText
+              content: messageText,
+              ...(replyToMessageId ? { replyToMessageId } : {})
             }
           );
           return;
@@ -3645,7 +3651,8 @@ export function ChatPage() {
 
       createChannelMessage(activeApiChannelId, {
         content: messageText,
-        ...(attachmentPayload.length > 0 ? { attachments: attachmentPayload } : {})
+        ...(attachmentPayload.length > 0 ? { attachments: attachmentPayload } : {}),
+        ...(replyToMessageId ? { replyToMessageId } : {})
       })
         .then((serverMessage) => appendServerMessage(selectedChannel, serverMessage))
         .catch((error) => {

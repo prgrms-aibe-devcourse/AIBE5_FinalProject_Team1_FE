@@ -26,6 +26,12 @@ export type ChannelUpdateRequest = {
   description?: string | null;
 };
 
+export type ChannelMessageReplyTo = {
+  messageId: number;
+  senderName: string | null;
+  content: string;
+};
+
 export type ChannelMessage = {
   id: number;
   channelId: number;
@@ -35,15 +41,18 @@ export type ChannelMessage = {
   createdAt: ISODateTime;
   attachments?: MessageAttachmentResponse[];
   isDeleted?: boolean;
+  replyTo?: ChannelMessageReplyTo | null;
 };
 
 export type ChannelMessageCreateRequest = {
   content: string;
+  replyToMessageId?: number;
 };
 
 export type ChannelMessageRestCreateRequest = {
   content: string;
   attachments?: MessageAttachmentRequest[];
+  replyToMessageId?: number;
 };
 
 export type ChannelMessageUpdateRequest = {

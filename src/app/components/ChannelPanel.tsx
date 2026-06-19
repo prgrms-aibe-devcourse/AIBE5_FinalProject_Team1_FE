@@ -41,7 +41,7 @@ interface ChannelPanelProps {
   onSendThread?: (
     message: string,
     attachments?: MessageAttachment[],
-    replyTo?: { user: string; text: string },
+    replyTo?: { user: string; text: string; messageId?: number },
     metadata?: MessageMetadata
   ) => void;
   onTypingChange?: (typing: boolean) => void;
@@ -708,7 +708,10 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
     };
 
     if (onSendThread) {
-      onSendThread(nextThread.message, nextThread.attachments, nextThread.replyTo, mentions.length ? { mentions } : undefined);
+      const replyToPayload = replyTo
+        ? { user: replyTo.user, text: getThreadBody(replyTo), messageId: replyTo.backendMessageId }
+        : undefined;
+      onSendThread(nextThread.message, nextThread.attachments, replyToPayload, mentions.length ? { mentions } : undefined);
     } else {
       setLocalThreads((prev) => [...prev, nextThread]);
     }
