@@ -3070,8 +3070,9 @@ export function ChatPage() {
   }, [threadSubscriptionKey, chatStompReadyKey]);
 
   useEffect(() => {
-    if (!currentWorkspaceApiId || !chatStompRef.current?.isConnected()) return;
-    const sub = chatStompRef.current.subscribe<{ memberId: number; presence: string }>(
+    const client = chatStompRef.current;
+    if (!currentWorkspaceApiId || !client) return;
+    const sub = client.subscribe<{ memberId: number; presence: string }>(
       `/topic/workspaces/${currentWorkspaceApiId}/presence`,
       (payload) => {
         if (!payload?.memberId || !payload?.presence) return;
