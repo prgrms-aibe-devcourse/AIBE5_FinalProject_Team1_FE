@@ -72,6 +72,8 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
   const [editTitle, setEditTitle] = useState("");
   const [editContent, setEditContent] = useState("");
   const [editCategory, setEditCategory] = useState<DocumentCategory | null>(null);
+  const [isAiTypeModalOpen, setIsAiTypeModalOpen] = useState(false);
+  const [aiSelectedType, setAiSelectedType] = useState<DocumentCategory | null>(null);
 
   const loadDocs = useCallback(async () => {
     if (workspaceId === null) return;
@@ -156,11 +158,13 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
     }
   };
 
-  const handleGenerateAiDocument = async () => {
+  const handleGenerateAiDocument = async (category: DocumentCategory) => {
     if (workspaceId === null) return;
+    setIsAiTypeModalOpen(false);
+    setAiSelectedType(null);
     setIsAiGenerating(true);
     try {
-      const created = await aiGenerateDocument(workspaceId);
+      const created = await aiGenerateDocument(workspaceId, category);
       const newDoc = mapDocumentResponse(created);
       setDocs((prev) => [newDoc, ...prev]);
       setSelectedDoc(created.id);
@@ -433,7 +437,7 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => void handleGenerateAiDocument()}
+                onClick={() => { setAiSelectedType(null); setIsAiTypeModalOpen(true); }}
                 disabled={isAiGenerating}
                 className="inline-flex shrink-0 whitespace-nowrap items-center gap-1.5 rounded-xl border-0 px-3 py-2 tracking-tight"
                 style={{
@@ -952,6 +956,85 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
           </section>
         )}
       </div>
+
+      {isAiTypeModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
+          onClick={() => setIsAiTypeModalOpen(false)}
+        >
+          <div
+            className="rounded-3xl p-6 grid gap-5 w-full"
+            style={{
+              maxWidth: '400px',
+              background: 'rgba(8, 16, 30, 0.98)',
+              border: '1px solid rgba(var(--codedock-primary-rgb), 0.24)',
+              boxShadow: '0 24px 60px rgba(0,0,0,0.6)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="grid gap-1">
+              <h3 className="m-0 tracking-tight" style={{ color: 'var(--white)', fontSize: '18px', fontWeight: 950 }}>
+                {language === 'en' ? 'Select Document Type' : '문서 타입 선택'}
+              </h3>
+              <p className="m-0 tracking-tight" style={{ color: 'var(--muted)', fontSize: 'var(--krds-body-xsmall)', fontWeight: 800 }}>
+                {language === 'en' ? 'AI will generate based on the selected type.' : 'AI가 선택한 타입을 기반으로 문서를 생성합니다.'}
+              </p>
+            </div>
+            <div className="grid gap-2">
+              {categories.map((cat) => {
+                const CatIcon = cat.icon;
+                const isSelected = aiSelectedType === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setAiSelectedType(cat.id)}
+                    className="flex items-center gap-3 rounded-2xl border-0 px-4 py-3 text-left transition-all"
+                    style={{
+                      background: isSelected ? `color-mix(in srgb, ${cat.color} 12%, rgba(5,11,20,0.8))` : 'rgba(5,11,20,0.6)',
+                      border: isSelected ? `1px solid color-mix(in srgb, ${cat.color} 40%, transparent)` : '1px solid rgba(var(--codedock-primary-rgb), 0.16)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <CatIcon size={16} style={{ color: cat.color, flexShrink: 0 }} />
+                    <span className="tracking-tight" style={{ color: isSelected ? cat.color : 'var(--white)', fontSize: 'var(--krds-body-xsmall)', fontWeight: 950 }}>
+                      {language === 'en' ? cat.nameEn : cat.name}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsAiTypeModalOpen(false)}
+                className="rounded-xl border-0 px-4 py-2 tracking-tight"
+                style={{ background: 'rgba(234,247,255,0.06)', color: 'var(--muted)', cursor: 'pointer', fontSize: 'var(--krds-body-xsmall)', fontWeight: 950 }}
+              >
+                {language === 'en' ? 'Cancel' : '취소'}
+              </button>
+              <button
+                type="button"
+                onClick={() => { if (aiSelectedType) void handleGenerateAiDocument(aiSelectedType); }}
+                disabled={!aiSelectedType}
+                className="inline-flex items-center gap-1.5 rounded-xl border-0 px-4 py-2 tracking-tight"
+                style={{
+                  background: aiSelectedType ? 'linear-gradient(135deg, rgba(var(--codedock-primary-rgb), 0.30), rgba(var(--codedock-secondary-rgb), 0.18))' : 'rgba(234,247,255,0.04)',
+                  border: aiSelectedType ? '1px solid rgba(var(--codedock-primary-rgb), 0.36)' : '1px solid rgba(234,247,255,0.08)',
+                  color: aiSelectedType ? 'var(--neon-cyan)' : 'var(--muted)',
+                  cursor: aiSelectedType ? 'pointer' : 'not-allowed',
+                  fontSize: 'var(--krds-body-xsmall)',
+                  fontWeight: 950,
+                }}
+              >
+                <Sparkles size={13} strokeWidth={2.6} />
+                {language === 'en' ? 'Generate' : 'AI 생성'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
