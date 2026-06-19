@@ -64,6 +64,7 @@ import type { ChatStompClient } from "../api/stomp";
 import { getAccessToken } from "../auth";
 import { useProfile } from "../contexts/ProfileContext";
 import { fetchMyWorkspaces, getWorkspaceMembers, updatePresence, type WorkspaceDto, type WorkspaceMember } from "../api/workspace";
+import { type WorkspaceEventDto } from "../api/events";
 import { useWorkspace } from "../contexts/WorkspaceContext";
 import { ApiClientError } from "../api/client";
 
@@ -1070,11 +1071,15 @@ export function ChatPage() {
   const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMember[]>([]);
 
   useEffect(() => {
+    const state = location.state as { workspaceId?: string | number; pendingEvent?: WorkspaceEventDto } | null;
+    const pendingEvent = state?.pendingEvent ?? null;
+    if (pendingEvent) pendingEventRef.current = pendingEvent;
+
     fetchMyWorkspaces()
       .then((workspaces) => {
         setApiWorkspaces(workspaces);
         if (workspaces.length > 0) {
-          const incomingId = (location.state as { workspaceId?: string | number } | null)?.workspaceId;
+          const incomingId = pendingEvent?.workspaceId ?? state?.workspaceId;
           const incomingApiId = parseWorkspaceApiId(incomingId);
           const target = incomingApiId !== null
             ? workspaces.find((w) => w.id === incomingApiId)
@@ -1150,6 +1155,7 @@ export function ChatPage() {
   );
   const [isMainExpanded, setIsMainExpanded] = useState(false);
   const prevMainExpanded = useRef(false);
+  const pendingEventRef = useRef<WorkspaceEventDto | null>(null);
   const [teamInviteOpen, setTeamInviteOpen] = useState(false);
   const [expandedSidebarGroups, setExpandedSidebarGroups] = useState<Record<SidebarGroupId, boolean>>({
     documentation: true
@@ -3488,6 +3494,56 @@ export function ChatPage() {
   const handleCloseThread = () => {
     setSelectedThread(null);
   };
+
+  // pendingEvent: 레포 목록 변경 시 레포·채널 선택
+  useEffect(() => {
+    const pending = pendingEventRef.current;
+    if (!pending) return;
+    if (pending.type === "MENTION" || pending.type === "REPLY") return; // 채널 처리는 아래에서
+    if (!pending.repositoryName) return;
+    const repo = repositories.find((r) => r.name === pending.repositoryName);
+    if (!repo) return;
+    setSelectedRepository(repo.id);
+    if (pending.type === "PR_CREATED" || pending.type === "PR_REVIEW") {
+      setSelectedChannel("pull-requests");
+    } else if (pending.type === "ISSUE_CREATED") {
+      setSelectedChannel("issues");
+    }
+  }, [repositories]);
+
+  // pendingEvent: apiChannels 변경 시 MENTION·REPLY 채널 선택
+  useEffect(() => {
+    const pending = pendingEventRef.current;
+    if (!pending || (pending.type !== "MENTION" && pending.type !== "REPLY")) return;
+    if (!pending.channelId) return;
+    const uiChannelId = apiChannelUiById[pending.channelId];
+    if (uiChannelId) setSelectedChannel(uiChannelId);
+  }, [apiChannelUiById]);
+
+  // pendingEvent: 메시지 로드 후 PR·이슈·스레드 패널 열기
+  useEffect(() => {
+    const pending = pendingEventRef.current;
+    if (!pending) return;
+    if (pending.type === "PR_CREATED" || pending.type === "PR_REVIEW") {
+      if (!pending.prNumber) return;
+      const msg = currentMessages.find((m: any) => m.type === "pr" && m.prNumber === pending.prNumber);
+      if (!msg) return;
+      handleReviewPR(msg);
+      pendingEventRef.current = null;
+    } else if (pending.type === "ISSUE_CREATED") {
+      if (!pending.issueNumber) return;
+      const msg = currentMessages.find((m: any) => m.type === "issue" && m.issueNumber === pending.issueNumber);
+      if (!msg) return;
+      handleViewIssue(msg);
+      pendingEventRef.current = null;
+    } else if (pending.type === "MENTION" || pending.type === "REPLY") {
+      if (!pending.threadId) return;
+      const msg = currentMessages.find((m: any) => Number(m.backendMessageId ?? m.id) === pending.threadId);
+      if (!msg) return;
+      handleOpenThread(msg);
+      pendingEventRef.current = null;
+    }
+  }, [currentMessages]);
 
   const getReactionTarget = (reactionKey: string) => {
     if (reactionKey.endsWith(":original") && selectedThread) {
