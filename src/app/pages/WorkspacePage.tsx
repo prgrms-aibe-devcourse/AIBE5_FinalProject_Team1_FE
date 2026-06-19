@@ -31,6 +31,7 @@ export type Org = {
   repoCount: number;
   myRole: string;  // "소유자" | "관리자" | "편집 가능" | "보기 가능"
   workspaceId?: string; // localStorage key for team members
+  lastActivityAt: string | null;
 };
 
 type Invite = {
@@ -1001,6 +1002,7 @@ function workspaceDtoToOrg(w: WorkspaceDto): Org {
     repoCount: 0,
     myRole: roleToKorean(w.myRole),
     workspaceId: String(w.id),
+    lastActivityAt: w.lastActivityAt,
   };
 }
 
@@ -1016,18 +1018,21 @@ export function WorkspacePage() {
 
   const loadOrgs = useCallback(() => {
     const saved = localStorage.getItem("codedock-team-sort-order");
-    const order: "name" | "latest" = saved === "name" ? "name" : "latest";
-    return fetchMyWorkspaces()
-        .then((list) => {
-          const mapped = list.map(workspaceDtoToOrg);
-          setOrgs(
-              order === "name"
-                  ? mapped.sort((a, b) => a.name.localeCompare(b.name, "ko"))
-                  : mapped.sort((a, b) => b.id - a.id)
-          );
-        })
-        .catch(() => setOrgs([]))
-        .finally(() => setOrgsLoading(false));
+    const order: "name" | "latest" | "activity" = saved === "name" || saved === "activity" ? saved : "latest";
+    fetchMyWorkspaces()
+      .then((list) => {
+        const mapped = list.map(workspaceDtoToOrg);
+        if (order === "name") setOrgs(mapped.sort((a, b) => a.name.localeCompare(b.name, "ko")));
+        else if (order === "activity") setOrgs(mapped.sort((a, b) => {
+          if (!a.lastActivityAt && !b.lastActivityAt) return 0;
+          if (!a.lastActivityAt) return 1;
+          if (!b.lastActivityAt) return -1;
+          return new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime();
+        }));
+        else setOrgs(mapped.sort((a, b) => b.id - a.id));
+      })
+      .catch(() => setOrgs([]))
+      .finally(() => setOrgsLoading(false));
   }, []);
 
   useEffect(() => {
@@ -1102,19 +1107,25 @@ export function WorkspacePage() {
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showInvitesModal, setShowInvitesModal] = useState(false);
-  const [sortOrder, setSortOrder] = useState<"name" | "latest">(() => {
+  const [sortOrder, setSortOrder] = useState<"name" | "latest" | "activity">(() => {
     const saved = localStorage.getItem("codedock-team-sort-order");
-    return saved === "name" ? "name" : "latest";
+    if (saved === "name" || saved === "activity") return saved;
+    return "latest";
   });
 
-  const handleSortOrgs = (order: "name" | "latest") => {
+  const handleSortOrgs = (order: "name" | "latest" | "activity") => {
     setSortOrder(order);
     localStorage.setItem("codedock-team-sort-order", order);
-    setOrgs((prev) =>
-      order === "name"
-        ? [...prev].sort((a, b) => a.name.localeCompare(b.name, "ko"))
-        : [...prev].sort((a, b) => b.id - a.id)
-    );
+    setOrgs((prev) => {
+      if (order === "name") return [...prev].sort((a, b) => a.name.localeCompare(b.name, "ko"));
+      if (order === "activity") return [...prev].sort((a, b) => {
+        if (!a.lastActivityAt && !b.lastActivityAt) return 0;
+        if (!a.lastActivityAt) return 1;
+        if (!b.lastActivityAt) return -1;
+        return new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime();
+      });
+      return [...prev].sort((a, b) => b.id - a.id);
+    });
   };
 
   const moveOrg = useCallback((from: number, to: number) => {
@@ -1288,7 +1299,7 @@ export function WorkspacePage() {
             <div className="flex flex-wrap items-center gap-3">
               <select
                 value={sortOrder}
-                onChange={(e) => handleSortOrgs(e.target.value as "name" | "latest")}
+                onChange={(e) => handleSortOrgs(e.target.value as "name" | "latest" | "activity")}
                 className="rounded-xl px-3 py-2 outline-none tracking-tight"
                 style={{
                   background: "rgba(255,255,255,0.05)",
@@ -1300,6 +1311,7 @@ export function WorkspacePage() {
                 }}
               >
                 <option value="latest" style={{ background: "#121827", color: "#EAF7FF" }}>최신 순</option>
+                <option value="activity" style={{ background: "#121827", color: "#EAF7FF" }}>최근 활동 순</option>
                 <option value="name" style={{ background: "#121827", color: "#EAF7FF" }}>이름 순</option>
               </select>
               <button

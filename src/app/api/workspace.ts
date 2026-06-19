@@ -9,6 +9,7 @@ export type WorkspaceDto = {
   myRole: string; // "owner" | "admin" | "editor" | "viewer"
   memberCount: number;
   createdAt: string;
+  lastActivityAt: string | null;
   logoUrl?: string | null;
 };
 
