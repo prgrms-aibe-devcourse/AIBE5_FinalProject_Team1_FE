@@ -1165,6 +1165,7 @@ export function ChatPage() {
   const [workspaceBookmarks, setWorkspaceBookmarks] = useState<BookmarkResponse[]>([]);
   const [workspaceMentions, setWorkspaceMentions] = useState<MentionResponse[]>([]);
   const [optimisticMentionBumps, setOptimisticMentionBumps] = useState(0);
+  const [mentionPulseKey, setMentionPulseKey] = useState(0);
   const [channelBookmarkMenuOpen, setChannelBookmarkMenuOpen] = useState(false);
   const [channelMenuOpenId, setChannelMenuOpenId] = useState<string | null>(null);
   const [channelMenuPosition, setChannelMenuPosition] = useState<{ top: number; left: number } | null>(null);
@@ -1393,6 +1394,16 @@ export function ChatPage() {
   const visibleWorkspaceMentions = workspaceMentions;
   const unreadMentionCount =
     visibleWorkspaceMentions.filter((mention) => !mention.read).length + optimisticMentionBumps;
+
+  // A WS mention arrival increments optimisticMentionBumps (current-workspace only). Replay the
+  // badge pulse once per increase — not on initial load or on the reset-to-0 after a refetch.
+  const prevMentionBumpsRef = useRef(optimisticMentionBumps);
+  useEffect(() => {
+    if (optimisticMentionBumps > prevMentionBumpsRef.current) {
+      setMentionPulseKey((key) => key + 1);
+    }
+    prevMentionBumpsRef.current = optimisticMentionBumps;
+  }, [optimisticMentionBumps]);
 
   const getChannelBadge = (channelId: string): string | undefined => {
     const count = currentChannelUnreadCounts[channelId];
@@ -3175,18 +3186,33 @@ export function ChatPage() {
           background: notificationMode === 'muted' ? 'rgba(255, 107, 107, 0.10)' : 'rgba(var(--codedock-primary-rgb), 0.10)',
           border: notificationMode === 'muted' ? '1px solid rgba(255, 107, 107, 0.22)' : '1px solid rgba(var(--codedock-primary-rgb), 0.16)'
         }}>
-          <CurrentNotificationIcon size={14} style={{ color: notificationMode === 'muted' ? '#FF8FA3' : 'var(--neon-cyan)' }} />
+          <motion.span
+            key={`mention-icon-${mentionPulseKey}`}
+            className="grid place-items-center"
+            initial={{ scale: 1, rotate: 0 }}
+            animate={mentionPulseKey > 0 ? { scale: [1, 1.25, 1], rotate: [0, -12, 10, 0] } : { scale: 1, rotate: 0 }}
+            transition={{ duration: 0.5, ease: 'easeOut' }}
+          >
+            <CurrentNotificationIcon size={14} style={{ color: notificationMode === 'muted' ? '#FF8FA3' : 'var(--neon-cyan)' }} />
+          </motion.span>
           {unreadMentionCount > 0 && (
-            <span className="absolute -right-1 -top-1 grid min-w-[16px] place-items-center rounded-full px-1" style={{
-              height: '16px',
-              background: 'var(--matrix-green)',
-              color: '#021014',
-              fontSize: '10px',
-              fontWeight: 950,
-              lineHeight: 1
-            }}>
+            <motion.span
+              key={`mention-badge-${mentionPulseKey}`}
+              className="absolute -right-1 -top-1 grid min-w-[16px] place-items-center rounded-full px-1"
+              initial={{ scale: 1 }}
+              animate={mentionPulseKey > 0 ? { scale: [1, 1.5, 1] } : { scale: 1 }}
+              transition={{ duration: 0.5, ease: 'easeOut' }}
+              style={{
+                height: '16px',
+                background: 'var(--matrix-green)',
+                color: '#021014',
+                fontSize: '10px',
+                fontWeight: 950,
+                lineHeight: 1
+              }}
+            >
               {unreadMentionCount > 9 ? '9+' : unreadMentionCount}
-            </span>
+            </motion.span>
           )}
         </span>
       </button>
@@ -3292,9 +3318,14 @@ export function ChatPage() {
 
                 <div className="grid gap-1.5">
                   {visibleWorkspaceMentions.slice(0, 6).map((mention) => (
-                    <div
+                    <motion.div
                       key={mention.id}
                       className="flex w-full items-start gap-2 rounded-xl px-3 py-2.5 tracking-tight"
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={mention.read
+                        ? { opacity: 1, y: 0 }
+                        : { opacity: 1, y: 0, boxShadow: ['0 0 0 0 rgba(0, 255, 170, 0)', '0 0 0 4px rgba(0, 255, 170, 0.28)', '0 0 0 0 rgba(0, 255, 170, 0)'] }}
+                      transition={{ duration: mention.read ? 0.2 : 1.2, ease: 'easeOut' }}
                       style={{
                         background: mention.read ? 'transparent' : 'rgba(var(--codedock-primary-rgb), 0.10)',
                         border: mention.read ? '1px solid transparent' : '1px solid rgba(var(--codedock-primary-rgb), 0.18)',
@@ -3344,7 +3375,7 @@ export function ChatPage() {
                       >
                         <X size={12} />
                       </button>
-                    </div>
+                    </motion.div>
                   ))}
                 </div>
               </>
