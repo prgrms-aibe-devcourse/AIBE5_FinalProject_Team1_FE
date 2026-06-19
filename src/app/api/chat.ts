@@ -57,6 +57,7 @@ export type ThreadReply = {
   senderName: string;
   content: string;
   createdAt: ISODateTime;
+  isDeleted?: boolean;
 };
 
 export type ThreadReplyCreateRequest = {

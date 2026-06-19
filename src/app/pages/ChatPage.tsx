@@ -587,6 +587,7 @@ function mapChannelMessageToWorkspaceMessage(message: ChannelMessage) {
 }
 
 function mapThreadReplyToWorkspaceMessage(reply: ThreadReply) {
+  const isDeleted = reply.isDeleted === true || reply.content === DELETED_MESSAGE_CONTENT;
   return {
     id: reply.id,
     backendReplyId: reply.id,
@@ -596,7 +597,8 @@ function mapThreadReplyToWorkspaceMessage(reply: ThreadReply) {
     avatar: reply.senderName?.charAt(0).toUpperCase() || "U",
     text: reply.content,
     message: reply.content,
-    time: formatApiDateTime(reply.createdAt)
+    time: formatApiDateTime(reply.createdAt),
+    ...(isDeleted ? { deleted: true } : {})
   };
 }
 
