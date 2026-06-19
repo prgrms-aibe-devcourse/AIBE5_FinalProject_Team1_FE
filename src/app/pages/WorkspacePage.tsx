@@ -1007,28 +1007,32 @@ function workspaceDtoToOrg(w: WorkspaceDto): Org {
 export function WorkspacePage() {
   const navigate = useNavigate();
   const teamSectionRef = useRef<HTMLDivElement>(null);
+  const { inviteSignal, memberSignal } = useWorkspace();
 
   const [orgs, setOrgs] = useState<Org[]>([]);
   const [orgsLoading, setOrgsLoading] = useState(true);
 
   const [settingsOrg, setSettingsOrg] = useState<Org | null>(null);
 
-  // 실제 워크스페이스 목록을 API에서 로드
-  useEffect(() => {
+  const loadOrgs = useCallback(() => {
     const saved = localStorage.getItem("codedock-team-sort-order");
     const order: "name" | "latest" = saved === "name" ? "name" : "latest";
-    fetchMyWorkspaces()
-      .then((list) => {
-        const mapped = list.map(workspaceDtoToOrg);
-        setOrgs(
-          order === "name"
-            ? mapped.sort((a, b) => a.name.localeCompare(b.name, "ko"))
-            : mapped.sort((a, b) => b.id - a.id)
-        );
-      })
-      .catch(() => setOrgs([]))
-      .finally(() => setOrgsLoading(false));
+    return fetchMyWorkspaces()
+        .then((list) => {
+          const mapped = list.map(workspaceDtoToOrg);
+          setOrgs(
+              order === "name"
+                  ? mapped.sort((a, b) => a.name.localeCompare(b.name, "ko"))
+                  : mapped.sort((a, b) => b.id - a.id)
+          );
+        })
+        .catch(() => setOrgs([]))
+        .finally(() => setOrgsLoading(false));
   }, []);
+
+  useEffect(() => {
+    void loadOrgs();
+  }, [loadOrgs]);
 
   const [orgColors, setOrgColors] = useState<Record<string, string>>(() => {
     try { return JSON.parse(localStorage.getItem(WORKSPACE_COLORS_KEY) ?? "{}"); }
@@ -1043,8 +1047,8 @@ export function WorkspacePage() {
 
   const [invites, setInvites] = useState<Invite[]>([]);
 
-  useEffect(() => {
-    listReceivedInvites()
+  const loadReceivedInvites = useCallback(() => {
+    return listReceivedInvites()
         .then((list: ReceivedInviteDto[]) => setInvites(list.map((inv) => {
           const expiresInDays = Math.max(0, Math.ceil((new Date(inv.expiresAt).getTime() - Date.now()) / 86400000));
           return {
@@ -1066,6 +1070,35 @@ export function WorkspacePage() {
         })))
         .catch(() => setInvites([]));
   }, []);
+
+  useEffect(() => {
+    void loadReceivedInvites();
+  }, [loadReceivedInvites]);
+
+  useEffect(() => {
+    const onFocus = () => {
+      if (document.visibilityState !== "visible") return;
+      void loadReceivedInvites();
+      void loadOrgs();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+  }, [loadReceivedInvites, loadOrgs]);
+
+
+  useEffect(() => {
+    if (inviteSignal === 0) return;
+    void loadReceivedInvites();
+  }, [inviteSignal, loadReceivedInvites]);
+
+  useEffect(() => {
+    if (memberSignal === 0) return;
+    void loadOrgs();
+  }, [memberSignal, loadOrgs]);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showInvitesModal, setShowInvitesModal] = useState(false);
