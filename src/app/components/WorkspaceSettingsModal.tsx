@@ -8,7 +8,7 @@ import {
 import type { Org } from "../pages/WorkspacePage";
 import { TeamInviteModal } from "./TeamInviteModal";
 import type { InviteDraft } from "./TeamInviteModal";
-import { fetchMyGithubRepos, type GithubRepo } from "../api/github";
+import { fetchMyGithubRepos, connectWorkspaceRepository, type GithubRepo } from "../api/github";
 import { useWorkspace } from "../contexts/WorkspaceContext";
 import { ApiClientError } from "../api/client";
 import { leaveWorkspace, createInvite, listInvitations, revokeInvitation, updateWorkspace, type InvitationDto, type WorkspaceMember } from "../api/workspace";
@@ -25,6 +25,8 @@ type WorkspaceRepo = {
   id: string;
   name: string;
   workspaceId?: string;
+  channelId?: number;
+  dbRepoId?: string;
 };
 
 // Fallback repos that mirror ChatPage's DEFAULT_REPOSITORIES
@@ -246,8 +248,16 @@ export function WorkspaceSettingsModal({
   onLeave: (orgId: number) => void;
   onColorChange: (orgId: number, color: string) => void;
 }) {
-  const isAdmin = org.myRole === "소유자" || org.myRole === "관리자";
-  const isOwner = org.myRole === "소유자";
+
+  const { myAuthority, workspaceId, setWorkspaceId } = useWorkspace();
+
+  useEffect(() => {
+    setWorkspaceId(org.id);
+  }, [org.id, setWorkspaceId]);
+
+  const liveRole = workspaceId === org.id && myAuthority ? myAuthority : null;
+  const isAdmin = liveRole ? liveRole === "owner" || liveRole === "admin" : org.myRole === "소유자" || org.myRole === "관리자";
+  const isOwner = liveRole ? liveRole === "owner" : org.myRole === "소유자";
 
   const [activeTab, setActiveTab] = useState<SettingsTab>("일반");
 
@@ -613,7 +623,7 @@ function MembersTab({ org, isAdmin, isOwner, onUpdate }: {
   onUpdate: (u: Partial<Org> & { id: number }) => void;
 }) {
 
-  const { memberList, changeAuthority, removeMember, transferOwnership, setWorkspaceId } = useWorkspace();
+  const { memberList, changeAuthority, removeMember, transferOwnership, setWorkspaceId, inviteSignal } = useWorkspace();
 
   useEffect(() => {
     setWorkspaceId(org.id);
@@ -628,7 +638,7 @@ function MembersTab({ org, isAdmin, isOwner, onUpdate }: {
       id: String(m.memberId),
       initials: m.username.slice(0, 2),
       name: m.username,
-      role: "멤버",
+      role: m.position || "멤버",
       permissionRole: AUTHORITY_EN_TO_KO[m.role] ?? "편집 가능",
       email: m.email ?? "",
       online: m.presence ? m.presence !== "offline" : false,
@@ -670,6 +680,11 @@ function MembersTab({ org, isAdmin, isOwner, onUpdate }: {
   useEffect(() => {
     loadInvitations();
   }, [loadInvitations]);
+
+  useEffect(() => {
+    if (inviteSignal === 0) return;
+    loadInvitations();
+  }, [inviteSignal, loadInvitations]);
 
   const handleRevokeInvite = (invitationId: number) => {
     void revokeInvitation(org.id, invitationId)
@@ -729,7 +744,7 @@ function MembersTab({ org, isAdmin, isOwner, onUpdate }: {
     if (toInvite.length === 0) return;
     void Promise.allSettled(
         toInvite.map((d) =>
-            createInvite(org.id, { email: d.email, role: "viewer", expiresInHours: 168 })
+            createInvite(org.id, { email: d.email, role: "viewer", position: d.role, expiresInHours: 168 })
         )
     ).then((results) => {
       const failed = results.filter((r) => r.status === "rejected").length;
@@ -1088,17 +1103,24 @@ function ReposTab({ org, isAdmin, onUpdate }: { org: Org; isAdmin: boolean; onUp
     }
   }, [githubRepos.length]);
 
-  const handleAddFromGithub = () => {
+  const handleAddFromGithub = async () => {
     const selected = githubRepos.filter(r => pickerSelected.includes(r.id));
     const currentWsUrls = new Set(repos.map(repo => getGithubUrl(repo, repoUrls)));
     const newRepos: WorkspaceRepo[] = [];
     const newUrls: Record<string, string> = {};
     for (const r of selected) {
       if (currentWsUrls.has(r.htmlUrl)) continue;
-      const repoId = `${r.owner}-${r.name}-${wsKey}`;
-      newRepos.push({ id: repoId, name: r.name, workspaceId: wsKey });
+      let repoId = `repo-${r.owner}-${r.name}-${wsKey}`;
+      let channelId: number | undefined;
+      try {
+        const res = await connectWorkspaceRepository(org.id, r.owner, r.name);
+        repoId = `repo-${res.id}`;
+        channelId = res.channelId ?? undefined;
+      } catch { /* 백엔드 실패 시 로컬 ID로 폴백 */ }
+      const repoEntry: WorkspaceRepo = { id: repoId, name: r.name, workspaceId: wsKey, channelId, dbRepoId: repoId.startsWith('repo-') ? repoId.slice(5) : undefined };
+      newRepos.push(repoEntry);
       newUrls[repoId] = r.htmlUrl;
-      addRepoToStorage({ id: repoId, name: r.name, workspaceId: wsKey });
+      addRepoToStorage(repoEntry);
       saveRepoUrl(repoId, r.htmlUrl);
     }
     const nextRepos = [...repos, ...newRepos];

@@ -56,6 +56,6 @@ export function deleteDocument(workspaceId: number, docId: number, options?: Api
   return apiClient.delete<void>(`/api/workspaces/${workspaceId}/documents/${docId}`, options);
 }
 
-export function aiGenerateDocument(workspaceId: number, options?: ApiRequestOptions) {
-  return apiClient.post<DocumentResponse>(`/api/workspaces/${workspaceId}/documents/ai-generate`, undefined, options);
+export function aiGenerateDocument(workspaceId: number, category: DocumentCategory, options?: ApiRequestOptions) {
+  return apiClient.post<DocumentResponse>(`/api/workspaces/${workspaceId}/documents/ai-generate`, { category }, options);
 }

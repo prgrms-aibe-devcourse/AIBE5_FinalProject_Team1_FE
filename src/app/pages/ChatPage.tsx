@@ -64,8 +64,10 @@ import type { ChatStompClient } from "../api/stomp";
 import { getAccessToken } from "../auth";
 import { useProfile } from "../contexts/ProfileContext";
 import { fetchMyWorkspaces, getWorkspaceMembers, updatePresence, type WorkspaceDto, type WorkspaceMember } from "../api/workspace";
+import { type WorkspaceEventDto } from "../api/events";
 import { useWorkspace } from "../contexts/WorkspaceContext";
 import { ApiClientError } from "../api/client";
+import { connectWorkspaceRepository, fetchWorkspaceRepositories, syncRepositoryIssueStatuses } from "../api/github";
 
 const APISpecPage = lazy(() => import("./APISpecPage").then((module) => ({ default: module.APISpecPage })));
 const ERDPage = lazy(() => import("./ERDPage").then((module) => ({ default: module.ERDPage })));
@@ -135,6 +137,8 @@ interface RepositoryItem {
   connected: boolean;
   membersOnline: number;
   workspaceId?: string;
+  channelId?: number;   // 백엔드 repository channel DB id
+  dbRepoId?: string;    // github_repositories DB id
 }
 
 interface WorkspaceItem {
@@ -575,6 +579,26 @@ function mapChannelMessageToWorkspaceMessage(message: ChannelMessage) {
     ? { user: message.replyTo.senderName ?? "", text: message.replyTo.content }
     : undefined;
 
+  // GitHub bot issue notification — parse meta JSON from the issue attachment
+  const issueAttachment = (message.attachments ?? []).find(
+    (a) => a.attachmentType === "issue" || a.type === "issue"
+  );
+  let issueFields: Record<string, unknown> = {};
+  if (issueAttachment?.meta) {
+    try {
+      const parsed = JSON.parse(issueAttachment.meta);
+      // 우선순위 미설정 시 기본값 'medium'
+      if (!parsed.issuePriority) parsed.issuePriority = 'medium';
+      // 담당자 미설정 시 작성자로 fallback
+      if (!parsed.issueAssignees || (parsed.issueAssignees as unknown[]).length === 0) {
+        parsed.issueAssignees = parsed.issueAuthor ? [parsed.issueAuthor] : [];
+      }
+      issueFields = { type: "issue", ...parsed };
+    } catch {
+      // meta가 JSON이 아닌 경우 무시
+    }
+  }
+
   return {
     id: message.id,
     backendMessageId: message.id,
@@ -588,7 +612,8 @@ function mapChannelMessageToWorkspaceMessage(message: ChannelMessage) {
     replies: 0,
     attachments,
     ...(replyTo ? { replyTo } : {}),
-    ...(isDeleted ? { deleted: true } : {})
+    ...(isDeleted ? { deleted: true } : {}),
+    ...issueFields,
   };
 }
 
@@ -1073,11 +1098,15 @@ export function ChatPage() {
   const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMember[]>([]);
 
   useEffect(() => {
+    const state = location.state as { workspaceId?: string | number; pendingEvent?: WorkspaceEventDto } | null;
+    const pendingEvent = state?.pendingEvent ?? null;
+    if (pendingEvent) pendingEventRef.current = pendingEvent;
+
     fetchMyWorkspaces()
       .then((workspaces) => {
         setApiWorkspaces(workspaces);
         if (workspaces.length > 0) {
-          const incomingId = (location.state as { workspaceId?: string | number } | null)?.workspaceId;
+          const incomingId = pendingEvent?.workspaceId ?? state?.workspaceId;
           const incomingApiId = parseWorkspaceApiId(incomingId);
           const savedApiId = parseWorkspaceApiId(getSavedJson<number | null>(LAST_WORKSPACE_KEY, null));
           // 우선순위: 명시적 진입(location.state) > 저장된 마지막 워크스페이스 > context > 첫 번째
@@ -1165,6 +1194,7 @@ export function ChatPage() {
   );
   const [isMainExpanded, setIsMainExpanded] = useState(false);
   const prevMainExpanded = useRef(false);
+  const pendingEventRef = useRef<WorkspaceEventDto | null>(null);
   const [teamInviteOpen, setTeamInviteOpen] = useState(false);
   const [expandedSidebarGroups, setExpandedSidebarGroups] = useState<Record<SidebarGroupId, boolean>>({
     documentation: true
@@ -1247,7 +1277,6 @@ export function ChatPage() {
 
 
   const hasRepositories = repositoriesImported && repositories.length > 0;
-  const currentRepo = repositories.find(repo => repo.id === selectedRepository);
   const currentWorkspace = workspaceList.find(ws => ws.id === selectedWorkspace) ?? workspaceList[0];
   const canManageWorkspaceChannels = canManageWorkspaceChannel(currentWorkspace?.myRole);
   const currentWorkspaceApiId = getWorkspaceApiId(selectedWorkspace, currentWorkspace);
@@ -1340,6 +1369,41 @@ export function ChatPage() {
         return channels;
       });
   }, [currentWorkspaceApiId]);
+
+  // 백엔드 레포 목록으로 channelId 동기화 (기존 localStorage 항목 업데이트)
+  useEffect(() => {
+    if (!currentWorkspaceApiId || currentWorkspaceApiId <= 0) return;
+    fetchWorkspaceRepositories(currentWorkspaceApiId).then((list) => {
+      if (!list.length) return;
+
+      // 기존 이슈 상태 동기화 (DB meta와 실제 GitHub 이슈 상태 일치)
+      list.forEach((repo) => {
+        syncRepositoryIssueStatuses(String(repo.id)).catch(() => { /* ignore */ });
+      });
+
+      const raw = window.localStorage.getItem(WORKSPACE_REPOS_KEY);
+      if (!raw) return;
+      try {
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return;
+        const wsId = String(currentWorkspaceApiId);
+        let changed = false;
+        const updated = parsed.map((r) => {
+          if (r.workspaceId !== wsId) return r;
+          const match = list.find(
+            (b) => r.dbRepoId === String(b.id) || r.name === b.name
+          );
+          if (match && (r.channelId !== match.channelId || r.dbRepoId !== String(match.id))) {
+            changed = true;
+            return { ...r, channelId: match.channelId, dbRepoId: String(match.id) };
+          }
+          return r;
+        });
+        if (changed) window.localStorage.setItem(WORKSPACE_REPOS_KEY, JSON.stringify(updated));
+      } catch { /* ignore */ }
+    }).catch(() => { /* ignore */ });
+  }, [currentWorkspaceApiId]);
+
   const visibleRepositories = useMemo(() => {
     try {
       const raw = window.localStorage.getItem(WORKSPACE_REPOS_KEY);
@@ -1360,6 +1424,8 @@ export function ChatPage() {
               connected: true,
               membersOnline: 0,
               workspaceId: r.workspaceId,
+              channelId: r.channelId,
+              dbRepoId: r.dbRepoId,
             }));
           }
         }
@@ -1369,6 +1435,8 @@ export function ChatPage() {
     }
     return [];
   }, [currentWorkspaceApiId]);
+  const currentRepo = visibleRepositories.find(repo => repo.id === selectedRepository)
+    ?? repositories.find(repo => repo.id === selectedRepository);
   const firstVisibleRepositoryId = visibleRepositories[0]?.id ?? null;
   const apiChannelIdByUiChannel = useMemo(() => {
     return apiChannels.reduce<Record<string, number>>((acc, channel) => {
@@ -1382,7 +1450,11 @@ export function ChatPage() {
       return acc;
     }, {});
   }, [apiChannels]);
-  const activeApiChannelId = apiChannelIdByUiChannel[selectedChannel];
+  // 'issues' 탭은 현재 레포의 repository channel(DB id)로 매핑
+  const activeApiChannelId =
+    selectedChannel === 'issues' && currentRepo?.channelId
+      ? currentRepo.channelId
+      : apiChannelIdByUiChannel[selectedChannel];
   const hasActiveApiChatChannel = activeApiChannelId !== undefined;
   const hasChatAccessToken = Boolean(getAccessToken());
   const realtimeConnectionBlockReason = useMemo<RealtimeConnectionReason | null>(() => {
@@ -1401,7 +1473,7 @@ export function ChatPage() {
   ]);
   const apiCustomChannels = useMemo<CustomChannelItem[]>(() => {
     return apiChannels
-      .filter((channel) => getApiChannelUiId(channel) !== "general")
+      .filter((channel) => getApiChannelUiId(channel) !== "general" && channel.channelType !== "repository")
       .map((channel) => ({
         id: getApiChannelUiId(channel),
         label: cleanChannelLabel(channel.name),
@@ -2526,7 +2598,10 @@ export function ChatPage() {
       setChatStompReadyKey((key) => key + 1);
 
       eventSubscriptions = apiChannels.map((channel) => {
-        const uiChannelId = getApiChannelUiId(channel);
+        // Repository channels map to the 'issues' UI tab, not to the generic api-ch-{id} key
+        const uiChannelId = String(channel.channelType ?? "").toLowerCase() === "repository"
+          ? "issues"
+          : getApiChannelUiId(channel);
 
         return client!.subscribe<ChatEvent<ChannelEventPayload>>(
           chatWebSocketDestinations.subscribeChannelEvents(channel.id),
@@ -2783,24 +2858,50 @@ export function ChatPage() {
     setRepoUrlInput('');
   };
 
-  const handleSubmitRepoForm = () => {
-    const repoName = parseRepoNameFromUrl(repoUrlInput);
-    if (!repoName) return;
-    const nextRepository: RepositoryItem = {
-      id: `repo-${Date.now()}`,
-      name: repoName,
-      openPRs: 0,
-      highRisk: 0,
-      activeIssues: 0,
-      connected: true,
-      membersOnline: 1,
-      workspaceId: selectedWorkspace
-    };
-    setRepositories(prev => [nextRepository, ...prev]);
-    setRepositoriesImported(true);
-    setSelectedRepository(nextRepository.id);
-    setSelectedChannel('overview');
-    handleCloseRepoForm();
+  const handleSubmitRepoForm = async () => {
+    const trimmed = repoUrlInput.trim().replace(/\.git$/, '');
+    const parts = trimmed.split('/').filter(Boolean);
+    const repoName = parts[parts.length - 1];
+    const owner = parts[parts.length - 2];
+    if (!repoName || !owner) return;
+
+    try {
+      const res = await connectWorkspaceRepository(currentWorkspaceApiId, owner, repoName);
+      const nextRepository: RepositoryItem = {
+        id: `repo-${res.id}`,
+        name: res.name,
+        openPRs: 0,
+        highRisk: 0,
+        activeIssues: 0,
+        connected: true,
+        membersOnline: 1,
+        workspaceId: selectedWorkspace,
+        channelId: res.channelId,
+        dbRepoId: String(res.id),
+      };
+      setRepositories(prev => [nextRepository, ...prev]);
+      setRepositoriesImported(true);
+      setSelectedRepository(nextRepository.id);
+      setSelectedChannel('overview');
+      handleCloseRepoForm();
+    } catch {
+      // 백엔드 연동 실패 시 로컬 목데이터로 폴백
+      const nextRepository: RepositoryItem = {
+        id: `repo-${Date.now()}`,
+        name: repoName,
+        openPRs: 0,
+        highRisk: 0,
+        activeIssues: 0,
+        connected: true,
+        membersOnline: 1,
+        workspaceId: selectedWorkspace,
+      };
+      setRepositories(prev => [nextRepository, ...prev]);
+      setRepositoriesImported(true);
+      setSelectedRepository(nextRepository.id);
+      setSelectedChannel('overview');
+      handleCloseRepoForm();
+    }
   };
 
   const handleDeleteRepository = (repositoryId: string) => {
@@ -3548,6 +3649,56 @@ export function ChatPage() {
   const handleCloseThread = () => {
     setSelectedThread(null);
   };
+
+  // pendingEvent: 레포 목록 변경 시 레포·채널 선택
+  useEffect(() => {
+    const pending = pendingEventRef.current;
+    if (!pending) return;
+    if (pending.type === "MENTION" || pending.type === "REPLY") return; // 채널 처리는 아래에서
+    if (!pending.repositoryName) return;
+    const repo = repositories.find((r) => r.name === pending.repositoryName);
+    if (!repo) return;
+    setSelectedRepository(repo.id);
+    if (pending.type === "PR_CREATED" || pending.type === "PR_REVIEW") {
+      setSelectedChannel("pull-requests");
+    } else if (pending.type === "ISSUE_CREATED") {
+      setSelectedChannel("issues");
+    }
+  }, [repositories]);
+
+  // pendingEvent: apiChannels 변경 시 MENTION·REPLY 채널 선택
+  useEffect(() => {
+    const pending = pendingEventRef.current;
+    if (!pending || (pending.type !== "MENTION" && pending.type !== "REPLY")) return;
+    if (!pending.channelId) return;
+    const uiChannelId = apiChannelUiById[pending.channelId];
+    if (uiChannelId) setSelectedChannel(uiChannelId);
+  }, [apiChannelUiById]);
+
+  // pendingEvent: 메시지 로드 후 PR·이슈·스레드 패널 열기
+  useEffect(() => {
+    const pending = pendingEventRef.current;
+    if (!pending) return;
+    if (pending.type === "PR_CREATED" || pending.type === "PR_REVIEW") {
+      if (!pending.prNumber) return;
+      const msg = currentMessages.find((m: any) => m.type === "pr" && m.prNumber === pending.prNumber);
+      if (!msg) return;
+      handleReviewPR(msg);
+      pendingEventRef.current = null;
+    } else if (pending.type === "ISSUE_CREATED") {
+      if (!pending.issueNumber) return;
+      const msg = currentMessages.find((m: any) => m.type === "issue" && m.issueNumber === pending.issueNumber);
+      if (!msg) return;
+      handleViewIssue(msg);
+      pendingEventRef.current = null;
+    } else if (pending.type === "MENTION" || pending.type === "REPLY") {
+      if (!pending.threadId) return;
+      const msg = currentMessages.find((m: any) => Number(m.backendMessageId ?? m.id) === pending.threadId);
+      if (!msg) return;
+      handleOpenThread(msg);
+      pendingEventRef.current = null;
+    }
+  }, [currentMessages]);
 
   const getReactionTarget = (reactionKey: string) => {
     if (reactionKey.endsWith(":original") && selectedThread) {

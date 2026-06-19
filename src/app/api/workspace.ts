@@ -9,6 +9,7 @@ export type WorkspaceDto = {
   myRole: string; // "owner" | "admin" | "editor" | "viewer"
   memberCount: number;
   createdAt: string;
+  lastActivityAt: string | null;
   logoUrl?: string | null;
 };
 
@@ -47,6 +48,7 @@ export type WorkspaceMember = {
   username: string;
   email: string;
   role: string;
+  position?: string | null;
   joinedAt: string;
   presence: string;
 };
@@ -96,6 +98,7 @@ export function transferOwnership(workspaceId: number, memberId: number): Promis
 export type InviteCreatePayload = {
   email: string;
   role: string;
+  position?: string;
   expiresInHours: number;
 };
 

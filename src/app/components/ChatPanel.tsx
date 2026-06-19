@@ -160,7 +160,7 @@ const shareChannels = [
 const issueStatusConfig = {
   open: { label: '열림', color: '#22C55E', icon: CircleDot },
   in_progress: { label: '진행 중', color: 'var(--neon-cyan)', icon: Clock },
-  closed: { label: '닫힘', color: 'var(--muted)', icon: CircleCheck },
+  closed: { label: '닫힘', color: '#A855F7', icon: CircleCheck },
 };
 
 const issuePriorityConfig = {
@@ -1019,7 +1019,9 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
                     className="rounded-xl overflow-hidden transition-all hover:translate-y-[-1px]"
                     style={{
                       background: 'rgba(11, 22, 40, 0.85)',
-                      border: '1px solid rgba(34, 197, 94, 0.22)',
+                      border: msg.issueStatus === 'closed'
+                        ? '1px solid rgba(168, 85, 247, 0.35)'
+                        : '1px solid rgba(34, 197, 94, 0.22)',
                       boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3)',
                       cursor: 'pointer'
                     }}
@@ -1027,10 +1029,12 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
                     {/* Header */}
                     <div className="px-4 py-2.5 flex items-center justify-between" style={{
                       background: 'rgba(5, 11, 20, 0.5)',
-                      borderBottom: '1px solid rgba(34, 197, 94, 0.14)'
+                      borderBottom: msg.issueStatus === 'closed'
+                        ? '1px solid rgba(168, 85, 247, 0.18)'
+                        : '1px solid rgba(34, 197, 94, 0.14)'
                     }}>
                       <div className="flex items-center gap-2">
-                        <CircleDot size={14} style={{ color: '#22C55E' }} />
+                        <CircleDot size={14} style={{ color: msg.issueStatus === 'closed' ? '#A855F7' : '#22C55E' }} />
                         <span className="font-mono tracking-tight" style={{
                           fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 800,
@@ -1095,7 +1099,7 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
                           fontWeight: 700,
                           color: 'var(--muted)'
                         }}>
-                          작성자 {msg.issueAuthor || msg.user}
+                          작성자: {msg.issueAuthor || msg.user}
                         </span>
                       </div>
                     </div>

@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -17,6 +18,7 @@ import {
 } from "../api/workspace";
 import { useProfile } from "./ProfileContext";
 import { isAuthenticated } from "../auth";
+import { createChatStompClient } from "../api/stomp";
 
 interface WorkspaceContextValue {
   workspaceId: number | null;
@@ -27,6 +29,8 @@ interface WorkspaceContextValue {
   memberList: WorkspaceMember[];
   getMemberName: (memberId: number) => string;
   refetch: () => Promise<void>;
+  inviteSignal: number;
+  memberSignal: number;
   changeAuthority: (memberId: number, authority: string) => Promise<void>;
   removeMember: (memberId: number) => Promise<void>;
   transferOwnership: (memberId: number) => Promise<void>;
@@ -58,6 +62,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [myAuthority, setMyAuthority] = useState<string | null>(null);
   const [members, setMembers] = useState<Map<number, string>>(new Map());
   const [memberList, setMemberList] = useState<WorkspaceMember[]>([]);
+  const [inviteSignal, setInviteSignal] = useState(0);
+  const [memberSignal, setMemberSignal] = useState(0);
 
   useEffect(() => {
     if (!isAuthenticated()) return;
@@ -105,6 +111,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       [loadMembers, workspaceId, userId]
   );
 
+  const clientRef = useRef<ReturnType<typeof createChatStompClient> | null>(null);
+  const workspaceIdRef = useRef(workspaceId);
+  workspaceIdRef.current = workspaceId;
+  const refetchRef = useRef(refetch);
+  refetchRef.current = refetch;
+
   useEffect(() => {
     const onFocus = () => { if (document.visibilityState === "visible") void refetch(); };
     window.addEventListener("focus", onFocus);
@@ -114,6 +126,49 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       document.removeEventListener("visibilitychange", onFocus);
     };
   }, [refetch]);
+
+  useEffect(() => {
+    if (!isAuthenticated()) return;
+    const client = createChatStompClient();
+    clientRef.current = client;
+    const personalSub = client.subscribe<{ type?: string; action?: string; workspaceId?: number }>(
+      "/user/queue/workspace",
+      (event) => {
+        if (!event || typeof event !== "object") return;
+        if (event.type === "INVITE_EVENT") {
+          setInviteSignal((n) => n + 1);
+          return;
+        }
+        if (event.type === "MEMBER_EVENT" && event.action === "REMOVED" && event.workspaceId === workspaceIdRef.current) {
+          window.alert("이 워크스페이스에서 제외되었습니다.");
+          window.location.assign("/workspace");
+        }
+      }
+    );
+    client.connect();
+    return () => {
+      personalSub.unsubscribe();
+      client.disconnect();
+      clientRef.current = null;
+    };
+  }, [userId]);
+
+  useEffect(() => {
+    const client = clientRef.current;
+    if (client === null || workspaceId === null) return;
+    const memberSub = client.subscribe<{ type?: string }>(
+      `/topic/workspaces/${workspaceId}/members`,
+      (event) => {
+        if (event && typeof event === "object" && event.type === "MEMBER_EVENT") {
+          void refetchRef.current();
+          setMemberSignal((n) => n + 1);
+        }
+      }
+    );
+    return () => {
+      memberSub.unsubscribe();
+    };
+  }, [workspaceId, userId]);
 
   const runMutation = useCallback(
       async (action: () => Promise<void>) => {
@@ -168,6 +223,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
             memberList,
             getMemberName,
             refetch,
+            inviteSignal,
+            memberSignal,
             changeAuthority,
             removeMember,
             transferOwnership,
