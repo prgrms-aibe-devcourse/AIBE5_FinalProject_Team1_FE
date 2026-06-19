@@ -67,7 +67,12 @@ import { fetchMyWorkspaces, getWorkspaceMembers, updatePresence, type WorkspaceD
 import { type WorkspaceEventDto } from "../api/events";
 import { useWorkspace } from "../contexts/WorkspaceContext";
 import { ApiClientError } from "../api/client";
-import { connectWorkspaceRepository, fetchWorkspaceRepositories, syncRepositoryIssueStatuses } from "../api/github";
+import {
+  connectWorkspaceRepository,
+  fetchWorkspaceRepositories,
+  registerWorkspaceRepositoryWebhook,
+  syncRepositoryIssueStatuses
+} from "../api/github";
 
 const APISpecPage = lazy(() => import("./APISpecPage").then((module) => ({ default: module.APISpecPage })));
 const ERDPage = lazy(() => import("./ERDPage").then((module) => ({ default: module.ERDPage })));
@@ -3111,6 +3116,15 @@ export function ChatPage() {
     }
   };
 
+  const registerRepositoryWebhookAfterConnect = useCallback(async (repositoryId: number) => {
+    try {
+      await registerWorkspaceRepositoryWebhook(currentWorkspaceApiId, repositoryId);
+      return true;
+    } catch {
+      return false;
+    }
+  }, [currentWorkspaceApiId]);
+
   const handleOpenRepoForm = () => {
     setShowRepoDropdown(false);
     setShowRepoForm(true);
@@ -3131,6 +3145,7 @@ export function ChatPage() {
 
     try {
       const res = await connectWorkspaceRepository(currentWorkspaceApiId, owner, repoName);
+      const webhookRegistered = await registerRepositoryWebhookAfterConnect(res.id);
       const nextRepository: RepositoryItem = {
         id: `repo-${res.id}`,
         name: res.name,
@@ -3155,6 +3170,9 @@ export function ChatPage() {
       setSelectedRepository(nextRepository.id);
       setSelectedChannel('overview');
       handleCloseRepoForm();
+      if (!webhookRegistered) {
+        setChannelActionError('레포지토리는 연결됐지만 GitHub Webhook 등록에 실패했어요. GitHub 권한과 ngrok URL을 확인해주세요.');
+      }
     } catch {
       // 백엔드 연동 실패 시 로컬 목데이터로 폴백
       const nextRepository: RepositoryItem = {
@@ -3336,6 +3354,7 @@ export function ChatPage() {
 
     try {
       const res = await connectWorkspaceRepository(currentWorkspaceApiId, repoParts.owner, repoParts.repoName);
+      const webhookRegistered = await registerRepositoryWebhookAfterConnect(res.id);
       const nextRepository: RepositoryItem = {
         id: `repo-${res.id}`,
         name: res.name,
@@ -3370,6 +3389,9 @@ export function ChatPage() {
       setAddChannelStep(null);
       setAddChannelPosition(null);
       setNewRepoChannelUrl('');
+      if (!webhookRegistered) {
+        setChannelActionError('레포지토리 채널은 생성됐지만 GitHub Webhook 등록에 실패했어요. GitHub 권한과 ngrok URL을 확인해주세요.');
+      }
     } catch (error) {
       setChannelCreateError(getChannelActionErrorMessage(error, '레포지토리 채널을 만들지 못했어요. 저장소 권한과 URL을 확인해주세요.'));
     } finally {
