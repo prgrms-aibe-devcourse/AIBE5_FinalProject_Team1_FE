@@ -48,6 +48,7 @@ export type WorkspaceMember = {
   username: string;
   email: string;
   role: string;
+  position?: string | null;
   joinedAt: string;
   presence: string;
 };
@@ -97,6 +98,7 @@ export function transferOwnership(workspaceId: number, memberId: number): Promis
 export type InviteCreatePayload = {
   email: string;
   role: string;
+  position?: string;
   expiresInHours: number;
 };
 

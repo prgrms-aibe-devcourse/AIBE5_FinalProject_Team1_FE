@@ -638,7 +638,7 @@ function MembersTab({ org, isAdmin, isOwner, onUpdate }: {
       id: String(m.memberId),
       initials: m.username.slice(0, 2),
       name: m.username,
-      role: "멤버",
+      role: m.position || "멤버",
       permissionRole: AUTHORITY_EN_TO_KO[m.role] ?? "편집 가능",
       email: m.email ?? "",
       online: m.presence ? m.presence !== "offline" : false,
@@ -744,7 +744,7 @@ function MembersTab({ org, isAdmin, isOwner, onUpdate }: {
     if (toInvite.length === 0) return;
     void Promise.allSettled(
         toInvite.map((d) =>
-            createInvite(org.id, { email: d.email, role: "viewer", expiresInHours: 168 })
+            createInvite(org.id, { email: d.email, role: "viewer", position: d.role, expiresInHours: 168 })
         )
     ).then((results) => {
       const failed = results.filter((r) => r.status === "rejected").length;
