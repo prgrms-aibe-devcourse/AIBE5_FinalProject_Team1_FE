@@ -64,8 +64,10 @@ import type { ChatStompClient } from "../api/stomp";
 import { getAccessToken } from "../auth";
 import { useProfile } from "../contexts/ProfileContext";
 import { fetchMyWorkspaces, getWorkspaceMembers, updatePresence, type WorkspaceDto, type WorkspaceMember } from "../api/workspace";
+import { type WorkspaceEventDto } from "../api/events";
 import { useWorkspace } from "../contexts/WorkspaceContext";
 import { ApiClientError } from "../api/client";
+import { connectWorkspaceRepository, fetchWorkspaceRepositories, syncRepositoryIssueStatuses } from "../api/github";
 
 const APISpecPage = lazy(() => import("./APISpecPage").then((module) => ({ default: module.APISpecPage })));
 const ERDPage = lazy(() => import("./ERDPage").then((module) => ({ default: module.ERDPage })));
@@ -569,6 +571,27 @@ function mapChannelMessageToWorkspaceMessage(message: ChannelMessage) {
   // The backend marks soft-deleted messages by replacing the content with a sentinel string.
   // Detect it here so a page refresh keeps the message in the "deleted" state (no edit/delete buttons).
   const isDeleted = message.isDeleted === true || message.content === DELETED_MESSAGE_CONTENT;
+  const replyTo = message.replyTo
+    ? { user: message.replyTo.senderName ?? "", text: message.replyTo.content }
+    : undefined;
+
+  // GitHub bot issue notification — parse meta JSON from the issue attachment
+  const issueAttachment = (message.attachments ?? []).find(
+    (a) => a.attachmentType === "issue" || a.type === "issue"
+  );
+  let issueFields: Record<string, unknown> = {};
+  if (issueAttachment?.meta) {
+    try {
+      const parsed = JSON.parse(issueAttachment.meta);
+      if (!parsed.issuePriority) parsed.issuePriority = 'medium';
+      if (!parsed.issueAssignees || (parsed.issueAssignees as unknown[]).length === 0) {
+        parsed.issueAssignees = parsed.issueAuthor ? [parsed.issueAuthor] : [];
+      }
+      issueFields = { type: "issue", ...parsed };
+    } catch {
+      // meta가 JSON이 아닌 경우 무시
+    }
+  }
 
   return {
     id: message.id,
@@ -582,11 +605,14 @@ function mapChannelMessageToWorkspaceMessage(message: ChannelMessage) {
     time: formatApiDateTime(message.createdAt),
     replies: 0,
     attachments,
-    ...(isDeleted ? { deleted: true } : {})
+    ...(replyTo ? { replyTo } : {}),
+    ...(isDeleted ? { deleted: true } : {}),
+    ...issueFields,
   };
 }
 
 function mapThreadReplyToWorkspaceMessage(reply: ThreadReply) {
+  const isDeleted = reply.isDeleted === true || reply.content === DELETED_MESSAGE_CONTENT;
   return {
     id: reply.id,
     backendReplyId: reply.id,
@@ -596,7 +622,8 @@ function mapThreadReplyToWorkspaceMessage(reply: ThreadReply) {
     avatar: reply.senderName?.charAt(0).toUpperCase() || "U",
     text: reply.content,
     message: reply.content,
-    time: formatApiDateTime(reply.createdAt)
+    time: formatApiDateTime(reply.createdAt),
+    ...(isDeleted ? { deleted: true } : {})
   };
 }
 
@@ -1335,6 +1362,8 @@ export function ChatPage() {
               connected: true,
               membersOnline: 0,
               workspaceId: r.workspaceId,
+              channelId: r.channelId,
+              dbRepoId: r.dbRepoId,
             }));
           }
         }
@@ -1344,6 +1373,18 @@ export function ChatPage() {
     }
     return [];
   }, [currentWorkspaceApiId]);
+
+  // 워크스페이스 로드 시 기존 이슈 상태 DB meta와 동기화
+  useEffect(() => {
+    if (!currentWorkspaceApiId || currentWorkspaceApiId <= 0) return;
+    fetchWorkspaceRepositories(currentWorkspaceApiId).then((list) => {
+      if (!list.length) return;
+      list.forEach((repo) => {
+        syncRepositoryIssueStatuses(String(repo.id)).catch(() => {});
+      });
+    }).catch(() => {});
+  }, [currentWorkspaceApiId]);
+
   const firstVisibleRepositoryId = visibleRepositories[0]?.id ?? null;
   const apiChannelIdByUiChannel = useMemo(() => {
     return apiChannels.reduce<Record<string, number>>((acc, channel) => {
