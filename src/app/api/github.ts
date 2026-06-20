@@ -32,6 +32,13 @@ export type GithubConnectResponse = {
   isPrivate: boolean;
 };
 
+export type GithubWebhookRegisterResponse = {
+  repositoryId: number;
+  webhookId: string;
+  webhookUrl: string;
+  active: boolean;
+};
+
 export function fetchWorkspaceRepositories(workspaceId: number): Promise<GithubConnectResponse[]> {
   return fetchWithAuth<GithubConnectResponse[]>(`/api/v1/workspaces/${workspaceId}/github`);
 }
@@ -44,6 +51,16 @@ export function connectWorkspaceRepository(
   return fetchWithAuth<GithubConnectResponse>(
     `/api/v1/workspaces/${workspaceId}/github`,
     { method: "POST", body: JSON.stringify({ owner, repo }), headers: { "Content-Type": "application/json" } }
+  );
+}
+
+export function registerWorkspaceRepositoryWebhook(
+  workspaceId: number,
+  repositoryId: number
+): Promise<GithubWebhookRegisterResponse> {
+  return fetchWithAuth<GithubWebhookRegisterResponse>(
+    `/api/v1/workspaces/${workspaceId}/github/repositories/${repositoryId}/webhook`,
+    { method: "POST" }
   );
 }
 

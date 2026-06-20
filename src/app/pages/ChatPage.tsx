@@ -67,7 +67,12 @@ import { fetchMyWorkspaces, getWorkspaceMembers, updatePresence, type WorkspaceD
 import { type WorkspaceEventDto } from "../api/events";
 import { useWorkspace } from "../contexts/WorkspaceContext";
 import { ApiClientError } from "../api/client";
-import { connectWorkspaceRepository, fetchWorkspaceRepositories, syncRepositoryIssueStatuses } from "../api/github";
+import {
+  connectWorkspaceRepository,
+  fetchWorkspaceRepositories,
+  registerWorkspaceRepositoryWebhook,
+  syncRepositoryIssueStatuses
+} from "../api/github";
 
 const APISpecPage = lazy(() => import("./APISpecPage").then((module) => ({ default: module.APISpecPage })));
 const ERDPage = lazy(() => import("./ERDPage").then((module) => ({ default: module.ERDPage })));
@@ -76,6 +81,7 @@ const DocsPage = lazy(() => import("./DocsPage").then((module) => ({ default: mo
 const REPOSITORY_IMPORTED_KEY = "codedock-repository-imported";
 const REPOSITORY_LIST_KEY = "codedock-repositories-v2";
 const WORKSPACE_REPOS_KEY = "codedock-workspace-repos-v1";
+const HIDDEN_WORKSPACE_REPOS_KEY = "codedock-hidden-workspace-repos-v1";
 const CHAT_MESSAGES_KEY = "codedock-chat-messages-v1";
 const CHAT_THREAD_REPLIES_KEY = "codedock-chat-thread-replies-v1";
 const CHAT_THREAD_REPLY_COUNTS_KEY = "codedock-chat-thread-reply-counts-v1";
@@ -140,6 +146,8 @@ interface RepositoryItem {
   channelId?: number;   // 백엔드 repository channel DB id
   dbRepoId?: string;    // github_repositories DB id
 }
+
+type RepositoryReference = Pick<RepositoryItem, "id" | "name" | "dbRepoId" | "channelId">;
 
 interface WorkspaceItem {
   id: string;
@@ -321,6 +329,76 @@ function saveJson(key: string, value: unknown) {
     window.localStorage.setItem(key, JSON.stringify(value));
   } catch {
     // Storage can be unavailable in embedded previews; the in-memory state still updates.
+  }
+}
+
+function getRepositoryReferenceId(repository: RepositoryReference) {
+  const dbRepoId = typeof repository.dbRepoId === "string" ? repository.dbRepoId.trim() : "";
+  return dbRepoId ? `db:${dbRepoId}` : `local:${repository.id}`;
+}
+
+function getHiddenRepositoryKey(workspaceApiId: number, repository: RepositoryReference) {
+  return `${workspaceApiId}:${getRepositoryReferenceId(repository)}`;
+}
+
+function getHiddenWorkspaceRepositories() {
+  return getSavedJson<Record<string, true>>(HIDDEN_WORKSPACE_REPOS_KEY, {});
+}
+
+function saveHiddenWorkspaceRepositories(hiddenRepositories: Record<string, true>) {
+  saveJson(HIDDEN_WORKSPACE_REPOS_KEY, hiddenRepositories);
+}
+
+function isWorkspaceRepositoryHidden(
+  workspaceApiId: number,
+  repository: RepositoryReference,
+  hiddenRepositories = getHiddenWorkspaceRepositories()
+) {
+  return Boolean(hiddenRepositories[getHiddenRepositoryKey(workspaceApiId, repository)]);
+}
+
+function hideWorkspaceRepository(workspaceApiId: number, repository: RepositoryReference) {
+  const hiddenRepositories = getHiddenWorkspaceRepositories();
+  hiddenRepositories[getHiddenRepositoryKey(workspaceApiId, repository)] = true;
+  saveHiddenWorkspaceRepositories(hiddenRepositories);
+}
+
+function unhideWorkspaceRepository(workspaceApiId: number, repository: RepositoryReference) {
+  const hiddenRepositories = getHiddenWorkspaceRepositories();
+  const hiddenKey = getHiddenRepositoryKey(workspaceApiId, repository);
+  if (!hiddenRepositories[hiddenKey]) return;
+
+  delete hiddenRepositories[hiddenKey];
+  saveHiddenWorkspaceRepositories(hiddenRepositories);
+}
+
+function isSameRepositoryReference(a: Partial<RepositoryReference>, b: Partial<RepositoryReference>) {
+  return Boolean(
+    (a.dbRepoId && b.dbRepoId && a.dbRepoId === b.dbRepoId)
+    || (a.channelId && b.channelId && a.channelId === b.channelId)
+    || (a.id && b.id && a.id === b.id)
+  );
+}
+
+function removeWorkspaceRepositoryFromStorage(workspaceApiId: number, repository: RepositoryReference) {
+  if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
+    return;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(WORKSPACE_REPOS_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(parsed)) return;
+
+    const workspaceId = String(workspaceApiId);
+    const next = parsed.filter((item) => {
+      if (!item || item.workspaceId !== workspaceId) return true;
+      return !isSameRepositoryReference(item, repository);
+    });
+
+    window.localStorage.setItem(WORKSPACE_REPOS_KEY, JSON.stringify(next));
+  } catch {
+    // Keep in-memory state as the source of truth if storage is unavailable.
   }
 }
 
@@ -555,6 +633,14 @@ function getApiChannelUiId(channel: Channel) {
   }
 
   return `${API_CHANNEL_ID_PREFIX}${channel.id}`;
+}
+
+function getApiChannelUiIdById(channelId: number) {
+  return `${API_CHANNEL_ID_PREFIX}${channelId}`;
+}
+
+function isRepositoryApiChannel(channel: Channel) {
+  return String(channel.channelType ?? "").toLowerCase() === "repository";
 }
 
 function formatApiDateTime(value: string) {
@@ -1374,23 +1460,58 @@ export function ChatPage() {
   useEffect(() => {
     if (!currentWorkspaceApiId || currentWorkspaceApiId <= 0) return;
     fetchWorkspaceRepositories(currentWorkspaceApiId).then((list) => {
-      if (!list.length) return;
+      const wsId = String(currentWorkspaceApiId);
+      const hiddenRepositories = getHiddenWorkspaceRepositories();
+      const visibleBackendRepositories = list.filter((repo) =>
+        !isWorkspaceRepositoryHidden(
+          currentWorkspaceApiId,
+          { id: `repo-${repo.id}`, name: repo.name, channelId: repo.channelId, dbRepoId: String(repo.id) },
+          hiddenRepositories
+        )
+      );
+
+      if (!visibleBackendRepositories.length) {
+        setRepositories((prev) => {
+          const next = prev.filter((repo) =>
+            repo.workspaceId !== wsId
+            || !isWorkspaceRepositoryHidden(currentWorkspaceApiId, repo, hiddenRepositories)
+          );
+          return next.length === prev.length ? prev : next;
+        });
+        return;
+      }
 
       // 기존 이슈 상태 동기화 (DB meta와 실제 GitHub 이슈 상태 일치)
-      list.forEach((repo) => {
+      visibleBackendRepositories.forEach((repo) => {
         syncRepositoryIssueStatuses(String(repo.id)).catch(() => { /* ignore */ });
       });
 
+      const apiRepositoryEntries: RepositoryItem[] = visibleBackendRepositories.map((repo) => ({
+        id: `repo-${repo.id}`,
+        name: repo.name,
+        openPRs: 0,
+        highRisk: 0,
+        activeIssues: 0,
+        connected: true,
+        membersOnline: 0,
+        workspaceId: wsId,
+        channelId: repo.channelId,
+        dbRepoId: String(repo.id)
+      }));
+
       const raw = window.localStorage.getItem(WORKSPACE_REPOS_KEY);
-      if (!raw) return;
       try {
-        const parsed = JSON.parse(raw);
+        const parsed = raw ? JSON.parse(raw) : [];
         if (!Array.isArray(parsed)) return;
-        const wsId = String(currentWorkspaceApiId);
         let changed = false;
-        const updated = parsed.map((r) => {
+        const updated = parsed.filter((r) => {
+          if (!r || r.workspaceId !== wsId) return true;
+          const shouldKeep = !isWorkspaceRepositoryHidden(currentWorkspaceApiId, r, hiddenRepositories);
+          if (!shouldKeep) changed = true;
+          return shouldKeep;
+        }).map((r) => {
           if (r.workspaceId !== wsId) return r;
-          const match = list.find(
+          const match = visibleBackendRepositories.find(
             (b) => r.dbRepoId === String(b.id) || r.name === b.name
           );
           if (match && (r.channelId !== match.channelId || r.dbRepoId !== String(match.id))) {
@@ -1399,20 +1520,108 @@ export function ChatPage() {
           }
           return r;
         });
+        apiRepositoryEntries.forEach((entry) => {
+          const index = updated.findIndex((repo) =>
+            repo?.workspaceId === wsId
+            && (
+              repo.dbRepoId === entry.dbRepoId
+              || repo.id === entry.id
+              || repo.name === entry.name
+            )
+          );
+
+          if (index >= 0) {
+            const current = updated[index];
+            if (
+              current.channelId !== entry.channelId
+              || current.dbRepoId !== entry.dbRepoId
+              || current.id !== entry.id
+            ) {
+              updated[index] = { ...current, ...entry };
+              changed = true;
+            }
+            return;
+          }
+
+          updated.push(entry);
+          changed = true;
+        });
         if (changed) window.localStorage.setItem(WORKSPACE_REPOS_KEY, JSON.stringify(updated));
       } catch { /* ignore */ }
+      setRepositories((prev) => {
+        let stateChanged = false;
+        const next = prev.filter((repo) => {
+          if (repo.workspaceId !== wsId) return true;
+          const shouldKeep = !isWorkspaceRepositoryHidden(currentWorkspaceApiId, repo, hiddenRepositories);
+          if (!shouldKeep) stateChanged = true;
+          return shouldKeep;
+        });
+
+        apiRepositoryEntries.forEach((entry) => {
+          const index = next.findIndex((repo) =>
+            repo.workspaceId === wsId
+            && (
+              repo.dbRepoId === entry.dbRepoId
+              || repo.id === entry.id
+              || repo.name === entry.name
+            )
+          );
+
+          if (index >= 0) {
+            const current = next[index];
+            if (
+              current.channelId !== entry.channelId
+              || current.dbRepoId !== entry.dbRepoId
+              || current.id !== entry.id
+              || current.workspaceId !== entry.workspaceId
+            ) {
+              next[index] = { ...current, ...entry };
+              stateChanged = true;
+            }
+            return;
+          }
+
+          next.push(entry);
+          stateChanged = true;
+        });
+
+        if (stateChanged) {
+          setRepositoriesImported(true);
+          return next;
+        }
+
+        return prev;
+      });
     }).catch(() => { /* ignore */ });
   }, [currentWorkspaceApiId]);
 
   const visibleRepositories = useMemo(() => {
     try {
+      const wsId = String(currentWorkspaceApiId);
+      const hiddenRepositories = getHiddenWorkspaceRepositories();
+      const stateConnected = repositories.filter(
+        (repo) =>
+          repo
+          && typeof repo.id === "string"
+          && typeof repo.name === "string"
+          && repo.workspaceId === wsId
+          && !isWorkspaceRepositoryHidden(currentWorkspaceApiId, repo, hiddenRepositories)
+      );
+      if (stateConnected.length > 0) {
+        return stateConnected;
+      }
+
       const raw = window.localStorage.getItem(WORKSPACE_REPOS_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
-          const wsId = String(currentWorkspaceApiId);
           const connected = parsed.filter(
-            (r) => r && typeof r.id === "string" && typeof r.name === "string" && r.workspaceId === wsId
+            (r) =>
+              r
+              && typeof r.id === "string"
+              && typeof r.name === "string"
+              && r.workspaceId === wsId
+              && !isWorkspaceRepositoryHidden(currentWorkspaceApiId, r, hiddenRepositories)
           );
           if (connected.length > 0) {
             return connected.map((r): RepositoryItem => ({
@@ -1434,10 +1643,61 @@ export function ChatPage() {
       // ignore
     }
     return [];
-  }, [currentWorkspaceApiId]);
+  }, [currentWorkspaceApiId, repositories]);
   const currentRepo = visibleRepositories.find(repo => repo.id === selectedRepository)
     ?? repositories.find(repo => repo.id === selectedRepository);
   const firstVisibleRepositoryId = visibleRepositories[0]?.id ?? null;
+  const repositoryApiChannelByRepoId = useMemo(() => {
+    const channelByRepositoryDbId = new Map<number, Channel>();
+
+    apiChannels
+      .filter(isRepositoryApiChannel)
+      .forEach((channel) => {
+        if (channel.githubRepositoryId != null) {
+          channelByRepositoryDbId.set(Number(channel.githubRepositoryId), channel);
+        }
+      });
+
+    return visibleRepositories.reduce<Record<string, Channel>>((acc, repo) => {
+      const channelFromRepo = Number.isFinite(Number(repo.channelId))
+        ? apiChannels.find((channel) => channel.id === Number(repo.channelId))
+        : undefined;
+      const channelFromGithubRepositoryId = Number.isFinite(Number(repo.dbRepoId))
+        ? channelByRepositoryDbId.get(Number(repo.dbRepoId))
+        : undefined;
+      const channel = channelFromRepo ?? channelFromGithubRepositoryId;
+
+      if (channel && isRepositoryApiChannel(channel)) {
+        acc[repo.id] = channel;
+      }
+
+      return acc;
+    }, {});
+  }, [apiChannels, visibleRepositories]);
+  const repositoryChannelUiIdByRepoId = useMemo(() => {
+    return visibleRepositories.reduce<Record<string, string>>((acc, repo) => {
+      const apiChannel = repositoryApiChannelByRepoId[repo.id];
+      acc[repo.id] = apiChannel
+        ? getApiChannelUiIdById(apiChannel.id)
+        : REPO_CHANNEL_IDS[repo.id] ?? repo.id;
+      return acc;
+    }, {});
+  }, [repositoryApiChannelByRepoId, visibleRepositories]);
+  const getRepositoryChannelUiId = useCallback((repo: RepositoryItem) => {
+    return repositoryChannelUiIdByRepoId[repo.id] ?? REPO_CHANNEL_IDS[repo.id] ?? repo.id;
+  }, [repositoryChannelUiIdByRepoId]);
+  useEffect(() => {
+    const selectedRepo = visibleRepositories.find((repo) => repo.id === selectedRepository);
+    if (!selectedRepo) return;
+
+    const nextChannelId = repositoryChannelUiIdByRepoId[selectedRepo.id];
+    if (!nextChannelId || nextChannelId === selectedChannel) return;
+
+    const legacyChannelId = REPO_CHANNEL_IDS[selectedRepo.id] ?? selectedRepo.id;
+    if (selectedChannel === legacyChannelId) {
+      setSelectedChannel(nextChannelId);
+    }
+  }, [repositoryChannelUiIdByRepoId, selectedChannel, selectedRepository, visibleRepositories]);
   const apiChannelIdByUiChannel = useMemo(() => {
     return apiChannels.reduce<Record<string, number>>((acc, channel) => {
       acc[getApiChannelUiId(channel)] = channel.id;
@@ -1450,11 +1710,7 @@ export function ChatPage() {
       return acc;
     }, {});
   }, [apiChannels]);
-  // 'issues' 탭은 현재 레포의 repository channel(DB id)로 매핑
-  const activeApiChannelId =
-    selectedChannel === 'issues' && currentRepo?.channelId
-      ? currentRepo.channelId
-      : apiChannelIdByUiChannel[selectedChannel];
+  const activeApiChannelId = apiChannelIdByUiChannel[selectedChannel];
   const hasActiveApiChatChannel = activeApiChannelId !== undefined;
   const hasChatAccessToken = Boolean(getAccessToken());
   const realtimeConnectionBlockReason = useMemo<RealtimeConnectionReason | null>(() => {
@@ -1473,7 +1729,7 @@ export function ChatPage() {
   ]);
   const apiCustomChannels = useMemo<CustomChannelItem[]>(() => {
     return apiChannels
-      .filter((channel) => getApiChannelUiId(channel) !== "general" && channel.channelType !== "repository")
+      .filter((channel) => getApiChannelUiId(channel) !== "general" && !isRepositoryApiChannel(channel))
       .map((channel) => ({
         id: getApiChannelUiId(channel),
         label: cleanChannelLabel(channel.name),
@@ -1789,7 +2045,10 @@ export function ChatPage() {
     ? channelActionPendingId === channelMenuTarget.id
     : false;
   const canManageChannelMenuTarget = canManageWorkspaceChannels && Boolean(channelMenuTargetSource?.isDeletable);
-  const selectedRepoForChannel = visibleRepositories.find(r => r.id === selectedChannel);
+  const selectedRepoForChannel = visibleRepositories.find(r => getRepositoryChannelUiId(r) === selectedChannel);
+  const selectedRepositoryApiChannel = selectedRepoForChannel
+    ? repositoryApiChannelByRepoId[selectedRepoForChannel.id]
+    : undefined;
   const selectedChannelTitle = selectedChannel === 'pull-requests'
     ? `${cleanChannelLabel(currentRepo?.name ?? '레포')} - PR`
     : selectedChannel === 'issues'
@@ -2598,10 +2857,7 @@ export function ChatPage() {
       setChatStompReadyKey((key) => key + 1);
 
       eventSubscriptions = apiChannels.map((channel) => {
-        // Repository channels map to the 'issues' UI tab, not to the generic api-ch-{id} key
-        const uiChannelId = String(channel.channelType ?? "").toLowerCase() === "repository"
-          ? "issues"
-          : getApiChannelUiId(channel);
+        const uiChannelId = getApiChannelUiId(channel);
 
         return client!.subscribe<ChatEvent<ChannelEventPayload>>(
           chatWebSocketDestinations.subscribeChannelEvents(channel.id),
@@ -2814,8 +3070,9 @@ export function ChatPage() {
   }, [threadSubscriptionKey, chatStompReadyKey]);
 
   useEffect(() => {
-    if (!currentWorkspaceApiId || !chatStompRef.current?.isConnected()) return;
-    const sub = chatStompRef.current.subscribe<{ memberId: number; presence: string }>(
+    const client = chatStompRef.current;
+    if (!currentWorkspaceApiId || !client) return;
+    const sub = client.subscribe<{ memberId: number; presence: string }>(
       `/topic/workspaces/${currentWorkspaceApiId}/presence`,
       (payload) => {
         if (!payload?.memberId || !payload?.presence) return;
@@ -2847,6 +3104,28 @@ export function ChatPage() {
     }
   };
 
+  const parseRepoPartsFromUrl = (url: string): { owner: string; repoName: string } | null => {
+    try {
+      const trimmed = url.trim().replace(/\.git$/, '');
+      const parts = trimmed.split('/').filter(Boolean);
+      const repoName = parts[parts.length - 1];
+      const owner = parts[parts.length - 2];
+      if (!owner || !repoName) return null;
+      return { owner, repoName };
+    } catch {
+      return null;
+    }
+  };
+
+  const registerRepositoryWebhookAfterConnect = useCallback(async (repositoryId: number) => {
+    try {
+      await registerWorkspaceRepositoryWebhook(currentWorkspaceApiId, repositoryId);
+      return true;
+    } catch {
+      return false;
+    }
+  }, [currentWorkspaceApiId]);
+
   const handleOpenRepoForm = () => {
     setShowRepoDropdown(false);
     setShowRepoForm(true);
@@ -2867,6 +3146,7 @@ export function ChatPage() {
 
     try {
       const res = await connectWorkspaceRepository(currentWorkspaceApiId, owner, repoName);
+      const webhookRegistered = await registerRepositoryWebhookAfterConnect(res.id);
       const nextRepository: RepositoryItem = {
         id: `repo-${res.id}`,
         name: res.name,
@@ -2875,15 +3155,25 @@ export function ChatPage() {
         activeIssues: 0,
         connected: true,
         membersOnline: 1,
-        workspaceId: selectedWorkspace,
+        workspaceId: String(currentWorkspaceApiId),
         channelId: res.channelId,
         dbRepoId: String(res.id),
       };
-      setRepositories(prev => [nextRepository, ...prev]);
+      unhideWorkspaceRepository(currentWorkspaceApiId, nextRepository);
+      setRepositories(prev => [
+        nextRepository,
+        ...prev.filter((repo) =>
+          repo.workspaceId !== nextRepository.workspaceId
+          || !isSameRepositoryReference(repo, nextRepository)
+        )
+      ]);
       setRepositoriesImported(true);
       setSelectedRepository(nextRepository.id);
       setSelectedChannel('overview');
       handleCloseRepoForm();
+      if (!webhookRegistered) {
+        setChannelActionError('레포지토리는 연결됐지만 GitHub Webhook 등록에 실패했어요. GitHub 권한과 ngrok URL을 확인해주세요.');
+      }
     } catch {
       // 백엔드 연동 실패 시 로컬 목데이터로 폴백
       const nextRepository: RepositoryItem = {
@@ -2894,9 +3184,16 @@ export function ChatPage() {
         activeIssues: 0,
         connected: true,
         membersOnline: 1,
-        workspaceId: selectedWorkspace,
+        workspaceId: String(currentWorkspaceApiId),
       };
-      setRepositories(prev => [nextRepository, ...prev]);
+      unhideWorkspaceRepository(currentWorkspaceApiId, nextRepository);
+      setRepositories(prev => [
+        nextRepository,
+        ...prev.filter((repo) =>
+          repo.workspaceId !== nextRepository.workspaceId
+          || !isSameRepositoryReference(repo, nextRepository)
+        )
+      ]);
       setRepositoriesImported(true);
       setSelectedRepository(nextRepository.id);
       setSelectedChannel('overview');
@@ -2905,11 +3202,23 @@ export function ChatPage() {
   };
 
   const handleDeleteRepository = (repositoryId: string) => {
+    const removedRepository = repositories.find((repo) => repo.id === repositoryId)
+      ?? visibleRepositories.find((repo) => repo.id === repositoryId);
+    if (removedRepository) {
+      hideWorkspaceRepository(currentWorkspaceApiId, removedRepository);
+      removeWorkspaceRepositoryFromStorage(currentWorkspaceApiId, removedRepository);
+    }
+
     const nextRepositories = repositories.filter((repo) => repo.id !== repositoryId);
     setRepositories(nextRepositories);
     if (selectedRepository === repositoryId) {
-      const nextVisible = nextRepositories.filter(r => !r.workspaceId || r.workspaceId === selectedWorkspace);
-      setSelectedRepository(nextVisible[0]?.id ?? nextRepositories[0]?.id ?? "");
+      const workspaceId = String(currentWorkspaceApiId);
+      const hiddenRepositories = getHiddenWorkspaceRepositories();
+      const nextVisible = nextRepositories.filter((repo) =>
+        repo.workspaceId === workspaceId
+        && !isWorkspaceRepositoryHidden(currentWorkspaceApiId, repo, hiddenRepositories)
+      );
+      setSelectedRepository(nextVisible[0]?.id ?? "");
       setSelectedChannel('general');
     }
     if (nextRepositories.length === 0) {
@@ -3022,6 +3331,74 @@ export function ChatPage() {
       `"${repoName}" 레포 채널은 로컬로 생성하지 않습니다. GitHub 저장소 연동 흐름에서 서버 채널이 생성된 뒤 표시됩니다.`
     );
     isCreatingChannelRef.current = false;
+  };
+
+  const handleSubmitConnectedRepoChannel = async () => {
+    if (isCreatingChannelRef.current) return;
+    const repoParts = parseRepoPartsFromUrl(newRepoChannelUrl);
+    if (!repoParts) {
+      setChannelCreateError('GitHub 저장소 URL을 owner/repository 형식으로 입력해주세요.');
+      return;
+    }
+    if (!canManageWorkspaceChannels) {
+      setChannelCreateError('채널 관리는 워크스페이스 owner/admin만 가능합니다.');
+      return;
+    }
+    if (!Number.isFinite(currentWorkspaceApiId) || currentWorkspaceApiId <= 0) {
+      setChannelCreateError('워크스페이스 정보를 확인할 수 없습니다. 새로고침 후 다시 시도해주세요.');
+      return;
+    }
+
+    isCreatingChannelRef.current = true;
+    setIsSubmittingChannel(true);
+    setChannelCreateError('');
+
+    try {
+      const res = await connectWorkspaceRepository(currentWorkspaceApiId, repoParts.owner, repoParts.repoName);
+      const webhookRegistered = await registerRepositoryWebhookAfterConnect(res.id);
+      const nextRepository: RepositoryItem = {
+        id: `repo-${res.id}`,
+        name: res.name,
+        openPRs: 0,
+        highRisk: 0,
+        activeIssues: 0,
+        connected: true,
+        membersOnline: 1,
+        workspaceId: String(currentWorkspaceApiId),
+        channelId: res.channelId,
+        dbRepoId: String(res.id),
+      };
+
+      unhideWorkspaceRepository(currentWorkspaceApiId, nextRepository);
+      setRepositories(prev => [
+        nextRepository,
+        ...prev.filter((repo) =>
+          repo.workspaceId !== nextRepository.workspaceId
+          || !isSameRepositoryReference(repo, nextRepository)
+        )
+      ]);
+      setRepositoriesImported(true);
+
+      try {
+        await refreshWorkspaceChannels();
+      } catch {
+        // The repository connection already created the backend channel; keep local state if sync fails.
+      }
+
+      setSelectedRepository(nextRepository.id);
+      setSelectedChannel(getApiChannelUiIdById(res.channelId));
+      setAddChannelStep(null);
+      setAddChannelPosition(null);
+      setNewRepoChannelUrl('');
+      if (!webhookRegistered) {
+        setChannelActionError('레포지토리 채널은 생성됐지만 GitHub Webhook 등록에 실패했어요. GitHub 권한과 ngrok URL을 확인해주세요.');
+      }
+    } catch (error) {
+      setChannelCreateError(getChannelActionErrorMessage(error, '레포지토리 채널을 만들지 못했어요. 저장소 권한과 URL을 확인해주세요.'));
+    } finally {
+      setIsSubmittingChannel(false);
+      isCreatingChannelRef.current = false;
+    }
   };
 
   const handleCancelAddChannel = () => {
@@ -4452,7 +4829,7 @@ export function ChatPage() {
                 style={{ scrollbarWidth: 'none' }}
               >
               {visibleRepositories.map((repo) => {
-                const repoChannelId = REPO_CHANNEL_IDS[repo.id] ?? repo.id;
+                const repoChannelId = getRepositoryChannelUiId(repo);
                 const isExpanded = expandedRepoSubmenus[repo.id] ?? repo.id === firstVisibleRepositoryId;
                 const isPRActive = selectedRepository === repo.id && selectedChannel === 'pull-requests';
                 const isIssueActive = selectedRepository === repo.id && selectedChannel === 'issues';
@@ -4476,7 +4853,7 @@ export function ChatPage() {
                       )}
                       <button
                         type="button"
-                        onClick={() => { setSelectedRepository(repo.id); setSelectedChannel(REPO_CHANNEL_IDS[repo.id] ?? repo.id); }}
+                        onClick={() => { setSelectedRepository(repo.id); setSelectedChannel(repoChannelId); }}
                         className="relative z-10 flex min-w-0 flex-1 items-center gap-3 border-0 bg-transparent px-4 py-3 text-left"
                         style={{ cursor: 'pointer' }}
                       >
@@ -4875,11 +5252,12 @@ export function ChatPage() {
               <EmbeddedPanelBoundary key="docs">
                 <DocsPage embedded workspaceId={currentWorkspaceApiId} />
               </EmbeddedPanelBoundary>
-            ) : selectedChannel === 'general' || allCustomChannels.some(ch => ch.id === selectedChannel) ? (
+            ) : selectedChannel === 'general' || allCustomChannels.some(ch => ch.id === selectedChannel) || selectedRepositoryApiChannel ? (
               <ChannelPanel
                 channelId={selectedChannel}
                 storageScopeId={selectedChannelMessageKey}
-                repoName={allCustomChannels.find(ch => ch.id === selectedChannel)?.label}
+                repoId={selectedRepoForChannel?.id}
+                repoName={selectedRepoForChannel?.name ?? allCustomChannels.find(ch => ch.id === selectedChannel)?.label}
                 myMemberId={currentWorkspaceMemberId}
                 myDisplayName={currentDisplayName}
                 threads={currentChannelThreads}
@@ -5293,8 +5671,8 @@ export function ChatPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={handleSubmitAddRepoChannel}
-                      disabled={!parseRepoNameFromUrl(newRepoChannelUrl)}
+                      onClick={handleSubmitConnectedRepoChannel}
+                      disabled={!parseRepoPartsFromUrl(newRepoChannelUrl)}
                       className="flex flex-1 items-center justify-center gap-1 rounded-full border-0 px-3 py-2 tracking-tight transition-all disabled:opacity-40"
                       style={{
                         background: 'linear-gradient(135deg, var(--matrix-green), var(--deep-teal))',
