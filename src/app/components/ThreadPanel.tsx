@@ -20,6 +20,8 @@ interface ThreadMessage {
   line?: number;
   code?: string;
   pending?: boolean;
+  serverSyncState?: "pending" | "failed";
+  sendError?: string;
   deleted?: boolean;
 }
 
@@ -504,6 +506,17 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
                     reactions={reactionMap[`${activeReactionScope}:reply:${reply.id}`]}
                     onToggle={(emoji) => handleReactionToggle(`${activeReactionScope}:reply:${reply.id}`, emoji)}
                   />
+                  {reply.sendError && (
+                    <p className="m-0 mt-2 rounded-lg px-3 py-2 tracking-tight" style={{
+                      background: 'rgba(255, 107, 107, 0.10)',
+                      border: '1px solid rgba(255, 107, 107, 0.28)',
+                      color: '#FF6B6B',
+                      fontSize: '11px',
+                      fontWeight: 900
+                    }}>
+                      {reply.sendError}
+                    </p>
+                  )}
                 </div>
               </div>
             );

@@ -765,6 +765,19 @@ function getRealtimeApiErrorMessage(error: ApiErrorResponse | null | undefined) 
   return error?.message || error?.code || "Realtime request failed.";
 }
 
+const REALTIME_PENDING_TIMEOUT_MS = 12000;
+
+function findLatestPendingIndex(items: any[]) {
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    const item = items[index];
+    if (item?.pending && item?.serverSyncState !== "failed") {
+      return index;
+    }
+  }
+
+  return -1;
+}
+
 function getRealtimeBlockState(reason: RealtimeConnectionReason, detail?: string): RealtimeConnectionState {
   const status: RealtimeConnectionStatus =
     reason === "missing-token"
@@ -1270,6 +1283,7 @@ export function ChatPage() {
   const [selectedPR, setSelectedPR] = useState<any>(null);
   const [selectedIssue, setSelectedIssue] = useState<any>(null);
   const [selectedThread, setSelectedThread] = useState<any>(null);
+  const selectedThreadRef = useRef<any>(null);
   const [focusedMessageTarget, setFocusedMessageTarget] = useState<{ channelId: string; messageId: number } | null>(null);
   const [threadReplies, setThreadReplies] = useState<Record<number | string, any[]>>(() =>
     getLocalPersistableThreadReplies(
@@ -1431,17 +1445,6 @@ export function ChatPage() {
       return next;
     });
   }, []);
-  const handleRealtimeError = useCallback((error: ApiErrorResponse) => {
-    const detail = getRealtimeApiErrorMessage(error);
-
-    if (import.meta.env.DEV) {
-      console.warn("[CodeDock realtime] WebSocket request failed.", {
-        code: error?.code,
-        message: detail
-      });
-    }
-  }, []);
-
   useEffect(() => {
     if (apiWorkspaces.length === 0 || contextWorkspaceId === null) return;
     const contextWorkspace = apiWorkspaces.find((workspace) => workspace.id === contextWorkspaceId);
@@ -2229,6 +2232,10 @@ export function ChatPage() {
   }, [selectedChannel]);
 
   useEffect(() => {
+    selectedThreadRef.current = selectedThread;
+  }, [selectedThread]);
+
+  useEffect(() => {
     setChannelUnreadCounts(prev => {
       if (!prev[selectedChannelMessageKey]) return prev;
       return { ...prev, [selectedChannelMessageKey]: 0 };
@@ -2571,6 +2578,147 @@ export function ChatPage() {
         : prevThread
     );
   }, [getThreadReplyStateKey]);
+
+  const markPendingMessageFailed = useCallback((channelStateKey: string, pendingMessageId: number, detail: string) => {
+    setMessages((prev) => {
+      const currentMessagesForChannel = prev[channelStateKey] || [];
+      let changed = false;
+      const nextMessagesForChannel = currentMessagesForChannel.map((item) => {
+        if (item.id === pendingMessageId && item.pending && item.serverSyncState !== "failed") {
+          changed = true;
+          return {
+            ...item,
+            pending: false,
+            serverSyncState: "failed",
+            sendError: detail
+          };
+        }
+
+        return item;
+      });
+
+      return !changed
+        ? prev
+        : {
+            ...prev,
+            [channelStateKey]: nextMessagesForChannel
+          };
+    });
+  }, []);
+
+  const failLatestPendingMessage = useCallback((detail: string) => {
+    const channelStateKey = getMessageChannelKey(selectedChannelRef.current);
+
+    setMessages((prev) => {
+      const currentMessagesForChannel = prev[channelStateKey] || [];
+      const pendingIndex = findLatestPendingIndex(currentMessagesForChannel);
+
+      if (pendingIndex < 0) return prev;
+
+      return {
+        ...prev,
+        [channelStateKey]: currentMessagesForChannel.map((item, index) =>
+          index === pendingIndex
+            ? {
+                ...item,
+                pending: false,
+                serverSyncState: "failed",
+                sendError: detail
+              }
+            : item
+        )
+      };
+    });
+  }, [getMessageChannelKey]);
+
+  const markPendingThreadReplyFailed = useCallback((threadKey: string | number, pendingReplyId: number, detail: string) => {
+    const currentReplies = threadRepliesRef.current[threadKey] || [];
+    let changed = false;
+    const nextReplies = currentReplies.map((item) => {
+      if (item.id === pendingReplyId && item.pending && item.serverSyncState !== "failed") {
+        changed = true;
+        return {
+          ...item,
+          pending: false,
+          serverSyncState: "failed",
+          sendError: detail
+        };
+      }
+
+      return item;
+    });
+
+    if (!changed) return;
+
+    const nextThreadReplies = {
+      ...threadRepliesRef.current,
+      [threadKey]: nextReplies
+    };
+    threadRepliesRef.current = nextThreadReplies;
+    setThreadReplies(nextThreadReplies);
+  }, []);
+
+  const failLatestPendingThreadReply = useCallback((detail: string) => {
+    const thread = selectedThreadRef.current;
+    if (!thread) return;
+
+    const threadKey = getThreadReplyStateKey(thread);
+    const currentReplies = threadRepliesRef.current[threadKey] || [];
+    const pendingIndex = findLatestPendingIndex(currentReplies);
+    if (pendingIndex < 0) return;
+
+    const nextReplies = currentReplies.map((item, index) =>
+      index === pendingIndex
+        ? {
+            ...item,
+            pending: false,
+            serverSyncState: "failed",
+            sendError: detail
+          }
+        : item
+    );
+
+    const nextThreadReplies = {
+      ...threadRepliesRef.current,
+      [threadKey]: nextReplies
+    };
+    threadRepliesRef.current = nextThreadReplies;
+    setThreadReplies(nextThreadReplies);
+  }, [getThreadReplyStateKey]);
+
+  const schedulePendingMessageFailure = useCallback((channelStateKey: string, pendingMessageId: number) => {
+    window.setTimeout(() => {
+      markPendingMessageFailed(
+        channelStateKey,
+        pendingMessageId,
+        "Realtime confirmation timed out. Please try again."
+      );
+    }, REALTIME_PENDING_TIMEOUT_MS);
+  }, [markPendingMessageFailed]);
+
+  const schedulePendingThreadReplyFailure = useCallback((threadKey: string | number, pendingReplyId: number) => {
+    window.setTimeout(() => {
+      markPendingThreadReplyFailed(
+        threadKey,
+        pendingReplyId,
+        "Realtime confirmation timed out. Please try again."
+      );
+    }, REALTIME_PENDING_TIMEOUT_MS);
+  }, [markPendingThreadReplyFailed]);
+
+  const handleRealtimeError = useCallback((error: ApiErrorResponse) => {
+    const detail = getRealtimeApiErrorMessage(error);
+
+    failLatestPendingMessage(detail);
+    failLatestPendingThreadReply(detail);
+
+    if (import.meta.env.DEV) {
+      console.warn("[CodeDock realtime] WebSocket request failed.", {
+        code: error?.code,
+        message: detail
+      });
+    }
+  }, [failLatestPendingMessage, failLatestPendingThreadReply]);
 
   const applyReactionSummaries = useCallback((summaries: ReactionSummary[], channelId = selectedChannel) => {
     if (summaries.length === 0) return;
@@ -4251,6 +4399,7 @@ export function ChatPage() {
       const stompClient = chatStompRef.current;
       if (stompClient && attachmentPayload.length === 0) {
         try {
+          schedulePendingMessageFailure(selectedChannelMessageKey, pendingMessageId);
           stompClient.send(
             chatWebSocketDestinations.sendChannelMessage(activeApiChannelId),
             {
@@ -4507,9 +4656,10 @@ export function ChatPage() {
     };
 
     if (activeApiChannelId && Number.isFinite(backendThreadId)) {
-      appendReply({ ...optimisticReply, pending: true });
+      appendReply({ ...optimisticReply, pending: true, serverSyncState: "pending" });
       const stompClient = chatStompRef.current;
       if (stompClient) {
+        schedulePendingThreadReplyFailure(key, optimisticReply.id);
         stompClient.send(
           chatWebSocketDestinations.sendThreadReply(backendThreadId),
           {
@@ -4521,8 +4671,12 @@ export function ChatPage() {
 
       createThreadReply(backendThreadId, { content: trimmedText }, {})
         .then(replaceOptimisticReply)
-        .catch(() => {
-          // Keep the optimistic reply so the local mock workflow is not interrupted.
+        .catch((error) => {
+          markPendingThreadReplyFailed(
+            key,
+            optimisticReply.id,
+            error instanceof Error ? error.message : "Thread reply send failed."
+          );
         });
       return;
     }
