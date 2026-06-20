@@ -368,7 +368,7 @@ export function ERDPage({ embedded = false, workspaceId }: ERDPageProps) {
 
     getErd(workspaceId, { signal: controller.signal })
       .then((data) => {
-        setMermaidCode(data.mermaidCode);
+        setMermaidCode(data.mermaidCode ?? "");
       })
       .catch((error) => {
         if (error instanceof ApiClientError && error.code === "ERD_NOT_FOUND") {
