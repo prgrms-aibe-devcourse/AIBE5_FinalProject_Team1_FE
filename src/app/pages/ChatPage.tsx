@@ -51,6 +51,7 @@ import {
   type ChannelEventPayload,
   type ChannelMessage,
   type ChatEvent,
+  type ApiErrorResponse,
   type BookmarkResponse,
   type MentionResponse,
   type PersonalNotification,
@@ -760,6 +761,10 @@ function getReadableErrorMessage(error: unknown) {
   return "상세 오류 없음";
 }
 
+function getRealtimeApiErrorMessage(error: ApiErrorResponse | null | undefined) {
+  return error?.message || error?.code || "Realtime request failed.";
+}
+
 function getRealtimeBlockState(reason: RealtimeConnectionReason, detail?: string): RealtimeConnectionState {
   const status: RealtimeConnectionStatus =
     reason === "missing-token"
@@ -1425,6 +1430,16 @@ export function ChatPage() {
 
       return next;
     });
+  }, []);
+  const handleRealtimeError = useCallback((error: ApiErrorResponse) => {
+    const detail = getRealtimeApiErrorMessage(error);
+
+    if (import.meta.env.DEV) {
+      console.warn("[CodeDock realtime] WebSocket request failed.", {
+        code: error?.code,
+        message: detail
+      });
+    }
   }, []);
 
   useEffect(() => {
@@ -2769,6 +2784,7 @@ export function ChatPage() {
     currentWorkspaceApiId,
     updateRealtimeConnection,
     channelFetchError,
+    handleRealtimeError,
   });
   useEffect(() => {
     wsChannelHandlersRef.current = {
@@ -2781,6 +2797,7 @@ export function ChatPage() {
       currentWorkspaceApiId,
       updateRealtimeConnection,
       channelFetchError,
+      handleRealtimeError,
     };
   }, [
     appendServerMessage,
@@ -2792,6 +2809,7 @@ export function ChatPage() {
     currentWorkspaceApiId,
     updateRealtimeConnection,
     channelFetchError,
+    handleRealtimeError,
   ]);
 
   // Main WebSocket client effect. Deps are narrowed to the channel-id set and workspace/auth
@@ -2820,6 +2838,7 @@ export function ChatPage() {
     let client: ChatStompClient | null = null;
     let eventSubscriptions: Array<{ unsubscribe: () => void }> = [];
     let personalNotificationSubscription: { unsubscribe: () => void } | null = null;
+    let personalErrorSubscription: { unsubscribe: () => void } | null = null;
 
     wsChannelHandlersRef.current.updateRealtimeConnection({ status: "connecting" });
 
@@ -2930,6 +2949,13 @@ export function ChatPage() {
         }
       );
 
+      personalErrorSubscription = client.subscribe<ApiErrorResponse>(
+        chatWebSocketDestinations.subscribePersonalErrors(),
+        (error) => {
+          wsChannelHandlersRef.current.handleRealtimeError(error);
+        }
+      );
+
       client.connect();
     }).catch((error) => {
       if (cancelled) return;
@@ -2944,6 +2970,7 @@ export function ChatPage() {
       cancelled = true;
       eventSubscriptions.forEach((subscription) => subscription.unsubscribe());
       personalNotificationSubscription?.unsubscribe();
+      personalErrorSubscription?.unsubscribe();
       client?.disconnect();
       if (chatStompRef.current === client) {
         chatStompRef.current = null;
