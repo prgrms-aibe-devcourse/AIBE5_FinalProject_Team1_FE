@@ -394,7 +394,7 @@ export function ERDPage({ embedded = false, workspaceId }: ERDPageProps) {
 
     getErdTables(workspaceId, { signal: controller.signal })
       .then((data) => {
-        setTables(data);
+        setTables(Array.isArray(data) ? data : []);
       })
       .catch((error) => {
         if (!(error instanceof DOMException && error.name === "AbortError")) {
