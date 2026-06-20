@@ -81,6 +81,8 @@ const CHAT_THREAD_REPLIES_KEY = "codedock-chat-thread-replies-v1";
 const CHAT_THREAD_REPLY_COUNTS_KEY = "codedock-chat-thread-reply-counts-v1";
 const CHAT_REACTIONS_KEY = "codedock-chat-reactions-v1";
 const WORKSPACE_TEAMS_KEY = "codedock-workspace-teams-v1";
+const LAST_CHANNEL_KEY = "codedock-last-channel-v1";
+const LAST_WORKSPACE_KEY = "codedock-last-workspace-v1";
 const API_CHANNEL_ID_PREFIX = "api-channel-";
 const DEFAULT_WORKSPACE_API_ID = 1;
 const WORKSPACE_CHAT_STATE_KEY_PREFIX = "workspace";
@@ -1092,6 +1094,7 @@ export function ChatPage() {
   const { workspaceId: contextWorkspaceId, setWorkspaceId: setContextWorkspaceId } = useWorkspace();
   const currentDisplayName = profile.name || myProfile.name;
   const [apiWorkspaces, setApiWorkspaces] = useState<WorkspaceDto[]>([]);
+  const [workspacesLoaded, setWorkspacesLoaded] = useState(false);
   const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMember[]>([]);
 
   useEffect(() => {
@@ -1105,17 +1108,22 @@ export function ChatPage() {
         if (workspaces.length > 0) {
           const incomingId = pendingEvent?.workspaceId ?? state?.workspaceId;
           const incomingApiId = parseWorkspaceApiId(incomingId);
-          const target = incomingApiId !== null
-            ? workspaces.find((w) => w.id === incomingApiId)
-            : contextWorkspaceId !== null
-              ? workspaces.find((w) => w.id === contextWorkspaceId)
-              : null;
+          const savedApiId = parseWorkspaceApiId(getSavedJson<number | null>(LAST_WORKSPACE_KEY, null));
+          // 우선순위: 명시적 진입(location.state) > 저장된 마지막 워크스페이스 > context > 첫 번째
+          const target =
+            (incomingApiId !== null ? workspaces.find((w) => w.id === incomingApiId) : undefined)
+            ?? (savedApiId !== null ? workspaces.find((w) => w.id === savedApiId) : undefined)
+            ?? (contextWorkspaceId !== null ? workspaces.find((w) => w.id === contextWorkspaceId) : undefined)
+            ?? null;
           const nextWorkspace = target ?? workspaces[0];
           setSelectedWorkspace(toWorkspaceUiId(nextWorkspace.id));
           setContextWorkspaceId(nextWorkspace.id);
+          // 확정된(복원/진입) 워크스페이스를 저장 — 로드 중 transient 값으로 덮어쓰지 않도록 명시 시점에만 저장
+          saveJson(LAST_WORKSPACE_KEY, nextWorkspace.id);
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setWorkspacesLoaded(true));
   }, []);
 
   const workspaceList = apiWorkspaces.length > 0
@@ -1152,8 +1160,15 @@ export function ChatPage() {
 
   const [showRepoForm, setShowRepoForm] = useState(false);
   const [repoUrlInput, setRepoUrlInput] = useState('');
-  const [selectedChannel, setSelectedChannel] = useState<string>('overview');
+  const [selectedChannel, setSelectedChannel] = useState<string>(() => {
+    // 새로고침 시 overview를 거치지 않고 바로 마지막 채널로 렌더하도록 저장값으로 초기화
+    const savedWorkspaceApiId = parseWorkspaceApiId(getSavedJson<number | null>(LAST_WORKSPACE_KEY, null));
+    if (savedWorkspaceApiId === null) return 'overview';
+    const savedChannels = getSavedJson<Record<number, string>>(LAST_CHANNEL_KEY, {});
+    return savedChannels[savedWorkspaceApiId] ?? 'overview';
+  });
   const selectedChannelRef = useRef(selectedChannel);
+  const restoredChannelWorkspaceRef = useRef<number | null>(null);
   const [messages, setMessages] = useState<Record<string, any[]>>(() =>
     getLocalPersistableMessages(
       getSavedWorkspaceScopedRecord(CHAT_MESSAGES_KEY, initialMessages),
@@ -1247,7 +1262,11 @@ export function ChatPage() {
   const [userPresence, setUserPresence] = useState<UserPresence>('active');
   const [notificationMode, setNotificationMode] = useState<NotificationMode>('mentions');
 
-  const [selectedWorkspace, setSelectedWorkspace] = useState<string>(() => workspaceList[0]?.id ?? DEFAULT_WORKSPACES[0].id);
+  const [selectedWorkspace, setSelectedWorkspace] = useState<string>(() => {
+    const savedWorkspaceApiId = parseWorkspaceApiId(getSavedJson<number | null>(LAST_WORKSPACE_KEY, null));
+    if (savedWorkspaceApiId !== null) return toWorkspaceUiId(savedWorkspaceApiId);
+    return workspaceList[0]?.id ?? DEFAULT_WORKSPACES[0].id;
+  });
   const [memberListOpen, setMemberListOpen] = useState(false);
   const memberListButtonRef = useRef<HTMLButtonElement>(null);
   const memberListPopupRef = useRef<HTMLDivElement>(null);
@@ -1465,6 +1484,45 @@ export function ChatPage() {
     () => apiCustomChannels,
     [apiCustomChannels]
   );
+
+  // 새로고침 시 복원할 채널이 현재 워크스페이스에서 실제 선택 가능한지 검증하기 위한 id 집합
+  const selectableChannelIds = useMemo(() => {
+    const ids = new Set<string>();
+    ALL_SIDEBAR_CHANNELS.forEach((channel) => ids.add(channel.id));
+    allCustomChannels.forEach((channel) => ids.add(channel.id));
+    visibleRepositories.forEach((repo) => ids.add(repo.id));
+    return ids;
+  }, [allCustomChannels, visibleRepositories]);
+
+  // 마지막으로 본 채널을 워크스페이스별로 복원 (워크스페이스당 1회, 채널 로드 완료 후)
+  useEffect(() => {
+    if (!currentWorkspaceApiId || channelFetchStatus !== "ready") return;
+    if (restoredChannelWorkspaceRef.current === currentWorkspaceApiId) return;
+    restoredChannelWorkspaceRef.current = currentWorkspaceApiId;
+
+    const saved = getSavedJson<Record<number, string>>(LAST_CHANNEL_KEY, {});
+    const savedChannel = saved[currentWorkspaceApiId];
+    if (savedChannel && selectableChannelIds.has(savedChannel)) {
+      // 저장된 채널이 이 워크스페이스에서 유효하면 복원
+      if (savedChannel !== selectedChannelRef.current) {
+        setSelectedChannel(savedChannel);
+      }
+    } else if (!selectableChannelIds.has(selectedChannelRef.current)) {
+      // 저장값이 없거나 무효이고, 현재 채널도 이 워크스페이스에서 유효하지 않으면(예: 다른 팀의
+      // 채널로 초기화된 상태) overview로 폴백
+      setSelectedChannel('overview');
+    }
+  }, [currentWorkspaceApiId, channelFetchStatus, selectableChannelIds]);
+
+  // 채널 변경 시 워크스페이스별로 저장 (복원이 끝난 뒤에만 저장해 기본값으로 덮어쓰지 않음)
+  useEffect(() => {
+    if (!currentWorkspaceApiId) return;
+    if (restoredChannelWorkspaceRef.current !== currentWorkspaceApiId) return;
+    const saved = getSavedJson<Record<number, string>>(LAST_CHANNEL_KEY, {});
+    if (saved[currentWorkspaceApiId] === selectedChannel) return;
+    saveJson(LAST_CHANNEL_KEY, { ...saved, [currentWorkspaceApiId]: selectedChannel });
+  }, [selectedChannel, currentWorkspaceApiId]);
+
   const activeRemoteTypingNames = Object.values(remoteTypingByChannel[selectedChannel] ?? {});
   const activeRemoteTypingLabel = formatRemoteTypingLabel(activeRemoteTypingNames);
   const activeServerBookmarkedThreadIds = serverBookmarkedThreadsByChannel[selectedChannelMessageKey] ?? {};
@@ -2324,6 +2382,8 @@ export function ChatPage() {
     const controller = new AbortController();
 
     setChannelFetchStatus("loading");
+    // 채널을 새로 로드하므로, 로드 완료 후 마지막 채널 복원이 다시 1회 수행되도록 재무장함
+    restoredChannelWorkspaceRef.current = null;
     setChannelFetchError("");
     setChannelActionError('');
     refreshWorkspaceChannels(controller.signal)
@@ -4084,6 +4144,19 @@ export function ChatPage() {
     }));
   };
 
+  // 워크스페이스 목록 로드 전에는 mock(DEFAULT_WORKSPACES) 화면이 잠깐 보이지 않도록 로딩 표시
+  if (!workspacesLoaded) {
+    return (
+      <div className={pageShellClassName} style={pageShellStyle}>
+        <div className="grid h-full min-h-[320px] place-items-center">
+          <p className="tracking-tight" style={{ color: 'var(--muted)', fontSize: '14px', fontWeight: 800 }}>
+            워크스페이스를 불러오는 중…
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={pageShellClassName} style={pageShellStyle}>
       <div className={chatGridClassName} style={{
@@ -4158,6 +4231,13 @@ export function ChatPage() {
                           const nextWorkspaceApiId = getWorkspaceApiId(ws.id, ws);
                           setSelectedWorkspace(ws.id);
                           setContextWorkspaceId(nextWorkspaceApiId);
+                          if (nextWorkspaceApiId) saveJson(LAST_WORKSPACE_KEY, nextWorkspaceApiId);
+                          // location.state는 새로고침 후에도 history에 남으므로, 전환한 워크스페이스로 갱신해
+                          // 새로고침 시 stale한 원래 진입값이 우선되지 않게 함
+                          navigate(`${location.pathname}${location.search}`, {
+                            replace: true,
+                            state: { ...(location.state as Record<string, unknown> | null ?? {}), workspaceId: nextWorkspaceApiId }
+                          });
                           const firstRepo = repositories.find(r => r.workspaceId === ws.id || r.workspaceId === String(nextWorkspaceApiId));
                           if (firstRepo) setSelectedRepository(firstRepo.id);
                           setSelectedChannel('overview');

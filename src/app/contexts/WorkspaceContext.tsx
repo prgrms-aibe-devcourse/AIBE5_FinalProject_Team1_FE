@@ -38,6 +38,23 @@ interface WorkspaceContextValue {
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
 
+// ChatPage가 마지막 선택 워크스페이스를 저장하는 키와 동일해야 함 (codedock-last-workspace-v1)
+const LAST_WORKSPACE_KEY = "codedock-last-workspace-v1";
+
+function readSavedWorkspaceId(): number | null {
+  if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
+    return null;
+  }
+  try {
+    const raw = window.localStorage.getItem(LAST_WORKSPACE_KEY);
+    if (!raw) return null;
+    const parsed = Number(JSON.parse(raw));
+    return Number.isFinite(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const { userId } = useProfile();
   const [workspaceId, setWorkspaceId] = useState<number | null>(null);
@@ -51,7 +68,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isAuthenticated()) return;
     fetchMyWorkspaces()
-        .then((list) => { if (list.length > 0) setWorkspaceId(list[0].id); })
+        .then((list) => {
+          if (list.length === 0) return;
+          // 새로고침 시 마지막으로 선택한 워크스페이스를 복원, 없거나 접근 불가면 첫 번째로 폴백
+          const savedId = readSavedWorkspaceId();
+          const target = savedId !== null && list.some((w) => w.id === savedId) ? savedId : list[0].id;
+          setWorkspaceId(target);
+        })
         .catch(() => {});
   }, []);
 
