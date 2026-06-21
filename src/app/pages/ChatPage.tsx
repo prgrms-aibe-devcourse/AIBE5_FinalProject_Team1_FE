@@ -4778,22 +4778,42 @@ export function ChatPage() {
     appendReply(optimisticReply);
   };
 
+  const appendPanelThreadReply = (threadKey: string, msg: any) => {
+    const key = getInteractionStateKey(threadKey);
+    const nextReplies = [...(threadRepliesRef.current[key] || []), msg];
+    const nextThreadReplies = {
+      ...threadRepliesRef.current,
+      [key]: nextReplies
+    };
+
+    threadRepliesRef.current = nextThreadReplies;
+    setThreadReplies(nextThreadReplies);
+    setThreadReplyCounts((prev) => ({
+      ...prev,
+      [key]: Math.max(prev[key] ?? 0, nextReplies.length)
+    }));
+
+    return nextReplies.length;
+  };
+
   const handleAddPrThreadReply = (msg: any) => {
     if (!selectedPR) return;
-    const key = getInteractionStateKey(`pr-${selectedPR.id}`);
-    setThreadReplies(prev => ({
-      ...prev,
-      [key]: [...(prev[key] || []), msg]
-    }));
+    const nextCount = appendPanelThreadReply(`pr-${selectedPR.id}`, msg);
+    setSelectedPR((prev: any) =>
+      prev && prev.id === selectedPR.id
+        ? { ...prev, replies: Math.max(prev.replies ?? 0, nextCount) }
+        : prev
+    );
   };
 
   const handleAddIssueThreadReply = (msg: any) => {
     if (!selectedIssue) return;
-    const key = getInteractionStateKey(`issue-${selectedIssue.id}`);
-    setThreadReplies(prev => ({
-      ...prev,
-      [key]: [...(prev[key] || []), msg]
-    }));
+    const nextCount = appendPanelThreadReply(`issue-${selectedIssue.id}`, msg);
+    setSelectedIssue((prev: any) =>
+      prev && prev.id === selectedIssue.id
+        ? { ...prev, replies: Math.max(prev.replies ?? 0, nextCount) }
+        : prev
+    );
   };
 
   // 워크스페이스 목록 로드 전에는 mock(DEFAULT_WORKSPACES) 화면이 잠깐 보이지 않도록 로딩 표시
