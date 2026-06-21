@@ -1710,7 +1710,11 @@ export function ChatPage() {
       return acc;
     }, {});
   }, [apiChannels]);
-  const activeApiChannelId = apiChannelIdByUiChannel[selectedChannel];
+  // 'issues' 탭은 현재 레포의 repository channel(DB id)로 매핑
+  const activeApiChannelId =
+    selectedChannel === 'issues' && currentRepo?.channelId
+      ? currentRepo.channelId
+      : apiChannelIdByUiChannel[selectedChannel];
   const hasActiveApiChatChannel = activeApiChannelId !== undefined;
   const hasChatAccessToken = Boolean(getAccessToken());
   const realtimeConnectionBlockReason = useMemo<RealtimeConnectionReason | null>(() => {
@@ -1729,7 +1733,7 @@ export function ChatPage() {
   ]);
   const apiCustomChannels = useMemo<CustomChannelItem[]>(() => {
     return apiChannels
-      .filter((channel) => getApiChannelUiId(channel) !== "general" && !isRepositoryApiChannel(channel))
+      .filter((channel) => getApiChannelUiId(channel) !== "general" && channel.channelType !== "repository")
       .map((channel) => ({
         id: getApiChannelUiId(channel),
         label: cleanChannelLabel(channel.name),
@@ -2857,7 +2861,10 @@ export function ChatPage() {
       setChatStompReadyKey((key) => key + 1);
 
       eventSubscriptions = apiChannels.map((channel) => {
-        const uiChannelId = getApiChannelUiId(channel);
+        // Repository channels map to the 'issues' UI tab, not to the generic api-ch-{id} key
+        const uiChannelId = String(channel.channelType ?? "").toLowerCase() === "repository"
+          ? "issues"
+          : getApiChannelUiId(channel);
 
         return client!.subscribe<ChatEvent<ChannelEventPayload>>(
           chatWebSocketDestinations.subscribeChannelEvents(channel.id),
