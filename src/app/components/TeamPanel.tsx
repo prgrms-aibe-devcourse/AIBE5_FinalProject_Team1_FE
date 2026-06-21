@@ -1,4 +1,6 @@
 import {
+  Check,
+  ChevronDown,
   GitCommitHorizontal,
   GitPullRequest,
   Github,
@@ -9,7 +11,8 @@ import {
   type LucideIcon
 } from "lucide-react";
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { fetchWithAuth } from "../api/fetchWithAuth";
 import type { WorkspaceMember } from "../api/workspace";
 
@@ -66,6 +69,21 @@ const roleOptions = [
   "Designer",
   "Viewer"
 ];
+
+const roleMeta: Record<string, { color: string; bg: string; border: string }> = {
+  "Tech Lead": { color: "var(--neon-cyan)", bg: "rgba(var(--codedock-primary-rgb), 0.12)", border: "rgba(var(--codedock-primary-rgb), 0.34)" },
+  "Backend Developer": { color: "var(--matrix-green)", bg: "rgba(var(--codedock-secondary-rgb), 0.11)", border: "rgba(var(--codedock-secondary-rgb), 0.30)" },
+  "Frontend Developer": { color: "#B58CFF", bg: "rgba(181, 140, 255, 0.12)", border: "rgba(181, 140, 255, 0.30)" },
+  "DevOps Engineer": { color: "#FFD166", bg: "rgba(255, 209, 102, 0.12)", border: "rgba(255, 209, 102, 0.30)" },
+  "QA Engineer": { color: "#7DD3FC", bg: "rgba(125, 211, 252, 0.12)", border: "rgba(125, 211, 252, 0.30)" },
+  "Product Manager": { color: "#F0ABFC", bg: "rgba(240, 171, 252, 0.12)", border: "rgba(240, 171, 252, 0.30)" },
+  "Designer": { color: "#FDA4AF", bg: "rgba(253, 164, 175, 0.12)", border: "rgba(253, 164, 175, 0.30)" },
+  "Viewer": { color: "#A8B3C7", bg: "rgba(168, 179, 199, 0.10)", border: "rgba(168, 179, 199, 0.24)" }
+};
+
+function getRoleMeta(role: string) {
+  return roleMeta[role] ?? { color: "var(--neon-cyan)", bg: "rgba(var(--codedock-primary-rgb), 0.10)", border: "rgba(var(--codedock-primary-rgb), 0.24)" };
+}
 
 const teamRooms: TeamRoom[] = [
   {
@@ -405,26 +423,11 @@ export function TeamPanel({ workspaceId, workspaceApiId, currentUserId, currentU
 
             <label className="mb-4 block tracking-tight" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 900 }}>
               역할
-              <select
+              <RoleDropdown
                 value={member.role}
-                onChange={(event) => handleRoleChange(member.id, event.target.value)}
-                className="mt-1 block w-full rounded-xl px-3 py-2 outline-none"
-                style={{
-                  background: "rgba(5, 11, 20, 0.58)",
-                  border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)",
-                  color: "var(--white)",
-                  cursor: "pointer",
-                  fontSize: 13,
-                  fontWeight: 900
-                }}
+                onChange={(role) => handleRoleChange(member.id, role)}
                 aria-label={`${member.name} 역할 변경`}
-              >
-                {roleOptions.map((role) => (
-                  <option key={role} value={role}>
-                    {role}
-                  </option>
-                ))}
-              </select>
+              />
             </label>
 
             {(member.email || member.github) && (
@@ -491,6 +494,187 @@ export function TeamPanel({ workspaceId, workspaceApiId, currentUserId, currentU
       </section>
 
     </div>
+  );
+}
+
+function RoleDropdown({
+  value,
+  onChange,
+  "aria-label": ariaLabel
+}: {
+  value: string;
+  onChange: (role: string) => void;
+  "aria-label"?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 0 });
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const meta = getRoleMeta(value);
+
+  const openDropdown = () => {
+    const rect = buttonRef.current?.getBoundingClientRect();
+    if (rect) {
+      setDropPos({
+        top: rect.bottom + 8,
+        left: rect.left,
+        width: rect.width
+      });
+    }
+    setOpen(true);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (
+        buttonRef.current?.contains(target)
+        || menuRef.current?.contains(target)
+      ) {
+        return;
+      }
+      setOpen(false);
+    };
+    const closeOnScroll = () => setOpen(false);
+
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    document.addEventListener("scroll", closeOnScroll, true);
+
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsideClick);
+      document.removeEventListener("scroll", closeOnScroll, true);
+    };
+  }, [open]);
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => open ? setOpen(false) : openDropdown()}
+        className="mt-1 flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-2.5 tracking-tight transition-all"
+        style={{
+          background: open
+            ? "linear-gradient(135deg, rgba(var(--codedock-primary-rgb), 0.14), rgba(var(--codedock-secondary-rgb), 0.06)), rgba(5, 11, 20, 0.76)"
+            : "rgba(5, 11, 20, 0.62)",
+          border: open
+            ? "1px solid rgba(var(--codedock-primary-rgb), 0.44)"
+            : "1px solid rgba(var(--codedock-primary-rgb), 0.18)",
+          color: "var(--white)",
+          cursor: "pointer",
+          boxShadow: open
+            ? "0 14px 34px rgba(0, 0, 0, 0.34), 0 0 24px rgba(var(--codedock-primary-rgb), 0.10), inset 0 1px 0 rgba(255,255,255,0.08)"
+            : "inset 0 1px 0 rgba(255,255,255,0.04)",
+          outline: "none"
+        }}
+        aria-label={ariaLabel}
+        aria-expanded={open}
+      >
+        <span className="flex min-w-0 items-center gap-2">
+          <span
+            className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
+            style={{
+              background: meta.color,
+              boxShadow: `0 0 12px ${meta.color}`
+            }}
+          />
+          <span
+            className="truncate"
+            style={{
+              color: meta.color,
+              fontSize: 13,
+              fontWeight: 950
+            }}
+          >
+            {value}
+          </span>
+        </span>
+        <ChevronDown
+          size={16}
+          style={{
+            color: meta.color,
+            flexShrink: 0,
+            transform: open ? "rotate(180deg)" : "rotate(0deg)",
+            transition: "transform 180ms ease"
+          }}
+        />
+      </button>
+
+      {open && createPortal(
+        <div
+          ref={menuRef}
+          className="grid gap-1 rounded-2xl p-1.5"
+          style={{
+            position: "fixed",
+            top: dropPos.top,
+            left: dropPos.left,
+            zIndex: 99999,
+            width: Math.max(dropPos.width, 224),
+            background:
+              "linear-gradient(145deg, rgba(11, 22, 40, 0.98), rgba(5, 11, 20, 0.96))",
+            border: "1px solid rgba(var(--codedock-primary-rgb), 0.22)",
+            boxShadow:
+              "0 24px 70px rgba(0, 0, 0, 0.56), 0 0 0 1px rgba(255,255,255,0.04), 0 0 36px rgba(var(--codedock-primary-rgb), 0.10)",
+            backdropFilter: "blur(18px) saturate(170%)"
+          }}
+        >
+          {roleOptions.map((role) => {
+            const optionMeta = getRoleMeta(role);
+            const selected = role === value;
+            return (
+              <button
+                key={role}
+                type="button"
+                onClick={() => {
+                  onChange(role);
+                  setOpen(false);
+                }}
+                className="flex w-full items-center gap-3 rounded-xl border-0 px-3 py-2.5 text-left tracking-tight transition-all"
+                style={{
+                  background: selected ? optionMeta.bg : "transparent",
+                  color: selected ? "var(--white)" : "var(--muted)",
+                  cursor: "pointer",
+                  border: selected ? `1px solid ${optionMeta.border}` : "1px solid transparent"
+                }}
+                onMouseEnter={(event) => {
+                  if (!selected) {
+                    event.currentTarget.style.background = "rgba(234, 247, 255, 0.055)";
+                    event.currentTarget.style.border = "1px solid rgba(var(--codedock-primary-rgb), 0.12)";
+                  }
+                }}
+                onMouseLeave={(event) => {
+                  if (!selected) {
+                    event.currentTarget.style.background = "transparent";
+                    event.currentTarget.style.border = "1px solid transparent";
+                  }
+                }}
+              >
+                <span
+                  className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
+                  style={{
+                    background: optionMeta.color,
+                    boxShadow: selected ? `0 0 12px ${optionMeta.color}` : "none"
+                  }}
+                />
+                <span
+                  className="min-w-0 flex-1 truncate"
+                  style={{
+                    fontSize: 13,
+                    fontWeight: selected ? 950 : 850
+                  }}
+                >
+                  {role}
+                </span>
+                {selected && <Check size={15} style={{ color: optionMeta.color, flexShrink: 0 }} />}
+              </button>
+            );
+          })}
+        </div>,
+        document.body
+      )}
+    </>
   );
 }
 
