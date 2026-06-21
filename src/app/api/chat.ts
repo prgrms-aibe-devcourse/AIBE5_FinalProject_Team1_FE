@@ -37,6 +37,7 @@ export type ChannelMessage = {
   channelId: number;
   senderMemberId: number;
   senderName: string;
+  senderAvatarUrl?: string | null;
   content: string;
   createdAt: ISODateTime;
   attachments?: MessageAttachmentResponse[];
@@ -64,6 +65,7 @@ export type ThreadReply = {
   threadId: number;
   senderMemberId: number;
   senderName: string;
+  senderAvatarUrl?: string | null;
   content: string;
   createdAt: ISODateTime;
   isDeleted?: boolean;
