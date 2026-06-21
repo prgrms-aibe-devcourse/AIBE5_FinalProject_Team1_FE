@@ -116,11 +116,13 @@ export function ProfilePage() {
       const savedSkills = await apiClient.put<string[]>("/api/v1/users/me/skills", {
         skills: formData.skills,
       });
+      const nextNickname = updated.nickname ?? formData.nickname.trim();
       setUser((current) => ({
         ...current,
         name: updated.displayName ?? "",
-        nickname: updated.nickname ?? "",
+        nickname: nextNickname,
         role: updated.developerType ?? "",
+        workspace: nextNickname,
         bio: updated.bio ?? "",
         avatarUrl: updated.avatarUrl ?? "",
         skills: savedSkills ?? [],
@@ -427,7 +429,7 @@ function ProfileInfoSection({
 
           <div className="grid gap-5 md:grid-cols-2">
             <ProfileField icon={User} label="이름" value={formData.name} disabled={!isEditing} onChange={(name) => onChange({ ...formData, name })} />
-            <ProfileField icon={UserRound} label="닉네임" value={formData.nickname} disabled={!isEditing} onChange={(nickname) => onChange({ ...formData, nickname })} />
+            <ProfileField icon={UserRound} label="닉네임" value={formData.nickname} disabled={!isEditing} onChange={(nickname) => onChange({ ...formData, nickname, workspace: nickname })} />
             <ProfileField icon={Mail} label="이메일" value={formData.email} disabled onChange={(email) => onChange({ ...formData, email })} type="email" />
             <ProfileField icon={UsersRound} label="워크스페이스" value={formData.workspace} disabled={!isEditing} onChange={(workspace) => onChange({ ...formData, workspace })} />
             <DeveloperRoleField value={formData.role} disabled={!isEditing} onChange={(role) => onChange({ ...formData, role })} colors={colors} />
@@ -1074,6 +1076,26 @@ function BioField({
 
 const DEVELOPER_ROLES = ["프론트엔드", "백엔드", "풀스택", "DevOps", "모바일", "AI/ML", "데이터"];
 
+function parseDeveloperRoles(value: string) {
+  return value
+    .split(/\s*(?:,|;|·)\s*/g)
+    .map((role) => role.trim())
+    .filter(Boolean);
+}
+
+function serializeDeveloperRoles(roles: string[]) {
+  const deduped = roles.reduce<string[]>((acc, role) => {
+    const next = role.trim();
+    if (!next) return acc;
+    if (!acc.some((item) => item.toLowerCase() === next.toLowerCase())) {
+      acc.push(next);
+    }
+    return acc;
+  }, []);
+
+  return deduped.join(", ");
+}
+
 function DeveloperRoleField({
   value,
   disabled,
@@ -1085,9 +1107,29 @@ function DeveloperRoleField({
   onChange: (value: string) => void;
   colors: ThemeColors;
 }) {
-  const trimmed = value.trim();
-  const isPreset = DEVELOPER_ROLES.includes(trimmed);
-  const isCustom = trimmed.length > 0 && !isPreset;
+  const [draft, setDraft] = useState("");
+  const selectedRoles = parseDeveloperRoles(value);
+
+  const updateRoles = (roles: string[]) => onChange(serializeDeveloperRoles(roles));
+
+  const toggleRole = (role: string) => {
+    if (selectedRoles.some((item) => item.toLowerCase() === role.toLowerCase())) {
+      updateRoles(selectedRoles.filter((item) => item.toLowerCase() !== role.toLowerCase()));
+    } else {
+      updateRoles([...selectedRoles, role]);
+    }
+  };
+
+  const removeRole = (role: string) => {
+    updateRoles(selectedRoles.filter((item) => item.toLowerCase() !== role.toLowerCase()));
+  };
+
+  const addCustomRole = () => {
+    const next = draft.trim();
+    if (!next) return;
+    updateRoles([...selectedRoles, next]);
+    setDraft("");
+  };
 
   return (
     <div className="grid gap-3 md:col-span-2">
@@ -1095,32 +1137,45 @@ function DeveloperRoleField({
         개발자 유형
       </span>
 
-      {disabled ? (
-        <div className="flex flex-wrap gap-2">
-          {trimmed ? (
-            <span
-              className="rounded-full px-4 py-2 text-sm font-black"
-              style={{ background: `linear-gradient(135deg, ${colors.primaryHex}, ${colors.secondary})`, color: "#021014" }}
-            >
-              {trimmed}
-            </span>
-          ) : (
-            <span className="text-sm font-bold" style={{ color: "var(--muted)" }}>
-              선택 안 함
-            </span>
-          )}
-        </div>
-      ) : (
+      <div className="flex flex-wrap gap-2">
+        {selectedRoles.length === 0 && (
+          <span className="text-sm font-bold" style={{ color: "var(--muted)" }}>
+            선택 안 함
+          </span>
+        )}
+        {selectedRoles.map((role) => (
+          <span
+            key={role}
+            className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-black"
+            style={{ background: `linear-gradient(135deg, ${colors.primaryHex}, ${colors.secondary})`, color: "#021014" }}
+          >
+            {role}
+            {!disabled && (
+              <button
+                type="button"
+                aria-label={`${role} 제거`}
+                onClick={() => removeRole(role)}
+                className="grid h-4 w-4 place-items-center rounded-full border-0"
+                style={{ background: "rgba(2,16,20,0.28)", color: "#021014", cursor: "pointer" }}
+              >
+                <X size={11} strokeWidth={3} />
+              </button>
+            )}
+          </span>
+        ))}
+      </div>
+
+      {!disabled && (
         <>
           <div className="flex flex-wrap gap-2">
             {DEVELOPER_ROLES.map((role) => {
-              const active = trimmed === role;
+              const active = selectedRoles.some((item) => item.toLowerCase() === role.toLowerCase());
               return (
                 <button
                   key={role}
                   type="button"
                   aria-pressed={active}
-                  onClick={() => onChange(role)}
+                  onClick={() => toggleRole(role)}
                   className="rounded-full border-0 px-4 py-2 text-sm font-black transition"
                   style={{
                     background: active
@@ -1131,27 +1186,35 @@ function DeveloperRoleField({
                     cursor: "pointer",
                   }}
                 >
+                  {active ? "✓ " : "+ "}
                   {role}
                 </button>
               );
             })}
           </div>
 
-          <span className="relative block">
+          <div className="flex gap-2">
+          <span className="relative block flex-1">
             <Code2
               className="absolute left-4 top-1/2 -translate-y-1/2"
               size={19}
-              style={{ color: isCustom ? colors.primaryHex : "var(--muted)" }}
+              style={{ color: draft.trim() ? colors.primaryHex : "var(--muted)" }}
             />
             <input
               type="text"
-              value={value}
-              onChange={(event) => onChange(event.target.value)}
-              placeholder="직접 입력 (예: 플랫폼 엔지니어)"
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  addCustomRole();
+                }
+              }}
+              placeholder="직접 입력 후 Enter (예: 플랫폼 엔지니어)"
               className="codedock-auth-input h-14 w-full rounded-2xl px-12 py-3 outline-none"
               style={{
                 background: "rgba(5, 11, 20, 0.62)",
-                border: isCustom ? `1px solid ${colors.primary}, 0.34)` : "1px solid rgba(32, 227, 255, 0.16)",
+                border: draft.trim() ? `1px solid ${colors.primary}, 0.34)` : "1px solid rgba(32, 227, 255, 0.16)",
                 color: "var(--white)",
                 fontSize: "15px",
                 fontWeight: 800,
@@ -1159,11 +1222,18 @@ function DeveloperRoleField({
               }}
             />
           </span>
+            <button
+              type="button"
+              onClick={addCustomRole}
+              className="rounded-2xl border-0 px-4 text-sm font-black"
+              style={{ background: `${colors.primary}, 0.12)`, color: colors.primaryHex, cursor: "pointer" }}
+            >
+              추가
+            </button>
+          </div>
 
           <span className="text-xs font-bold leading-[1.5]" style={{ color: "var(--muted)" }}>
-            {isCustom
-              ? `직접 입력한 유형으로 저장됩니다 · ${trimmed}`
-              : "위 칩에서 선택하거나, 칸에 원하는 유형을 직접 입력할 수 있어요."}
+            위 칩에서 여러 개를 선택하거나, 직접 입력 후 Enter로 유형을 추가할 수 있어요.
           </span>
         </>
       )}

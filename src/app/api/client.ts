@@ -1,5 +1,5 @@
 import type { ApiErrorResponse, ApiResponse } from "./types";
-import { authHeader, refreshAccessToken, clearTokens, getAccessToken } from "../auth";
+import { authHeader, getAccessToken, refreshAccessToken, redirectToLogin } from "../auth";
 
 type HttpMethod = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 
@@ -7,6 +7,8 @@ export type ApiRequestOptions = {
   headers?: HeadersInit;
   query?: Record<string, boolean | number | string | null | undefined>;
   signal?: AbortSignal;
+  skipAuthHeader?: boolean;
+  skipAuthRefresh?: boolean;
 };
 
 export type ApiClientOptions = {
@@ -64,6 +66,11 @@ function getResponseMessage(status: number, fallback?: string) {
   return fallback || `API request failed with status ${status}`;
 }
 
+function isAuthRefreshExcludedPath(path: string) {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return /^\/api\/v1\/auth\/(login|signup|refresh)(?:[/?#]|$)/.test(normalizedPath);
+}
+
 async function parseJsonResponse<T>(response: Response): Promise<ApiResponse<T> | null> {
   const text = await response.text();
   if (!text) return null;
@@ -89,10 +96,12 @@ export function createApiClient(options: ApiClientOptions = {}) {
       requestOptions: ApiRequestOptions = {},
       isRetry = false
   ): Promise<T> {
+    const authRefreshExcluded = isAuthRefreshExcludedPath(path);
+    const shouldAttachAuthHeader = !requestOptions.skipAuthHeader && !authRefreshExcluded;
     const headers = mergeHeaders(
         { Accept: "application/json" },
         body !== undefined ? { "Content-Type": "application/json" } : undefined,
-        authHeader(),
+        shouldAttachAuthHeader ? authHeader() : undefined,
         options.defaultHeaders,
         requestOptions.headers
     );
@@ -104,15 +113,16 @@ export function createApiClient(options: ApiClientOptions = {}) {
       body: body === undefined ? undefined : JSON.stringify(body)
     });
 
-    if (response.status === 401 && !isRetry && getAccessToken()) {
+    const canRefreshAuth =
+      !requestOptions.skipAuthRefresh &&
+      !authRefreshExcluded &&
+      !!getAccessToken();
+    if (response.status === 401 && !isRetry && canRefreshAuth) {
       const refreshed = await refreshAccessToken();
       if (refreshed) {
         return request<T>(method, path, body, requestOptions, true);
       }
-      clearTokens();
-      if (typeof window !== "undefined") {
-        window.location.href = "/login";
-      }
+      redirectToLogin();
     }
 
     const payload = await parseJsonResponse<T>(response);

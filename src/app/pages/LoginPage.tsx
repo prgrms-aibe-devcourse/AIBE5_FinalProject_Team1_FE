@@ -204,7 +204,7 @@ export function LoginPage() {
         accessToken: string;
         refreshToken: string;
         user: { id: number; email: string; username: string; avatarUrl: string };
-      }>("/api/v1/auth/login", { email: trimmedEmail, password });
+      }>("/api/v1/auth/login", { email: trimmedEmail, password }, { skipAuthRefresh: true });
       setTokens(data.accessToken, data.refreshToken);
       await reloadProfile();
       const next = new URLSearchParams(window.location.search).get("next");

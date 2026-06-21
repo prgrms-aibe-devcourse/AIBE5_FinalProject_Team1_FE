@@ -12,6 +12,7 @@ interface ThreadMessage {
   backendThreadId?: number;
   senderMemberId?: number;
   user: string;
+  avatarUrl?: string;
   text: string;
   message?: string;
   time: string;
@@ -39,6 +40,7 @@ interface ThreadPanelProps {
   onToggleReaction?: (reactionKey: string, emoji: string) => void;
   myMemberId?: number | null;
   myDisplayName?: string;
+  myAvatarUrl?: string;
 }
 
 const currentUserDisplayName = "김재준";
@@ -54,9 +56,10 @@ function getDisplayUserName(user?: string) {
   return isSelfUser(trimmed) ? currentUserDisplayName : trimmed;
 }
 
-export function ThreadPanel({ originalMessage, replies, displayReplyCount, reactionScope, reactions, onClose, onSendReply, onEditReply, onDeleteReply, onDeleteMessageAttachment, onToggleReaction, myMemberId, myDisplayName }: ThreadPanelProps) {
+export function ThreadPanel({ originalMessage, replies, displayReplyCount, reactionScope, reactions, onClose, onSendReply, onEditReply, onDeleteReply, onDeleteMessageAttachment, onToggleReaction, myMemberId, myDisplayName, myAvatarUrl }: ThreadPanelProps) {
   const displayCurrentUserName = myDisplayName?.trim() || currentUserDisplayName;
   const displayCurrentUserAvatar = displayCurrentUserName.charAt(0) || currentUserAvatar;
+  const displayCurrentUserAvatarUrl = myAvatarUrl?.trim() || "";
   const [replyText, setReplyText] = useState('');
   const [editingReplyId, setEditingReplyId] = useState<number | string | null>(null);
   const [editingReplyText, setEditingReplyText] = useState('');
@@ -321,6 +324,9 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
           {/* 답글 목록 */}
           {replies.map((reply) => {
             const isMine = isReplyMine(reply);
+            const replyAvatarUrl = isMine
+              ? displayCurrentUserAvatarUrl
+              : reply.avatarUrl?.trim() || "";
             const hasDiffRef = reply.fileId && reply.line > 0;
             const isEditingReply = editingReplyId === reply.id;
             const canManageReply = isMine && !reply.deleted && (onEditReply || onDeleteReply);
@@ -337,16 +343,20 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
                   <div className="flex items-center gap-2 mb-2 pb-2" style={{
                     borderBottom: '1px solid rgba(var(--codedock-primary-rgb), 0.1)'
                   }}>
-                    <div className="w-7 h-7 flex-shrink-0 rounded-full flex items-center justify-center" style={{
+                    <div className="w-7 h-7 flex-shrink-0 overflow-hidden rounded-full flex items-center justify-center" style={{
                       background: isMine ? 'rgba(var(--codedock-primary-rgb), 0.16)' : 'rgba(var(--codedock-primary-rgb), 0.14)'
                     }}>
-                      <span style={{
-                        fontSize: "var(--krds-body-xsmall)",
-                        fontWeight: 900,
-                        color: 'var(--neon-cyan)'
-                      }}>
-                        {isMine ? displayCurrentUserAvatar : reply.user.charAt(0)}
-                      </span>
+                      {replyAvatarUrl ? (
+                        <img src={replyAvatarUrl} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <span style={{
+                          fontSize: "var(--krds-body-xsmall)",
+                          fontWeight: 900,
+                          color: 'var(--neon-cyan)'
+                        }}>
+                          {isMine ? displayCurrentUserAvatar : reply.user.charAt(0)}
+                        </span>
+                      )}
                     </div>
                     <div className="flex flex-col flex-1 min-w-0">
                       <div className="flex items-center gap-2">

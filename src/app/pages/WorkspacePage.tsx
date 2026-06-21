@@ -1,10 +1,11 @@
 import { useState, useRef, useCallback, useEffect, useLayoutEffect } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router";
-import { ArrowRight, AtSign, Check, CircleDot, CornerDownRight, GitFork, GitPullRequest, Loader2, MessageSquare, Plus, Settings2, Users, X } from "lucide-react";
+import { ArrowRight, AtSign, Check, ChevronDown, CircleDot, CornerDownRight, GitFork, GitPullRequest, Loader2, MessageSquare, Plus, Settings2, Users, X } from "lucide-react";
 import { WorkspaceSettingsModal } from "../components/WorkspaceSettingsModal";
 import { DndProvider, useDrag, useDrop, useDragLayer } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
-import { fetchMyGithubRepos, fetchRepoCollaborators, connectWorkspaceRepository, type GithubCollaborator, type GithubRepo } from "../api/github";
+import { fetchMyGithubRepos, fetchRepoCollaborators, fetchWorkspaceRepositories, connectWorkspaceRepository, type GithubCollaborator, type GithubRepo } from "../api/github";
 import { fetchMyWorkspaces, createWorkspace, deleteWorkspace, listReceivedInvites, acceptInvite, rejectInvite, createInvite, type WorkspaceDto, type ReceivedInviteDto } from "../api/workspace";
 import { fetchMyEvents, type WorkspaceEventDto, type EventType } from "../api/events";
 import { useWorkspace } from "../contexts/WorkspaceContext";
@@ -13,6 +14,182 @@ import { ApiClientError } from "../api/client";
 const DRAG_TYPE = "TEAM_CARD";
 const WORKSPACE_COLORS_KEY = "codedock-workspace-colors-v1";
 const DEFAULT_ACCENT = "#8B94A7"; // default grey
+type SortOrder = "name" | "latest" | "activity";
+
+const TEAM_SORT_OPTIONS: Array<{ value: SortOrder; label: string; color: string }> = [
+  { value: "latest", label: "최신 순", color: "var(--neon-cyan)" },
+  { value: "activity", label: "최근 활동 순", color: "var(--matrix-green)" },
+  { value: "name", label: "이름 순", color: "#FFD166" }
+];
+
+function getTeamSortOption(value: SortOrder) {
+  return TEAM_SORT_OPTIONS.find((option) => option.value === value) ?? TEAM_SORT_OPTIONS[0];
+}
+
+function TeamSortDropdown({
+  value,
+  onChange
+}: {
+  value: SortOrder;
+  onChange: (value: SortOrder) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 0 });
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const selected = getTeamSortOption(value);
+
+  const updatePosition = () => {
+    const rect = buttonRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const width = Math.max(rect.width, 188);
+    setDropPos({
+      top: rect.bottom + 8,
+      left: Math.max(12, Math.min(rect.left, window.innerWidth - width - 12)),
+      width
+    });
+  };
+
+  const toggleOpen = () => {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    updatePosition();
+    setOpen(true);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (buttonRef.current?.contains(target) || menuRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    const closeOnScroll = () => setOpen(false);
+    const closeOnResize = () => setOpen(false);
+
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    document.addEventListener("scroll", closeOnScroll, true);
+    window.addEventListener("resize", closeOnResize);
+
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsideClick);
+      document.removeEventListener("scroll", closeOnScroll, true);
+      window.removeEventListener("resize", closeOnResize);
+    };
+  }, [open]);
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={toggleOpen}
+        className="flex min-h-[44px] items-center gap-2 rounded-2xl px-3.5 py-2.5 tracking-tight transition-all"
+        style={{
+          minWidth: 148,
+          background: open
+            ? "linear-gradient(135deg, rgba(var(--codedock-primary-rgb), 0.16), rgba(var(--codedock-secondary-rgb), 0.07)), rgba(5, 11, 20, 0.74)"
+            : "rgba(5, 11, 20, 0.58)",
+          border: open
+            ? "1px solid rgba(var(--codedock-primary-rgb), 0.44)"
+            : "1px solid rgba(var(--codedock-primary-rgb), 0.22)",
+          color: "var(--white)",
+          cursor: "pointer",
+          boxShadow: open
+            ? "0 14px 34px rgba(0, 0, 0, 0.34), 0 0 22px rgba(var(--codedock-primary-rgb), 0.10), inset 0 1px 0 rgba(255,255,255,0.08)"
+            : "inset 0 1px 0 rgba(255,255,255,0.05)",
+          backdropFilter: "blur(14px) saturate(150%)"
+        }}
+        aria-label="팀 목록 정렬 방식"
+        aria-expanded={open}
+      >
+        <span
+          className="min-w-0 flex-1 text-left"
+          style={{
+            color: selected.color,
+            fontSize: 13,
+            fontWeight: 950
+          }}
+        >
+          {selected.label}
+        </span>
+        <ChevronDown
+          size={16}
+          style={{
+            color: selected.color,
+            flexShrink: 0,
+            transform: open ? "rotate(180deg)" : "rotate(0deg)",
+            transition: "transform 180ms ease"
+          }}
+        />
+      </button>
+
+      {open && createPortal(
+        <div
+          ref={menuRef}
+          className="grid gap-1 rounded-2xl p-1.5"
+          style={{
+            position: "fixed",
+            top: dropPos.top,
+            left: dropPos.left,
+            zIndex: 99999,
+            width: dropPos.width,
+            background: "linear-gradient(145deg, rgba(11, 22, 40, 0.98), rgba(5, 11, 20, 0.96))",
+            border: "1px solid rgba(var(--codedock-primary-rgb), 0.22)",
+            boxShadow: "0 24px 70px rgba(0, 0, 0, 0.56), 0 0 0 1px rgba(255,255,255,0.04), 0 0 36px rgba(var(--codedock-primary-rgb), 0.10)",
+            backdropFilter: "blur(18px) saturate(170%)"
+          }}
+        >
+          {TEAM_SORT_OPTIONS.map((option) => {
+            const isSelected = option.value === value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => {
+                  onChange(option.value);
+                  setOpen(false);
+                }}
+                className="flex w-full items-center gap-3 rounded-xl border-0 px-3 py-2.5 text-left tracking-tight transition-all"
+                style={{
+                  background: isSelected ? "rgba(var(--codedock-primary-rgb), 0.12)" : "transparent",
+                  color: isSelected ? "var(--white)" : "var(--muted)",
+                  cursor: "pointer",
+                  border: isSelected ? "1px solid rgba(var(--codedock-primary-rgb), 0.28)" : "1px solid transparent"
+                }}
+                onMouseEnter={(event) => {
+                  if (isSelected) return;
+                  event.currentTarget.style.background = "rgba(234, 247, 255, 0.055)";
+                  event.currentTarget.style.border = "1px solid rgba(var(--codedock-primary-rgb), 0.12)";
+                }}
+                onMouseLeave={(event) => {
+                  if (isSelected) return;
+                  event.currentTarget.style.background = "transparent";
+                  event.currentTarget.style.border = "1px solid transparent";
+                }}
+              >
+                <span
+                  className="min-w-0 flex-1 truncate"
+                  style={{
+                    fontSize: 13,
+                    fontWeight: isSelected ? 950 : 850
+                  }}
+                >
+                  {option.label}
+                </span>
+                {isSelected && <Check size={15} style={{ color: option.color, flexShrink: 0 }} />}
+              </button>
+            );
+          })}
+        </div>,
+        document.body
+      )}
+    </>
+  );
+}
 
 function hexToRgb(hex: string): string {
   const m = /^#([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -1019,7 +1196,7 @@ export function WorkspacePage() {
 
   const loadOrgs = useCallback(() => {
     const saved = localStorage.getItem("codedock-team-sort-order");
-    const order: "name" | "latest" | "activity" = saved === "name" || saved === "activity" ? saved : "latest";
+    const order: SortOrder = saved === "name" || saved === "activity" ? saved : "latest";
     fetchMyWorkspaces()
       .then((list) => {
         const mapped = list.map(workspaceDtoToOrg);
@@ -1108,13 +1285,13 @@ export function WorkspacePage() {
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showInvitesModal, setShowInvitesModal] = useState(false);
-  const [sortOrder, setSortOrder] = useState<"name" | "latest" | "activity">(() => {
+  const [sortOrder, setSortOrder] = useState<SortOrder>(() => {
     const saved = localStorage.getItem("codedock-team-sort-order");
     if (saved === "name" || saved === "activity") return saved;
     return "latest";
   });
 
-  const handleSortOrgs = (order: "name" | "latest" | "activity") => {
+  const handleSortOrgs = (order: SortOrder) => {
     setSortOrder(order);
     localStorage.setItem("codedock-team-sort-order", order);
     setOrgs((prev) => {
@@ -1229,10 +1406,40 @@ export function WorkspacePage() {
   };
 
   const [events, setEvents] = useState<WorkspaceEventDto[]>([]);
+  const [eventRepositoryNamesByChannelId, setEventRepositoryNamesByChannelId] = useState<Record<number, string>>({});
 
   useEffect(() => {
     fetchMyEvents().then((data) => setEvents(data ?? [])).catch(() => setEvents([]));
   }, []);
+
+  useEffect(() => {
+    const workspaceIds = Array.from(new Set(events.map((event) => event.workspaceId)));
+    if (workspaceIds.length === 0) {
+      setEventRepositoryNamesByChannelId({});
+      return;
+    }
+
+    let cancelled = false;
+    Promise.allSettled(workspaceIds.map((workspaceId) => fetchWorkspaceRepositories(workspaceId)))
+      .then((results) => {
+        if (cancelled) return;
+
+        const nextNamesByChannelId: Record<number, string> = {};
+        results.forEach((result) => {
+          if (result.status !== "fulfilled") return;
+          result.value.forEach((repository) => {
+            if (repository.channelId) {
+              nextNamesByChannelId[repository.channelId] = repository.name;
+            }
+          });
+        });
+        setEventRepositoryNamesByChannelId(nextNamesByChannelId);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [events]);
 
   const getEventMeta = (type: EventType) => {
     switch (type) {
@@ -1316,23 +1523,10 @@ export function WorkspacePage() {
               )}
             </h2>
             <div className="flex flex-wrap items-center gap-3">
-              <select
+              <TeamSortDropdown
                 value={sortOrder}
-                onChange={(e) => handleSortOrgs(e.target.value as "name" | "latest" | "activity")}
-                className="rounded-xl px-3 py-2 outline-none tracking-tight"
-                style={{
-                  background: "rgba(255,255,255,0.05)",
-                  border: "1.5px solid rgba(var(--codedock-primary-rgb), 0.20)",
-                  color: "var(--white)",
-                  fontSize: "13px",
-                  fontWeight: 850,
-                  cursor: "pointer",
-                }}
-              >
-                <option value="latest" style={{ background: "#121827", color: "#EAF7FF" }}>최신 순</option>
-                <option value="activity" style={{ background: "#121827", color: "#EAF7FF" }}>최근 활동 순</option>
-                <option value="name" style={{ background: "#121827", color: "#EAF7FF" }}>이름 순</option>
-              </select>
+                onChange={handleSortOrgs}
+              />
               <button
                 onClick={() => setShowInvitesModal(true)}
                 className="flex items-center gap-2 rounded-xl px-5 py-3 tracking-tight transition-all hover:brightness-110"
@@ -1418,6 +1612,16 @@ export function WorkspacePage() {
             ) : events.map((event) => {
               const { label, icon: Icon, color } = getEventMeta(event.type);
               const workspaceName = orgs.find((o) => o.id === event.workspaceId)?.name ?? "";
+              const repositoryName = event.repositoryName ?? (
+                event.channelId ? eventRepositoryNamesByChannelId[event.channelId] : undefined
+              );
+              const eventContextLabels = [
+                workspaceName,
+                repositoryName ? `repo: ${repositoryName}` : "",
+                event.channelId ? `channel #${event.channelId}` : "",
+                event.threadId ? `thread #${event.threadId}` : ""
+              ].filter(Boolean);
+
               return (
                 <div
                   key={event.id}
@@ -1436,11 +1640,21 @@ export function WorkspacePage() {
                           {"  "}
                           <span style={{ color, fontSize: "13px", fontWeight: 800 }}>{label}</span>
                         </span>
-                        {workspaceName && (
-                          <span className="tracking-tight" style={{ fontSize: "12px", fontWeight: 700, color: "var(--muted)" }}>
-                            {workspaceName}
+                        {eventContextLabels.map((contextLabel) => (
+                          <span
+                            key={contextLabel}
+                            className="rounded-full px-2 py-0.5 tracking-tight"
+                            style={{
+                              background: "rgba(var(--codedock-primary-rgb), 0.08)",
+                              border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)",
+                              fontSize: "11px",
+                              fontWeight: 800,
+                              color: "var(--muted)"
+                            }}
+                          >
+                            {contextLabel}
                           </span>
-                        )}
+                        ))}
                       </div>
                       <p className="m-0 tracking-tight truncate" style={{ fontSize: "13px", fontWeight: 700, color: "rgba(255,255,255,0.55)" }}>
                         {event.content}

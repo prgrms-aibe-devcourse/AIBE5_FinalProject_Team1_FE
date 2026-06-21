@@ -21,7 +21,7 @@ interface PRReviewPanelProps {
   onClose: () => void;
   onMergePR?: (messageId: number) => void;
   externalThreadMessages?: any[];
-  onAddThreadMessage?: (msg: any) => void;
+  onAddThreadMessage?: (msg: any) => void | Promise<void>;
 }
 
 interface DiffFile {
@@ -36,6 +36,9 @@ interface DiffFile {
 
 interface DiffThreadComment {
   id: string;
+  backendReplyId?: number;
+  backendThreadId?: number;
+  senderMemberId?: number;
   author: string;
   time: string;
   text: string;
@@ -44,6 +47,9 @@ interface DiffThreadComment {
   filePath: string;
   line: number;
   code?: string;
+  pending?: boolean;
+  serverSyncState?: "pending" | "failed";
+  sendError?: string;
 }
 
 interface ActiveDiffThread {
@@ -373,6 +379,34 @@ function getDisplayAuthor(author?: string) {
   return isCurrentUser(trimmed) ? currentUserDisplayName : trimmed;
 }
 
+function mapExternalThreadMessages(messages?: any[]): DiffThreadComment[] {
+  const seedIds = new Set(
+    diffFiles.flatMap((file) => diffRows.flatMap((row) =>
+      file.id === "security" && row.comment ? [`seed-${file.id}-${row.line}`] : []
+    ))
+  );
+
+  return (messages ?? [])
+    .filter((message) => !seedIds.has(String(message.id)))
+    .map((message): DiffThreadComment => ({
+      id: String(message.id),
+      backendReplyId: message.backendReplyId,
+      backendThreadId: message.backendThreadId,
+      senderMemberId: message.senderMemberId,
+      author: message.author ?? message.user ?? "",
+      time: message.time ?? "",
+      text: message.text ?? message.message ?? "",
+      fileId: message.fileId ?? "pr",
+      fileName: message.fileName ?? "",
+      filePath: message.filePath ?? "",
+      line: message.line ?? 0,
+      code: message.code,
+      pending: message.pending,
+      serverSyncState: message.serverSyncState,
+      sendError: message.sendError,
+    }));
+}
+
 export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessages, onAddThreadMessage }: PRReviewPanelProps) {
   const tabContentRef = useRef<HTMLDivElement>(null);
   const [activeFileId, setActiveFileId] = useState(diffFiles[0].id);
@@ -383,26 +417,9 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
   const [prThreadDraft, setPrThreadDraft] = useState("");
   const [diffEdits, setDiffEdits] = useState<Record<string, string>>({});
   // 로컬 스레드 상태 — externalThreadMessages(시드 제외)로 초기화
-  const [prThreadComments, setPrThreadComments] = useState<DiffThreadComment[]>(() => {
-    const seedIds = new Set(
-      diffFiles.flatMap((f) => diffRows.flatMap((r) =>
-        f.id === "security" && r.comment ? [`seed-${f.id}-${r.line}`] : []
-      ))
-    );
-    return (externalThreadMessages ?? [])
-      .filter((m) => !seedIds.has(String(m.id)))
-      .map((m): DiffThreadComment => ({
-        id: String(m.id),
-        author: m.author ?? m.user ?? "",
-        time: m.time ?? "",
-        text: m.text ?? "",
-        fileId: m.fileId ?? "pr",
-        fileName: m.fileName ?? "",
-        filePath: m.filePath ?? "",
-        line: m.line ?? 0,
-        code: m.code,
-      }));
-  });
+  const [prThreadComments, setPrThreadComments] = useState<DiffThreadComment[]>(() =>
+    mapExternalThreadMessages(externalThreadMessages)
+  );
   const [showThreadModal, setShowThreadModal] = useState(false);
   const activeFile = diffFiles.find((file) => file.id === activeFileId) ?? diffFiles[0];
   const prNumber = prData.prNumber ?? 142;
@@ -459,6 +476,10 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
   useEffect(() => {
     tabContentRef.current?.scrollTo({ top: 0, left: 0 });
   }, [activePrTab]);
+
+  useEffect(() => {
+    setPrThreadComments(mapExternalThreadMessages(externalThreadMessages));
+  }, [externalThreadMessages]);
 
   const handleApprove = () => {
     onMergePR?.(prData.id);
@@ -569,8 +590,11 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
       line: referencedRow?.line ?? 0,
       code: referencedCode,
     };
-    setPrThreadComments((prev) => [...prev, newComment]);
-    onAddThreadMessage?.({ ...newComment, user: currentUserDisplayName });
+    if (onAddThreadMessage) {
+      void onAddThreadMessage({ ...newComment, user: currentUserDisplayName });
+    } else {
+      setPrThreadComments((prev) => [...prev, newComment]);
+    }
     setPrThreadDraft("");
   };
 
@@ -1082,6 +1106,16 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
                   <p className="m-0 whitespace-pre-wrap tracking-tight" style={{ color: isMine ? "var(--soft-mint)" : "var(--soft-mint)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800, lineHeight: 1.55 }}>
                     {comment.text}
                   </p>
+                  {comment.serverSyncState === "pending" && (
+                    <p className="m-0 mt-1 tracking-tight" style={{ color: "var(--muted)", fontSize: 10, fontWeight: 800 }}>
+                      sending...
+                    </p>
+                  )}
+                  {comment.serverSyncState === "failed" && (
+                    <p className="m-0 mt-1 tracking-tight" style={{ color: "#FF6B6B", fontSize: 10, fontWeight: 850 }}>
+                      {comment.sendError || "Send failed."}
+                    </p>
+                  )}
                 </div>
               );
             })}

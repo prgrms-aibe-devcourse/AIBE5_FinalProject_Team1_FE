@@ -1,6 +1,11 @@
-import { authHeader, refreshAccessToken, clearTokens } from "../auth";
+import { authHeader, getAccessToken, refreshAccessToken, redirectToLogin } from "../auth";
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? "";
+
+type FetchWithAuthInit = RequestInit & {
+  skipAuthHeader?: boolean;
+  skipAuthRefresh?: boolean;
+};
 
 function buildApiUrl(path: string) {
   const baseUrl = BASE.replace(/\/$/, "");
@@ -14,27 +19,29 @@ function buildApiUrl(path: string) {
  */
 export async function fetchWithAuth<T>(
   path: string,
-  init?: RequestInit
+  init?: FetchWithAuthInit
 ): Promise<T> {
+  const { skipAuthHeader = false, skipAuthRefresh = false, ...requestInit } = init ?? {};
   const doFetch = () =>
     fetch(buildApiUrl(path), {
-      ...init,
+      ...requestInit,
       headers: {
         Accept: "application/json",
-        ...init?.headers,
-        ...authHeader(), // 최신 토큰을 덮어씀
+        ...requestInit.headers,
+        ...(skipAuthHeader ? {} : authHeader()),
       },
     });
 
   let res = await doFetch();
 
   // 401: 토큰 갱신 후 1회 재시도
-  if (res.status === 401) {
+  const canRefreshAuth = !skipAuthRefresh && !!getAccessToken();
+  if (res.status === 401 && canRefreshAuth) {
     const ok = await refreshAccessToken();
     if (ok) {
       res = await doFetch();
     } else {
-      clearTokens();
+      redirectToLogin();
       throw new Error("세션이 만료되었습니다. 다시 로그인해 주세요.");
     }
   }

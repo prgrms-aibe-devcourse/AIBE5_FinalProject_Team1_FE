@@ -7,7 +7,7 @@ import { ThreadPanel } from "../components/ThreadPanel";
 import { ChannelPanel } from "../components/ChannelPanel";
 import { OverviewPanel } from "../components/OverviewPanel";
 import { ErrorBoundary } from "../components/ErrorBoundary";
-import { type ReactNode, type MouseEvent as ReactMouseEvent, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type ReactNode, type MouseEvent as ReactMouseEvent, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router";
 import { AnimatePresence, motion } from "motion/react";
 import {
@@ -645,6 +645,9 @@ function formatApiDateTime(value: string) {
   if (Number.isNaN(date.getTime())) return value;
 
   return new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
     hour: "2-digit",
     minute: "2-digit"
   }).format(date);
@@ -691,6 +694,7 @@ function mapChannelMessageToWorkspaceMessage(message: ChannelMessage) {
     senderMemberId: message.senderMemberId,
     user: message.senderName,
     avatar: message.senderName?.charAt(0).toUpperCase() || "U",
+    avatarUrl: message.senderAvatarUrl || undefined,
     message: isDeleted ? DELETED_MESSAGE_LABEL : message.content,
     text: isDeleted ? DELETED_MESSAGE_LABEL : message.content,
     time: formatApiDateTime(message.createdAt),
@@ -711,6 +715,7 @@ function mapThreadReplyToWorkspaceMessage(reply: ThreadReply) {
     senderMemberId: reply.senderMemberId,
     user: reply.senderName,
     avatar: reply.senderName?.charAt(0).toUpperCase() || "U",
+    avatarUrl: reply.senderAvatarUrl || undefined,
     text: isDeleted ? DELETED_MESSAGE_LABEL : reply.content,
     message: isDeleted ? DELETED_MESSAGE_LABEL : reply.content,
     time: formatApiDateTime(reply.createdAt),
@@ -1087,6 +1092,7 @@ function mapMessageToChannelThread(message: any) {
     ...message,
     user,
     avatar: message?.avatar ?? getMessageFallbackAvatar(user),
+    avatarUrl: message?.avatarUrl,
     message: body,
     text: message?.text ?? body,
     time: message?.time ?? "",
@@ -1735,10 +1741,14 @@ export function ChatPage() {
       return acc;
     }, {});
   }, [apiChannels]);
-  // 'issues' 탭은 현재 레포의 repository channel(DB id)로 매핑
+  const currentRepositoryApiChannelId =
+    currentRepo?.channelId ?? (
+      currentRepo ? repositoryApiChannelByRepoId[currentRepo.id]?.id : undefined
+    );
+  // PR/이슈 탭은 현재 레포의 repository channel(DB id)을 공유한다.
   const activeApiChannelId =
-    selectedChannel === 'issues' && currentRepo?.channelId
-      ? currentRepo.channelId
+    (selectedChannel === 'issues' || selectedChannel === 'pull-requests') && currentRepositoryApiChannelId
+      ? currentRepositoryApiChannelId
       : apiChannelIdByUiChannel[selectedChannel];
   const hasActiveApiChatChannel = activeApiChannelId !== undefined;
   const hasChatAccessToken = Boolean(getAccessToken());
@@ -2022,7 +2032,8 @@ export function ChatPage() {
       if (workspaceId !== null && workspaceId !== currentWorkspaceApiId) return;
 
       const channelId = getChannelIdFromWorkspaceScopedChatKey(channelStateKey);
-      if (!apiChannelIdByUiChannel[channelId]) return;
+      const isRepositorySubChannel = channelId === "pull-requests" || channelId === "issues";
+      if (!apiChannelIdByUiChannel[channelId] && !(isRepositorySubChannel && currentRepositoryApiChannelId)) return;
 
       channelMessages.forEach((message) => {
         const threadId = Number(message.backendMessageId ?? message.id);
@@ -2039,7 +2050,7 @@ export function ChatPage() {
       threadId,
       ...target
     }));
-  }, [apiChannelIdByUiChannel, currentWorkspaceApiId, messages]);
+  }, [apiChannelIdByUiChannel, currentRepositoryApiChannelId, currentWorkspaceApiId, messages]);
   // Stable signature of the subscribed channel-id set. The main WS effect re-runs only when
   // channels are added or removed — not on every channel switch or message arrival.
   const channelSubscriptionKey = useMemo(
@@ -2066,16 +2077,19 @@ export function ChatPage() {
         ? `${sidebarColumn} minmax(0, 1fr) ${threadColumn}`
         : `${sidebarColumn} minmax(0, 1fr)`;
   const pageShellClassName = isMainExpanded
-    ? "fixed inset-0 z-[80] mx-auto max-w-none p-4"
+    ? "codedock-chat-expanded fixed inset-0 z-[80] mx-auto max-w-none p-[clamp(18px,2vw,28px)]"
     : "w-full max-w-[2000px] mx-auto px-[clamp(14px,2vw,24px)] py-4 pb-4";
   const pageShellStyle = isMainExpanded
     ? {
         background:
-          'radial-gradient(circle at 18% 10%, rgba(var(--codedock-primary-rgb), 0.16), transparent 28%), radial-gradient(circle at 82% 0%, rgba(var(--codedock-secondary-rgb), 0.08), transparent 30%), #050b14'
-      }
+          'radial-gradient(circle at 18% 10%, rgba(var(--codedock-primary-rgb), 0.16), transparent 28%), radial-gradient(circle at 82% 0%, rgba(var(--codedock-secondary-rgb), 0.08), transparent 30%), #050b14',
+        "--krds-body-xsmall": "0.875rem",
+        "--krds-body-small": "1rem",
+        "--krds-body-medium": "1.125rem"
+      } as CSSProperties
     : undefined;
   const chatGridClassName = isMainExpanded
-    ? "grid h-full min-h-0 gap-4 overflow-hidden"
+    ? "grid h-full min-h-0 gap-[clamp(20px,1.8vw,30px)] overflow-hidden"
     : "grid h-[calc(100svh-128px)] min-h-0 gap-[clamp(16px,1.8vw,24px)] overflow-hidden";
   const selectedChannelMeta = ALL_SIDEBAR_CHANNELS.find((channel) => channel.id === selectedChannel);
   const selectedCustomChannel = allCustomChannels.find(ch => ch.id === selectedChannel);
@@ -2604,7 +2618,16 @@ export function ChatPage() {
       && (item.senderMemberId == null || Number(item.senderMemberId) === Number(reply.senderMemberId))
     );
     const nextReplies = pendingIndex >= 0
-      ? currentReplies.map((item, index) => index === pendingIndex ? mappedReply : item)
+      ? currentReplies.map((item, index) => index === pendingIndex
+        ? {
+            ...item,
+            ...mappedReply,
+            pending: false,
+            serverSyncState: undefined,
+            sendError: undefined
+          }
+        : item
+      )
       : [...currentReplies, mappedReply];
 
     const nextThreadReplies = {
@@ -2626,6 +2649,22 @@ export function ChatPage() {
             lastReply: mappedReply.user
           }
         : prevThread
+    );
+    setSelectedPR((prevPr: any) =>
+      prevPr && getThreadReplyStateKey(prevPr) === threadKey
+        ? {
+            ...prevPr,
+            replies: Math.max(prevPr.replies ?? 0, nextReplies.length)
+          }
+        : prevPr
+    );
+    setSelectedIssue((prevIssue: any) =>
+      prevIssue && getThreadReplyStateKey(prevIssue) === threadKey
+        ? {
+            ...prevIssue,
+            replies: Math.max(prevIssue.replies ?? 0, nextReplies.length)
+          }
+        : prevIssue
     );
   }, [getThreadReplyStateKey]);
 
@@ -2701,7 +2740,7 @@ export function ChatPage() {
     });
   }, [getMessageChannelKey]);
 
-  const markPendingThreadReplyFailed = useCallback((threadKey: string | number, pendingReplyId: number, detail: string) => {
+  const markPendingThreadReplyFailed = useCallback((threadKey: string | number, pendingReplyId: string | number, detail: string) => {
     const currentReplies = threadRepliesRef.current[threadKey] || [];
     let changed = false;
     const nextReplies = currentReplies.map((item) => {
@@ -2766,7 +2805,7 @@ export function ChatPage() {
     }, REALTIME_PENDING_TIMEOUT_MS);
   }, [markPendingMessageFailed]);
 
-  const schedulePendingThreadReplyFailure = useCallback((threadKey: string | number, pendingReplyId: number) => {
+  const schedulePendingThreadReplyFailure = useCallback((threadKey: string | number, pendingReplyId: string | number) => {
     window.setTimeout(() => {
       markPendingThreadReplyFailed(
         threadKey,
@@ -3099,6 +3138,29 @@ export function ChatPage() {
       eventSubscriptions = apiChannels.map((channel) => {
         const isRepositoryChannel = isRepositoryApiChannel(channel);
         const genericUiChannelId = getApiChannelUiId(channel);
+        const getRepositoryEventUiChannelId = (payload?: ChannelMessage) => {
+          if (!isRepositoryChannel) return genericUiChannelId;
+
+          const attachmentType = (payload?.attachments ?? [])
+            .map((attachment) => String(attachment.attachmentType ?? attachment.type ?? "").toLowerCase())
+            .find(Boolean);
+
+          if (attachmentType === "pr" || attachmentType === "pull_request" || attachmentType === "pull-request") {
+            return "pull-requests";
+          }
+          if (attachmentType === "issue") {
+            return "issues";
+          }
+
+          const selected = selectedChannelRef.current;
+          if (selected === "pull-requests" || selected === "issues") {
+            return selected;
+          }
+
+          return wsChannelHandlersRef.current.claimedRepositoryChannelIds.has(channel.id)
+            ? "issues"
+            : genericUiChannelId;
+        };
 
         return client!.subscribe<ChatEvent<ChannelEventPayload>>(
           chatWebSocketDestinations.subscribeChannelEvents(channel.id),
@@ -3108,12 +3170,9 @@ export function ChatPage() {
             // repository 채널은 워크스페이스 repository 트리에 매핑되면 'issues' 탭으로 렌더링되지만,
             // 매핑되지 않은 고아 repository 채널은 자체 api-ch-{id} 키로 렌더링된다. 매핑 여부는
             // 메시지 도착 시점의 최신 상태(ref)로 판단해 라우팅한다.
-            const uiChannelId = isRepositoryChannel && ch.claimedRepositoryChannelIds.has(channel.id)
-              ? "issues"
-              : genericUiChannelId;
-
             const createdMessagePayload = getChatEventPayload<ChannelMessage>(event, CHAT_EVENT_TYPE.MESSAGE_CREATED);
             if (createdMessagePayload) {
+              const uiChannelId = getRepositoryEventUiChannelId(createdMessagePayload);
               ch.appendServerMessage(uiChannelId, createdMessagePayload);
               if (!ch.isCurrentWorkspaceMember(createdMessagePayload.senderMemberId)) {
                 if (uiChannelId === selectedChannelRef.current) {
@@ -3128,18 +3187,21 @@ export function ChatPage() {
 
             const updatedMessagePayload = getChatEventPayload<ChannelMessage>(event, CHAT_EVENT_TYPE.MESSAGE_UPDATED);
             if (updatedMessagePayload) {
+              const uiChannelId = getRepositoryEventUiChannelId(updatedMessagePayload);
               ch.replaceServerMessage(uiChannelId, updatedMessagePayload);
               return;
             }
 
             const deletedMessagePayload = getChatEventPayload<ChannelMessage>(event, CHAT_EVENT_TYPE.MESSAGE_DELETED);
             if (deletedMessagePayload) {
+              const uiChannelId = getRepositoryEventUiChannelId(deletedMessagePayload);
               ch.replaceServerMessage(uiChannelId, { ...deletedMessagePayload, isDeleted: true });
               return;
             }
 
             const reactionPayload = getChatEventPayload<ReactionToggleResponse>(event, CHAT_EVENT_TYPE.REACTION_UPDATED);
             if (reactionPayload) {
+              const uiChannelId = getRepositoryEventUiChannelId();
               ch.applyReactionResponse(reactionPayload, uiChannelId);
             }
           }
@@ -4469,6 +4531,7 @@ export function ChatPage() {
       id: pendingMessageId,
       senderMemberId: currentWorkspaceMemberId ?? undefined,
       user: currentDisplayName,
+      avatarUrl: profile.avatarUrl || undefined,
       text: trimmedText || `${attachments.length}개 항목을 공유합니다.`,
       time: '방금',
       attachments,
@@ -4662,6 +4725,7 @@ export function ChatPage() {
       const newReply: any = {
         id: Date.now(),
         user: currentDisplayName,
+        avatarUrl: profile.avatarUrl || undefined,
         text: text,
         time: '방금'
       };
@@ -4702,6 +4766,7 @@ export function ChatPage() {
       backendThreadId: Number.isFinite(backendThreadId) ? backendThreadId : undefined,
       senderMemberId: currentWorkspaceMemberId ?? undefined,
       user: currentDisplayName,
+      avatarUrl: profile.avatarUrl || undefined,
       text: trimmedText,
       message: trimmedText,
       time: '방금'
@@ -4778,22 +4843,84 @@ export function ChatPage() {
     appendReply(optimisticReply);
   };
 
+  const appendPanelThreadReply = (threadKey: string, msg: any) => {
+    const key = getInteractionStateKey(threadKey);
+    const nextReplies = [...(threadRepliesRef.current[key] || []), msg];
+    const nextThreadReplies = {
+      ...threadRepliesRef.current,
+      [key]: nextReplies
+    };
+
+    threadRepliesRef.current = nextThreadReplies;
+    setThreadReplies(nextThreadReplies);
+    setThreadReplyCounts((prev) => ({
+      ...prev,
+      [key]: Math.max(prev[key] ?? 0, nextReplies.length)
+    }));
+
+    return nextReplies.length;
+  };
+
   const handleAddPrThreadReply = (msg: any) => {
     if (!selectedPR) return;
-    const key = getInteractionStateKey(`pr-${selectedPR.id}`);
-    setThreadReplies(prev => ({
-      ...prev,
-      [key]: [...(prev[key] || []), msg]
-    }));
+    const threadKey = `pr-${selectedPR.id}`;
+    const backendThreadId = Number(selectedPR.backendMessageId);
+    const pendingReplyId = Date.now();
+    const optimisticReply = {
+      ...msg,
+      id: pendingReplyId,
+      backendThreadId: Number.isFinite(backendThreadId) ? backendThreadId : undefined,
+      senderMemberId: currentWorkspaceMemberId ?? undefined,
+      author: currentDisplayName,
+      user: currentDisplayName,
+      text: msg.text ?? msg.message ?? "",
+      message: msg.message ?? msg.text ?? "",
+      avatarUrl: profile.avatarUrl || undefined,
+      pending: Number.isFinite(backendThreadId),
+      serverSyncState: Number.isFinite(backendThreadId) ? "pending" : undefined
+    };
+
+    const nextCount = appendPanelThreadReply(threadKey, optimisticReply);
+    setSelectedPR((prev: any) =>
+      prev && prev.id === selectedPR.id
+        ? { ...prev, replies: Math.max(prev.replies ?? 0, nextCount) }
+        : prev
+    );
+
+    if (!Number.isFinite(backendThreadId)) return;
+
+    const stateKey = getInteractionStateKey(threadKey);
+    const content = String(optimisticReply.text).trim();
+    const stompClient = chatStompRef.current;
+
+    if (stompClient) {
+      schedulePendingThreadReplyFailure(stateKey, pendingReplyId);
+      stompClient.send(
+        chatWebSocketDestinations.sendThreadReply(backendThreadId),
+        { content }
+      );
+      return;
+    }
+
+    createThreadReply(backendThreadId, { content }, {})
+      .then((serverReply) => appendServerThreadReply(selectedPR, serverReply))
+      .catch((error) => {
+        markPendingThreadReplyFailed(
+          stateKey,
+          pendingReplyId,
+          error instanceof Error ? error.message : "PR thread reply send failed."
+        );
+      });
   };
 
   const handleAddIssueThreadReply = (msg: any) => {
     if (!selectedIssue) return;
-    const key = getInteractionStateKey(`issue-${selectedIssue.id}`);
-    setThreadReplies(prev => ({
-      ...prev,
-      [key]: [...(prev[key] || []), msg]
-    }));
+    const nextCount = appendPanelThreadReply(`issue-${selectedIssue.id}`, msg);
+    setSelectedIssue((prev: any) =>
+      prev && prev.id === selectedIssue.id
+        ? { ...prev, replies: Math.max(prev.replies ?? 0, nextCount) }
+        : prev
+    );
   };
 
   // 워크스페이스 목록 로드 전에는 mock(DEFAULT_WORKSPACES) 화면이 잠깐 보이지 않도록 로딩 표시
@@ -5383,7 +5510,7 @@ export function ChatPage() {
             backdropFilter: 'blur(16px)'
           }}>
             {hasRepositories && selectedChannel !== 'team' && (
-              <div className="absolute right-4 top-4 z-20 flex items-start gap-2">
+              <div className="absolute right-4 top-4 z-40 flex items-start gap-2">
                 {selectedChannel !== 'overview' && (
                 <div className="relative">
                   <button
@@ -5391,7 +5518,7 @@ export function ChatPage() {
                     onClick={() => setChannelBookmarkMenuOpen((open) => !open)}
                     className="inline-flex items-center gap-2 rounded-full border-0 px-4 py-2 tracking-tight transition-all hover:scale-[1.03]"
                     style={{
-                      background: channelBookmarkMenuOpen ? 'rgba(var(--codedock-primary-rgb), 0.16)' : 'rgba(5, 11, 20, 0.78)',
+                      background: channelBookmarkMenuOpen ? 'rgba(5, 18, 30, 0.98)' : 'rgba(5, 11, 20, 0.96)',
                       border: '1px solid rgba(var(--codedock-primary-rgb), 0.24)',
                       color: 'var(--neon-cyan)',
                       fontSize: "var(--krds-body-xsmall)",
@@ -5487,9 +5614,9 @@ export function ChatPage() {
                 <button
                   type="button"
                   onClick={() => setIsMainExpanded((expanded) => !expanded)}
-                  className="inline-flex items-center gap-2 rounded-full border-0 px-4 py-2 tracking-tight transition-all hover:scale-[1.03]"
+                  className="inline-flex min-h-[42px] min-w-[118px] items-center justify-center gap-2.5 rounded-full border-0 px-4 py-2 tracking-tight transition-all hover:scale-[1.03]"
                   style={{
-                    background: 'rgba(5, 11, 20, 0.78)',
+                    background: 'rgba(5, 11, 20, 0.96)',
                     border: '1px solid rgba(var(--codedock-primary-rgb), 0.24)',
                     color: 'var(--neon-cyan)',
                     fontSize: "var(--krds-body-xsmall)",
@@ -5501,8 +5628,18 @@ export function ChatPage() {
                   aria-label={isMainExpanded ? '채팅 박스 작게 보기' : '채팅 박스 크게 보기'}
                   title={isMainExpanded ? '작게 보기' : '크게 보기'}
                 >
-                  {isMainExpanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
-                  {isMainExpanded ? '작게 보기' : '크게 보기'}
+                  <span
+                    className="grid h-[18px] w-[18px] flex-shrink-0 place-items-center rounded-full"
+                    style={{
+                      background: "rgba(var(--codedock-primary-rgb), 0.10)",
+                      border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)"
+                    }}
+                  >
+                    {isMainExpanded ? <Minimize2 size={12} strokeWidth={2.6} /> : <Maximize2 size={12} strokeWidth={2.6} />}
+                  </span>
+                  <span className="whitespace-nowrap leading-none">
+                    {isMainExpanded ? '작게 보기' : '크게 보기'}
+                  </span>
                 </button>
               </div>
             )}
@@ -5589,6 +5726,7 @@ export function ChatPage() {
                 repoName={selectedRepoForChannel?.name ?? selectedOrphanRepositoryChannel?.label ?? allCustomChannels.find(ch => ch.id === selectedChannel)?.label}
                 myMemberId={currentWorkspaceMemberId}
                 myDisplayName={currentDisplayName}
+                myAvatarUrl={profile.avatarUrl}
                 threads={currentChannelThreads}
                 reactions={currentMessageReactions}
                 replyCounts={mergedReplyCounts}
@@ -5629,6 +5767,7 @@ export function ChatPage() {
                 repoName={currentRepo?.name}
                 myMemberId={currentWorkspaceMemberId}
                 myDisplayName={currentDisplayName}
+                myAvatarUrl={profile.avatarUrl}
                 threads={currentChannelThreads}
                 reactions={currentMessageReactions}
                 replyCounts={mergedReplyCounts}
@@ -5669,6 +5808,7 @@ export function ChatPage() {
                 repoName={repositories.find(r => r.id === selectedChannel)?.name}
                 myMemberId={currentWorkspaceMemberId}
                 myDisplayName={currentDisplayName}
+                myAvatarUrl={profile.avatarUrl}
                 threads={currentChannelThreads}
                 reactions={currentMessageReactions}
                 replyCounts={mergedReplyCounts}
@@ -5728,6 +5868,7 @@ export function ChatPage() {
                 messages={currentMessages}
                 myMemberId={currentWorkspaceMemberId}
                 myDisplayName={currentDisplayName}
+                myAvatarUrl={profile.avatarUrl}
                 reactions={currentMessageReactions}
                 replyCounts={mergedReplyCounts}
                 onSendMessage={handleSendMessage}
@@ -5793,6 +5934,7 @@ export function ChatPage() {
               replies={currentThreadReplies[getThreadKey(selectedThread)] || []}
               myMemberId={currentWorkspaceMemberId}
               myDisplayName={currentDisplayName}
+              myAvatarUrl={profile.avatarUrl}
               displayReplyCount={
                 Math.max(
                   (currentThreadReplies[getThreadKey(selectedThread)] || []).length,
