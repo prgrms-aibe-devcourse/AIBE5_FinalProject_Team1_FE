@@ -84,16 +84,35 @@ function isAuthenticationErrorFrame(frame: IFrame) {
     .toLowerCase();
 
   return [
-    "accessdenied",
-    "authorization",
     "authenticate",
     "authentication",
-    "forbidden",
     "unauthorized",
+    "jwt",
+    "token",
+    "expired",
     "401",
-    "403",
     "인증",
     "토큰"
+  ].some((keyword) => errorText.includes(keyword));
+}
+
+function isAuthorizationErrorFrame(frame: IFrame) {
+  const errorText = [
+    frame.headers.message,
+    frame.body
+  ]
+    .filter((value): value is string => Boolean(value))
+    .join(" ")
+    .toLowerCase();
+
+  return [
+    "accessdenied",
+    "access denied",
+    "authorization",
+    "forbidden",
+    "403",
+    "권한",
+    "접근"
   ].some((keyword) => errorText.includes(keyword));
 }
 
@@ -137,6 +156,13 @@ export function createChatStompClient(options: ChatStompClientOptions = {}): Cha
         }
         authRefreshReconnectUsed = true;
         void reconnectWithFreshToken();
+        return;
+      }
+      if (isAuthorizationErrorFrame(frame)) {
+        pendingSends.length = 0;
+        void stompClient.deactivate();
+        options.onError?.(frame);
+        return;
       }
       options.onError?.(frame);
     },

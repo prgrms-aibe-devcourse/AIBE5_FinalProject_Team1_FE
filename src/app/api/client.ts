@@ -65,6 +65,11 @@ function getResponseMessage(status: number, fallback?: string) {
   return fallback || `API request failed with status ${status}`;
 }
 
+function isAuthRefreshExcludedPath(path: string) {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return /^\/api\/v1\/auth\/(login|signup|refresh)(?:[/?#]|$)/.test(normalizedPath);
+}
+
 async function parseJsonResponse<T>(response: Response): Promise<ApiResponse<T> | null> {
   const text = await response.text();
   if (!text) return null;
@@ -105,7 +110,10 @@ export function createApiClient(options: ApiClientOptions = {}) {
       body: body === undefined ? undefined : JSON.stringify(body)
     });
 
-    const canRefreshAuth = !requestOptions.skipAuthRefresh && !!getAccessToken();
+    const canRefreshAuth =
+      !requestOptions.skipAuthRefresh &&
+      !isAuthRefreshExcludedPath(path) &&
+      !!getAccessToken();
     if (response.status === 401 && !isRetry && canRefreshAuth) {
       const refreshed = await refreshAccessToken();
       if (refreshed) {
