@@ -1758,7 +1758,7 @@ export function ChatPage() {
   ]);
   const apiCustomChannels = useMemo<CustomChannelItem[]>(() => {
     return apiChannels
-      .filter((channel) => getApiChannelUiId(channel) !== "general" && channel.channelType !== "repository")
+      .filter((channel) => getApiChannelUiId(channel) !== "general" && !isRepositoryApiChannel(channel))
       .map((channel) => ({
         id: getApiChannelUiId(channel),
         label: cleanChannelLabel(channel.name),
@@ -1770,14 +1770,32 @@ export function ChatPage() {
     [apiCustomChannels]
   );
 
+  // repository 채널 중 워크스페이스 repository 트리에 매핑된(=이슈 탭으로 렌더링되는) 채널 id 집합.
+  const claimedRepositoryChannelIds = useMemo(
+    () => new Set(Object.values(repositoryApiChannelByRepoId).map((channel) => channel.id)),
+    [repositoryApiChannelByRepoId]
+  );
+  // 어떤 repository에도 매핑되지 않은 repository 타입 채널. 커스텀 목록에서도 제외되고 repository
+  // 트리에도 없어서 그대로 두면 어디에도 렌더링되지 않으므로, 전용 섹션에서 노출해 선택 가능하게 한다.
+  const orphanRepositoryChannels = useMemo<CustomChannelItem[]>(() => {
+    return apiChannels
+      .filter((channel) => isRepositoryApiChannel(channel) && !claimedRepositoryChannelIds.has(channel.id))
+      .map((channel) => ({
+        id: getApiChannelUiIdById(channel.id),
+        label: cleanChannelLabel(channel.name),
+        apiChannelId: channel.id,
+      }));
+  }, [apiChannels, claimedRepositoryChannelIds]);
+
   // 새로고침 시 복원할 채널이 현재 워크스페이스에서 실제 선택 가능한지 검증하기 위한 id 집합
   const selectableChannelIds = useMemo(() => {
     const ids = new Set<string>();
     ALL_SIDEBAR_CHANNELS.forEach((channel) => ids.add(channel.id));
     allCustomChannels.forEach((channel) => ids.add(channel.id));
+    orphanRepositoryChannels.forEach((channel) => ids.add(channel.id));
     visibleRepositories.forEach((repo) => ids.add(repo.id));
     return ids;
-  }, [allCustomChannels, visibleRepositories]);
+  }, [allCustomChannels, orphanRepositoryChannels, visibleRepositories]);
 
   // 마지막으로 본 채널을 워크스페이스별로 복원 (워크스페이스당 1회, 채널 로드 완료 후)
   useEffect(() => {
@@ -2078,13 +2096,15 @@ export function ChatPage() {
   const selectedRepositoryApiChannel = selectedRepoForChannel
     ? repositoryApiChannelByRepoId[selectedRepoForChannel.id]
     : undefined;
+  const selectedOrphanRepositoryChannel = orphanRepositoryChannels.find(ch => ch.id === selectedChannel);
   const selectedChannelTitle = selectedChannel === 'pull-requests'
     ? `${cleanChannelLabel(currentRepo?.name ?? '레포')} - PR`
     : selectedChannel === 'issues'
     ? `${cleanChannelLabel(currentRepo?.name ?? '레포')} - 이슈`
     : selectedRepoForChannel
     ? cleanChannelLabel(selectedRepoForChannel.name)
-    : selectedCustomChannel?.label
+    : selectedOrphanRepositoryChannel?.label
+    ?? selectedCustomChannel?.label
     ?? selectedChannelMeta?.label
     ?? selectedChannel.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
   const realtimeConnectionNotice = useMemo(
@@ -2983,6 +3003,7 @@ export function ChatPage() {
     updateRealtimeConnection,
     channelFetchError,
     handleRealtimeError,
+    claimedRepositoryChannelIds,
   });
   useEffect(() => {
     wsChannelHandlersRef.current = {
@@ -2996,6 +3017,7 @@ export function ChatPage() {
       updateRealtimeConnection,
       channelFetchError,
       handleRealtimeError,
+      claimedRepositoryChannelIds,
     };
   }, [
     appendServerMessage,
@@ -3008,6 +3030,7 @@ export function ChatPage() {
     updateRealtimeConnection,
     channelFetchError,
     handleRealtimeError,
+    claimedRepositoryChannelIds,
   ]);
 
   // Main WebSocket client effect. Deps are narrowed to the channel-id set and workspace/auth
@@ -3074,15 +3097,20 @@ export function ChatPage() {
       setChatStompReadyKey((key) => key + 1);
 
       eventSubscriptions = apiChannels.map((channel) => {
-        // Repository channels map to the 'issues' UI tab, not to the generic api-ch-{id} key
-        const uiChannelId = String(channel.channelType ?? "").toLowerCase() === "repository"
-          ? "issues"
-          : getApiChannelUiId(channel);
+        const isRepositoryChannel = isRepositoryApiChannel(channel);
+        const genericUiChannelId = getApiChannelUiId(channel);
 
         return client!.subscribe<ChatEvent<ChannelEventPayload>>(
           chatWebSocketDestinations.subscribeChannelEvents(channel.id),
           (event) => {
             const ch = wsChannelHandlersRef.current;
+
+            // repository 채널은 워크스페이스 repository 트리에 매핑되면 'issues' 탭으로 렌더링되지만,
+            // 매핑되지 않은 고아 repository 채널은 자체 api-ch-{id} 키로 렌더링된다. 매핑 여부는
+            // 메시지 도착 시점의 최신 상태(ref)로 판단해 라우팅한다.
+            const uiChannelId = isRepositoryChannel && ch.claimedRepositoryChannelIds.has(channel.id)
+              ? "issues"
+              : genericUiChannelId;
 
             const createdMessagePayload = getChatEventPayload<ChannelMessage>(event, CHAT_EVENT_TYPE.MESSAGE_CREATED);
             if (createdMessagePayload) {
@@ -5278,6 +5306,60 @@ export function ChatPage() {
               </div>
               )}
 
+              {orphanRepositoryChannels.length > 0 && (
+              <div className="grid max-h-[164px] content-start gap-1 overflow-y-auto pr-1" style={{ scrollbarWidth: 'none' }}>
+                <p className="px-1 pt-1" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 950, color: 'var(--muted)', margin: 0 }}>
+                  레포지토리 채널
+                </p>
+                {orphanRepositoryChannels.map((ch) => {
+                  const isActive = selectedChannel === ch.id;
+                  return (
+                    <div key={ch.id} className="relative isolate flex w-full items-center rounded-full">
+                      {isActive && (
+                        <motion.div
+                          layoutId="workspaceSidebarActiveTab"
+                          className="absolute inset-0 rounded-full"
+                          style={{
+                            background: 'linear-gradient(135deg, rgba(var(--codedock-primary-rgb), 0.18), rgba(234, 247, 255, 0.045)), rgba(11, 22, 40, 0.52)',
+                            border: '1px solid rgba(var(--codedock-primary-rgb), 0.30)',
+                            boxShadow: '0 0 24px rgba(var(--codedock-primary-rgb), 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12)',
+                            backdropFilter: 'blur(14px) saturate(180%)'
+                          }}
+                          transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                        />
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => { setSelectedChannel(ch.id); closeChannelMenu(); }}
+                        className="relative z-10 flex min-w-0 flex-1 items-center gap-3 border-0 bg-transparent px-4 py-3 text-left"
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <GitBranch size={15} style={{ color: isActive ? 'var(--neon-cyan)' : 'var(--muted)', flexShrink: 0 }} />
+                        <span className="truncate tracking-tight flex-1" style={{
+                          fontSize: '13px',
+                          fontWeight: isActive ? 900 : 800,
+                          color: isActive ? 'var(--white)' : 'var(--muted)'
+                        }}>
+                          {ch.label}
+                        </span>
+                        {getChannelBadge(ch.id) && (
+                          <span className="relative z-10 flex-shrink-0 rounded-full px-1.5 py-0.5" style={{
+                            background: 'rgba(var(--codedock-primary-rgb), 0.22)',
+                            border: '1px solid rgba(var(--codedock-primary-rgb), 0.18)',
+                            color: 'var(--neon-cyan)',
+                            fontSize: "var(--krds-body-xsmall)",
+                            fontWeight: 950
+                          }}>
+                            {getChannelBadge(ch.id)}
+                          </span>
+                        )}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+              )}
+
               <div className="my-1" style={{ borderTop: '1px solid rgba(var(--codedock-primary-rgb), 0.14)' }}></div>
 
               {renderSidebarGroup('documentation', '문서', DOCUMENTATION_CHANNELS)}
@@ -5499,12 +5581,12 @@ export function ChatPage() {
               <EmbeddedPanelBoundary key="docs">
                 <DocsPage embedded workspaceId={currentWorkspaceApiId} />
               </EmbeddedPanelBoundary>
-            ) : selectedChannel === 'general' || allCustomChannels.some(ch => ch.id === selectedChannel) || selectedRepositoryApiChannel ? (
+            ) : selectedChannel === 'general' || allCustomChannels.some(ch => ch.id === selectedChannel) || selectedRepositoryApiChannel || selectedOrphanRepositoryChannel ? (
               <ChannelPanel
                 channelId={selectedChannel}
                 storageScopeId={selectedChannelMessageKey}
                 repoId={selectedRepoForChannel?.id}
-                repoName={selectedRepoForChannel?.name ?? allCustomChannels.find(ch => ch.id === selectedChannel)?.label}
+                repoName={selectedRepoForChannel?.name ?? selectedOrphanRepositoryChannel?.label ?? allCustomChannels.find(ch => ch.id === selectedChannel)?.label}
                 myMemberId={currentWorkspaceMemberId}
                 myDisplayName={currentDisplayName}
                 threads={currentChannelThreads}
