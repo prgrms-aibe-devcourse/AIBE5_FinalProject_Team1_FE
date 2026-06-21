@@ -650,8 +650,10 @@ function formatApiDateTime(value: string) {
   }).format(date);
 }
 
-// Must stay in sync with the backend Thread.DELETED_MESSAGE_CONTENT constant (no trailing period).
+// Must stay in sync with the backend Thread.DELETED_MESSAGE_CONTENT constant (no trailing period). 감지용.
 const DELETED_MESSAGE_CONTENT = "삭제된 메시지입니다";
+// 화면 표시용 통일 라벨(마침표 포함). 채널/스레드 삭제 메시지 모두 이 문구로 표시.
+const DELETED_MESSAGE_LABEL = "삭제된 메시지입니다.";
 
 function mapChannelMessageToWorkspaceMessage(message: ChannelMessage) {
   const attachments = (message.attachments ?? []).map(mapMessageAttachmentResponse);
@@ -689,8 +691,8 @@ function mapChannelMessageToWorkspaceMessage(message: ChannelMessage) {
     senderMemberId: message.senderMemberId,
     user: message.senderName,
     avatar: message.senderName?.charAt(0).toUpperCase() || "U",
-    message: message.content,
-    text: message.content,
+    message: isDeleted ? DELETED_MESSAGE_LABEL : message.content,
+    text: isDeleted ? DELETED_MESSAGE_LABEL : message.content,
     time: formatApiDateTime(message.createdAt),
     replies: 0,
     attachments,
@@ -709,8 +711,8 @@ function mapThreadReplyToWorkspaceMessage(reply: ThreadReply) {
     senderMemberId: reply.senderMemberId,
     user: reply.senderName,
     avatar: reply.senderName?.charAt(0).toUpperCase() || "U",
-    text: reply.content,
-    message: reply.content,
+    text: isDeleted ? DELETED_MESSAGE_LABEL : reply.content,
+    message: isDeleted ? DELETED_MESSAGE_LABEL : reply.content,
     time: formatApiDateTime(reply.createdAt),
     ...(isDeleted ? { deleted: true } : {})
   };
@@ -2607,6 +2609,26 @@ export function ChatPage() {
     );
   }, [getThreadReplyStateKey]);
 
+  // 실시간 답글 수정/삭제 수신 시 기존 답글을 갱신(삭제는 매퍼가 deleted 플래그 부여). 목록에 없으면 무시.
+  const replaceServerThreadReply = useCallback((thread: any, reply: ThreadReply) => {
+    const threadKey = getThreadReplyStateKey(thread);
+    const mappedReply = mapThreadReplyToWorkspaceMessage(reply);
+    const currentReplies = threadRepliesRef.current[threadKey] ?? [];
+    let found = false;
+    const nextReplies = currentReplies.map((item) => {
+      if (Number(item.backendReplyId ?? item.id) === reply.id) {
+        found = true;
+        return { ...item, ...mappedReply };
+      }
+      return item;
+    });
+    if (!found) return;
+
+    const nextThreadReplies = { ...threadRepliesRef.current, [threadKey]: nextReplies };
+    threadRepliesRef.current = nextThreadReplies;
+    setThreadReplies(nextThreadReplies);
+  }, [getThreadReplyStateKey]);
+
   const markPendingMessageFailed = useCallback((channelStateKey: string, pendingMessageId: number, detail: string) => {
     setMessages((prev) => {
       const currentMessagesForChannel = prev[channelStateKey] || [];
@@ -3230,6 +3252,7 @@ export function ChatPage() {
   const threadSubLatestRef = useRef({
     targets: apiThreadTargets,
     appendServerThreadReply,
+    replaceServerThreadReply,
     isCurrentWorkspaceMember,
     incrementUnreadCount
   });
@@ -3237,10 +3260,11 @@ export function ChatPage() {
     threadSubLatestRef.current = {
       targets: apiThreadTargets,
       appendServerThreadReply,
+      replaceServerThreadReply,
       isCurrentWorkspaceMember,
       incrementUnreadCount
     };
-  }, [apiThreadTargets, appendServerThreadReply, isCurrentWorkspaceMember, incrementUnreadCount]);
+  }, [apiThreadTargets, appendServerThreadReply, replaceServerThreadReply, isCurrentWorkspaceMember, incrementUnreadCount]);
 
   useEffect(() => {
     const client = chatStompRef.current;
@@ -3252,19 +3276,32 @@ export function ChatPage() {
       client.subscribe<ChatEvent<ThreadEventPayload>>(
         chatWebSocketDestinations.subscribeThreadEvents(threadId),
         (event) => {
-          const reply = getChatEventPayload<ThreadReply>(event, CHAT_EVENT_TYPE.THREAD_REPLY_CREATED);
-          if (!reply) return;
-          if (Number(reply.threadId) !== threadId) return;
-
-          // Resolve target/handlers from the ref so a new message arriving (which changes the
-          // thread objects but not the id set) does not require re-subscribing.
           const latest = threadSubLatestRef.current;
           const target = latest.targets.find((item) => item.threadId === threadId);
           if (!target) return;
 
-          latest.appendServerThreadReply(target.thread, reply);
-          if (!latest.isCurrentWorkspaceMember(reply.senderMemberId)) {
-            latest.incrementUnreadCount(target.channelId);
+          const createdReply = getChatEventPayload<ThreadReply>(event, CHAT_EVENT_TYPE.THREAD_REPLY_CREATED);
+          if (createdReply) {
+            if (Number(createdReply.threadId) !== threadId) return;
+            latest.appendServerThreadReply(target.thread, createdReply);
+            if (!latest.isCurrentWorkspaceMember(createdReply.senderMemberId)) {
+              latest.incrementUnreadCount(target.channelId);
+            }
+            return;
+          }
+
+          // 답글 수정/삭제는 기존 답글을 갱신만 함(미읽음 카운트 변화 없음)
+          const updatedReply = getChatEventPayload<ThreadReply>(event, CHAT_EVENT_TYPE.THREAD_REPLY_UPDATED);
+          if (updatedReply) {
+            if (Number(updatedReply.threadId) !== threadId) return;
+            latest.replaceServerThreadReply(target.thread, updatedReply);
+            return;
+          }
+
+          const deletedReply = getChatEventPayload<ThreadReply>(event, CHAT_EVENT_TYPE.THREAD_REPLY_DELETED);
+          if (deletedReply) {
+            if (Number(deletedReply.threadId) !== threadId) return;
+            latest.replaceServerThreadReply(target.thread, deletedReply);
           }
         }
       )
@@ -4509,11 +4546,9 @@ export function ChatPage() {
   };
 
   const handleDeleteThreadMessage = (thread: any) => {
-    const deletedMessage = "삭제된 메시지입니다.";
-
     updateThreadMessageInState(thread, {
-      message: deletedMessage,
-      text: deletedMessage,
+      message: DELETED_MESSAGE_LABEL,
+      text: DELETED_MESSAGE_LABEL,
       deleted: true
     });
 
@@ -4570,10 +4605,10 @@ export function ChatPage() {
   const handleDeleteThreadReply = (reply: any) => {
     if (!selectedThread) return;
 
-    const deletedReply = "삭제된 답글입니다.";
+    // 표시용 통일 라벨로 낙관적 표시 → 서버 응답/브로드캐스트 수신 후에도 동일 문구라 깜빡임 없음
     updateThreadReplyInState(selectedThread, reply, {
-      text: deletedReply,
-      message: deletedReply,
+      text: DELETED_MESSAGE_LABEL,
+      message: DELETED_MESSAGE_LABEL,
       deleted: true
     });
 
