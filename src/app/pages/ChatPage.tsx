@@ -87,16 +87,24 @@ const CHAT_MESSAGES_KEY = "codedock-chat-messages-v1";
 const CHAT_THREAD_REPLIES_KEY = "codedock-chat-thread-replies-v1";
 const CHAT_THREAD_REPLY_COUNTS_KEY = "codedock-chat-thread-reply-counts-v1";
 const CHAT_REACTIONS_KEY = "codedock-chat-reactions-v1";
-const WORKSPACE_TEAMS_KEY = "codedock-workspace-teams-v1";
 const LAST_CHANNEL_KEY = "codedock-last-channel-v1";
 const LAST_WORKSPACE_KEY = "codedock-last-workspace-v1";
+const LAST_PRESENCE_KEY = "codedock-last-presence-v1";
 const API_CHANNEL_ID_PREFIX = "api-channel-";
 const DEFAULT_WORKSPACE_API_ID = 1;
 const WORKSPACE_CHAT_STATE_KEY_PREFIX = "workspace";
-const ROLE_PRIVILEGE_ORDER = [
-  "Tech Lead", "Backend Developer", "Frontend Developer", "DevOps Engineer",
-  "QA Engineer", "Product Manager", "Designer", "Viewer"
-];
+// 워크스페이스 멤버 권한(BE authority) 정렬 순서 및 한글 라벨
+const AUTHORITY_ORDER = ['owner', 'admin', 'editor', 'viewer'];
+const AUTHORITY_LABELS: Record<string, string> = {
+  owner: '소유자',
+  admin: '관리자',
+  editor: '편집자',
+  viewer: '뷰어',
+};
+function formatMemberAuthority(authority: string | null | undefined): string {
+  const key = (authority ?? '').toLowerCase();
+  return AUTHORITY_LABELS[key] ?? (authority || '멤버');
+}
 const PRESENCE_ORDER = ['active', 'away', 'busy', 'offline'] as const;
 type PresenceKey = typeof PRESENCE_ORDER[number];
 const PRESENCE_META: Record<PresenceKey, { label: string; color: string }> = {
@@ -1352,7 +1360,16 @@ export function ChatPage() {
     };
   }, [profileMenuOpen]);
 
-  const [userPresence, setUserPresence] = useState<UserPresence>('active');
+  const [userPresence, setUserPresence] = useState<UserPresence>(() => {
+    // 새로고침 후에도 사용자가 고른 상태(자리비움/방해금지 등)를 유지
+    const saved = getSavedJson<string>(LAST_PRESENCE_KEY, 'active');
+    return (PRESENCE_ORDER as readonly string[]).includes(saved) ? (saved as UserPresence) : 'active';
+  });
+  const userPresenceRef = useRef(userPresence);
+  useEffect(() => {
+    userPresenceRef.current = userPresence;
+    saveJson(LAST_PRESENCE_KEY, userPresence);
+  }, [userPresence]);
   const [notificationMode, setNotificationMode] = useState<NotificationMode>('mentions');
 
   const [selectedWorkspace, setSelectedWorkspace] = useState<string>(() => {
@@ -2100,53 +2117,72 @@ export function ChatPage() {
   // Sorted team member list for the current workspace — used by the member list popup.
   // Order: presence group (active→away→busy→offline) → role privilege → Korean alphabetical.
   const sortedWorkspaceMembers = useMemo(() => {
-    try {
-      const stored = localStorage.getItem(WORKSPACE_TEAMS_KEY);
-      if (!stored) return [];
-      const all: Record<string, Array<{ id: string; name: string; role: string; online: boolean; initials: string; statusColor: string }>> = JSON.parse(stored);
-      const members = all[selectedWorkspace] ?? [];
-      const resolvePresence = (m: { id: string; online: boolean; statusColor: string }): PresenceKey => {
-        if (m.id === myProfile.id) return userPresence as PresenceKey;
-        if (!m.online) return 'offline';
-        if (m.statusColor === '#FFD166') return 'away';
-        if (m.statusColor === '#FF6B6B') return 'busy';
-        return 'active';
-      };
-      return [...members]
-        .map((m) => {
-          const presence = resolvePresence(m);
-          return { ...m, online: presence !== 'offline', presence };
-        })
-        .sort((a, b) => {
-          const pA = PRESENCE_ORDER.indexOf(a.presence as PresenceKey);
-          const pB = PRESENCE_ORDER.indexOf(b.presence as PresenceKey);
-          if (pA !== pB) return pA - pB;
-          const rA = ROLE_PRIVILEGE_ORDER.indexOf(a.role);
-          const rB = ROLE_PRIVILEGE_ORDER.indexOf(b.role);
-          const priA = rA === -1 ? ROLE_PRIVILEGE_ORDER.length : rA;
-          const priB = rB === -1 ? ROLE_PRIVILEGE_ORDER.length : rB;
-          if (priA !== priB) return priA - priB;
-          return a.name.localeCompare(b.name, 'ko');
-        });
-    } catch { return []; }
-  }, [selectedWorkspace, memberListOpen, userPresence]);
-
-  // Dynamically compute online count per workspace from localStorage team data.
-  // Current user (김재준, id "jaejun") counts as online when presence is not "offline".
-  const workspaceOnlineCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    try {
-      const stored = localStorage.getItem(WORKSPACE_TEAMS_KEY);
-      if (!stored) return counts;
-      const all: Record<string, Array<{ id: string; online: boolean }>> = JSON.parse(stored);
-      const selfOnline = userPresence !== 'offline';
-      for (const [wsId, members] of Object.entries(all)) {
-        const othersOnline = members.filter((m) => m.id !== myProfile.id && m.online).length;
-        counts[wsId] = othersOnline + (selfOnline ? 1 : 0);
+    const resolvePresence = (m: WorkspaceMember): PresenceKey => {
+      if (currentWorkspaceMemberId != null && Number(m.memberId) === Number(currentWorkspaceMemberId)) {
+        return userPresence as PresenceKey;
       }
-    } catch { /* ignore */ }
-    return counts;
-  }, [userPresence]);
+      const raw = presenceOverrides[String(m.memberId)] ?? m.presence ?? 'active';
+      return (PRESENCE_ORDER as readonly string[]).includes(raw) ? (raw as PresenceKey) : 'active';
+    };
+    return workspaceMembers
+      .map((m) => {
+        const presence = resolvePresence(m);
+        const authority = (m.role ?? '').toLowerCase();
+        return {
+          id: String(m.memberId),
+          name: m.username,
+          // 표시: 직무(position)가 있으면 우선, 없으면 권한 한글 라벨
+          role: m.position?.trim() || formatMemberAuthority(m.role),
+          authority,
+          initials: (m.username?.charAt(0) ?? '?').toUpperCase(),
+          online: presence !== 'offline',
+          presence,
+        };
+      })
+      .sort((a, b) => {
+        const pA = PRESENCE_ORDER.indexOf(a.presence);
+        const pB = PRESENCE_ORDER.indexOf(b.presence);
+        if (pA !== pB) return pA - pB;
+        // presence 다음은 권한(owner→admin→editor→viewer) 순, 그다음 이름
+        const rA = AUTHORITY_ORDER.indexOf(a.authority);
+        const rB = AUTHORITY_ORDER.indexOf(b.authority);
+        const priA = rA === -1 ? AUTHORITY_ORDER.length : rA;
+        const priB = rB === -1 ? AUTHORITY_ORDER.length : rB;
+        if (priA !== priB) return priA - priB;
+        return a.name.localeCompare(b.name, 'ko');
+      });
+  }, [workspaceMembers, presenceOverrides, currentWorkspaceMemberId, userPresence]);
+
+  // 현재 워크스페이스의 접속 인원을 실제 멤버 + 실시간 presence로 계산.
+  // offline만 제외(활동중/자리비움/방해금지는 접속 중). 본인은 userPresence, 타인은 실시간 override > 멤버 초기 presence.
+  // 다른 워크스페이스는 실시간 presence가 없으므로 표시 측에서 membersOnline(총원)으로 폴백함.
+  const workspaceOnlineCounts = useMemo(() => {
+    if (!selectedWorkspace || workspaceMembers.length === 0) return {};
+    const onlineCount = workspaceMembers.reduce((acc, member) => {
+      const presence =
+        currentWorkspaceMemberId != null && Number(member.memberId) === Number(currentWorkspaceMemberId)
+          ? userPresence
+          : (presenceOverrides[String(member.memberId)] ?? member.presence ?? 'active');
+      return acc + (presence !== 'offline' ? 1 : 0);
+    }, 0);
+    return { [selectedWorkspace]: onlineCount };
+  }, [selectedWorkspace, workspaceMembers, presenceOverrides, currentWorkspaceMemberId, userPresence]);
+
+  // 워크스페이스 진입/전환 시 현재 presence를 자동 송신 → 다른 멤버 화면에 접속 중으로 즉시 표시
+  useEffect(() => {
+    if (!currentWorkspaceApiId) return;
+    updatePresence(currentWorkspaceApiId, userPresenceRef.current).catch(() => {});
+  }, [currentWorkspaceApiId]);
+
+  // 페이지 이탈 시 offline 송신 (best-effort). 탭 강제 종료 등 비정상 종료는 BE WS disconnect 감지가 필요(별건).
+  useEffect(() => {
+    if (!currentWorkspaceApiId) return;
+    const handleLeave = () => {
+      updatePresence(currentWorkspaceApiId, 'offline').catch(() => {});
+    };
+    window.addEventListener('beforeunload', handleLeave);
+    return () => window.removeEventListener('beforeunload', handleLeave);
+  }, [currentWorkspaceApiId]);
 
   const persistableLocalMessages = useMemo(
     () => getLocalPersistableMessages(messages, apiChannelIdByUiChannel, currentWorkspaceApiId),
