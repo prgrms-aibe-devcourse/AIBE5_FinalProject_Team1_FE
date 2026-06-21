@@ -7,6 +7,7 @@ import { MessageReactions, toggleMessageReaction, type MessageReaction } from ".
 import { MessageAttachmentCard } from "./MessageAttachmentCard";
 import { TypingIndicatorBar } from "./TypingIndicatorBar";
 import { appendMention, extractMentionNames, readBookmarkMap, saveBookmarkMap, toggleBookmark, type MessageMetadata } from "./chatInteractionUtils";
+import { CodeBlockComposer, MessageTextWithCodeBlocks, createFencedCodeBlock, getCodeLanguageLabel, type CodeBlockLanguage } from "./CodeBlockTools";
 
 export interface IssueLabel {
   name: string;
@@ -23,64 +24,13 @@ export interface IssueHistoryEvent {
 
 const colorAlpha = (color: string, percent: number) => `color-mix(in srgb, ${color} ${percent}%, transparent)`;
 
-function renderMessageTextWithCodeBlocks(text: string, color: string) {
-  const blocks: Array<{ type: "text" | "code"; content: string }> = [];
-  const codeFencePattern = /```(?:[a-zA-Z0-9_-]+)?\n?([\s\S]*?)```/g;
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-
-  while ((match = codeFencePattern.exec(text)) !== null) {
-    if (match.index > lastIndex) {
-      blocks.push({ type: "text", content: text.slice(lastIndex, match.index) });
-    }
-    blocks.push({ type: "code", content: match[1].trimEnd() });
-    lastIndex = match.index + match[0].length;
-  }
-
-  if (lastIndex < text.length) {
-    blocks.push({ type: "text", content: text.slice(lastIndex) });
-  }
-
-  if (blocks.length === 0) blocks.push({ type: "text", content: text });
-
-  return blocks.map((block, index) => block.type === "code" ? (
-    <pre
-      key={`code-${index}`}
-      className="m-0 mb-3 overflow-x-auto rounded-xl px-3 py-2 tracking-tight"
-      style={{
-        background: "rgba(5, 11, 20, 0.86)",
-        border: "1px solid rgba(var(--codedock-primary-rgb), 0.18)",
-        color: "var(--soft-mint)",
-        fontSize: "13px",
-        fontWeight: 750,
-        lineHeight: 1.55,
-        whiteSpace: "pre-wrap"
-      }}
-    >
-      <code>{block.content}</code>
-    </pre>
-  ) : (
-    <p
-      key={`text-${index}`}
-      className="m-0 mb-3 leading-[1.5] tracking-tight"
-      style={{
-        fontSize: "14px",
-        fontWeight: 700,
-        color,
-        whiteSpace: "pre-wrap"
-      }}
-    >
-      {block.content}
-    </p>
-  ));
-}
-
 interface Message {
   id: number;
   backendMessageId?: number;
   backendChannelId?: number;
   senderMemberId?: number;
   user: string;
+  avatarUrl?: string;
   text: string;
   time: string;
   type?: 'text' | 'code' | 'system' | 'pr' | 'issue';
@@ -140,6 +90,7 @@ interface ChatPanelProps {
   isRepository?: boolean;
   myMemberId?: number | null;
   myDisplayName?: string;
+  myAvatarUrl?: string;
   onTypingChange?: (typing: boolean) => void;
   remoteTypingLabel?: string;
 }
@@ -187,12 +138,14 @@ function getUserInitial(user?: string) {
   return trimmed ? trimmed.charAt(0).toUpperCase() : "?";
 }
 
-export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messages, reactions, replyCounts = {}, onSendMessage, onAddMessageAttachments, onDeleteMessageAttachment, onSharePR, showAISummary = true, onMergePR, onReviewPR, onViewIssue, onOpenThread, selectedThreadId, onToggleReaction, isRepository = false, myMemberId, myDisplayName, onTypingChange, remoteTypingLabel }: ChatPanelProps) {
+export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messages, reactions, replyCounts = {}, onSendMessage, onAddMessageAttachments, onDeleteMessageAttachment, onSharePR, showAISummary = true, onMergePR, onReviewPR, onViewIssue, onOpenThread, selectedThreadId, onToggleReaction, isRepository = false, myMemberId, myDisplayName, myAvatarUrl, onTypingChange, remoteTypingLabel }: ChatPanelProps) {
   const bookmarkStorageKey = `codedock-chat-bookmarks:${bookmarkScopeId ?? channelId}`;
   const displayCurrentUserName = myDisplayName?.trim() || currentUserDisplayName;
   const displayCurrentUserAvatar = displayCurrentUserName.charAt(0) || currentUserAvatar;
+  const displayCurrentUserAvatarUrl = myAvatarUrl?.trim() || "";
   const [message, setMessage] = useState('');
   const [codeBlockText, setCodeBlockText] = useState('');
+  const [codeBlockLanguage, setCodeBlockLanguage] = useState<CodeBlockLanguage>("javascript");
   type ActivePanel = 'code' | 'attachment' | 'emoji' | 'link' | null;
   const [activePanel, setActivePanel] = useState<ActivePanel>(null);
   const togglePanel = (panel: Exclude<ActivePanel, null>) =>
@@ -276,7 +229,7 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
       ? [...selectedAttachments, detectedLinkAttachment]
       : selectedAttachments;
     const outgoingMessage = trimmedCodeBlock
-      ? `${trimmedMessage}${trimmedMessage ? "\n\n" : ""}\`\`\`\n${trimmedCodeBlock}\n\`\`\``
+      ? `${trimmedMessage}${trimmedMessage ? "\n\n" : ""}${createFencedCodeBlock(trimmedCodeBlock, codeBlockLanguage)}`
       : trimmedMessage;
 
     if (outgoingAttachments.length > MAX_MESSAGE_ATTACHMENTS) {
@@ -730,6 +683,9 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
             const isOwnMessage = isMessageMine(msg);
             const isStructuredMessage = msg.type === 'pr' || msg.type === 'issue';
             const showSlackAvatar = !isStructuredMessage;
+            const messageAvatarUrl = isOwnMessage
+              ? displayCurrentUserAvatarUrl
+              : msg.avatarUrl?.trim() || "";
 
             return (
             <div
@@ -747,14 +703,18 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
             >
               <div className="flex items-center gap-2">
                 {showSlackAvatar && (
-                  <span className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-full tracking-tight" style={{
+                  <span className="grid h-7 w-7 flex-shrink-0 place-items-center overflow-hidden rounded-full tracking-tight" style={{
                     background: isOwnMessage ? 'rgba(var(--codedock-primary-rgb), 0.16)' : msg.type === 'system' ? 'rgba(var(--codedock-primary-rgb), 0.18)' : 'rgba(var(--codedock-secondary-rgb), 0.14)',
                     border: isOwnMessage ? '1px solid rgba(var(--codedock-primary-rgb), 0.30)' : msg.type === 'system' ? '1px solid rgba(var(--codedock-primary-rgb), 0.32)' : '1px solid rgba(var(--codedock-secondary-rgb), 0.28)',
                     color: isOwnMessage ? 'var(--neon-cyan)' : msg.type === 'system' ? 'var(--neon-cyan)' : 'var(--matrix-green)',
-                    fontSize: "var(--krds-body-xsmall)",
+                    fontSize: messageAvatarUrl ? 0 : "var(--krds-body-xsmall)",
                     fontWeight: 950
                   }}>
-                    {isOwnMessage ? displayCurrentUserAvatar : msg.type === 'system' ? 'AI' : getUserInitial(msg.user)}
+                    {messageAvatarUrl ? (
+                      <img src={messageAvatarUrl} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      isOwnMessage ? displayCurrentUserAvatar : msg.type === 'system' ? 'AI' : getUserInitial(msg.user)
+                    )}
                   </span>
                 )}
                 <span className="tracking-tight" style={{
@@ -1215,7 +1175,7 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
                     boxShadow: 'none'
                   }}>
                     <div>
-                      {renderMessageTextWithCodeBlocks(msg.text, msg.type === 'system' ? 'var(--neon-cyan)' : 'var(--white)')}
+                      <MessageTextWithCodeBlocks text={msg.text} color={msg.type === 'system' ? 'var(--neon-cyan)' : 'var(--white)'} />
                     </div>
                     {msg.mentions && msg.mentions.length > 0 && (
                       <div className="flex gap-2 mt-2">
@@ -1326,7 +1286,7 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
                 title="코드 블록 보기"
               >
                 <Code size={12} />
-                <span>코드 블록</span>
+                <span>코드 블록 · {getCodeLanguageLabel(codeBlockLanguage)}</span>
                 <span
                   role="button"
                   aria-label="코드 블록 제거"
@@ -1365,32 +1325,12 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
         )}
 
         {activePanel === 'code' && (
-          <div className="mb-3 px-4 py-3 rounded-xl" style={{
-            background: 'rgba(var(--codedock-primary-rgb), 0.08)',
-            border: '1px solid rgba(var(--codedock-primary-rgb), 0.22)'
-          }}>
-            <p className="m-0 mb-2 tracking-tight" style={{
-              fontSize: "var(--krds-body-xsmall)",
-              fontWeight: 900,
-              color: 'var(--neon-cyan)'
-            }}>
-              코드 블록 모드
-            </p>
-            <textarea
-              placeholder="코드를 입력하세요..."
-              value={codeBlockText}
-              onChange={(event) => setCodeBlockText(event.target.value)}
-              className="w-full px-3 py-2 rounded-lg border-0 font-mono tracking-tight resize-none"
-              rows={4}
-              style={{
-                background: 'rgba(5, 11, 20, 0.6)',
-                border: '1px solid rgba(var(--codedock-primary-rgb), 0.14)',
-                color: 'var(--white)',
-                fontSize: '13px',
-                fontWeight: 700
-              }}
-            />
-          </div>
+          <CodeBlockComposer
+            value={codeBlockText}
+            language={codeBlockLanguage}
+            onChange={setCodeBlockText}
+            onLanguageChange={setCodeBlockLanguage}
+          />
         )}
 
         {activePanel === 'attachment' && (

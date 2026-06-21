@@ -7,6 +7,7 @@ import { MessageReactions, toggleMessageReaction, type MessageReaction } from ".
 import { MessageAttachmentCard } from "./MessageAttachmentCard";
 import { TypingIndicatorBar } from "./TypingIndicatorBar";
 import { appendMention, extractMentionNames, readBookmarkMap, saveBookmarkMap, toggleBookmark, type MessageMetadata } from "./chatInteractionUtils";
+import { CodeBlockComposer, MessageTextWithCodeBlocks, createFencedCodeBlock, type CodeBlockLanguage } from "./CodeBlockTools";
 
 interface Thread {
   id: number;
@@ -15,6 +16,7 @@ interface Thread {
   senderMemberId?: number;
   user: string;
   avatar: string;
+  avatarUrl?: string;
   message: string;
   time: string;
   replies: number;
@@ -55,62 +57,10 @@ interface ChannelPanelProps {
   onDeleteMessageAttachment?: (thread: Thread, attachment: MessageAttachment) => Promise<void> | void;
   myMemberId?: number | null;
   myDisplayName?: string;
+  myAvatarUrl?: string;
 }
 
 const CHANNEL_THREADS_KEY_PREFIX = "codedock-channel-threads-v1";
-
-function renderMessageTextWithCodeBlocks(text: string, color: string) {
-  const blocks: Array<{ type: "text" | "code"; content: string }> = [];
-  const codeFencePattern = /```(?:[a-zA-Z0-9_-]+)?\n?([\s\S]*?)```/g;
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-
-  while ((match = codeFencePattern.exec(text)) !== null) {
-    if (match.index > lastIndex) {
-      blocks.push({ type: "text", content: text.slice(lastIndex, match.index) });
-    }
-    blocks.push({ type: "code", content: match[1].trimEnd() });
-    lastIndex = match.index + match[0].length;
-  }
-
-  if (lastIndex < text.length) {
-    blocks.push({ type: "text", content: text.slice(lastIndex) });
-  }
-
-  if (blocks.length === 0) blocks.push({ type: "text", content: text });
-
-  return blocks.map((block, index) => block.type === "code" ? (
-    <pre
-      key={`code-${index}`}
-      className="m-0 mb-3 overflow-x-auto rounded-xl px-3 py-2 tracking-tight"
-      style={{
-        background: "rgba(5, 11, 20, 0.86)",
-        border: "1px solid rgba(var(--codedock-primary-rgb), 0.18)",
-        color: "var(--soft-mint)",
-        fontSize: "13px",
-        fontWeight: 750,
-        lineHeight: 1.55,
-        whiteSpace: "pre-wrap"
-      }}
-    >
-      <code>{block.content}</code>
-    </pre>
-  ) : (
-    <p
-      key={`text-${index}`}
-      className="m-0 mb-3 tracking-tight"
-      style={{
-        fontSize: "14px",
-        fontWeight: 700,
-        color,
-        lineHeight: "1.5",
-        whiteSpace: "pre-wrap"
-      }}
-    >
-      {block.content}
-    </p>
-  ));
-}
 
 const GENERAL_THREADS: Thread[] = [
   { id: 1, user: '김재준', avatar: '👨‍💼', message: '이번 주 스프린트 계획 공유드립니다', time: '10:23 AM', replies: 3, lastReply: '안현' },
@@ -198,7 +148,7 @@ function getThreadBody(thread: Thread) {
   return thread.message ?? (thread as any).text ?? "";
 }
 
-export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, threads, reactions, replyCounts = {}, onOpenThread, selectedThreadId, focusedThreadId, onOpenInvite, onSendThread, onTypingChange, remoteTypingLabel, onToggleReaction, bookmarkedThreadIds, onToggleBookmark, onEditThread, onDeleteThread, onAddMessageAttachments, onDeleteMessageAttachment, myMemberId, myDisplayName }: ChannelPanelProps) {
+export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, threads, reactions, replyCounts = {}, onOpenThread, selectedThreadId, focusedThreadId, onOpenInvite, onSendThread, onTypingChange, remoteTypingLabel, onToggleReaction, bookmarkedThreadIds, onToggleBookmark, onEditThread, onDeleteThread, onAddMessageAttachments, onDeleteMessageAttachment, myMemberId, myDisplayName, myAvatarUrl }: ChannelPanelProps) {
   const channelStorageId = storageScopeId ?? channelId ?? repoId ?? "general";
   const reactionChannelId = channelId ?? repoId ?? "general";
   const channelStorageKey = `${CHANNEL_THREADS_KEY_PREFIX}:${channelStorageId}`;
@@ -209,11 +159,13 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
   const displayedThreads = threads ?? localThreads;
   const displayCurrentUserName = myDisplayName?.trim() || currentUserDisplayName;
   const displayCurrentUserAvatar = displayCurrentUserName.charAt(0) || currentUserAvatar;
+  const displayCurrentUserAvatarUrl = myAvatarUrl?.trim() || "";
 
   const channelLabel = repoName ?? '일반';
   const [hoveredMessageId, setHoveredMessageId] = useState<number | null>(null);
   const [messageText, setMessageText] = useState("");
   const [codeBlockText, setCodeBlockText] = useState("");
+  const [codeBlockLanguage, setCodeBlockLanguage] = useState<CodeBlockLanguage>("javascript");
   type ActivePanel = 'code' | 'attachment' | 'emoji' | 'link' | null;
   const [activePanel, setActivePanel] = useState<ActivePanel>(null);
   const togglePanel = (panel: Exclude<ActivePanel, null>) =>
@@ -655,7 +607,7 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
     const trimmedCode = codeBlockText.trim();
     if (!canSendMessage) return;
     const outgoingMessage = trimmedCode
-      ? `${trimmedMessage}${trimmedMessage ? "\n\n" : ""}\`\`\`\n${trimmedCode}\n\`\`\``
+      ? `${trimmedMessage}${trimmedMessage ? "\n\n" : ""}${createFencedCodeBlock(trimmedCode, codeBlockLanguage)}`
       : trimmedMessage;
     const detectedLinkAttachment = createLinkMessageAttachmentFromText(outgoingMessage);
     const outgoingAttachments = !attachmentTarget && detectedLinkAttachment && !selectedAttachments.some((a) => a.url === detectedLinkAttachment.url)
@@ -699,6 +651,7 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
       id: Date.now(),
       user: displayCurrentUserName,
       avatar: displayCurrentUserAvatar,
+      avatarUrl: displayCurrentUserAvatarUrl || undefined,
       message: outgoingMessage || `${outgoingAttachments.length}개 항목을 공유합니다.`,
       time: '방금',
       replies: 0,
@@ -795,6 +748,9 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
             const isOwnThread = isThreadMine(thread);
             const isEditingThread = editingThreadId === thread.id;
             const threadAvatar = getThreadAvatar(thread);
+            const threadAvatarUrl = isOwnThread
+              ? displayCurrentUserAvatarUrl
+              : thread.avatarUrl?.trim() || "";
             const threadBody = getThreadBody(thread);
             const isSelectedThread = selectedThreadId === thread.id;
             const isFocusedThread =
@@ -832,14 +788,20 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
             >
               <div className="w-full px-5 py-4">
                 <div className="flex items-start gap-3">
-                  <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-full" style={{
+                  <span className="grid h-10 w-10 flex-shrink-0 place-items-center overflow-hidden rounded-full" style={{
                     background: isOwnThread ? 'rgba(var(--codedock-primary-rgb), 0.16)' : 'rgba(var(--codedock-primary-rgb), 0.12)',
                     border: isOwnThread ? '1px solid rgba(var(--codedock-primary-rgb), 0.30)' : '1px solid rgba(var(--codedock-primary-rgb), 0.22)',
                     color: 'var(--neon-cyan)',
-                    fontSize: threadAvatar.length > 2 ? '18px' : '13px',
+                    fontSize: threadAvatarUrl ? 0 : threadAvatar.length > 2 ? '18px' : '13px',
                     fontWeight: 950,
                     lineHeight: 1
-                  }}>{isOwnThread ? displayCurrentUserAvatar : threadAvatar}</span>
+                  }}>
+                    {threadAvatarUrl ? (
+                      <img src={threadAvatarUrl} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      isOwnThread ? displayCurrentUserAvatar : threadAvatar
+                    )}
+                  </span>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="tracking-tight" style={{
@@ -920,7 +882,7 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
                       </div>
                     ) : (
                       <div>
-                        {renderMessageTextWithCodeBlocks(threadBody, thread.deleted ? 'var(--muted)' : 'var(--white)')}
+                        <MessageTextWithCodeBlocks text={threadBody} color={thread.deleted ? 'var(--muted)' : 'var(--white)'} />
                       </div>
                     )}
                     {thread.mentions && thread.mentions.length > 0 && (
@@ -1051,22 +1013,12 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
         )}
 
         {activePanel === 'code' && (
-          <div className="mb-3 px-4 py-3 rounded-xl" style={{
-            background: 'rgba(32, 227, 255, 0.08)',
-            border: '1px solid rgba(32, 227, 255, 0.22)'
-          }}>
-            <p className="m-0 mb-2 tracking-tight" style={{ fontSize: '12px', fontWeight: 900, color: 'var(--neon-cyan)' }}>
-              코드 블록 모드
-            </p>
-            <textarea
-              placeholder="코드를 입력하세요..."
-              value={codeBlockText}
-              onChange={(e) => setCodeBlockText(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border-0 font-mono tracking-tight resize-none"
-              rows={4}
-              style={{ background: 'rgba(5, 11, 20, 0.6)', border: '1px solid rgba(32, 227, 255, 0.14)', color: 'var(--white)', fontSize: '13px', fontWeight: 700 }}
-            />
-          </div>
+          <CodeBlockComposer
+            value={codeBlockText}
+            language={codeBlockLanguage}
+            onChange={setCodeBlockText}
+            onLanguageChange={setCodeBlockLanguage}
+          />
         )}
 
         {activePanel === 'attachment' && (
