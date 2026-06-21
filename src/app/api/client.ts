@@ -7,6 +7,7 @@ export type ApiRequestOptions = {
   headers?: HeadersInit;
   query?: Record<string, boolean | number | string | null | undefined>;
   signal?: AbortSignal;
+  skipAuthHeader?: boolean;
   skipAuthRefresh?: boolean;
 };
 
@@ -95,10 +96,12 @@ export function createApiClient(options: ApiClientOptions = {}) {
       requestOptions: ApiRequestOptions = {},
       isRetry = false
   ): Promise<T> {
+    const authRefreshExcluded = isAuthRefreshExcludedPath(path);
+    const shouldAttachAuthHeader = !requestOptions.skipAuthHeader && !authRefreshExcluded;
     const headers = mergeHeaders(
         { Accept: "application/json" },
         body !== undefined ? { "Content-Type": "application/json" } : undefined,
-        authHeader(),
+        shouldAttachAuthHeader ? authHeader() : undefined,
         options.defaultHeaders,
         requestOptions.headers
     );
@@ -112,7 +115,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
 
     const canRefreshAuth =
       !requestOptions.skipAuthRefresh &&
-      !isAuthRefreshExcludedPath(path) &&
+      !authRefreshExcluded &&
       !!getAccessToken();
     if (response.status === 401 && !isRetry && canRefreshAuth) {
       const refreshed = await refreshAccessToken();

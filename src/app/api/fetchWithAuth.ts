@@ -3,6 +3,7 @@ import { authHeader, getAccessToken, refreshAccessToken, redirectToLogin } from 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
 type FetchWithAuthInit = RequestInit & {
+  skipAuthHeader?: boolean;
   skipAuthRefresh?: boolean;
 };
 
@@ -20,14 +21,14 @@ export async function fetchWithAuth<T>(
   path: string,
   init?: FetchWithAuthInit
 ): Promise<T> {
-  const { skipAuthRefresh = false, ...requestInit } = init ?? {};
+  const { skipAuthHeader = false, skipAuthRefresh = false, ...requestInit } = init ?? {};
   const doFetch = () =>
     fetch(buildApiUrl(path), {
       ...requestInit,
       headers: {
         Accept: "application/json",
         ...requestInit.headers,
-        ...authHeader(), // 최신 토큰을 덮어씀
+        ...(skipAuthHeader ? {} : authHeader()),
       },
     });
 
