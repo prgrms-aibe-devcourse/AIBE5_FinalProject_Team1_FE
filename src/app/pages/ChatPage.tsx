@@ -179,18 +179,6 @@ type CustomChannelItem = {
   apiChannelId?: number;
 };
 
-const DEFAULT_REPOSITORIES: RepositoryItem[] = [
-  { id: 'secureflow', name: 'BE', openPRs: 7, highRisk: 2, activeIssues: 12, connected: true, membersOnline: 8, workspaceId: 'workspace-1' },
-  { id: 'aichat', name: 'FE', openPRs: 3, highRisk: 0, activeIssues: 8, connected: true, membersOnline: 5, workspaceId: 'workspace-1' },
-  { id: 'dashboard', name: 'Design', openPRs: 5, highRisk: 1, activeIssues: 6, connected: true, membersOnline: 3, workspaceId: 'workspace-1' },
-  { id: 'secureflow-2', name: 'BE', openPRs: 7, highRisk: 2, activeIssues: 12, connected: true, membersOnline: 8, workspaceId: 'workspace-2' },
-  { id: 'aichat-2', name: 'FE', openPRs: 3, highRisk: 0, activeIssues: 8, connected: true, membersOnline: 5, workspaceId: 'workspace-2' },
-  { id: 'dashboard-2', name: 'Design', openPRs: 5, highRisk: 1, activeIssues: 6, connected: true, membersOnline: 3, workspaceId: 'workspace-2' },
-  { id: 'secureflow-3', name: 'BE', openPRs: 7, highRisk: 2, activeIssues: 12, connected: true, membersOnline: 8, workspaceId: 'workspace-3' },
-  { id: 'aichat-3', name: 'FE', openPRs: 3, highRisk: 0, activeIssues: 8, connected: true, membersOnline: 5, workspaceId: 'workspace-3' },
-  { id: 'dashboard-3', name: 'Design', openPRs: 5, highRisk: 1, activeIssues: 6, connected: true, membersOnline: 3, workspaceId: 'workspace-3' },
-];
-
 const REPO_CHANNEL_IDS: Record<string, string> = {
   'secureflow': 'frontend-chat',
   'aichat': 'backend-chat',
@@ -1236,10 +1224,10 @@ export function ChatPage() {
 
   const [repositoriesImported, setRepositoriesImported] = useState(true);
   const [repositories, setRepositories] = useState<RepositoryItem[]>(() =>
-    getSavedRepositories() ?? DEFAULT_REPOSITORIES
+    getSavedRepositories() ?? []
   );
   const [selectedRepository, setSelectedRepository] = useState<string>(() =>
-    getSavedRepositories()?.[0]?.id ?? DEFAULT_REPOSITORIES[0].id
+    getSavedRepositories()?.[0]?.id ?? ""
   );
   const [showRepoDropdown, setShowRepoDropdown] = useState(false);
   const repoDropdownRef = useRef<HTMLDivElement>(null);
