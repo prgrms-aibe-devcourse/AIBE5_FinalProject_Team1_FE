@@ -5,7 +5,7 @@ import { ArrowRight, AtSign, Check, ChevronDown, CircleDot, CornerDownRight, Git
 import { WorkspaceSettingsModal } from "../components/WorkspaceSettingsModal";
 import { DndProvider, useDrag, useDrop, useDragLayer } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
-import { fetchMyGithubRepos, fetchRepoCollaborators, connectWorkspaceRepository, type GithubCollaborator, type GithubRepo } from "../api/github";
+import { fetchMyGithubRepos, fetchRepoCollaborators, fetchWorkspaceRepositories, connectWorkspaceRepository, type GithubCollaborator, type GithubRepo } from "../api/github";
 import { fetchMyWorkspaces, createWorkspace, deleteWorkspace, listReceivedInvites, acceptInvite, rejectInvite, createInvite, type WorkspaceDto, type ReceivedInviteDto } from "../api/workspace";
 import { fetchMyEvents, type WorkspaceEventDto, type EventType } from "../api/events";
 import { useWorkspace } from "../contexts/WorkspaceContext";
@@ -1406,10 +1406,40 @@ export function WorkspacePage() {
   };
 
   const [events, setEvents] = useState<WorkspaceEventDto[]>([]);
+  const [eventRepositoryNamesByChannelId, setEventRepositoryNamesByChannelId] = useState<Record<number, string>>({});
 
   useEffect(() => {
     fetchMyEvents().then((data) => setEvents(data ?? [])).catch(() => setEvents([]));
   }, []);
+
+  useEffect(() => {
+    const workspaceIds = Array.from(new Set(events.map((event) => event.workspaceId)));
+    if (workspaceIds.length === 0) {
+      setEventRepositoryNamesByChannelId({});
+      return;
+    }
+
+    let cancelled = false;
+    Promise.allSettled(workspaceIds.map((workspaceId) => fetchWorkspaceRepositories(workspaceId)))
+      .then((results) => {
+        if (cancelled) return;
+
+        const nextNamesByChannelId: Record<number, string> = {};
+        results.forEach((result) => {
+          if (result.status !== "fulfilled") return;
+          result.value.forEach((repository) => {
+            if (repository.channelId) {
+              nextNamesByChannelId[repository.channelId] = repository.name;
+            }
+          });
+        });
+        setEventRepositoryNamesByChannelId(nextNamesByChannelId);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [events]);
 
   const getEventMeta = (type: EventType) => {
     switch (type) {
@@ -1582,6 +1612,16 @@ export function WorkspacePage() {
             ) : events.map((event) => {
               const { label, icon: Icon, color } = getEventMeta(event.type);
               const workspaceName = orgs.find((o) => o.id === event.workspaceId)?.name ?? "";
+              const repositoryName = event.repositoryName ?? (
+                event.channelId ? eventRepositoryNamesByChannelId[event.channelId] : undefined
+              );
+              const eventContextLabels = [
+                workspaceName,
+                repositoryName ? `repo: ${repositoryName}` : "",
+                event.channelId ? `channel #${event.channelId}` : "",
+                event.threadId ? `thread #${event.threadId}` : ""
+              ].filter(Boolean);
+
               return (
                 <div
                   key={event.id}
@@ -1600,11 +1640,21 @@ export function WorkspacePage() {
                           {"  "}
                           <span style={{ color, fontSize: "13px", fontWeight: 800 }}>{label}</span>
                         </span>
-                        {workspaceName && (
-                          <span className="tracking-tight" style={{ fontSize: "12px", fontWeight: 700, color: "var(--muted)" }}>
-                            {workspaceName}
+                        {eventContextLabels.map((contextLabel) => (
+                          <span
+                            key={contextLabel}
+                            className="rounded-full px-2 py-0.5 tracking-tight"
+                            style={{
+                              background: "rgba(var(--codedock-primary-rgb), 0.08)",
+                              border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)",
+                              fontSize: "11px",
+                              fontWeight: 800,
+                              color: "var(--muted)"
+                            }}
+                          >
+                            {contextLabel}
                           </span>
-                        )}
+                        ))}
                       </div>
                       <p className="m-0 tracking-tight truncate" style={{ fontSize: "13px", fontWeight: 700, color: "rgba(255,255,255,0.55)" }}>
                         {event.content}
