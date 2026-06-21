@@ -10,6 +10,7 @@ import {
   aiGenerateDocument,
   type DocumentResponse,
   type DocumentCategory,
+  type AiGenerateRequest,
 } from "../api/document";
 
 interface DocsPageProps {
@@ -74,6 +75,9 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
   const [editCategory, setEditCategory] = useState<DocumentCategory | null>(null);
   const [isAiTypeModalOpen, setIsAiTypeModalOpen] = useState(false);
   const [aiSelectedType, setAiSelectedType] = useState<DocumentCategory | null>(null);
+  const [aiTopic, setAiTopic] = useState("");
+  const [aiStartDate, setAiStartDate] = useState("");
+  const [aiEndDate, setAiEndDate] = useState("");
 
   const loadDocs = useCallback(async () => {
     if (workspaceId === null) return;
@@ -158,13 +162,23 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
     }
   };
 
-  const handleGenerateAiDocument = async (category: DocumentCategory) => {
-    if (workspaceId === null) return;
+  const handleGenerateAiDocument = async () => {
+    if (!aiSelectedType || workspaceId === null) return;
     setIsAiTypeModalOpen(false);
     setAiSelectedType(null);
+    setAiTopic("");
+    setAiStartDate("");
+    setAiEndDate("");
     setIsAiGenerating(true);
     try {
-      const created = await aiGenerateDocument(workspaceId, category);
+      const request: AiGenerateRequest = { category: aiSelectedType };
+      if (aiSelectedType !== 'release') {
+        request.topic = aiTopic.trim();
+      } else {
+        request.startDate = aiStartDate;
+        request.endDate = aiEndDate;
+      }
+      const created = await aiGenerateDocument(workspaceId, request);
       const newDoc = mapDocumentResponse(created);
       setDocs((prev) => [newDoc, ...prev]);
       setSelectedDoc(created.id);
@@ -989,7 +1003,7 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
                   <button
                     key={cat.id}
                     type="button"
-                    onClick={() => setAiSelectedType(cat.id)}
+                    onClick={() => { setAiSelectedType(cat.id); setAiTopic(""); setAiStartDate(""); setAiEndDate(""); }}
                     className="flex items-center gap-3 rounded-2xl border-0 px-4 py-3 text-left transition-all"
                     style={{
                       background: isSelected ? `color-mix(in srgb, ${cat.color} 12%, rgba(5,11,20,0.8))` : 'rgba(5,11,20,0.6)',
@@ -1005,6 +1019,68 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
                 );
               })}
             </div>
+            {aiSelectedType && aiSelectedType !== 'release' && (
+              <label className="grid gap-2">
+                <span className="tracking-tight" style={{ color: 'var(--muted)', fontSize: 'var(--krds-body-xsmall)', fontWeight: 950 }}>
+                  {language === 'en' ? 'Topic' : '주제'}
+                </span>
+                <input
+                  value={aiTopic}
+                  onChange={(e) => setAiTopic(e.target.value)}
+                  placeholder={language === 'en' ? 'e.g. user authentication' : '예) 사용자 인증 기능'}
+                  className="rounded-2xl border-0 px-4 py-3 outline-none tracking-tight"
+                  style={{
+                    background: 'rgba(5, 11, 20, 0.62)',
+                    border: '1px solid rgba(var(--codedock-primary-rgb), 0.18)',
+                    color: 'var(--white)',
+                    fontSize: '14px',
+                    fontWeight: 850,
+                  }}
+                />
+              </label>
+            )}
+            {aiSelectedType === 'release' && (
+              <div className="grid gap-3">
+                <label className="grid gap-2">
+                  <span className="tracking-tight" style={{ color: 'var(--muted)', fontSize: 'var(--krds-body-xsmall)', fontWeight: 950 }}>
+                    {language === 'en' ? 'Start Date' : '시작일'}
+                  </span>
+                  <input
+                    type="date"
+                    value={aiStartDate}
+                    onChange={(e) => setAiStartDate(e.target.value)}
+                    className="rounded-2xl border-0 px-4 py-3 outline-none tracking-tight"
+                    style={{
+                      background: 'rgba(5, 11, 20, 0.62)',
+                      border: '1px solid rgba(var(--codedock-primary-rgb), 0.18)',
+                      color: 'var(--white)',
+                      fontSize: '14px',
+                      fontWeight: 850,
+                      colorScheme: 'dark',
+                    }}
+                  />
+                </label>
+                <label className="grid gap-2">
+                  <span className="tracking-tight" style={{ color: 'var(--muted)', fontSize: 'var(--krds-body-xsmall)', fontWeight: 950 }}>
+                    {language === 'en' ? 'End Date' : '종료일'}
+                  </span>
+                  <input
+                    type="date"
+                    value={aiEndDate}
+                    onChange={(e) => setAiEndDate(e.target.value)}
+                    className="rounded-2xl border-0 px-4 py-3 outline-none tracking-tight"
+                    style={{
+                      background: 'rgba(5, 11, 20, 0.62)',
+                      border: '1px solid rgba(var(--codedock-primary-rgb), 0.18)',
+                      color: 'var(--white)',
+                      fontSize: '14px',
+                      fontWeight: 850,
+                      colorScheme: 'dark',
+                    }}
+                  />
+                </label>
+              </div>
+            )}
             <div className="flex justify-end gap-2">
               <button
                 type="button"
@@ -1016,7 +1092,7 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
               </button>
               <button
                 type="button"
-                onClick={() => { if (aiSelectedType) void handleGenerateAiDocument(aiSelectedType); }}
+                onClick={() => void handleGenerateAiDocument()}
                 disabled={!aiSelectedType}
                 className="inline-flex items-center gap-1.5 rounded-xl border-0 px-4 py-2 tracking-tight"
                 style={{
