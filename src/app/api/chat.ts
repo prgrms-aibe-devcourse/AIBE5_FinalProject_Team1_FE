@@ -216,6 +216,9 @@ export const chatWebSocketDestinations = {
   },
   subscribePersonalNotifications() {
     return "/user/queue/notifications";
+  },
+  subscribePersonalErrors() {
+    return "/user/queue/errors";
   }
 };
 
