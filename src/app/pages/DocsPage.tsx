@@ -1,4 +1,5 @@
 import { FileText, Sparkles, BookOpen, HelpCircle, Package, Plus, Pencil, Trash2, Check, X } from "lucide-react";
+import { ApiClientError } from "../api/client";
 import { useCallback, useEffect, useState } from "react";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useWorkspace } from "../contexts/WorkspaceContext";
@@ -78,6 +79,7 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
   const [aiTopic, setAiTopic] = useState("");
   const [aiStartDate, setAiStartDate] = useState("");
   const [aiEndDate, setAiEndDate] = useState("");
+  const [aiErrorMessage, setAiErrorMessage] = useState("");
 
   const loadDocs = useCallback(async () => {
     if (workspaceId === null) return;
@@ -162,13 +164,16 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
     }
   };
 
+  const AI_ERROR_MESSAGES: Record<string, string> = {
+    AI003: '생성할 커밋 기록이 없습니다.',
+    AI004: '주제(topic)를 입력해주세요.',
+    AI005: '날짜 범위가 최대 7일을 초과합니다.',
+    AI006: '시작일이 종료일보다 늦을 수 없습니다.',
+  };
+
   const handleGenerateAiDocument = async () => {
     if (!aiSelectedType || workspaceId === null) return;
-    setIsAiTypeModalOpen(false);
-    setAiSelectedType(null);
-    setAiTopic("");
-    setAiStartDate("");
-    setAiEndDate("");
+    setAiErrorMessage("");
     setIsAiGenerating(true);
     try {
       const request: AiGenerateRequest = { category: aiSelectedType };
@@ -182,13 +187,23 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
       const newDoc = mapDocumentResponse(created);
       setDocs((prev) => [newDoc, ...prev]);
       setSelectedDoc(created.id);
+      setIsAiTypeModalOpen(false);
+      setAiSelectedType(null);
+      setAiTopic("");
+      setAiStartDate("");
+      setAiEndDate("");
+      setAiErrorMessage("");
       setIsWriting(false);
       setEditingDocId(null);
       setDraftTitle("");
       setDraftContent("");
       setDraftCategory(null);
-    } catch {
-      // 실패 시 상태 유지
+    } catch (error) {
+      if (error instanceof ApiClientError) {
+        setAiErrorMessage(AI_ERROR_MESSAGES[error.code ?? ''] ?? '문서 생성에 실패했습니다.');
+      } else {
+        setAiErrorMessage('문서 생성에 실패했습니다.');
+      }
     } finally {
       setIsAiGenerating(false);
     }
@@ -451,7 +466,7 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => { setAiSelectedType(null); setIsAiTypeModalOpen(true); }}
+                onClick={() => { setAiSelectedType(null); setAiTopic(""); setAiStartDate(""); setAiEndDate(""); setAiErrorMessage(""); setIsAiTypeModalOpen(true); }}
                 disabled={isAiGenerating}
                 className="inline-flex shrink-0 whitespace-nowrap items-center gap-1.5 rounded-xl border-0 px-3 py-2 tracking-tight"
                 style={{
@@ -971,7 +986,20 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
         )}
       </div>
 
-      {isAiTypeModalOpen && (
+      {isAiTypeModalOpen && (() => {
+        const isGenerateEnabled = (() => {
+          if (!aiSelectedType) return false;
+          if (aiSelectedType === 'release') {
+            if (!aiStartDate || !aiEndDate) return false;
+            if (aiEndDate < aiStartDate) return false;
+            const diffDays = Math.round(
+              (new Date(aiEndDate).getTime() - new Date(aiStartDate).getTime()) / (1000 * 60 * 60 * 24)
+            );
+            return diffDays <= 6;
+          }
+          return aiTopic.trim().length > 0;
+        })();
+        return (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center"
           style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
@@ -1003,7 +1031,7 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
                   <button
                     key={cat.id}
                     type="button"
-                    onClick={() => { setAiSelectedType(cat.id); setAiTopic(""); setAiStartDate(""); setAiEndDate(""); }}
+                    onClick={() => { setAiSelectedType(cat.id); setAiTopic(""); setAiStartDate(""); setAiEndDate(""); setAiErrorMessage(""); }}
                     className="flex items-center gap-3 rounded-2xl border-0 px-4 py-3 text-left transition-all"
                     style={{
                       background: isSelected ? `color-mix(in srgb, ${cat.color} 12%, rgba(5,11,20,0.8))` : 'rgba(5,11,20,0.6)',
@@ -1081,36 +1109,50 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
                 </label>
               </div>
             )}
+            {aiErrorMessage && (
+              <p className="m-0 rounded-xl px-3 py-2 tracking-tight" style={{
+                background: 'rgba(255, 107, 107, 0.10)',
+                border: '1px solid rgba(255, 107, 107, 0.22)',
+                color: '#FF9C9C',
+                fontSize: 'var(--krds-body-xsmall)',
+                fontWeight: 850,
+              }}>
+                {aiErrorMessage}
+              </p>
+            )}
             <div className="flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setIsAiTypeModalOpen(false)}
+                disabled={isAiGenerating}
                 className="rounded-xl border-0 px-4 py-2 tracking-tight"
-                style={{ background: 'rgba(234,247,255,0.06)', color: 'var(--muted)', cursor: 'pointer', fontSize: 'var(--krds-body-xsmall)', fontWeight: 950 }}
+                style={{ background: 'rgba(234,247,255,0.06)', color: 'var(--muted)', cursor: isAiGenerating ? 'not-allowed' : 'pointer', opacity: isAiGenerating ? 0.5 : 1, fontSize: 'var(--krds-body-xsmall)', fontWeight: 950 }}
               >
                 {language === 'en' ? 'Cancel' : '취소'}
               </button>
               <button
                 type="button"
                 onClick={() => void handleGenerateAiDocument()}
-                disabled={!aiSelectedType}
+                disabled={!isGenerateEnabled || isAiGenerating}
                 className="inline-flex items-center gap-1.5 rounded-xl border-0 px-4 py-2 tracking-tight"
                 style={{
-                  background: aiSelectedType ? 'linear-gradient(135deg, rgba(var(--codedock-primary-rgb), 0.30), rgba(var(--codedock-secondary-rgb), 0.18))' : 'rgba(234,247,255,0.04)',
-                  border: aiSelectedType ? '1px solid rgba(var(--codedock-primary-rgb), 0.36)' : '1px solid rgba(234,247,255,0.08)',
-                  color: aiSelectedType ? 'var(--neon-cyan)' : 'var(--muted)',
-                  cursor: aiSelectedType ? 'pointer' : 'not-allowed',
+                  background: isGenerateEnabled ? 'linear-gradient(135deg, rgba(var(--codedock-primary-rgb), 0.30), rgba(var(--codedock-secondary-rgb), 0.18))' : 'rgba(234,247,255,0.04)',
+                  border: isGenerateEnabled ? '1px solid rgba(var(--codedock-primary-rgb), 0.36)' : '1px solid rgba(234,247,255,0.08)',
+                  color: isGenerateEnabled ? 'var(--neon-cyan)' : 'var(--muted)',
+                  cursor: isGenerateEnabled && !isAiGenerating ? 'pointer' : 'not-allowed',
+                  opacity: isAiGenerating ? 0.6 : 1,
                   fontSize: 'var(--krds-body-xsmall)',
                   fontWeight: 950,
                 }}
               >
                 <Sparkles size={13} strokeWidth={2.6} />
-                {language === 'en' ? 'Generate' : 'AI 생성'}
+                {isAiGenerating ? (language === 'en' ? 'Generating...' : '생성 중...') : (language === 'en' ? 'Generate' : 'AI 생성')}
               </button>
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
