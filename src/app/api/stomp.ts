@@ -127,6 +127,13 @@ export function createChatStompClient(options: ChatStompClientOptions = {}): Cha
   let authReconnectRequest: Promise<void> | null = null;
   let authRefreshReconnectUsed = false;
 
+  // 인증 실패 후 재연결 경로는 평소 무음이라, DEV에서만 흐름을 추적할 수 있게 진단 로그를 남긴다.
+  const logAuthRecovery = (message: string) => {
+    if (import.meta.env.DEV) {
+      console.warn(`[CodeDock realtime] ${message}`);
+    }
+  };
+
   const stompClient = new Client({
     brokerURL: url,
     connectHeaders: getAuthorizationConnectHeaders() ?? {},
@@ -147,6 +154,7 @@ export function createChatStompClient(options: ChatStompClientOptions = {}): Cha
       if (isAuthenticationErrorFrame(frame)) {
         stompClient.reconnectDelay = 0;
         if (authRefreshReconnectUsed) {
+          logAuthRecovery("Authentication still failing after token refresh; redirecting to login.");
           pendingSends.length = 0;
           void stompClient.deactivate();
           redirectToLogin();
@@ -154,6 +162,7 @@ export function createChatStompClient(options: ChatStompClientOptions = {}): Cha
           options.onError?.(frame);
           return;
         }
+        logAuthRecovery("WebSocket authentication failed; attempting token refresh and reconnect.");
         authRefreshReconnectUsed = true;
         void reconnectWithFreshToken();
         return;
@@ -211,6 +220,7 @@ export function createChatStompClient(options: ChatStompClientOptions = {}): Cha
 
       const refreshed = await refreshAccessToken();
       if (!refreshed) {
+        logAuthRecovery("Token refresh failed; redirecting to login.");
         pendingSends.length = 0;
         stompClient.reconnectDelay = reconnectDelay;
         redirectToLogin();
@@ -236,6 +246,7 @@ export function createChatStompClient(options: ChatStompClientOptions = {}): Cha
         return;
       }
 
+      logAuthRecovery("Token refreshed; reconnecting WebSocket with the new token.");
       stompClient.connectHeaders = connectHeaders;
       stompClient.reconnectDelay = reconnectDelay;
       stompClient.activate();
