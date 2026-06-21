@@ -574,13 +574,6 @@ function RoleDropdown({
       >
         <span className="flex min-w-0 items-center gap-2">
           <span
-            className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
-            style={{
-              background: meta.color,
-              boxShadow: `0 0 12px ${meta.color}`
-            }}
-          />
-          <span
             className="truncate"
             style={{
               color: meta.color,
@@ -651,13 +644,6 @@ function RoleDropdown({
                   }
                 }}
               >
-                <span
-                  className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
-                  style={{
-                    background: optionMeta.color,
-                    boxShadow: selected ? `0 0 12px ${optionMeta.color}` : "none"
-                  }}
-                />
                 <span
                   className="min-w-0 flex-1 truncate"
                   style={{

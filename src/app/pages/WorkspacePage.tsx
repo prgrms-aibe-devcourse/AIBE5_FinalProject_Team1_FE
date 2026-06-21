@@ -107,13 +107,6 @@ function TeamSortDropdown({
         aria-expanded={open}
       >
         <span
-          className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
-          style={{
-            background: selected.color,
-            boxShadow: `0 0 12px ${selected.color}`
-          }}
-        />
-        <span
           className="min-w-0 flex-1 text-left"
           style={{
             color: selected.color,
@@ -178,13 +171,6 @@ function TeamSortDropdown({
                   event.currentTarget.style.border = "1px solid transparent";
                 }}
               >
-                <span
-                  className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
-                  style={{
-                    background: option.color,
-                    boxShadow: isSelected ? `0 0 12px ${option.color}` : "none"
-                  }}
-                />
                 <span
                   className="min-w-0 flex-1 truncate"
                   style={{
