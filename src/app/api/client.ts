@@ -1,5 +1,5 @@
 import type { ApiErrorResponse, ApiResponse } from "./types";
-import { authHeader, refreshAccessToken, clearTokens, getAccessToken } from "../auth";
+import { authHeader, refreshAccessToken, redirectToLogin } from "../auth";
 
 type HttpMethod = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 
@@ -104,15 +104,12 @@ export function createApiClient(options: ApiClientOptions = {}) {
       body: body === undefined ? undefined : JSON.stringify(body)
     });
 
-    if (response.status === 401 && !isRetry && getAccessToken()) {
+    if (response.status === 401 && !isRetry) {
       const refreshed = await refreshAccessToken();
       if (refreshed) {
         return request<T>(method, path, body, requestOptions, true);
       }
-      clearTokens();
-      if (typeof window !== "undefined") {
-        window.location.href = "/login";
-      }
+      redirectToLogin();
     }
 
     const payload = await parseJsonResponse<T>(response);

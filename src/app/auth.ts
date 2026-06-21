@@ -2,6 +2,8 @@ const ACCESS_TOKEN_KEY  = "codedock-access-token";
 const REFRESH_TOKEN_KEY = "codedock-refresh-token";
 export const PROFILE_STORAGE_KEY = "codedock-profile-v1";
 
+let refreshTokenRequest: Promise<boolean> | null = null;
+
 function getApiBaseUrl() {
   return import.meta.env.VITE_API_BASE_URL ?? "";
 }
@@ -31,6 +33,13 @@ export function clearTokens() {
   localStorage.removeItem(PROFILE_STORAGE_KEY);
 }
 
+export function redirectToLogin() {
+  clearTokens();
+  if (typeof window === "undefined") return;
+  if (window.location.pathname === "/login") return;
+  window.location.href = "/login";
+}
+
 export function isAuthenticated(): boolean {
   return !!getAccessToken();
 }
@@ -48,25 +57,41 @@ export function loginWithGithub() {
 
 // 토큰 갱신
 export async function refreshAccessToken(): Promise<boolean> {
+  if (refreshTokenRequest) {
+    return refreshTokenRequest;
+  }
+
   const refreshToken = getRefreshToken();
   if (!refreshToken) return false;
 
-  try {
-    const res = await fetch(buildApiUrl("/api/v1/auth/refresh"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refreshToken }),
-    });
-    if (!res.ok) {
+  refreshTokenRequest = (async () => {
+    try {
+      const res = await fetch(buildApiUrl("/api/v1/auth/refresh"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken }),
+      });
+      if (!res.ok) {
+        clearTokens();
+        return false;
+      }
+      const { data } = await res.json();
+      if (!data?.accessToken || !data?.refreshToken) {
+        clearTokens();
+        return false;
+      }
+      setTokens(data.accessToken, data.refreshToken);
+      return true;
+    } catch {
       clearTokens();
       return false;
     }
-    const { data } = await res.json();
-    setTokens(data.accessToken, data.refreshToken);
-    return true;
-  } catch {
-    clearTokens();
-    return false;
+  })();
+
+  try {
+    return await refreshTokenRequest;
+  } finally {
+    refreshTokenRequest = null;
   }
 }
 

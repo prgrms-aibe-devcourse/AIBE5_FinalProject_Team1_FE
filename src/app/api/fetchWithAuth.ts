@@ -1,4 +1,4 @@
-import { authHeader, refreshAccessToken, clearTokens } from "../auth";
+import { authHeader, refreshAccessToken, redirectToLogin } from "../auth";
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -34,7 +34,7 @@ export async function fetchWithAuth<T>(
     if (ok) {
       res = await doFetch();
     } else {
-      clearTokens();
+      redirectToLogin();
       throw new Error("세션이 만료되었습니다. 다시 로그인해 주세요.");
     }
   }
