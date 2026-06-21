@@ -1018,16 +1018,17 @@ function SwaggerPreviewFallback() {
 }
 
 function SourceBadge({ sourceType }: { sourceType: ApiSpecSourceType }) {
-  const isAuto = sourceType !== "manual";
+  const config = sourceType === "AI"
+    ? { label: "체크리스트", background: "rgba(var(--codedock-secondary-rgb), 0.14)", color: "var(--soft-mint)" }
+    : sourceType === "swagger"
+    ? { label: "자동 작성", background: "rgba(var(--codedock-primary-rgb), 0.12)", color: "var(--neon-cyan)" }
+    : { label: "직접 작성", background: "rgba(234, 247, 255, 0.06)", color: "var(--muted)" };
   return (
     <span
       className="rounded-lg px-2 py-0.5 text-[var(--krds-body-xsmall)] font-black tracking-tight"
-      style={{
-        background: isAuto ? "rgba(var(--codedock-primary-rgb), 0.12)" : "rgba(234, 247, 255, 0.06)",
-        color: isAuto ? "var(--neon-cyan)" : "var(--muted)",
-      }}
+      style={{ background: config.background, color: config.color }}
     >
-      {isAuto ? "자동 작성" : "직접 작성"}
+      {config.label}
     </span>
   );
 }
