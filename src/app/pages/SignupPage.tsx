@@ -448,10 +448,11 @@ export function SignupPage() {
         displayName: trimmedName,
         password: formData.password,
         githubLinkToken,
-      });
+      }, { skipAuthRefresh: true });
       const tokens = await apiClient.post<{ accessToken: string; refreshToken: string }>(
           "/api/v1/auth/login",
-          { email: trimmedEmail, password: formData.password }
+          { email: trimmedEmail, password: formData.password },
+          { skipAuthRefresh: true }
       );
       setTokens(tokens.accessToken, tokens.refreshToken);
       await reloadProfile();

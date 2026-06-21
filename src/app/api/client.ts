@@ -1,5 +1,5 @@
 import type { ApiErrorResponse, ApiResponse } from "./types";
-import { authHeader, refreshAccessToken, redirectToLogin } from "../auth";
+import { authHeader, getAccessToken, refreshAccessToken, redirectToLogin } from "../auth";
 
 type HttpMethod = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 
@@ -7,6 +7,7 @@ export type ApiRequestOptions = {
   headers?: HeadersInit;
   query?: Record<string, boolean | number | string | null | undefined>;
   signal?: AbortSignal;
+  skipAuthRefresh?: boolean;
 };
 
 export type ApiClientOptions = {
@@ -104,7 +105,8 @@ export function createApiClient(options: ApiClientOptions = {}) {
       body: body === undefined ? undefined : JSON.stringify(body)
     });
 
-    if (response.status === 401 && !isRetry) {
+    const canRefreshAuth = !requestOptions.skipAuthRefresh && !!getAccessToken();
+    if (response.status === 401 && !isRetry && canRefreshAuth) {
       const refreshed = await refreshAccessToken();
       if (refreshed) {
         return request<T>(method, path, body, requestOptions, true);
