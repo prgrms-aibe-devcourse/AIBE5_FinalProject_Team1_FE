@@ -5,7 +5,7 @@ import {
   type StompHeaders,
   type StompSubscription
 } from "@stomp/stompjs";
-import { getAccessToken } from "../auth";
+import { getAccessToken, redirectToLogin, refreshAccessToken } from "../auth";
 
 type StompMessageHandler<T = unknown> = (payload: T, frame: IMessage) => void;
 
@@ -104,6 +104,8 @@ export function createChatStompClient(options: ChatStompClientOptions = {}): Cha
   const reconnectDelay = options.reconnectDelay ?? 5000;
 
   let subscriptionSequence = 0;
+  let disconnectRequested = false;
+  let authReconnectRequest: Promise<void> | null = null;
 
   const stompClient = new Client({
     brokerURL: url,
@@ -122,9 +124,8 @@ export function createChatStompClient(options: ChatStompClientOptions = {}): Cha
     },
     onStompError: (frame) => {
       if (isAuthenticationErrorFrame(frame)) {
-        pendingSends.length = 0;
         stompClient.reconnectDelay = 0;
-        void stompClient.deactivate();
+        void reconnectWithFreshToken();
       }
       options.onError?.(frame);
     },
@@ -163,6 +164,43 @@ export function createChatStompClient(options: ChatStompClientOptions = {}): Cha
     }
   }
 
+  async function reconnectWithFreshToken() {
+    if (authReconnectRequest) {
+      return authReconnectRequest;
+    }
+
+    authReconnectRequest = (async () => {
+      await stompClient.deactivate();
+
+      const refreshed = await refreshAccessToken();
+      if (!refreshed) {
+        pendingSends.length = 0;
+        redirectToLogin();
+        options.onConnectionSkipped?.("missing-token");
+        return;
+      }
+
+      if (disconnectRequested) return;
+
+      const connectHeaders = getAuthorizationConnectHeaders();
+      if (!connectHeaders) {
+        pendingSends.length = 0;
+        options.onConnectionSkipped?.("missing-token");
+        return;
+      }
+
+      stompClient.connectHeaders = connectHeaders;
+      stompClient.reconnectDelay = reconnectDelay;
+      stompClient.activate();
+    })();
+
+    try {
+      await authReconnectRequest;
+    } finally {
+      authReconnectRequest = null;
+    }
+  }
+
   const connect = () => {
     if (stompClient.active) {
       options.onConnectionSkipped?.("already-active");
@@ -174,12 +212,14 @@ export function createChatStompClient(options: ChatStompClientOptions = {}): Cha
       options.onConnectionSkipped?.("missing-token");
       return;
     }
+    disconnectRequested = false;
     stompClient.connectHeaders = connectHeaders;
     stompClient.reconnectDelay = reconnectDelay;
     stompClient.activate();
   };
 
   const disconnect = () => {
+    disconnectRequested = true;
     subscriptions.forEach((subscription) => {
       subscription.stompSubscription?.unsubscribe();
       subscription.stompSubscription = undefined;
