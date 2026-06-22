@@ -100,6 +100,7 @@ export type ReactionToggleResponse = {
   targetId: number;
   emoji: string;
   reacted: boolean;
+  userReacted?: boolean;
   count: number;
 };
 
@@ -109,6 +110,7 @@ export type ReactionSummary = {
   emoji: string;
   count: number;
   reacted?: boolean;
+  userReacted?: boolean;
 };
 
 export type BookmarkToggleResponse = {
@@ -145,9 +147,17 @@ export type MentionResponse = {
 
 export type ChannelReadStatusResponse = {
   channelId: number;
+  workspaceId?: number;
   workspaceMemberId: number;
   lastReadThreadId: number | null;
   lastReadAt: ISODateTime;
+  unreadCount?: number;
+};
+
+export type MentionDeletedEvent = {
+  id?: number;
+  mentionId?: number;
+  workspaceId?: number;
 };
 
 export type TypingEvent = {
@@ -169,6 +179,12 @@ export const CHAT_EVENT_TYPE = {
   THREAD_REPLY_UPDATED: "THREAD_REPLY_UPDATED",
   THREAD_REPLY_DELETED: "THREAD_REPLY_DELETED",
   REACTION_UPDATED: "REACTION_UPDATED",
+  MENTION_DELETED: "MENTION_DELETED",
+  CHANNEL_CREATED: "CHANNEL_CREATED",
+  CHANNEL_UPDATED: "CHANNEL_UPDATED",
+  CHANNEL_DELETED: "CHANNEL_DELETED",
+  CHANNEL_READ: "CHANNEL_READ",
+  CHANNEL_READ_UPDATED: "CHANNEL_READ_UPDATED",
   TYPING: "TYPING",
   NOTIFICATION_CREATED: "NOTIFICATION_CREATED"
 } as const;
@@ -188,6 +204,10 @@ export type ChannelEventPayload =
   | TypingEvent;
 
 export type ThreadEventPayload = ThreadReply;
+
+export type WorkspaceChannelEventPayload =
+  | Channel
+  | ChannelReadStatusResponse;
 
 export type PersonalNotification = {
   id?: number;
@@ -215,6 +235,9 @@ export const chatWebSocketDestinations = {
   },
   subscribeChannelTyping(channelId: number) {
     return `/topic/channels/${channelId}/typing`;
+  },
+  subscribeWorkspaceChannels(workspaceId: number) {
+    return `/topic/workspaces/${workspaceId}/channels`;
   },
   sendThreadReply(threadId: number) {
     return `/app/threads/${threadId}/replies`;
