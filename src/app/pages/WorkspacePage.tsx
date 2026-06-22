@@ -13,7 +13,7 @@ import { ApiClientError } from "../api/client";
 
 const DRAG_TYPE = "TEAM_CARD";
 const WORKSPACE_COLORS_KEY = "codedock-workspace-colors-v1";
-const MAX_DASHBOARD_EVENTS = 8;
+const DASHBOARD_EVENT_PREVIEW_COUNT = 5;
 const DEFAULT_ACCENT = "#8B94A7"; // default grey
 type SortOrder = "name" | "latest" | "activity";
 
@@ -1408,16 +1408,24 @@ export function WorkspacePage() {
 
   const [events, setEvents] = useState<WorkspaceEventDto[]>([]);
   const [eventRepositoryNamesByChannelId, setEventRepositoryNamesByChannelId] = useState<Record<number, string>>({});
+  const [showAllDashboardEvents, setShowAllDashboardEvents] = useState(false);
 
   useEffect(() => {
     fetchMyEvents().then((data) => setEvents(data ?? [])).catch(() => setEvents([]));
   }, []);
 
-  const visibleEvents = useMemo(() => {
+  const sortedEvents = useMemo(() => {
     return [...events]
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      .slice(0, MAX_DASHBOARD_EVENTS);
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [events]);
+
+  const visibleEvents = useMemo(() => {
+    return showAllDashboardEvents
+      ? sortedEvents
+      : sortedEvents.slice(0, DASHBOARD_EVENT_PREVIEW_COUNT);
+  }, [showAllDashboardEvents, sortedEvents]);
+
+  const hasMoreDashboardEvents = sortedEvents.length > DASHBOARD_EVENT_PREVIEW_COUNT;
 
   useEffect(() => {
     const workspaceIds = Array.from(new Set(events.map((event) => event.workspaceId)));
@@ -1616,74 +1624,95 @@ export function WorkspacePage() {
               <p className="m-0 py-6 text-center tracking-tight" style={{ fontSize: "14px", fontWeight: 700, color: "var(--muted)" }}>
                 최근 이벤트가 없습니다.
               </p>
-            ) : visibleEvents.map((event) => {
-              const { label, icon: Icon, color } = getEventMeta(event.type);
-              const workspaceName = orgs.find((o) => o.id === event.workspaceId)?.name ?? "";
-              const repositoryName = event.repositoryName ?? (
-                event.channelId ? eventRepositoryNamesByChannelId[event.channelId] : undefined
-              );
-              const eventContextLabels = [
-                workspaceName,
-                repositoryName ? `repo: ${repositoryName}` : "",
-                event.channelId ? `channel #${event.channelId}` : "",
-                event.threadId ? `thread #${event.threadId}` : ""
-              ].filter(Boolean);
-
-              return (
+            ) : (
+              <>
                 <div
-                  key={event.id}
-                  className="px-5 py-4 rounded-2xl cursor-pointer transition-all hover:brightness-110"
-                  style={{ background: "rgba(5, 11, 20, 0.42)", border: "1px solid rgba(32, 227, 255, 0.10)" }}
-                  onClick={() => navigate("/chat", { state: { pendingEvent: event } })}
+                  className="grid gap-3 pr-1"
+                  style={{
+                    maxHeight: showAllDashboardEvents ? "420px" : "none",
+                    overflowY: showAllDashboardEvents ? "auto" : "visible",
+                    scrollbarWidth: "thin"
+                  }}
                 >
-                  <div className="flex items-start gap-3">
-                    <span className="flex-shrink-0 mt-0.5">
-                      <Icon size={18} style={{ color }} />
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <span className="tracking-tight" style={{ fontSize: "15px", fontWeight: 900, color: "var(--white)" }}>
-                          <span style={{ color: "var(--matrix-green)" }}>{event.actorName}</span>
-                          {"  "}
-                          <span style={{ color, fontSize: "13px", fontWeight: 800 }}>{label}</span>
-                        </span>
-                        {eventContextLabels.map((contextLabel) => (
-                          <span
-                            key={contextLabel}
-                            className="rounded-full px-2 py-0.5 tracking-tight"
-                            style={{
-                              background: "rgba(var(--codedock-primary-rgb), 0.08)",
-                              border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)",
-                              fontSize: "11px",
-                              fontWeight: 800,
-                              color: "var(--muted)"
-                            }}
-                          >
-                            {contextLabel}
+                  {visibleEvents.map((event) => {
+                    const { label, icon: Icon, color } = getEventMeta(event.type);
+                    const workspaceName = orgs.find((o) => o.id === event.workspaceId)?.name ?? "";
+                    const repositoryName = event.repositoryName ?? (
+                      event.channelId ? eventRepositoryNamesByChannelId[event.channelId] : undefined
+                    );
+                    const eventContextLabels = [
+                      workspaceName,
+                      repositoryName ? `repo: ${repositoryName}` : "",
+                      event.channelId ? `channel #${event.channelId}` : "",
+                      event.threadId ? `thread #${event.threadId}` : ""
+                    ].filter(Boolean);
+
+                    return (
+                      <div
+                        key={event.id}
+                        className="px-5 py-4 rounded-2xl cursor-pointer transition-all hover:brightness-110"
+                        style={{ background: "rgba(5, 11, 20, 0.42)", border: "1px solid rgba(32, 227, 255, 0.10)" }}
+                        onClick={() => navigate("/chat", { state: { pendingEvent: event } })}
+                      >
+                        <div className="flex items-start gap-3">
+                          <span className="flex-shrink-0 mt-0.5">
+                            <Icon size={18} style={{ color }} />
                           </span>
-                        ))}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <span className="tracking-tight" style={{ fontSize: "15px", fontWeight: 900, color: "var(--white)" }}>
+                                <span style={{ color: "var(--matrix-green)" }}>{event.actorName}</span>
+                                {"  "}
+                                <span style={{ color, fontSize: "13px", fontWeight: 800 }}>{label}</span>
+                              </span>
+                              {eventContextLabels.map((contextLabel) => (
+                                <span
+                                  key={contextLabel}
+                                  className="rounded-full px-2 py-0.5 tracking-tight"
+                                  style={{
+                                    background: "rgba(var(--codedock-primary-rgb), 0.08)",
+                                    border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)",
+                                    fontSize: "11px",
+                                    fontWeight: 800,
+                                    color: "var(--muted)"
+                                  }}
+                                >
+                                  {contextLabel}
+                                </span>
+                              ))}
+                            </div>
+                            <p className="m-0 tracking-tight truncate" style={{ fontSize: "13px", fontWeight: 700, color: "rgba(255,255,255,0.55)" }}>
+                              {event.content}
+                            </p>
+                          </div>
+                          <span className="flex-shrink-0 tracking-tight" style={{ fontSize: "12px", fontWeight: 700, color: "var(--muted)", whiteSpace: "nowrap" }}>
+                            {formatRelativeTime(event.createdAt)}
+                          </span>
+                        </div>
                       </div>
-                      <p className="m-0 tracking-tight truncate" style={{ fontSize: "13px", fontWeight: 700, color: "rgba(255,255,255,0.55)" }}>
-                        {event.content}
-                      </p>
-                    </div>
-                    <span className="flex-shrink-0 tracking-tight" style={{ fontSize: "12px", fontWeight: 700, color: "var(--muted)", whiteSpace: "nowrap" }}>
-                      {formatRelativeTime(event.createdAt)}
-                    </span>
-                  </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
-            {events.length > visibleEvents.length && (
-              <div className="rounded-2xl px-5 py-3 text-center tracking-tight" style={{
-                background: "rgba(var(--codedock-primary-rgb), 0.06)",
-                border: "1px solid rgba(var(--codedock-primary-rgb), 0.12)",
-                color: "var(--muted)",
-                fontSize: "13px",
-                fontWeight: 800
-              }}>
-                최신 {visibleEvents.length}개 이벤트만 표시 중입니다.
-              </div>
+                {hasMoreDashboardEvents && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllDashboardEvents((open) => !open)}
+                    className="rounded-2xl px-5 py-3 text-center tracking-tight transition-all hover:brightness-110"
+                    style={{
+                      background: "rgba(var(--codedock-primary-rgb), 0.06)",
+                      border: "1px solid rgba(var(--codedock-primary-rgb), 0.12)",
+                      color: "var(--neon-cyan)",
+                      cursor: "pointer",
+                      fontSize: "13px",
+                      fontWeight: 800
+                    }}
+                  >
+                    {showAllDashboardEvents
+                      ? "접기"
+                      : `더보기 (${sortedEvents.length - DASHBOARD_EVENT_PREVIEW_COUNT})`}
+                  </button>
+                )}
+              </>
             )}
           </div>
         </section>
