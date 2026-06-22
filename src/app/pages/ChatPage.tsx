@@ -2161,6 +2161,8 @@ export function ChatPage() {
 
   // Sorted team member list for the current workspace — used by the member list popup.
   // Order: presence group (active→away→busy→offline) → role privilege → Korean alphabetical.
+  // presence는 BE가 신뢰원: 실시간 override(스냅샷+브로드캐스트)가 있으면 그것을, 없으면 멤버 목록의 마지막
+  // 상태를 사용한다. (WS 연결 여부로 화면에서 강제 offline 처리하지 않음 — 실제 접속자를 가리는 문제 방지)
   const sortedWorkspaceMembers = useMemo(() => {
     const resolvePresence = (m: WorkspaceMember): PresenceKey => {
       if (currentWorkspaceMemberId != null && Number(m.memberId) === Number(currentWorkspaceMemberId)) {
@@ -2204,10 +2206,10 @@ export function ChatPage() {
   const workspaceOnlineCounts = useMemo(() => {
     if (!selectedWorkspace || workspaceMembers.length === 0) return {};
     const onlineCount = workspaceMembers.reduce((acc, member) => {
-      const presence =
-        currentWorkspaceMemberId != null && Number(member.memberId) === Number(currentWorkspaceMemberId)
-          ? userPresence
-          : (presenceOverrides[String(member.memberId)] ?? member.presence ?? 'active');
+      const isSelf = currentWorkspaceMemberId != null && Number(member.memberId) === Number(currentWorkspaceMemberId);
+      const presence = isSelf
+        ? userPresence
+        : (presenceOverrides[String(member.memberId)] ?? member.presence ?? 'active');
       return acc + (presence !== 'offline' ? 1 : 0);
     }, 0);
     return { [selectedWorkspace]: onlineCount };
@@ -2294,6 +2296,8 @@ export function ChatPage() {
     setSelectedPR(null);
     setSelectedIssue(null);
     setRemoteTypingByChannel({});
+    // 이전 워크스페이스의 실시간 presence가 다른 워크스페이스 멤버 상태로 잘못 비치지 않도록 초기화.
+    setPresenceOverrides({});
   }, [currentWorkspaceApiId]);
 
   useEffect(() => {
@@ -3456,6 +3460,22 @@ export function ChatPage() {
   useEffect(() => {
     const client = chatStompRef.current;
     if (!currentWorkspaceApiId || !client) return;
+    // 입장/재연결 시 BE가 보내는 presence 스냅샷(개인 큐). 토픽 구독보다 먼저 구독해 스냅샷을 놓치지 않음.
+    const snapshotSub = client.subscribe<Array<{ memberId: number; presence: string }>>(
+      "/user/queue/presence",
+      (payload) => {
+        if (!Array.isArray(payload)) return;
+        setPresenceOverrides((prev) => {
+          const next = { ...prev };
+          payload.forEach((entry) => {
+            if (entry?.memberId != null && entry?.presence) {
+              next[String(entry.memberId)] = entry.presence;
+            }
+          });
+          return next;
+        });
+      }
+    );
     const sub = client.subscribe<{ memberId: number; presence: string }>(
       `/topic/workspaces/${currentWorkspaceApiId}/presence`,
       (payload) => {
@@ -3463,7 +3483,10 @@ export function ChatPage() {
         setPresenceOverrides((prev) => ({ ...prev, [String(payload.memberId)]: payload.presence }));
       }
     );
-    return () => sub.unsubscribe();
+    return () => {
+      snapshotSub.unsubscribe();
+      sub.unsubscribe();
+    };
   }, [currentWorkspaceApiId, chatStompReadyKey]);
 
   const handleChannelTypingChange = useCallback((typing: boolean) => {
