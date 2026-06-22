@@ -72,7 +72,8 @@ import {
   connectWorkspaceRepository,
   fetchWorkspaceRepositories,
   registerWorkspaceRepositoryWebhook,
-  syncRepositoryIssueStatuses
+  syncRepositoryIssueStatuses,
+  syncRepositoryPullRequests
 } from "../api/github";
 
 const APISpecPage = lazy(() => import("./APISpecPage").then((module) => ({ default: module.APISpecPage })));
@@ -695,6 +696,27 @@ function mapChannelMessageToWorkspaceMessage(message: ChannelMessage) {
     }
   }
 
+  // GitHub bot PR notification — parse meta JSON from the PR attachment
+  const prAttachment = (message.attachments ?? []).find(
+    (a) => a.attachmentType === "pr" || a.type === "pr"
+  );
+let prFields: Record<string, unknown> = {};
+  if (prAttachment?.meta) {
+    try {
+      const parsed = JSON.parse(prAttachment.meta);
+      if (!parsed.aiRisk) parsed.aiRisk = 'Medium';
+      if (parsed.approved === undefined) parsed.approved = 0;
+      if (parsed.pending === undefined) parsed.pending = 0;
+      if (parsed.passed === undefined) parsed.passed = 0;
+      if (parsed.filesChanged === undefined) parsed.filesChanged = 0;
+      if (parsed.additions === undefined) parsed.additions = 0;
+      if (parsed.deletions === undefined) parsed.deletions = 0;
+      prFields = { type: "pr", ...parsed };
+    } catch {
+      // meta가 JSON이 아닌 경우 무시
+    }
+  }
+
   return {
     id: message.id,
     backendMessageId: message.id,
@@ -712,6 +734,7 @@ function mapChannelMessageToWorkspaceMessage(message: ChannelMessage) {
     ...(replyTo ? { replyTo } : {}),
     ...(isDeleted ? { deleted: true } : {}),
     ...issueFields,
+    ...prFields,
   };
 }
 
@@ -1760,6 +1783,27 @@ export function ChatPage() {
       ? currentRepositoryApiChannelId
       : apiChannelIdByUiChannel[selectedChannel];
   const hasActiveApiChatChannel = activeApiChannelId !== undefined;
+
+  // pull-requests 탭 진입 시 GitHub API에서 PR 목록을 DB로 동기화한 뒤 메시지 재로드
+  useEffect(() => {
+    if (selectedChannel !== 'pull-requests' || !currentRepo || !activeApiChannelId) return;
+    const repoDbId = Number(currentRepo.id.replace('repo-', ''));
+    if (!Number.isFinite(repoDbId)) return;
+
+    const channelKey = selectedChannelMessageKey;
+    const channelId = activeApiChannelId;
+
+    // sync 실패해도 getChannelMessages는 반드시 실행 (DB에 저장된 meta 기반으로 메시지 로드)
+    syncRepositoryPullRequests(repoDbId).catch(() => { /* ignore sync failure */ })
+      .then(() => getChannelMessages(channelId, { limit: 50 }))
+      .then((serverMessages) => {
+        const mapped = serverMessages.map(mapChannelMessageToWorkspaceMessage);
+        const filtered = mapped.filter((m) => (m as any).type === 'pr');
+        setMessages((prev) => ({ ...prev, [channelKey]: filtered }));
+      })
+      .catch(() => { /* ignore */ });
+  }, [selectedChannel, currentRepo?.id, activeApiChannelId, selectedChannelMessageKey]);
+
   const hasChatAccessToken = Boolean(getAccessToken());
   const realtimeConnectionBlockReason = useMemo<RealtimeConnectionReason | null>(() => {
     if (!Number.isFinite(currentWorkspaceApiId) || currentWorkspaceApiId <= 0) return "workspace-unavailable";
@@ -3008,9 +3052,15 @@ export function ChatPage() {
       signal: controller.signal
     })
       .then((serverMessages) => {
+        const mapped = serverMessages.map(mapChannelMessageToWorkspaceMessage);
+        const filtered = selectedChannel === 'pull-requests'
+          ? mapped.filter((m) => (m as any).type === 'pr')
+          : selectedChannel === 'issues'
+            ? mapped.filter((m) => (m as any).type === 'issue')
+            : mapped;
         setMessages((prev) => ({
           ...prev,
-          [selectedChannelMessageKey]: serverMessages.map(mapChannelMessageToWorkspaceMessage)
+          [selectedChannelMessageKey]: filtered
         }));
       })
       .catch(() => {
@@ -4342,35 +4392,27 @@ export function ChatPage() {
       const newMessages = { ...prevMessages };
       const channelMessages = newMessages[selectedChannelMessageKey];
       if (channelMessages) {
-        const originalPR = channelMessages.find(msg => msg.id === messageId);
-
-        if (originalPR && originalPR.type === 'pr') {
-          const newMergeMessage = {
-            id: Date.now(),
-            user: 'GitHub Bot',
-            text: `PR #${originalPR.prNumber} merged: ${originalPR.text.replace(/^.*?: /, '')}`,
-            time: '방금',
-            type: 'pr' as const,
-            prNumber: originalPR.prNumber,
-            prStatus: 'merged' as const,
-            filesChanged: originalPR.filesChanged,
-            additions: originalPR.additions,
-            deletions: originalPR.deletions
-          };
-
-          newMessages[selectedChannelMessageKey] = [
-            ...channelMessages.map(msg =>
-              msg.id === messageId && msg.type === 'pr'
-                ? { ...msg, prStatus: 'completed' as const }
-                : msg
-            ),
-            newMergeMessage
-          ];
-        }
+        // 원본 PR 카드를 approved(보라색)로 변경 — 새로고침 후에도 DB에서 같은 상태로 로드됨
+        newMessages[selectedChannelMessageKey] = channelMessages.map(msg =>
+          msg.id === messageId && msg.type === 'pr'
+            ? { ...msg, prStatus: 'approved' as const }
+            : msg
+        );
       }
       return newMessages;
     });
   };
+
+  // 메시지가 갱신(sync 후 재로드)되면 열려있는 PR 패널 데이터도 최신화
+  useEffect(() => {
+    if (!selectedPR) return;
+    const updated = currentMessages.find(
+      (m: any) => m.type === 'pr' && m.prNumber === selectedPR.prNumber
+    );
+    if (updated && (updated as any).prBody !== selectedPR.prBody) {
+      setSelectedPR(updated);
+    }
+  }, [currentMessages]);
 
   const handleReviewPR = (prData: any) => {
     prevMainExpanded.current = isMainExpanded;
@@ -5963,6 +6005,7 @@ export function ChatPage() {
           <section className="h-full min-h-0 rounded-[30px] overflow-hidden">
             <PRReviewPanel
               prData={selectedPR}
+              repositoryDbId={currentRepo ? Number(currentRepo.id.replace('repo-', '')) : undefined}
               onClose={handleClosePRReview}
               onMergePR={handleMergePR}
               externalThreadMessages={currentThreadReplies[`pr-${selectedPR.id}`] ?? []}
