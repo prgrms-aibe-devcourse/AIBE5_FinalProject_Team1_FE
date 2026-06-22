@@ -1369,6 +1369,7 @@ export function ChatPage() {
   const prevMainExpanded = useRef(false);
   const pendingEventRef = useRef<WorkspaceEventDto | null>(null);
   const [teamInviteOpen, setTeamInviteOpen] = useState(false);
+  const [isGeneralChannelsOpen, setIsGeneralChannelsOpen] = useState(true);
   const [expandedSidebarGroups, setExpandedSidebarGroups] = useState<Record<SidebarGroupId, boolean>>({
     documentation: true
   });
@@ -5359,8 +5360,24 @@ export function ChatPage() {
 
               <div className="my-1" style={{ borderTop: '1px solid rgba(var(--codedock-primary-rgb), 0.14)' }} />
 
-              <div className="flex items-center justify-between px-3 pb-1 pt-2">
-                <p style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 950, color: 'var(--muted)', margin: 0 }}>채널</p>
+              <div className="flex items-center justify-between gap-2 px-3 pb-1 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsGeneralChannelsOpen((open) => !open)}
+                  className="min-w-0 flex flex-1 items-center gap-1.5 rounded-lg border-0 px-0 py-1 text-left tracking-tight transition-colors"
+                  style={{ background: "transparent", color: 'var(--muted)', cursor: 'pointer' }}
+                  aria-expanded={isGeneralChannelsOpen}
+                >
+                  {isGeneralChannelsOpen ? (
+                    <ChevronDown size={14} style={{ color: 'var(--muted)', flexShrink: 0 }} />
+                  ) : (
+                    <ChevronRight size={14} style={{ color: 'var(--muted)', flexShrink: 0 }} />
+                  )}
+                  <span className="truncate" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}>채널</span>
+                  <span className="ml-auto" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 900 }}>
+                    {allCustomChannels.length + 1}
+                  </span>
+                </button>
                 <button
                   type="button"
                   onClick={handleAddCustomChannel}
@@ -5372,11 +5389,12 @@ export function ChatPage() {
                   <Plus size={13} />
                 </button>
               </div>
-              <div
-                className="grid max-h-[164px] min-h-[44px] gap-1 overflow-y-auto pr-1"
-                style={{ scrollbarWidth: 'none' }}
-              >
-              {renderSidebarChannel({ id: 'general', label: '일반', icon: Hash, badge: getChannelBadge('general') })}
+              {isGeneralChannelsOpen && (
+                <div
+                  className="grid max-h-[164px] min-h-[44px] gap-1 overflow-y-auto pr-1"
+                  style={{ scrollbarWidth: 'none' }}
+                >
+                {renderSidebarChannel({ id: 'general', label: '일반', icon: Hash, badge: getChannelBadge('general') })}
 
               {allCustomChannels.map((ch) => {
                 const isActive = selectedChannel === ch.id;
@@ -5483,6 +5501,7 @@ export function ChatPage() {
                 </p>
               )}
               </div>
+              )}
 
               <div
                 aria-hidden="true"
@@ -5697,8 +5716,8 @@ export function ChatPage() {
                     </AnimatePresence>
                   </div>
                 );
-              })}
-              </div>
+                })}
+                </div>
               )}
 
               {orphanRepositoryChannels.length > 0 && (

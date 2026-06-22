@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, useLayoutEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router";
 import { ArrowRight, AtSign, Check, ChevronDown, CircleDot, CornerDownRight, GitFork, GitPullRequest, Loader2, MessageSquare, Plus, Settings2, Users, X } from "lucide-react";
@@ -13,6 +13,7 @@ import { ApiClientError } from "../api/client";
 
 const DRAG_TYPE = "TEAM_CARD";
 const WORKSPACE_COLORS_KEY = "codedock-workspace-colors-v1";
+const MAX_DASHBOARD_EVENTS = 8;
 const DEFAULT_ACCENT = "#8B94A7"; // default grey
 type SortOrder = "name" | "latest" | "activity";
 
@@ -1412,6 +1413,12 @@ export function WorkspacePage() {
     fetchMyEvents().then((data) => setEvents(data ?? [])).catch(() => setEvents([]));
   }, []);
 
+  const visibleEvents = useMemo(() => {
+    return [...events]
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, MAX_DASHBOARD_EVENTS);
+  }, [events]);
+
   useEffect(() => {
     const workspaceIds = Array.from(new Set(events.map((event) => event.workspaceId)));
     if (workspaceIds.length === 0) {
@@ -1609,7 +1616,7 @@ export function WorkspacePage() {
               <p className="m-0 py-6 text-center tracking-tight" style={{ fontSize: "14px", fontWeight: 700, color: "var(--muted)" }}>
                 최근 이벤트가 없습니다.
               </p>
-            ) : events.map((event) => {
+            ) : visibleEvents.map((event) => {
               const { label, icon: Icon, color } = getEventMeta(event.type);
               const workspaceName = orgs.find((o) => o.id === event.workspaceId)?.name ?? "";
               const repositoryName = event.repositoryName ?? (
@@ -1667,6 +1674,17 @@ export function WorkspacePage() {
                 </div>
               );
             })}
+            {events.length > visibleEvents.length && (
+              <div className="rounded-2xl px-5 py-3 text-center tracking-tight" style={{
+                background: "rgba(var(--codedock-primary-rgb), 0.06)",
+                border: "1px solid rgba(var(--codedock-primary-rgb), 0.12)",
+                color: "var(--muted)",
+                fontSize: "13px",
+                fontWeight: 800
+              }}>
+                최신 {visibleEvents.length}개 이벤트만 표시 중입니다.
+              </div>
+            )}
           </div>
         </section>
       </div>
