@@ -1499,6 +1499,31 @@ export function WorkspacePage() {
     return `${Math.floor(hours / 24)}일 전`;
   };
 
+  const getEventEmoji = (event: WorkspaceEventDto) => {
+    return event.emoji
+      ?? event.reactionEmoji
+      ?? event.metadata?.emoji
+      ?? event.metadata?.reactionEmoji
+      ?? "";
+  };
+
+  const formatEventContent = (event: WorkspaceEventDto) => {
+    const content = event.content?.trim() ?? "";
+    const emoji = getEventEmoji(event).trim();
+    const hasBrokenEmojiPlaceholder = /\?{2,}/.test(content);
+
+    if (!content) {
+      return emoji ? `${emoji} 이모지 반응` : "";
+    }
+
+    if (!hasBrokenEmojiPlaceholder) {
+      return content;
+    }
+
+    // DB/이벤트 payload에서 이모지가 ???로 깨져 내려오는 경우 원문 복구는 불가능하므로 노출 문구만 안전하게 보정한다.
+    return content.replace(/\?{2,}/g, emoji || "이모지 반응");
+  };
+
   return (
     <DndProvider backend={HTML5Backend}>
       <div className="mx-auto w-[min(1600px,calc(100vw-24px))] py-[clamp(28px,4vw,48px)] pb-20">
@@ -1736,7 +1761,7 @@ export function WorkspacePage() {
                             ))}
                           </div>
                           <p className="m-0 tracking-tight truncate" style={{ fontSize: "13px", fontWeight: 700, color: "rgba(255,255,255,0.55)" }}>
-                            {event.content}
+                            {formatEventContent(event)}
                           </p>
                         </div>
                         <span className="flex-shrink-0 tracking-tight" style={{ fontSize: "12px", fontWeight: 700, color: "var(--muted)", whiteSpace: "nowrap" }}>
