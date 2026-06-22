@@ -1,4 +1,5 @@
-import { useRef, type KeyboardEvent, type ReactNode } from "react";
+import { Check, ChevronDown, Copy } from "lucide-react";
+import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 
 export const CODE_BLOCK_LANGUAGES = [
   { value: "plaintext", label: "Plain Text" },
@@ -177,8 +178,10 @@ function highlightCode(code: string, language?: string) {
   return nodes.length > 0 ? nodes : code;
 }
 
+type ParsedCodeBlock = { type: "text" | "code"; content: string; language?: string };
+
 function parseCodeBlocks(text: string) {
-  const blocks: Array<{ type: "text" | "code"; content: string; language?: string }> = [];
+  const blocks: ParsedCodeBlock[] = [];
   const codeFencePattern = /```([a-zA-Z0-9_+#.-]+)?[^\S\r\n]*(?:\r?\n)?([\s\S]*?)```/g;
   let lastIndex = 0;
   let match: RegExpExecArray | null;
@@ -203,39 +206,73 @@ function parseCodeBlocks(text: string) {
   return blocks;
 }
 
+function CodeBlockPreview({ block, index }: { block: ParsedCodeBlock; index: number }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(block.content);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1400);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  return (
+    <div key={`code-${index}`} className="mb-3 overflow-hidden rounded-xl" style={{
+      background: "rgba(5, 11, 20, 0.88)",
+      border: "1px solid rgba(var(--codedock-primary-rgb), 0.20)"
+    }}>
+      <div className="flex items-center justify-between gap-2 px-3 py-1.5" style={{
+        background: "rgba(var(--codedock-primary-rgb), 0.08)",
+        borderBottom: "1px solid rgba(var(--codedock-primary-rgb), 0.14)"
+      }}>
+        <span className="font-mono tracking-tight" style={{
+          color: "var(--neon-cyan)",
+          fontSize: "11px",
+          fontWeight: 950
+        }}>
+          {getCodeLanguageLabel(block.language)}
+        </span>
+        <button
+          type="button"
+          onClick={handleCopy}
+          className="inline-flex h-7 items-center gap-1.5 rounded-lg border-0 px-2.5 tracking-tight transition-all"
+          style={{
+            background: copied ? "rgba(57, 255, 136, 0.14)" : "rgba(5, 11, 20, 0.68)",
+            border: copied ? "1px solid rgba(57, 255, 136, 0.28)" : "1px solid rgba(var(--codedock-primary-rgb), 0.20)",
+            color: copied ? "var(--matrix-green)" : "var(--neon-cyan)",
+            cursor: "pointer",
+            fontSize: "11px",
+            fontWeight: 950
+          }}
+        >
+          {copied ? <Check size={13} /> : <Copy size={13} />}
+          {copied ? "복사됨" : "복사"}
+        </button>
+      </div>
+      <pre
+        className="m-0 overflow-x-auto px-3 py-3 tracking-tight"
+        style={{
+          color: "var(--soft-mint)",
+          fontSize: "13px",
+          fontWeight: 750,
+          lineHeight: 1.62,
+          whiteSpace: "pre"
+        }}
+      >
+        <code>{highlightCode(block.content, block.language)}</code>
+      </pre>
+    </div>
+  );
+}
+
 export function MessageTextWithCodeBlocks({ text, color }: { text: string; color: string }) {
   return (
     <>
       {parseCodeBlocks(text).map((block, index) => block.type === "code" ? (
-        <div key={`code-${index}`} className="mb-3 overflow-hidden rounded-xl" style={{
-          background: "rgba(5, 11, 20, 0.88)",
-          border: "1px solid rgba(var(--codedock-primary-rgb), 0.20)"
-        }}>
-          <div className="flex items-center justify-between px-3 py-1.5" style={{
-            background: "rgba(var(--codedock-primary-rgb), 0.08)",
-            borderBottom: "1px solid rgba(var(--codedock-primary-rgb), 0.14)"
-          }}>
-            <span className="font-mono tracking-tight" style={{
-              color: "var(--neon-cyan)",
-              fontSize: "11px",
-              fontWeight: 950
-            }}>
-              {getCodeLanguageLabel(block.language)}
-            </span>
-          </div>
-          <pre
-            className="m-0 overflow-x-auto px-3 py-3 tracking-tight"
-            style={{
-              color: "var(--soft-mint)",
-              fontSize: "13px",
-              fontWeight: 750,
-              lineHeight: 1.62,
-              whiteSpace: "pre"
-            }}
-          >
-            <code>{highlightCode(block.content, block.language)}</code>
-          </pre>
-        </div>
+        <CodeBlockPreview key={`code-${index}`} block={block} index={index} />
       ) : (
         <p
           key={`text-${index}`}
@@ -346,21 +383,29 @@ export function CodeBlockComposer({
           fontWeight: 850
         }}>
           언어
-          <select
-            value={language}
-            onChange={(event) => onLanguageChange(normalizeCodeLanguage(event.target.value))}
-            className="rounded-lg px-3 py-1.5 font-black outline-none"
-            style={{
-              background: "rgba(5, 11, 20, 0.72)",
-              border: "1px solid rgba(var(--codedock-primary-rgb), 0.24)",
-              color: "var(--white)",
-              cursor: "pointer"
-            }}
-          >
-            {CODE_BLOCK_LANGUAGES.map((item) => (
-              <option key={item.value} value={item.value}>{item.label}</option>
-            ))}
-          </select>
+          <span className="relative inline-flex items-center">
+            <select
+              value={language}
+              onChange={(event) => onLanguageChange(normalizeCodeLanguage(event.target.value))}
+              className="appearance-none rounded-full py-1.5 pl-3 pr-8 font-black tracking-tight outline-none"
+              style={{
+                background: "linear-gradient(135deg, rgba(var(--codedock-primary-rgb), 0.14), rgba(5, 11, 20, 0.76))",
+                border: "1px solid rgba(var(--codedock-primary-rgb), 0.30)",
+                color: "var(--white)",
+                cursor: "pointer",
+                boxShadow: "inset 0 1px 0 rgba(255, 255, 255, 0.08)"
+              }}
+            >
+              {CODE_BLOCK_LANGUAGES.map((item) => (
+                <option key={item.value} value={item.value}>{item.label}</option>
+              ))}
+            </select>
+            <ChevronDown
+              size={14}
+              className="pointer-events-none absolute right-2.5"
+              style={{ color: "var(--neon-cyan)" }}
+            />
+          </span>
         </label>
       </div>
       <textarea
