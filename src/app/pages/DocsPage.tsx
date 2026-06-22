@@ -293,7 +293,7 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
           return (
             <h1 key={index} className="m-0 leading-[1.1] tracking-[-0.055em]" style={{
               color: 'var(--white)',
-              fontSize: embedded ? '28px' : '36px',
+              fontSize: embedded ? '30px' : '32px',
               fontWeight: 950
             }}>
               {trimmedLine.replace(/^#\s+/, "")}
@@ -305,7 +305,7 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
           return (
             <h2 key={index} className="m-0 mt-4 leading-[1.2] tracking-[-0.035em]" style={{
               color: 'var(--soft-mint)',
-              fontSize: embedded ? '18px' : '22px',
+              fontSize: embedded ? '26px' : '28px',
               fontWeight: 950
             }}>
               {parseInline(trimmedLine.replace(/^##\s+/, ""))}
@@ -317,7 +317,7 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
           return (
             <h3 key={index} className="m-0 mt-3 leading-[1.3] tracking-[-0.025em]" style={{
               color: 'var(--neon-cyan)',
-              fontSize: embedded ? '15px' : '18px',
+              fontSize: embedded ? '22px' : '24px',
               fontWeight: 950
             }}>
               {parseInline(trimmedLine.replace(/^###\s+/, ""))}
@@ -329,7 +329,7 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
           return (
             <h4 key={index} className="m-0 mt-2 leading-[1.4] tracking-tight" style={{
               color: 'rgba(234, 247, 255, 0.88)',
-              fontSize: embedded ? '13px' : '15px',
+              fontSize: embedded ? '18px' : '20px',
               fontWeight: 950
             }}>
               {parseInline(trimmedLine.replace(/^####\s+/, ""))}
@@ -343,7 +343,7 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
               background: 'rgba(234, 247, 255, 0.045)',
               border: '1px solid rgba(234, 247, 255, 0.08)',
               color: 'rgba(234, 247, 255, 0.88)',
-              fontSize: '14px',
+              fontSize: '16px',
               fontWeight: 800,
               lineHeight: 1.65
             }}>
@@ -358,7 +358,7 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
               background: 'rgba(234, 247, 255, 0.035)',
               border: '1px solid rgba(234, 247, 255, 0.07)',
               color: 'rgba(234, 247, 255, 0.82)',
-              fontSize: '14px',
+              fontSize: '16px',
               fontWeight: 500,
               lineHeight: 1.65
             }}>
@@ -375,7 +375,7 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
         return (
           <p key={index} className="m-0 tracking-tight" style={{
             color: 'rgba(234, 247, 255, 0.82)',
-            fontSize: '15px',
+            fontSize: '16px',
             fontWeight: 500,
             lineHeight: 1.85
           }}>
