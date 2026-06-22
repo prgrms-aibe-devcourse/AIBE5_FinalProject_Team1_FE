@@ -5771,7 +5771,7 @@ export function ChatPage() {
               </EmbeddedPanelBoundary>
             ) : selectedChannel === 'docs' ? (
               <EmbeddedPanelBoundary key="docs">
-                <DocsPage embedded workspaceId={currentWorkspaceApiId} />
+                <DocsPage embedded expanded={isMainExpanded} workspaceId={currentWorkspaceApiId} />
               </EmbeddedPanelBoundary>
             ) : selectedChannel === 'general' || allCustomChannels.some(ch => ch.id === selectedChannel) || selectedRepositoryApiChannel || selectedOrphanRepositoryChannel ? (
               <ChannelPanel
