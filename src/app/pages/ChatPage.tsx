@@ -1643,7 +1643,7 @@ export function ChatPage() {
         return prev;
       });
     }).catch(() => { /* ignore */ });
-  }, [currentWorkspaceApiId]);
+  }, [currentWorkspaceApiId, repositoryRefreshKey]);
 
   const visibleRepositories = useMemo(() => {
     try {
@@ -2472,7 +2472,7 @@ export function ChatPage() {
 
     setWorkspaceMentions((prev) => prev.filter((mention) => Number(mention.id) !== mentionId));
     setOptimisticMentionBumps((count) => Math.max(0, count - 1));
-  }, [currentWorkspaceApiId, repositoryRefreshKey]);
+  }, [currentWorkspaceApiId]);
 
   const setServerBookmarkState = useCallback((uiChannelId: string, messageId: number, bookmarked: boolean) => {
     setServerBookmarkedThreadsByChannel((prev) => {
