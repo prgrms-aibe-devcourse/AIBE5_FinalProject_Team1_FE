@@ -676,7 +676,7 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
     setAttachmentError("");
   };
 
-  const handleMessageKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+  const handleMessageKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
       event.preventDefault();
       handleSendMessage();

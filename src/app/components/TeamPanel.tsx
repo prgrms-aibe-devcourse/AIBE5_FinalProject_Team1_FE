@@ -29,6 +29,7 @@ interface TeamPanelProps {
   workspaceApiId: number;
   currentUserId: string;
   currentUserOnline: boolean;   // true when presence is not 'offline'
+  onInvite?: () => void;
   onOpenChannel?: (channelId: string) => void;
   presenceOverrides?: Record<string, string>; // memberId → presence
 }
