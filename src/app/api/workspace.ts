@@ -8,6 +8,7 @@ export type WorkspaceDto = {
   description: string | null;
   myRole: string; // "owner" | "admin" | "editor" | "viewer"
   memberCount: number;
+  membersOnline?: number; // 실시간 접속 인원(BE 제공). 구버전 BE 호환 위해 optional
   createdAt: string;
   lastActivityAt: string | null;
   logoUrl?: string | null;
