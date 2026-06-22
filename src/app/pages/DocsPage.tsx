@@ -1,4 +1,5 @@
 import { FileText, Sparkles, BookOpen, HelpCircle, Package, Plus, Pencil, Trash2, Check, X } from "lucide-react";
+import { ApiClientError } from "../api/client";
 import { useCallback, useEffect, useState } from "react";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useWorkspace } from "../contexts/WorkspaceContext";
@@ -10,10 +11,12 @@ import {
   aiGenerateDocument,
   type DocumentResponse,
   type DocumentCategory,
+  type AiGenerateRequest,
 } from "../api/document";
 
 interface DocsPageProps {
   embedded?: boolean;
+  expanded?: boolean;
   workspaceId?: number;
 }
 
@@ -53,8 +56,23 @@ function mapDocumentResponse(doc: DocumentResponse): DocumentItem {
   };
 }
 
+function parseInline(text: string): React.ReactNode[] {
+  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|_[^_]+_|`[^`]+`|~~[^~]+~~)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**') && part.length > 4)
+      return <strong key={i} style={{ fontWeight: 1000, color: 'var(--white)' }}>{part.slice(2, -2)}</strong>;
+    if ((part.startsWith('*') && part.endsWith('*') || part.startsWith('_') && part.endsWith('_')) && part.length > 2)
+      return <em key={i}>{part.slice(1, -1)}</em>;
+    if (part.startsWith('`') && part.endsWith('`') && part.length > 2)
+      return <code key={i} style={{ background: 'rgba(var(--codedock-primary-rgb), 0.12)', color: 'var(--neon-cyan)', padding: '1px 6px', borderRadius: '4px', fontSize: '0.9em' }}>{part.slice(1, -1)}</code>;
+    if (part.startsWith('~~') && part.endsWith('~~') && part.length > 4)
+      return <s key={i}>{part.slice(2, -2)}</s>;
+    return part;
+  });
+}
 
-export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: DocsPageProps) {
+
+export function DocsPage({ embedded = false, expanded = false, workspaceId: workspaceIdProp }: DocsPageProps) {
   const { language } = useLanguage();
   const { workspaceId: contextWorkspaceId, getMemberName, myMemberId } = useWorkspace();
   const workspaceId = contextWorkspaceId ?? workspaceIdProp ?? null;
@@ -74,6 +92,10 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
   const [editCategory, setEditCategory] = useState<DocumentCategory | null>(null);
   const [isAiTypeModalOpen, setIsAiTypeModalOpen] = useState(false);
   const [aiSelectedType, setAiSelectedType] = useState<DocumentCategory | null>(null);
+  const [aiTopic, setAiTopic] = useState("");
+  const [aiStartDate, setAiStartDate] = useState("");
+  const [aiEndDate, setAiEndDate] = useState("");
+  const [aiErrorMessage, setAiErrorMessage] = useState("");
 
   const loadDocs = useCallback(async () => {
     if (workspaceId === null) return;
@@ -158,23 +180,46 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
     }
   };
 
-  const handleGenerateAiDocument = async (category: DocumentCategory) => {
-    if (workspaceId === null) return;
-    setIsAiTypeModalOpen(false);
-    setAiSelectedType(null);
+  const AI_ERROR_MESSAGES: Record<string, string> = {
+    AI003: '생성할 커밋 기록이 없습니다.',
+    AI004: '주제(topic)를 입력해주세요.',
+    AI005: '날짜 범위가 최대 7일을 초과합니다.',
+    AI006: '시작일이 종료일보다 늦을 수 없습니다.',
+  };
+
+  const handleGenerateAiDocument = async () => {
+    if (!aiSelectedType || workspaceId === null) return;
+    setAiErrorMessage("");
     setIsAiGenerating(true);
     try {
-      const created = await aiGenerateDocument(workspaceId, category);
+      const request: AiGenerateRequest = { category: aiSelectedType };
+      if (aiSelectedType !== 'release') {
+        request.topic = aiTopic.trim();
+      } else {
+        request.startDate = aiStartDate;
+        request.endDate = aiEndDate;
+      }
+      const created = await aiGenerateDocument(workspaceId, request);
       const newDoc = mapDocumentResponse(created);
       setDocs((prev) => [newDoc, ...prev]);
       setSelectedDoc(created.id);
+      setIsAiTypeModalOpen(false);
+      setAiSelectedType(null);
+      setAiTopic("");
+      setAiStartDate("");
+      setAiEndDate("");
+      setAiErrorMessage("");
       setIsWriting(false);
       setEditingDocId(null);
       setDraftTitle("");
       setDraftContent("");
       setDraftCategory(null);
-    } catch {
-      // 실패 시 상태 유지
+    } catch (error) {
+      if (error instanceof ApiClientError) {
+        setAiErrorMessage(AI_ERROR_MESSAGES[error.code ?? ''] ?? '문서 생성에 실패했습니다.');
+      } else {
+        setAiErrorMessage('문서 생성에 실패했습니다.');
+      }
     } finally {
       setIsAiGenerating(false);
     }
@@ -249,7 +294,7 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
           return (
             <h1 key={index} className="m-0 leading-[1.1] tracking-[-0.055em]" style={{
               color: 'var(--white)',
-              fontSize: embedded ? '28px' : '36px',
+              fontSize: embedded ? '30px' : '32px',
               fontWeight: 950
             }}>
               {trimmedLine.replace(/^#\s+/, "")}
@@ -261,11 +306,35 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
           return (
             <h2 key={index} className="m-0 mt-4 leading-[1.2] tracking-[-0.035em]" style={{
               color: 'var(--soft-mint)',
-              fontSize: embedded ? '18px' : '22px',
+              fontSize: embedded ? '26px' : '28px',
               fontWeight: 950
             }}>
-              {trimmedLine.replace(/^##\s+/, "")}
+              {parseInline(trimmedLine.replace(/^##\s+/, ""))}
             </h2>
+          );
+        }
+
+        if (trimmedLine.startsWith("### ")) {
+          return (
+            <h3 key={index} className="m-0 mt-3 leading-[1.3] tracking-[-0.025em]" style={{
+              color: 'var(--neon-cyan)',
+              fontSize: embedded ? '22px' : '24px',
+              fontWeight: 950
+            }}>
+              {parseInline(trimmedLine.replace(/^###\s+/, ""))}
+            </h3>
+          );
+        }
+
+        if (trimmedLine.startsWith("#### ")) {
+          return (
+            <h4 key={index} className="m-0 mt-2 leading-[1.4] tracking-tight" style={{
+              color: 'rgba(234, 247, 255, 0.88)',
+              fontSize: embedded ? '18px' : '20px',
+              fontWeight: 950
+            }}>
+              {parseInline(trimmedLine.replace(/^####\s+/, ""))}
+            </h4>
           );
         }
 
@@ -275,7 +344,7 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
               background: 'rgba(234, 247, 255, 0.045)',
               border: '1px solid rgba(234, 247, 255, 0.08)',
               color: 'rgba(234, 247, 255, 0.88)',
-              fontSize: '14px',
+              fontSize: '16px',
               fontWeight: 800,
               lineHeight: 1.65
             }}>
@@ -289,13 +358,13 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
             <div key={index} className="flex gap-3 rounded-xl px-4 py-3 tracking-tight" style={{
               background: 'rgba(234, 247, 255, 0.035)',
               border: '1px solid rgba(234, 247, 255, 0.07)',
-              color: 'rgba(234, 247, 255, 0.86)',
-              fontSize: '14px',
-              fontWeight: 780,
+              color: 'rgba(234, 247, 255, 0.82)',
+              fontSize: '16px',
+              fontWeight: 500,
               lineHeight: 1.65
             }}>
               <span style={{ color: 'var(--neon-cyan)', fontWeight: 950 }}>•</span>
-              <span>{trimmedLine.replace(/^-\s+/, "")}</span>
+              <span>{parseInline(trimmedLine.replace(/^-\s+/, ""))}</span>
             </div>
           );
         }
@@ -306,12 +375,12 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
 
         return (
           <p key={index} className="m-0 tracking-tight" style={{
-            color: 'rgba(234, 247, 255, 0.86)',
-            fontSize: '15px',
-            fontWeight: 760,
+            color: 'rgba(234, 247, 255, 0.82)',
+            fontSize: '16px',
+            fontWeight: 500,
             lineHeight: 1.85
           }}>
-            {trimmedLine}
+            {parseInline(trimmedLine)}
           </p>
         );
       })}
@@ -411,7 +480,7 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
         })()}
       </div>
 
-      <div className={embedded ? "grid min-h-0 flex-1 gap-5 xl:grid-cols-[330px_1fr]" : "grid lg:grid-cols-[360px_1fr] gap-6"}>
+      <div className={embedded ? `grid min-h-0 flex-1 gap-5 xl:grid-cols-[${expanded ? '420px' : '330px'}_1fr]` : "grid lg:grid-cols-[360px_1fr] gap-6"}>
         <section className={embedded ? "flex min-h-0 flex-col overflow-hidden px-5 py-5 rounded-2xl" : "flex max-h-[calc(100vh-170px)] min-h-[620px] flex-col overflow-hidden px-6 py-6 rounded-[30px]"} style={{
           background: 'rgba(11, 22, 40, 0.82)',
           border: '1px solid rgba(var(--codedock-primary-rgb), 0.16)',
@@ -434,10 +503,10 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
                 {selectedCategory !== null ? `${filteredDocs.length} / ${docs.length}` : docs.length}
               </span>
             </h2>
-            <div className="flex gap-2">
+            <div className="flex flex-shrink-0 gap-2">
               <button
                 type="button"
-                onClick={() => { setAiSelectedType(null); setIsAiTypeModalOpen(true); }}
+                onClick={() => { setAiSelectedType(null); setAiTopic(""); setAiStartDate(""); setAiEndDate(""); setAiErrorMessage(""); setIsAiTypeModalOpen(true); }}
                 disabled={isAiGenerating}
                 className="inline-flex shrink-0 whitespace-nowrap items-center gap-1.5 rounded-xl border-0 px-3 py-2 tracking-tight"
                 style={{
@@ -957,7 +1026,20 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
         )}
       </div>
 
-      {isAiTypeModalOpen && (
+      {isAiTypeModalOpen && (() => {
+        const isGenerateEnabled = (() => {
+          if (!aiSelectedType) return false;
+          if (aiSelectedType === 'release') {
+            if (!aiStartDate || !aiEndDate) return false;
+            if (aiEndDate < aiStartDate) return false;
+            const diffDays = Math.round(
+              (new Date(aiEndDate).getTime() - new Date(aiStartDate).getTime()) / (1000 * 60 * 60 * 24)
+            );
+            return diffDays <= 6;
+          }
+          return aiTopic.trim().length > 0;
+        })();
+        return (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center"
           style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
@@ -989,7 +1071,7 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
                   <button
                     key={cat.id}
                     type="button"
-                    onClick={() => setAiSelectedType(cat.id)}
+                    onClick={() => { setAiSelectedType(cat.id); setAiTopic(""); setAiStartDate(""); setAiEndDate(""); setAiErrorMessage(""); }}
                     className="flex items-center gap-3 rounded-2xl border-0 px-4 py-3 text-left transition-all"
                     style={{
                       background: isSelected ? `color-mix(in srgb, ${cat.color} 12%, rgba(5,11,20,0.8))` : 'rgba(5,11,20,0.6)',
@@ -1005,36 +1087,112 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
                 );
               })}
             </div>
+            {aiSelectedType && aiSelectedType !== 'release' && (
+              <label className="grid gap-2">
+                <span className="tracking-tight" style={{ color: 'var(--muted)', fontSize: 'var(--krds-body-xsmall)', fontWeight: 950 }}>
+                  {language === 'en' ? 'Topic' : '주제'}
+                </span>
+                <input
+                  value={aiTopic}
+                  onChange={(e) => setAiTopic(e.target.value)}
+                  placeholder={language === 'en' ? 'e.g. user authentication' : '예) 사용자 인증 기능'}
+                  className="rounded-2xl border-0 px-4 py-3 outline-none tracking-tight"
+                  style={{
+                    background: 'rgba(5, 11, 20, 0.62)',
+                    border: '1px solid rgba(var(--codedock-primary-rgb), 0.18)',
+                    color: 'var(--white)',
+                    fontSize: '14px',
+                    fontWeight: 850,
+                  }}
+                />
+              </label>
+            )}
+            {aiSelectedType === 'release' && (
+              <div className="grid gap-3">
+                <label className="grid gap-2">
+                  <span className="tracking-tight" style={{ color: 'var(--muted)', fontSize: 'var(--krds-body-xsmall)', fontWeight: 950 }}>
+                    {language === 'en' ? 'Start Date' : '시작일'}
+                  </span>
+                  <input
+                    type="date"
+                    value={aiStartDate}
+                    onChange={(e) => setAiStartDate(e.target.value)}
+                    className="rounded-2xl border-0 px-4 py-3 outline-none tracking-tight"
+                    style={{
+                      background: 'rgba(5, 11, 20, 0.62)',
+                      border: '1px solid rgba(var(--codedock-primary-rgb), 0.18)',
+                      color: 'var(--white)',
+                      fontSize: '14px',
+                      fontWeight: 850,
+                      colorScheme: 'dark',
+                    }}
+                  />
+                </label>
+                <label className="grid gap-2">
+                  <span className="tracking-tight" style={{ color: 'var(--muted)', fontSize: 'var(--krds-body-xsmall)', fontWeight: 950 }}>
+                    {language === 'en' ? 'End Date' : '종료일'}
+                  </span>
+                  <input
+                    type="date"
+                    value={aiEndDate}
+                    onChange={(e) => setAiEndDate(e.target.value)}
+                    className="rounded-2xl border-0 px-4 py-3 outline-none tracking-tight"
+                    style={{
+                      background: 'rgba(5, 11, 20, 0.62)',
+                      border: '1px solid rgba(var(--codedock-primary-rgb), 0.18)',
+                      color: 'var(--white)',
+                      fontSize: '14px',
+                      fontWeight: 850,
+                      colorScheme: 'dark',
+                    }}
+                  />
+                </label>
+              </div>
+            )}
+            {aiErrorMessage && (
+              <p className="m-0 rounded-xl px-3 py-2 tracking-tight" style={{
+                background: 'rgba(255, 107, 107, 0.10)',
+                border: '1px solid rgba(255, 107, 107, 0.22)',
+                color: '#FF9C9C',
+                fontSize: 'var(--krds-body-xsmall)',
+                fontWeight: 850,
+              }}>
+                {aiErrorMessage}
+              </p>
+            )}
             <div className="flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setIsAiTypeModalOpen(false)}
+                disabled={isAiGenerating}
                 className="rounded-xl border-0 px-4 py-2 tracking-tight"
-                style={{ background: 'rgba(234,247,255,0.06)', color: 'var(--muted)', cursor: 'pointer', fontSize: 'var(--krds-body-xsmall)', fontWeight: 950 }}
+                style={{ background: 'rgba(234,247,255,0.06)', color: 'var(--muted)', cursor: isAiGenerating ? 'not-allowed' : 'pointer', opacity: isAiGenerating ? 0.5 : 1, fontSize: 'var(--krds-body-xsmall)', fontWeight: 950 }}
               >
                 {language === 'en' ? 'Cancel' : '취소'}
               </button>
               <button
                 type="button"
-                onClick={() => { if (aiSelectedType) void handleGenerateAiDocument(aiSelectedType); }}
-                disabled={!aiSelectedType}
+                onClick={() => void handleGenerateAiDocument()}
+                disabled={!isGenerateEnabled || isAiGenerating}
                 className="inline-flex items-center gap-1.5 rounded-xl border-0 px-4 py-2 tracking-tight"
                 style={{
-                  background: aiSelectedType ? 'linear-gradient(135deg, rgba(var(--codedock-primary-rgb), 0.30), rgba(var(--codedock-secondary-rgb), 0.18))' : 'rgba(234,247,255,0.04)',
-                  border: aiSelectedType ? '1px solid rgba(var(--codedock-primary-rgb), 0.36)' : '1px solid rgba(234,247,255,0.08)',
-                  color: aiSelectedType ? 'var(--neon-cyan)' : 'var(--muted)',
-                  cursor: aiSelectedType ? 'pointer' : 'not-allowed',
+                  background: isGenerateEnabled ? 'linear-gradient(135deg, rgba(var(--codedock-primary-rgb), 0.30), rgba(var(--codedock-secondary-rgb), 0.18))' : 'rgba(234,247,255,0.04)',
+                  border: isGenerateEnabled ? '1px solid rgba(var(--codedock-primary-rgb), 0.36)' : '1px solid rgba(234,247,255,0.08)',
+                  color: isGenerateEnabled ? 'var(--neon-cyan)' : 'var(--muted)',
+                  cursor: isGenerateEnabled && !isAiGenerating ? 'pointer' : 'not-allowed',
+                  opacity: isAiGenerating ? 0.6 : 1,
                   fontSize: 'var(--krds-body-xsmall)',
                   fontWeight: 950,
                 }}
               >
                 <Sparkles size={13} strokeWidth={2.6} />
-                {language === 'en' ? 'Generate' : 'AI 생성'}
+                {isAiGenerating ? (language === 'en' ? 'Generating...' : '생성 중...') : (language === 'en' ? 'Generate' : 'AI 생성')}
               </button>
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
