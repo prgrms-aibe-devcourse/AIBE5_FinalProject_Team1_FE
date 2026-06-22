@@ -122,6 +122,24 @@ type SidebarGroupId = 'documentation';
 type UserPresence = 'active' | 'away' | 'busy' | 'offline';
 type NotificationMode = 'all' | 'mentions' | 'muted';
 type RemoteTypingMembers = Record<number, string>;
+type ChatProfilePreview = {
+  name: string;
+  avatarUrl?: string;
+  memberId?: number;
+  userId?: number;
+  email?: string;
+  role?: string;
+  presence?: PresenceKey;
+};
+
+function isGithubNoreplyEmail(email?: string | null) {
+  return Boolean(email?.trim().toLowerCase().endsWith("@users.noreply.github.com"));
+}
+
+function getPublicProfileEmail(email?: string | null) {
+  const trimmed = email?.trim();
+  return trimmed && !isGithubNoreplyEmail(trimmed) ? trimmed : "";
+}
 type ChannelFetchStatus = "idle" | "loading" | "ready" | "failed";
 type RealtimeConnectionStatus = "idle" | "waiting" | "connecting" | "connected" | "blocked" | "failed" | "disconnected";
 type RealtimeConnectionReason =
@@ -1369,6 +1387,7 @@ export function ChatPage() {
   const prevMainExpanded = useRef(false);
   const pendingEventRef = useRef<WorkspaceEventDto | null>(null);
   const [teamInviteOpen, setTeamInviteOpen] = useState(false);
+  const [chatProfilePreview, setChatProfilePreview] = useState<ChatProfilePreview | null>(null);
   const [isGeneralChannelsOpen, setIsGeneralChannelsOpen] = useState(true);
   const [expandedSidebarGroups, setExpandedSidebarGroups] = useState<Record<SidebarGroupId, boolean>>({
     documentation: true
@@ -1507,6 +1526,31 @@ export function ChatPage() {
     if (userId == null) return null;
     return workspaceMembers.find((member) => Number(member.userId) === Number(userId))?.memberId ?? null;
   }, [userId, workspaceMembers]);
+  const handleOpenChatProfile = useCallback((message: any) => {
+    const senderMemberId = Number(message?.senderMemberId ?? message?.memberId);
+    const member = Number.isFinite(senderMemberId)
+      ? workspaceMembers.find((item) => Number(item.memberId) === senderMemberId)
+      : workspaceMembers.find((item) => item.username === message?.user);
+    const rawPresence =
+      member && currentWorkspaceMemberId != null && Number(member.memberId) === Number(currentWorkspaceMemberId)
+        ? userPresence
+        : member
+          ? presenceOverrides[String(member.memberId)] ?? member.presence ?? "offline"
+          : "offline";
+    const presence = (PRESENCE_ORDER as readonly string[]).includes(rawPresence)
+      ? rawPresence as PresenceKey
+      : "offline";
+
+    setChatProfilePreview({
+      name: member?.username ?? message?.user ?? "Unknown",
+      avatarUrl: message?.avatarUrl,
+      memberId: member?.memberId ?? (Number.isFinite(senderMemberId) ? senderMemberId : undefined),
+      userId: member?.userId,
+      email: getPublicProfileEmail(member?.email),
+      role: member?.position?.trim() || formatMemberAuthority(member?.role),
+      presence
+    });
+  }, [currentWorkspaceMemberId, presenceOverrides, userPresence, workspaceMembers]);
   const updateRealtimeConnection = useCallback((next: RealtimeConnectionState) => {
     setRealtimeConnection((prev) => {
       if (
@@ -6045,6 +6089,7 @@ export function ChatPage() {
                 onToggleBookmark={activeApiChannelId ? handleToggleThreadBookmark : undefined}
                 onEditThread={handleEditThreadMessage}
                 onDeleteThread={handleDeleteThreadMessage}
+                onOpenProfile={handleOpenChatProfile}
               />
             ) : REPO_CHANNEL_IDS_REVERSE[selectedChannel] !== undefined ? (
               <ChannelPanel
@@ -6086,6 +6131,7 @@ export function ChatPage() {
                 onToggleBookmark={activeApiChannelId ? handleToggleThreadBookmark : undefined}
                 onEditThread={handleEditThreadMessage}
                 onDeleteThread={handleDeleteThreadMessage}
+                onOpenProfile={handleOpenChatProfile}
               />
             ) : repositories.find(r => r.id === selectedChannel) ? (
               <ChannelPanel
@@ -6127,6 +6173,7 @@ export function ChatPage() {
                 onToggleBookmark={activeApiChannelId ? handleToggleThreadBookmark : undefined}
                 onEditThread={handleEditThreadMessage}
                 onDeleteThread={handleDeleteThreadMessage}
+                onOpenProfile={handleOpenChatProfile}
               />
             ) : selectedChannel === 'work-board' ? (
               <WorkBoardPanel
@@ -6181,6 +6228,7 @@ export function ChatPage() {
                 onReviewPR={handleReviewPR}
                 onViewIssue={handleViewIssue}
                 onOpenThread={handleOpenThread}
+                onOpenProfile={handleOpenChatProfile}
                 selectedThreadId={selectedThread?.id}
                 onToggleReaction={handleToggleReaction}
                 isRepository={isRepository}
@@ -6247,10 +6295,104 @@ export function ChatPage() {
               onToggleReaction={handleToggleReaction}
               onTypingChange={activeApiChannelId ? handleChannelTypingChange : undefined}
               remoteTypingLabel={activeRemoteTypingLabel}
+              onOpenProfile={handleOpenChatProfile}
             />
           </section>
         )}
       </div>
+
+      {chatProfilePreview && (() => {
+        const presenceMeta = PRESENCE_META[chatProfilePreview.presence ?? "offline"];
+        const initial = chatProfilePreview.name.trim().slice(0, 1).toUpperCase() || "U";
+
+        return (
+          <div
+            className="fixed inset-0 z-[95] flex items-center justify-center px-4"
+            style={{ background: "rgba(0, 0, 0, 0.58)", backdropFilter: "blur(10px)" }}
+            onClick={() => setChatProfilePreview(null)}
+          >
+            <div
+              className="w-full max-w-[420px] rounded-[28px] p-6"
+              style={{
+                background: "rgba(8, 16, 32, 0.98)",
+                border: "1px solid rgba(var(--codedock-primary-rgb), 0.22)",
+                boxShadow: "0 28px 80px rgba(0, 0, 0, 0.48)"
+              }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="mb-5 flex items-start justify-between gap-4">
+                <div className="flex min-w-0 items-center gap-4">
+                  <div className="grid h-16 w-16 flex-shrink-0 place-items-center overflow-hidden rounded-2xl" style={{
+                    background: "rgba(var(--codedock-primary-rgb), 0.14)",
+                    border: "1px solid rgba(var(--codedock-primary-rgb), 0.28)",
+                    color: "var(--neon-cyan)",
+                    fontSize: chatProfilePreview.avatarUrl ? 0 : "24px",
+                    fontWeight: 950
+                  }}>
+                    {chatProfilePreview.avatarUrl ? (
+                      <img src={chatProfilePreview.avatarUrl} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      initial
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="m-0 truncate tracking-tight" style={{ color: "var(--white)", fontSize: "20px", fontWeight: 950 }}>
+                      {chatProfilePreview.name}
+                    </p>
+                    <p className="m-0 mt-1 tracking-tight" style={{ color: "var(--muted)", fontSize: "13px", fontWeight: 800 }}>
+                      {chatProfilePreview.role ?? "멤버"}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setChatProfilePreview(null)}
+                  className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full border-0"
+                  style={{ background: "rgba(255,255,255,0.06)", color: "var(--muted)", cursor: "pointer" }}
+                  aria-label="프로필 닫기"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="grid gap-2">
+                <div className="flex items-center justify-between gap-3 rounded-2xl px-4 py-3" style={{
+                  background: "rgba(234,247,255,0.045)",
+                  border: "1px solid rgba(var(--codedock-primary-rgb), 0.12)"
+                }}>
+                  <span style={{ color: "var(--muted)", fontSize: "12px", fontWeight: 900 }}>상태</span>
+                  <span className="inline-flex items-center gap-2" style={{ color: "var(--white)", fontSize: "13px", fontWeight: 900 }}>
+                    <span className="h-2 w-2 rounded-full" style={{ background: presenceMeta.color }} />
+                    {presenceMeta.label}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-3 rounded-2xl px-4 py-3" style={{
+                  background: "rgba(234,247,255,0.045)",
+                  border: "1px solid rgba(var(--codedock-primary-rgb), 0.12)"
+                }}>
+                  <span style={{ color: "var(--muted)", fontSize: "12px", fontWeight: 900 }}>이메일</span>
+                  <span className="truncate" style={{ color: chatProfilePreview.email ? "var(--white)" : "var(--muted)", fontSize: "13px", fontWeight: 900 }}>
+                    {chatProfilePreview.email || "공개 이메일 없음"}
+                  </span>
+                </div>
+              </div>
+
+              <div
+                className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 tracking-tight"
+                style={{
+                  background: "linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))",
+                  color: "#021014",
+                  fontSize: "14px",
+                  fontWeight: 950
+                }}
+              >
+                <UserRound size={16} />
+                프로필 보기
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       <TeamInviteModal
         isOpen={teamInviteOpen}

@@ -40,6 +40,7 @@ interface ThreadPanelProps {
   onToggleReaction?: (reactionKey: string, emoji: string) => void;
   onTypingChange?: (typing: boolean) => void;
   remoteTypingLabel?: string;
+  onOpenProfile?: (message: any) => void;
   myMemberId?: number | null;
   myDisplayName?: string;
   myAvatarUrl?: string;
@@ -58,7 +59,7 @@ function getDisplayUserName(user?: string) {
   return isSelfUser(trimmed) ? currentUserDisplayName : trimmed;
 }
 
-export function ThreadPanel({ originalMessage, replies, displayReplyCount, reactionScope, reactions, onClose, onSendReply, onEditReply, onDeleteReply, onDeleteMessageAttachment, onToggleReaction, onTypingChange, remoteTypingLabel, myMemberId, myDisplayName, myAvatarUrl }: ThreadPanelProps) {
+export function ThreadPanel({ originalMessage, replies, displayReplyCount, reactionScope, reactions, onClose, onSendReply, onEditReply, onDeleteReply, onDeleteMessageAttachment, onToggleReaction, onTypingChange, remoteTypingLabel, onOpenProfile, myMemberId, myDisplayName, myAvatarUrl }: ThreadPanelProps) {
   const displayCurrentUserName = myDisplayName?.trim() || currentUserDisplayName;
   const displayCurrentUserAvatar = displayCurrentUserName.charAt(0) || currentUserAvatar;
   const displayCurrentUserAvatarUrl = myAvatarUrl?.trim() || "";
@@ -259,13 +260,20 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
             borderBottom: '1px solid rgba(var(--codedock-primary-rgb), 0.14)'
           }}>
             <div className="flex items-center gap-2 mb-2">
-              <span className="tracking-tight" style={{
-                fontSize: '13px',
-                fontWeight: 900,
-                color: 'var(--matrix-green)'
-              }}>
+              <button
+                type="button"
+                disabled={!onOpenProfile || originalMessage.deleted}
+                onClick={() => onOpenProfile?.(originalMessage)}
+                className="border-0 bg-transparent p-0 text-left tracking-tight"
+                style={{
+                  cursor: onOpenProfile && !originalMessage.deleted ? "pointer" : "default",
+                  fontSize: '13px',
+                  fontWeight: 900,
+                  color: 'var(--matrix-green)'
+                }}
+              >
                 {originalMessage.user}
-              </span>
+              </button>
               <span className="tracking-tight" style={{
                 fontSize: "var(--krds-body-xsmall)",
                 fontWeight: 700,
@@ -348,6 +356,7 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
             const replyAvatarUrl = isMine
               ? displayCurrentUserAvatarUrl
               : reply.avatarUrl?.trim() || "";
+            const canOpenProfile = Boolean(onOpenProfile && !reply.deleted);
             const hasDiffRef = reply.fileId && reply.line > 0;
             const isEditingReply = editingReplyId === reply.id;
             const canManageReply = isMine && !reply.deleted && (onEditReply || onDeleteReply);
@@ -364,8 +373,9 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
                   <div className="flex items-center gap-2 mb-2 pb-2" style={{
                     borderBottom: '1px solid rgba(var(--codedock-primary-rgb), 0.1)'
                   }}>
-                    <div className="w-7 h-7 flex-shrink-0 overflow-hidden rounded-full flex items-center justify-center" style={{
-                      background: isMine ? 'rgba(var(--codedock-primary-rgb), 0.16)' : 'rgba(var(--codedock-primary-rgb), 0.14)'
+                    <button type="button" disabled={!canOpenProfile} onClick={() => onOpenProfile?.(reply)} className="w-7 h-7 flex-shrink-0 overflow-hidden rounded-full flex items-center justify-center border-0 p-0" style={{
+                      background: isMine ? 'rgba(var(--codedock-primary-rgb), 0.16)' : 'rgba(var(--codedock-primary-rgb), 0.14)',
+                      cursor: canOpenProfile ? "pointer" : "default"
                     }}>
                       {replyAvatarUrl ? (
                         <img src={replyAvatarUrl} alt="" className="h-full w-full object-cover" />
@@ -378,7 +388,7 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
                           {isMine ? displayCurrentUserAvatar : reply.user.charAt(0)}
                         </span>
                       )}
-                    </div>
+                    </button>
                     <div className="flex flex-col flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="tracking-tight" style={{

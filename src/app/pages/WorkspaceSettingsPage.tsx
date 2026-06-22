@@ -423,11 +423,7 @@ function WorkspaceDetail({
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file || !file.type.startsWith("image/")) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === "string") onUpdate(workspace.id, { avatarUrl: reader.result }, "로고를 변경했어요.");
-    };
-    reader.readAsDataURL(file);
+    onUpdate(workspace.id, {}, "로고 업로드는 파일 저장소 연동 후 저장할 수 있어요.");
   };
 
   return (

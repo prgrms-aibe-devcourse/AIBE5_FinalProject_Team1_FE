@@ -20,6 +20,8 @@ interface UserProfile {
   id: number;
   avatarUrl?: string | null;
   githubUsername?: string | null;
+  email?: string | null;
+  githubEmail?: string | null;
 }
 
 interface TeamPanelProps {
@@ -45,6 +47,17 @@ interface TeamMember {
   prs: number;
   reviews: number;
   protected?: boolean;
+}
+
+function isGithubNoreplyEmail(email?: string | null) {
+  return Boolean(email?.trim().toLowerCase().endsWith("@users.noreply.github.com"));
+}
+
+function getPublicEmail(...emails: Array<string | null | undefined>) {
+  return emails.find((email) => {
+    const trimmed = email?.trim();
+    return trimmed && !isGithubNoreplyEmail(trimmed);
+  })?.trim() ?? "";
 }
 
 interface TeamRoom {
@@ -259,16 +272,20 @@ export function TeamPanel({ workspaceId, workspaceApiId, currentUserId, currentU
         if (cancelled) return;
         if (!apiMembers || apiMembers.length === 0) return;
 
-        const avatarMap = await Promise.all(
+        const profileMap = await Promise.all(
           apiMembers.map((m) =>
             fetchWithAuth<UserProfile>(`/api/v1/users/${m.userId}`)
               .then((u) => {
                 const avatarUrl = u?.avatarUrl || (u?.githubUsername ? `https://github.com/${u.githubUsername}.png` : "");
-                return { userId: m.userId, avatarUrl };
+                return {
+                  userId: m.userId,
+                  avatarUrl,
+                  email: getPublicEmail(u?.email, u?.githubEmail)
+                };
               })
-              .catch(() => ({ userId: m.userId, avatarUrl: "" }))
+              .catch(() => ({ userId: m.userId, avatarUrl: "", email: "" }))
           )
-        ).then((results) => Object.fromEntries(results.map((r) => [r.userId, r.avatarUrl])));
+        ).then((results) => Object.fromEntries(results.map((r) => [r.userId, { avatarUrl: r.avatarUrl, email: r.email }])));
 
         if (cancelled) return;
         const mapped: TeamMember[] = apiMembers.map((m) => {
@@ -283,9 +300,9 @@ export function TeamPanel({ workspaceId, workspaceApiId, currentUserId, currentU
             initials: nameToInitials(m.username),
             name: m.username,
             role: m.role || "Member",
-            email: m.email ?? "",
+            email: getPublicEmail(profileMap[m.userId]?.email, m.email),
             github: "",
-            avatarUrl: avatarMap[m.userId] ?? "",
+            avatarUrl: profileMap[m.userId]?.avatarUrl ?? "",
             online,
             statusColor,
             commits: 0,

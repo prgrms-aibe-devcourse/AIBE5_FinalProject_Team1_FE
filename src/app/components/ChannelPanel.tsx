@@ -53,6 +53,7 @@ interface ChannelPanelProps {
   onToggleBookmark?: (thread: Thread, nextBookmarked: boolean) => void;
   onEditThread?: (thread: Thread, nextMessage: string) => void;
   onDeleteThread?: (thread: Thread) => void;
+  onOpenProfile?: (thread: Thread) => void;
   onAddMessageAttachments?: (thread: Thread, attachments: MessageAttachment[]) => Promise<void> | void;
   onDeleteMessageAttachment?: (thread: Thread, attachment: MessageAttachment) => Promise<void> | void;
   myMemberId?: number | null;
@@ -148,7 +149,7 @@ function getThreadBody(thread: Thread) {
   return thread.message ?? (thread as any).text ?? "";
 }
 
-export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, threads, reactions, replyCounts = {}, onOpenThread, selectedThreadId, focusedThreadId, onOpenInvite, onSendThread, onTypingChange, remoteTypingLabel, onToggleReaction, bookmarkedThreadIds, onToggleBookmark, onEditThread, onDeleteThread, onAddMessageAttachments, onDeleteMessageAttachment, myMemberId, myDisplayName, myAvatarUrl }: ChannelPanelProps) {
+export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, threads, reactions, replyCounts = {}, onOpenThread, selectedThreadId, focusedThreadId, onOpenInvite, onSendThread, onTypingChange, remoteTypingLabel, onToggleReaction, bookmarkedThreadIds, onToggleBookmark, onEditThread, onDeleteThread, onOpenProfile, onAddMessageAttachments, onDeleteMessageAttachment, myMemberId, myDisplayName, myAvatarUrl }: ChannelPanelProps) {
   const channelStorageId = storageScopeId ?? channelId ?? repoId ?? "general";
   const reactionChannelId = channelId ?? repoId ?? "general";
   const channelStorageKey = `${CHANNEL_THREADS_KEY_PREFIX}:${channelStorageId}`;
@@ -746,6 +747,7 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
             const threadAvatarUrl = isOwnThread
               ? displayCurrentUserAvatarUrl
               : thread.avatarUrl?.trim() || "";
+            const canOpenProfile = Boolean(onOpenProfile && !thread.deleted);
             const threadBody = getThreadBody(thread);
             const isSelectedThread = selectedThreadId === thread.id;
             const isFocusedThread =
@@ -783,10 +785,11 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
             >
               <div className="w-full px-5 py-4">
                 <div className="flex items-start gap-3">
-                  <span className="grid h-10 w-10 flex-shrink-0 place-items-center overflow-hidden rounded-full" style={{
+                  <button type="button" disabled={!canOpenProfile} onClick={() => onOpenProfile?.(thread)} className="grid h-10 w-10 flex-shrink-0 place-items-center overflow-hidden rounded-full border-0 p-0" style={{
                     background: isOwnThread ? 'rgba(var(--codedock-primary-rgb), 0.16)' : 'rgba(var(--codedock-primary-rgb), 0.12)',
                     border: isOwnThread ? '1px solid rgba(var(--codedock-primary-rgb), 0.30)' : '1px solid rgba(var(--codedock-primary-rgb), 0.22)',
                     color: 'var(--neon-cyan)',
+                    cursor: canOpenProfile ? 'pointer' : 'default',
                     fontSize: threadAvatarUrl ? 0 : threadAvatar.length > 2 ? '18px' : '13px',
                     fontWeight: 950,
                     lineHeight: 1
@@ -796,7 +799,7 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
                     ) : (
                       isOwnThread ? displayCurrentUserAvatar : threadAvatar
                     )}
-                  </span>
+                  </button>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="tracking-tight" style={{

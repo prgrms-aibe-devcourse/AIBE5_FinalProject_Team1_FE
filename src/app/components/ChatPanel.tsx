@@ -85,6 +85,7 @@ interface ChatPanelProps {
   onReviewPR?: (prData: any) => void;
   onViewIssue?: (issueData: any) => void;
   onOpenThread?: (message: any) => void;
+  onOpenProfile?: (message: Message) => void;
   selectedThreadId?: number | string;
   onToggleReaction?: (reactionKey: string, emoji: string) => void;
   isRepository?: boolean;
@@ -138,7 +139,7 @@ function getUserInitial(user?: string) {
   return trimmed ? trimmed.charAt(0).toUpperCase() : "?";
 }
 
-export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messages, reactions, replyCounts = {}, onSendMessage, onAddMessageAttachments, onDeleteMessageAttachment, onSharePR, showAISummary = true, onMergePR, onReviewPR, onViewIssue, onOpenThread, selectedThreadId, onToggleReaction, isRepository = false, myMemberId, myDisplayName, myAvatarUrl, onTypingChange, remoteTypingLabel }: ChatPanelProps) {
+export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messages, reactions, replyCounts = {}, onSendMessage, onAddMessageAttachments, onDeleteMessageAttachment, onSharePR, showAISummary = true, onMergePR, onReviewPR, onViewIssue, onOpenThread, onOpenProfile, selectedThreadId, onToggleReaction, isRepository = false, myMemberId, myDisplayName, myAvatarUrl, onTypingChange, remoteTypingLabel }: ChatPanelProps) {
   const bookmarkStorageKey = `codedock-chat-bookmarks:${bookmarkScopeId ?? channelId}`;
   const displayCurrentUserName = myDisplayName?.trim() || currentUserDisplayName;
   const displayCurrentUserAvatar = displayCurrentUserName.charAt(0) || currentUserAvatar;
@@ -681,6 +682,7 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
             const messageAvatarUrl = isOwnMessage
               ? displayCurrentUserAvatarUrl
               : msg.avatarUrl?.trim() || "";
+            const canOpenProfile = Boolean(onOpenProfile && !msg.deleted && msg.type !== "system");
 
             return (
             <div
@@ -698,10 +700,11 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
             >
               <div className="flex items-center gap-2">
                 {showSlackAvatar && (
-                  <span className="grid h-7 w-7 flex-shrink-0 place-items-center overflow-hidden rounded-full tracking-tight" style={{
+                  <button type="button" disabled={!canOpenProfile} onClick={() => onOpenProfile?.(msg)} className="grid h-7 w-7 flex-shrink-0 place-items-center overflow-hidden rounded-full border-0 p-0 tracking-tight" style={{
                     background: isOwnMessage ? 'rgba(var(--codedock-primary-rgb), 0.16)' : msg.type === 'system' ? 'rgba(var(--codedock-primary-rgb), 0.18)' : 'rgba(var(--codedock-secondary-rgb), 0.14)',
                     border: isOwnMessage ? '1px solid rgba(var(--codedock-primary-rgb), 0.30)' : msg.type === 'system' ? '1px solid rgba(var(--codedock-primary-rgb), 0.32)' : '1px solid rgba(var(--codedock-secondary-rgb), 0.28)',
                     color: isOwnMessage ? 'var(--neon-cyan)' : msg.type === 'system' ? 'var(--neon-cyan)' : 'var(--matrix-green)',
+                    cursor: canOpenProfile ? 'pointer' : 'default',
                     fontSize: messageAvatarUrl ? 0 : "var(--krds-body-xsmall)",
                     fontWeight: 950
                   }}>
@@ -710,7 +713,7 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
                     ) : (
                       isOwnMessage ? displayCurrentUserAvatar : msg.type === 'system' ? 'AI' : getUserInitial(msg.user)
                     )}
-                  </span>
+                  </button>
                 )}
                 <span className="tracking-tight" style={{
                   fontSize: '13px',
