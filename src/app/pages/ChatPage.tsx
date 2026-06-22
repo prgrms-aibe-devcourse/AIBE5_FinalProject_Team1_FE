@@ -636,6 +636,14 @@ function getApiChannelUiIdById(channelId: number) {
   return `${API_CHANNEL_ID_PREFIX}${channelId}`;
 }
 
+// 낙관적 전송 멱등 키. 서버로 보내고 그대로 echo받아 pending 메시지를 정확히 매칭/중복제거하는 데 사용함.
+function createClientMessageId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `cmid-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 function isRepositoryApiChannel(channel: Channel) {
   return String(channel.channelType ?? "").toLowerCase() === "repository";
 }
@@ -691,6 +699,7 @@ function mapChannelMessageToWorkspaceMessage(message: ChannelMessage) {
     id: message.id,
     backendMessageId: message.id,
     backendChannelId: message.channelId,
+    ...(message.clientMessageId ? { clientMessageId: message.clientMessageId } : {}),
     senderMemberId: message.senderMemberId,
     user: message.senderName,
     avatar: message.senderName?.charAt(0).toUpperCase() || "U",
@@ -2480,9 +2489,39 @@ export function ChatPage() {
     setFocusedMessageTarget({ channelId, messageId });
   }, []);
 
+  // pending 실패 타임아웃 핸들을 clientMessageId로 추적 → 서버 확인이 도착하면 취소(오발동 방지).
+  const pendingFailureTimeoutsRef = useRef<Record<string, number>>({});
+  // server id(시퀀스, 작은 값)와 겹치지 않도록 큰 base + 시퀀스로 충돌 없는 로컬 pending id를 만든다.
+  const pendingMessageSeqRef = useRef(0);
+  const nextPendingMessageId = useCallback(() => {
+    pendingMessageSeqRef.current = (pendingMessageSeqRef.current + 1) % 1000;
+    return Date.now() * 1000 + pendingMessageSeqRef.current;
+  }, []);
+
+  const clearPendingFailureTimeout = useCallback((clientMessageId?: string | null) => {
+    if (!clientMessageId) return;
+    const handle = pendingFailureTimeoutsRef.current[clientMessageId];
+    if (handle !== undefined) {
+      window.clearTimeout(handle);
+      delete pendingFailureTimeoutsRef.current[clientMessageId];
+    }
+  }, []);
+
+  // 언마운트 시 남아 있는 pending 실패 타이머를 모두 정리(언마운트 후 setState 방지).
+  useEffect(() => {
+    const timeouts = pendingFailureTimeoutsRef.current;
+    return () => {
+      Object.values(timeouts).forEach((handle) => window.clearTimeout(handle));
+    };
+  }, []);
+
   const appendServerMessage = useCallback((channelId: string, message: ChannelMessage) => {
     const mappedMessage = mapChannelMessageToWorkspaceMessage(message);
     const channelStateKey = getMessageChannelKey(channelId);
+    const serverClientMessageId = message.clientMessageId ?? null;
+
+    // 서버가 메시지를 확정했으므로, 이 전송에 걸려 있던 실패 타임아웃을 취소(오발동 방지).
+    clearPendingFailureTimeout(serverClientMessageId);
 
     setMessages((prev) => {
       const currentChannelMessages = prev[channelStateKey] || [];
@@ -2495,24 +2534,30 @@ export function ChatPage() {
 
       if (alreadyExists) return prev;
 
-      const withoutMatchingPending = currentChannelMessages.filter((item) =>
-        !(
-          item.pending
-          && item.text === message.content
+      const withoutMatchingPending = currentChannelMessages.filter((item) => {
+        if (!item.pending) return true;
+        if (serverClientMessageId) {
+          // clientMessageId를 echo받은 경우: 그 키와 일치하는 pending만 제거.
+          // (동일 내용 메시지를 연속 전송해도 서로의 pending을 오인 제거하지 않음)
+          return item.clientMessageId !== serverClientMessageId;
+        }
+        // 봇/레거시 등 clientMessageId가 없을 때만 내용+발신자 추정으로 폴백.
+        const sameContentAndSender =
+          item.text === message.content
           && (
             item.senderMemberId != null
               ? Number(item.senderMemberId) === Number(message.senderMemberId)
               : item.user === message.senderName || item.backendChannelId === message.channelId
-          )
-        )
-      );
+          );
+        return !sameContentAndSender;
+      });
 
       return {
         ...prev,
         [channelStateKey]: [...withoutMatchingPending, mappedMessage]
       };
     });
-  }, [getMessageChannelKey]);
+  }, [getMessageChannelKey, clearPendingFailureTimeout]);
 
   const replaceServerMessage = useCallback((channelId: string, message: ChannelMessage) => {
     const mappedMessage = mapChannelMessageToWorkspaceMessage(message);
@@ -2795,14 +2840,20 @@ export function ChatPage() {
     setThreadReplies(nextThreadReplies);
   }, [getThreadReplyStateKey]);
 
-  const schedulePendingMessageFailure = useCallback((channelStateKey: string, pendingMessageId: number) => {
-    window.setTimeout(() => {
+  const schedulePendingMessageFailure = useCallback((channelStateKey: string, pendingMessageId: number, clientMessageId?: string) => {
+    const handle = window.setTimeout(() => {
+      if (clientMessageId) {
+        delete pendingFailureTimeoutsRef.current[clientMessageId];
+      }
       markPendingMessageFailed(
         channelStateKey,
         pendingMessageId,
         "Realtime confirmation timed out. Please try again."
       );
     }, REALTIME_PENDING_TIMEOUT_MS);
+    if (clientMessageId) {
+      pendingFailureTimeoutsRef.current[clientMessageId] = handle;
+    }
   }, [markPendingMessageFailed]);
 
   const schedulePendingThreadReplyFailure = useCallback((threadKey: string | number, pendingReplyId: string | number) => {
@@ -4522,13 +4573,15 @@ export function ChatPage() {
     if (attachments.length > 10) return;
     if (attachments.some((attachment) => !isSendableMessageAttachment(attachment))) return;
     const mentions = metadata?.mentions?.filter(Boolean) ?? [];
-    const pendingMessageId = Date.now();
+    const pendingMessageId = nextPendingMessageId();
+    const clientMessageId = createClientMessageId();
     const attachmentPayload = attachments.map(toMessageAttachmentRequest);
     const messageText = trimmedText || `${attachments.length}개 항목을 공유합니다.`;
     const replyToMessageId = replyTo?.messageId;
 
     const nextMessage: any = {
       id: pendingMessageId,
+      clientMessageId,
       senderMemberId: currentWorkspaceMemberId ?? undefined,
       user: currentDisplayName,
       avatarUrl: profile.avatarUrl || undefined,
@@ -4558,11 +4611,12 @@ export function ChatPage() {
       const stompClient = chatStompRef.current;
       if (stompClient && attachmentPayload.length === 0) {
         try {
-          schedulePendingMessageFailure(selectedChannelMessageKey, pendingMessageId);
+          schedulePendingMessageFailure(selectedChannelMessageKey, pendingMessageId, clientMessageId);
           stompClient.send(
             chatWebSocketDestinations.sendChannelMessage(activeApiChannelId),
             {
               content: messageText,
+              clientMessageId,
               ...(replyToMessageId ? { replyToMessageId } : {})
             }
           );
@@ -4574,6 +4628,7 @@ export function ChatPage() {
 
       createChannelMessage(activeApiChannelId, {
         content: messageText,
+        clientMessageId,
         ...(attachmentPayload.length > 0 ? { attachments: attachmentPayload } : {}),
         ...(replyToMessageId ? { replyToMessageId } : {})
       })

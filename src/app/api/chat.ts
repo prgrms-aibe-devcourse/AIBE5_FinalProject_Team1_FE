@@ -43,17 +43,21 @@ export type ChannelMessage = {
   attachments?: MessageAttachmentResponse[];
   isDeleted?: boolean;
   replyTo?: ChannelMessageReplyTo | null;
+  // 낙관적 전송 멱등 키. 서버가 그대로 echo하므로 pending 메시지 매칭에 사용함.
+  clientMessageId?: string | null;
 };
 
 export type ChannelMessageCreateRequest = {
   content: string;
   replyToMessageId?: number;
+  clientMessageId?: string;
 };
 
 export type ChannelMessageRestCreateRequest = {
   content: string;
   attachments?: MessageAttachmentRequest[];
   replyToMessageId?: number;
+  clientMessageId?: string;
 };
 
 export type ChannelMessageUpdateRequest = {
