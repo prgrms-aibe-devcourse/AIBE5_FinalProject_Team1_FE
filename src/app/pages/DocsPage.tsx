@@ -55,6 +55,21 @@ function mapDocumentResponse(doc: DocumentResponse): DocumentItem {
   };
 }
 
+function parseInline(text: string): React.ReactNode[] {
+  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|_[^_]+_|`[^`]+`|~~[^~]+~~)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**') && part.length > 4)
+      return <strong key={i} style={{ fontWeight: 950 }}>{part.slice(2, -2)}</strong>;
+    if ((part.startsWith('*') && part.endsWith('*') || part.startsWith('_') && part.endsWith('_')) && part.length > 2)
+      return <em key={i}>{part.slice(1, -1)}</em>;
+    if (part.startsWith('`') && part.endsWith('`') && part.length > 2)
+      return <code key={i} style={{ background: 'rgba(var(--codedock-primary-rgb), 0.12)', color: 'var(--neon-cyan)', padding: '1px 6px', borderRadius: '4px', fontSize: '0.9em' }}>{part.slice(1, -1)}</code>;
+    if (part.startsWith('~~') && part.endsWith('~~') && part.length > 4)
+      return <s key={i}>{part.slice(2, -2)}</s>;
+    return part;
+  });
+}
+
 
 export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: DocsPageProps) {
   const { language } = useLanguage();
@@ -293,8 +308,32 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
               fontSize: embedded ? '18px' : '22px',
               fontWeight: 950
             }}>
-              {trimmedLine.replace(/^##\s+/, "")}
+              {parseInline(trimmedLine.replace(/^##\s+/, ""))}
             </h2>
+          );
+        }
+
+        if (trimmedLine.startsWith("### ")) {
+          return (
+            <h3 key={index} className="m-0 mt-3 leading-[1.3] tracking-[-0.025em]" style={{
+              color: 'var(--neon-cyan)',
+              fontSize: embedded ? '15px' : '18px',
+              fontWeight: 950
+            }}>
+              {parseInline(trimmedLine.replace(/^###\s+/, ""))}
+            </h3>
+          );
+        }
+
+        if (trimmedLine.startsWith("#### ")) {
+          return (
+            <h4 key={index} className="m-0 mt-2 leading-[1.4] tracking-tight" style={{
+              color: 'rgba(234, 247, 255, 0.88)',
+              fontSize: embedded ? '13px' : '15px',
+              fontWeight: 950
+            }}>
+              {parseInline(trimmedLine.replace(/^####\s+/, ""))}
+            </h4>
           );
         }
 
@@ -324,7 +363,7 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
               lineHeight: 1.65
             }}>
               <span style={{ color: 'var(--neon-cyan)', fontWeight: 950 }}>•</span>
-              <span>{trimmedLine.replace(/^-\s+/, "")}</span>
+              <span>{parseInline(trimmedLine.replace(/^-\s+/, ""))}</span>
             </div>
           );
         }
@@ -340,7 +379,7 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
             fontWeight: 760,
             lineHeight: 1.85
           }}>
-            {trimmedLine}
+            {parseInline(trimmedLine)}
           </p>
         );
       })}
