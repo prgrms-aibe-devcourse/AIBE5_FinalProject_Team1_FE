@@ -284,7 +284,6 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
       setReplyTo(null);
       setAttachmentTarget(null);
       setAttachmentError("");
-      triggerResponderTyping();
     }
   };
 
@@ -369,13 +368,7 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
     };
   }, [message, onTypingChange]);
 
-  const localTypingLabel = responderTyping
-    ? composerTyping
-      ? `CodeDock AI, ${displayCurrentUserName} 입력 중입니다`
-      : "CodeDock AI가 답변을 정리 중입니다"
-    : composerTyping
-      ? "내가 입력 중입니다"
-      : "";
+  const localTypingLabel = composerTyping ? "내가 입력 중입니다" : "";
   const typingLabel = remoteTypingLabel || localTypingLabel;
 
   const handleAttachmentToggle = (attachment: MessageAttachment) => {
@@ -607,7 +600,7 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
     });
 
     return () => window.cancelAnimationFrame(frameId);
-  }, [filteredMessages.length, responderTyping, typingLabel]);
+  }, [filteredMessages.length, typingLabel]);
 
   return (
     <div className="flex flex-col h-full min-h-0 relative overflow-hidden">

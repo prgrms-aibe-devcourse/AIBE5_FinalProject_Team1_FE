@@ -6226,6 +6226,8 @@ export function ChatPage() {
                   )
                 : undefined}
               onToggleReaction={handleToggleReaction}
+              onTypingChange={activeApiChannelId ? handleChannelTypingChange : undefined}
+              remoteTypingLabel={activeRemoteTypingLabel}
             />
           </section>
         )}

@@ -281,7 +281,7 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
     });
 
     return () => window.cancelAnimationFrame(frameId);
-  }, [displayedThreads.length, responderTyping, messageText]);
+  }, [displayedThreads.length]);
 
   const triggerResponderTyping = () => {
     if (responderTypingTimerRef.current) {
@@ -304,13 +304,7 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
     ? selectedAttachments.length > 0
     : messageText.trim().length > 0 || codeBlockText.trim().length > 0 || selectedAttachments.length > 0;
   const composerTyping = messageText.trim().length > 0;
-  const localTypingLabel = responderTyping
-    ? composerTyping
-      ? `CodeDock AI, ${displayCurrentUserName} 입력 중입니다`
-      : "CodeDock AI가 답변을 정리 중입니다"
-    : composerTyping
-      ? "내가 입력 중입니다"
-      : "";
+  const localTypingLabel = composerTyping ? "내가 입력 중입니다" : "";
   const typingLabel = remoteTypingLabel || localTypingLabel;
 
   useEffect(() => {
@@ -679,7 +673,6 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
     setReplyTo(null);
     setAttachmentTarget(null);
     setAttachmentError("");
-    triggerResponderTyping();
   };
 
   const handleMessageKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {

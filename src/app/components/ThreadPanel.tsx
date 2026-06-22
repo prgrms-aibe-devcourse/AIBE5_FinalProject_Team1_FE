@@ -38,6 +38,8 @@ interface ThreadPanelProps {
   onDeleteReply?: (reply: ThreadMessage) => void;
   onDeleteMessageAttachment?: (message: any, attachment: MessageAttachment) => Promise<void> | void;
   onToggleReaction?: (reactionKey: string, emoji: string) => void;
+  onTypingChange?: (typing: boolean) => void;
+  remoteTypingLabel?: string;
   myMemberId?: number | null;
   myDisplayName?: string;
   myAvatarUrl?: string;
@@ -56,7 +58,7 @@ function getDisplayUserName(user?: string) {
   return isSelfUser(trimmed) ? currentUserDisplayName : trimmed;
 }
 
-export function ThreadPanel({ originalMessage, replies, displayReplyCount, reactionScope, reactions, onClose, onSendReply, onEditReply, onDeleteReply, onDeleteMessageAttachment, onToggleReaction, myMemberId, myDisplayName, myAvatarUrl }: ThreadPanelProps) {
+export function ThreadPanel({ originalMessage, replies, displayReplyCount, reactionScope, reactions, onClose, onSendReply, onEditReply, onDeleteReply, onDeleteMessageAttachment, onToggleReaction, onTypingChange, remoteTypingLabel, myMemberId, myDisplayName, myAvatarUrl }: ThreadPanelProps) {
   const displayCurrentUserName = myDisplayName?.trim() || currentUserDisplayName;
   const displayCurrentUserAvatar = displayCurrentUserName.charAt(0) || currentUserAvatar;
   const displayCurrentUserAvatarUrl = myAvatarUrl?.trim() || "";
@@ -67,18 +69,21 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
   const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null);
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [hoveredToolBtn, setHoveredToolBtn] = useState<string | null>(null);
-  const [responderTyping, setResponderTyping] = useState(false);
   const [localMessageReactions, setLocalMessageReactions] = useState<Record<string, MessageReaction[]>>({});
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-  const responderTypingTimerRef = useRef<number | null>(null);
+  const typingDebounceRef = useRef<number | null>(null);
+  const isSendingTypingRef = useRef(false);
 
   useEffect(() => {
     return () => {
-      if (responderTypingTimerRef.current) {
-        window.clearTimeout(responderTypingTimerRef.current);
+      if (typingDebounceRef.current) {
+        window.clearTimeout(typingDebounceRef.current);
+      }
+      if (isSendingTypingRef.current) {
+        onTypingChange?.(false);
       }
     };
-  }, []);
+  }, [onTypingChange]);
 
   useEffect(() => {
     const scrollContainer = scrollContainerRef.current;
@@ -92,25 +97,13 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
     });
 
     return () => window.cancelAnimationFrame(frameId);
-  }, [replies.length, responderTyping, replyText]);
-
-  const triggerResponderTyping = () => {
-    if (responderTypingTimerRef.current) {
-      window.clearTimeout(responderTypingTimerRef.current);
-    }
-
-    setResponderTyping(true);
-    responderTypingTimerRef.current = window.setTimeout(() => {
-      setResponderTyping(false);
-    }, 2200);
-  };
+  }, [replies.length]);
 
   const handleSend = () => {
     if (replyText.trim()) {
       onSendReply(replyText);
       setReplyText('');
       setEmojiPickerOpen(false);
-      triggerResponderTyping();
     }
   };
 
@@ -122,13 +115,39 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
   };
 
   const composerTyping = replyText.trim().length > 0;
-  const typingLabel = responderTyping
-    ? composerTyping
-      ? `CodeDock AI, ${displayCurrentUserName} 입력 중입니다`
-      : "CodeDock AI가 답글을 정리 중입니다"
-    : composerTyping
-      ? "내가 답글 입력 중입니다"
-      : "";
+  const localTypingLabel = composerTyping ? "내가 답글 입력 중입니다" : "";
+  const typingLabel = remoteTypingLabel || localTypingLabel;
+
+  useEffect(() => {
+    if (!onTypingChange) return;
+
+    if (typingDebounceRef.current) {
+      window.clearTimeout(typingDebounceRef.current);
+      typingDebounceRef.current = null;
+    }
+
+    if (composerTyping) {
+      if (!isSendingTypingRef.current) {
+        onTypingChange(true);
+        isSendingTypingRef.current = true;
+      }
+      typingDebounceRef.current = window.setTimeout(() => {
+        onTypingChange(false);
+        isSendingTypingRef.current = false;
+        typingDebounceRef.current = null;
+      }, 1500);
+    } else if (isSendingTypingRef.current) {
+      onTypingChange(false);
+      isSendingTypingRef.current = false;
+    }
+
+    return () => {
+      if (typingDebounceRef.current) {
+        window.clearTimeout(typingDebounceRef.current);
+        typingDebounceRef.current = null;
+      }
+    };
+  }, [composerTyping, onTypingChange]);
 
   const handleEmojiSelect = (key: string) => {
     const emoji = REACTION_KEY_TO_EMOJI[key] ?? key;
