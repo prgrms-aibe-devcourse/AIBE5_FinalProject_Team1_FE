@@ -64,6 +64,13 @@ export function registerWorkspaceRepositoryWebhook(
   );
 }
 
+export function syncRepositoryPullRequests(repositoryDbId: number): Promise<void> {
+  return fetchWithAuth<void>(
+    `/api/v1/github/repositories/${repositoryDbId}/sync-pull-requests`,
+    { method: "POST" }
+  );
+}
+
 export function syncRepositoryIssueStatuses(repositoryDbId: string): Promise<void> {
   return fetchWithAuth<void>(
     `/api/v1/github/repositories/${repositoryDbId}/sync-issue-statuses`,

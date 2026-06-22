@@ -301,7 +301,7 @@ export function TeamPanel({ workspaceId, workspaceApiId, currentUserId, currentU
   }, [workspaceApiId]);
   const activeRoom = teamRooms.find((room) => room.id === activeRoomId) ?? teamRooms[0];
 
-  // Apply real-time presence overrides from WebSocket
+  // Apply real-time presence overrides from WebSocket (스냅샷 + 라이브 브로드캐스트).
   const effectiveMembers = useMemo(() => members.map((m) => {
     const override = presenceOverrides[m.id];
     if (!override) return m;

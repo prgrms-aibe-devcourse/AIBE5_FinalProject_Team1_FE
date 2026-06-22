@@ -14,10 +14,12 @@ import {
   X
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { fetchWithAuth } from "../api/fetchWithAuth";
 import { AnimatePresence, motion } from "motion/react";
 
 interface PRReviewPanelProps {
   prData: any;
+  repositoryDbId?: number;
   onClose: () => void;
   onMergePR?: (messageId: number) => void;
   externalThreadMessages?: any[];
@@ -407,7 +409,46 @@ function mapExternalThreadMessages(messages?: any[]): DiffThreadComment[] {
     }));
 }
 
-export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessages, onAddThreadMessage }: PRReviewPanelProps) {
+export function PRReviewPanel({ prData, repositoryDbId, onClose, onMergePR, externalThreadMessages, onAddThreadMessage }: PRReviewPanelProps) {
+  const [liveBody, setLiveBody] = useState<string | null>(null);
+  const [liveCommits, setLiveCommits] = useState<string | null>(null);
+  // prStatus가 이미 approved/merged면 처음부터 승인 완료 상태로 초기화
+  const [isApproved, setIsApproved] = useState(
+    () => prData?.prStatus === 'approved' || prData?.prStatus === 'merged'
+  );
+
+  // prBody가 없을 때 GitHub API에서 직접 실시간 fetch
+  useEffect(() => {
+    const dbBody = prData?.prBody ?? '';
+    if (dbBody) {
+      setLiveBody(dbBody);
+      if (prData?.prCommits) setLiveCommits(prData.prCommits);
+      return;
+    }
+    if (!repositoryDbId || !prData?.prNumber) return;
+    fetchWithAuth<{ prBody: string; prCommits: string }>(
+      `/api/v1/github/repositories/${repositoryDbId}/pull-requests/${prData.prNumber}/body`
+    )
+      .then((res) => {
+        setLiveBody(res.prBody ?? '');
+        setLiveCommits(res.prCommits ?? '[]');
+      })
+      .catch(() => { setLiveBody(''); });
+  }, [repositoryDbId, prData?.prNumber, prData?.prBody]);
+
+  // 패널 열릴 때 현재 유저의 승인 상태 조회
+  useEffect(() => {
+    if (!repositoryDbId || !prData?.prNumber) return;
+    fetchWithAuth<{ reviewState: string | null }>(
+      `/api/v1/github/repositories/${repositoryDbId}/pull-requests/${prData.prNumber}/my-review`
+    )
+      .then((res) => { setIsApproved(res.reviewState === 'approved'); })
+      .catch(() => { /* 조회 실패 시 기본값 유지 */ });
+  }, [repositoryDbId, prData?.prNumber]);
+
+  const resolvedPrBody: string = liveBody ?? prData?.prBody ?? '';
+  const resolvedPrCommits: string = liveCommits ?? prData?.prCommits ?? '[]';
+
   const tabContentRef = useRef<HTMLDivElement>(null);
   const [activeFileId, setActiveFileId] = useState(diffFiles[0].id);
   const [activePrTab, setActivePrTab] = useState<PrDialogTab>("original");
@@ -471,7 +512,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
   const originalChecklistItems = isActualPr
     ? actualPrChecklistItems
     : ["브랜치 base가 적절한가요?", "보안 변경 사항을 리뷰어에게 공유했나요?", "최소 1명의 리뷰를 받았나요?"];
-  const originalActivityText = isActualPr ? "commented last month · edited" : "opened today · synced from GitHub";
+  const originalActivityText = prData.time ? `opened ${prData.time}` : "opened";
 
   useEffect(() => {
     tabContentRef.current?.scrollTo({ top: 0, left: 0 });
@@ -482,8 +523,19 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
   }, [externalThreadMessages]);
 
   const handleApprove = () => {
-    onMergePR?.(prData.id);
-    onClose();
+    if (isApproved) return;
+    setIsApproved(true);
+    // 이미 merged/approved 카드에서 열린 패널이면 중복 메시지 생성 방지
+    const alreadyMergedOrApproved = prData?.prStatus === 'merged' || prData?.prStatus === 'approved';
+    if (!alreadyMergedOrApproved) {
+      onMergePR?.(prData.id);
+    }
+    // 백그라운드로 DB 저장
+    if (repositoryDbId && prData?.prNumber) {
+      fetchWithAuth(`/api/v1/github/repositories/${repositoryDbId}/pull-requests/${prData.prNumber}/approve`, {
+        method: 'POST',
+      }).catch(() => { /* DB 저장 실패해도 UI는 이미 반영됨 */ });
+    }
   };
 
   const getDiffThreadKey = (fileId: string, line: number) => `${fileId}:${line}`;
@@ -617,7 +669,7 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
         >
           <div className="flex flex-wrap items-center gap-2 tracking-tight">
             <span style={{ color: "var(--white)", fontSize: 14, fontWeight: 950 }}>
-              {prData.githubUser || author}
+              {prData.prAuthor || prData.githubUser || author}
             </span>
             <span style={{ color: "var(--muted)", fontSize: 13, fontWeight: 800 }}>
               {originalActivityText}
@@ -637,62 +689,24 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
         </div>
 
         <div className="px-6 py-6">
-          <section className="mb-7">
-            <h3
-              className="m-0 mb-4 tracking-tight"
-              style={{ color: "var(--white)", fontSize: 24, fontWeight: 950 }}
+          {resolvedPrBody ? (
+            <div
+              style={{
+                color: "var(--white)",
+                fontSize: 15,
+                fontWeight: 820,
+                lineHeight: 1.75,
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word"
+              }}
             >
-              What
-            </h3>
-            <div style={{ borderTop: "1px solid rgba(234, 247, 255, 0.16)" }} />
-            <div className="mt-4 grid gap-2">
-              {originalWhatItems.map((item) => (
-                <div key={item} className="flex gap-2 tracking-tight" style={{ color: "var(--white)", fontSize: 15, fontWeight: 820, lineHeight: 1.58 }}>
-                  <span style={{ flexShrink: 0, color: "var(--neon-cyan)", fontWeight: 950 }}>-</span>
-                  <span>{renderInlineCode(item)}</span>
-                </div>
-              ))}
+              {resolvedPrBody}
             </div>
-          </section>
-
-          <section className="mb-7">
-            <h3
-              className="m-0 mb-4 tracking-tight"
-              style={{ color: "var(--white)", fontSize: 24, fontWeight: 950 }}
-            >
-              Issue
-            </h3>
-            <div style={{ borderTop: "1px solid rgba(234, 247, 255, 0.16)" }} />
-            <p className="m-0 mt-4 tracking-tight" style={{ color: "var(--soft-mint)", fontSize: 15, fontWeight: 850 }}>
-              Closes:{" "}
-              <span style={{ color: "var(--neon-cyan)", fontWeight: 950 }}>
-                {originalIssueTitle}
-              </span>
+          ) : (
+            <p style={{ color: "var(--muted)", fontSize: 14, fontWeight: 800, margin: 0 }}>
+              PR 설명이 없습니다.
             </p>
-          </section>
-
-          <section>
-            <h3
-              className="m-0 mb-4 tracking-tight"
-              style={{ color: "var(--white)", fontSize: 24, fontWeight: 950 }}
-            >
-              체크리스트
-            </h3>
-            <div style={{ borderTop: "1px solid rgba(234, 247, 255, 0.16)" }} />
-            <div className="mt-4 grid gap-3">
-              {originalChecklistItems.map((item) => (
-                <label key={item} className="flex items-center gap-3 tracking-tight" style={{ color: "var(--white)", fontSize: 15, fontWeight: 850 }}>
-                  <input
-                    type="checkbox"
-                    checked
-                    readOnly
-                    style={{ accentColor: "var(--neon-cyan)" }}
-                  />
-                  {item}
-                </label>
-              ))}
-            </div>
-          </section>
+          )}
         </div>
       </section>
     </div>
@@ -947,27 +961,79 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
     </div>
   );
 
-  const renderHistoryTab = () => (
-    <div className="grid gap-4">
-      {[
-        ["10:23", "김진필", "feature/auth 브랜치에 인증 변경 사항을 푸시"],
-        ["10:26", "CodeDock AI", "인증 변경 감지 후 보안 리뷰를 권장"],
-        ["10:45", "김진필", "CSRF 비활성화 사유 주석 요청"],
-        ["10:47", "김준우", "JWT stateless 구조 문서화 제안"]
-      ].map(([time, user, text]) => (
-        <div key={`${time}-${user}`} className="flex gap-4 rounded-2xl px-5 py-4" style={{
-          background: "rgba(5, 11, 20, 0.46)",
-          border: "1px solid rgba(var(--codedock-primary-rgb), 0.12)"
-        }}>
-          <span className="font-mono" style={{ color: "var(--neon-cyan)", fontSize: 13, fontWeight: 950 }}>{time}</span>
-          <div>
-            <p className="m-0 mb-1 tracking-tight" style={{ color: "var(--white)", fontSize: 14, fontWeight: 950 }}>{user}</p>
-            <p className="m-0 tracking-tight" style={{ color: "var(--soft-mint)", fontSize: 14, fontWeight: 800 }}>{text}</p>
+  const renderHistoryTab = () => {
+    let commits: Array<{ sha: string; message: string; author: string; date: string }> = [];
+    try {
+      const parsed = typeof resolvedPrCommits === 'string'
+        ? JSON.parse(resolvedPrCommits)
+        : resolvedPrCommits;
+      if (Array.isArray(parsed)) commits = parsed;
+    } catch {
+      // ignore
+    }
+
+    const prOpenEvent = {
+      sha: 'open',
+      message: `PR #${prData.prNumber || ''} 오픈: ${prData.prTitle || prData.text || ''}`,
+      author: prData.prAuthor || prData.user || '',
+      date: prData.time || ''
+    };
+
+    const allEvents = [prOpenEvent, ...commits];
+
+    return (
+      <div className="grid gap-4">
+        {allEvents.length === 1 && commits.length === 0 ? (
+          <div className="rounded-2xl px-5 py-6 text-center" style={{
+            background: "rgba(5, 11, 20, 0.46)",
+            border: "1px solid rgba(var(--codedock-primary-rgb), 0.12)"
+          }}>
+            <p className="m-0 tracking-tight" style={{ color: "var(--muted)", fontSize: 14, fontWeight: 800 }}>
+              커밋 이력이 없습니다
+            </p>
           </div>
-        </div>
-      ))}
-    </div>
-  );
+        ) : (
+          allEvents.map((event, idx) => {
+            const isOpen = event.sha === 'open';
+            const shortSha = isOpen ? '' : event.sha.slice(0, 7);
+            const displayDate = event.date
+              ? event.date.replace('T', ' ').slice(0, 16)
+              : '';
+            return (
+              <div key={`${event.sha}-${idx}`} className="flex gap-4 rounded-2xl px-5 py-4" style={{
+                background: isOpen ? "rgba(var(--codedock-primary-rgb), 0.08)" : "rgba(5, 11, 20, 0.46)",
+                border: isOpen
+                  ? "1px solid rgba(var(--codedock-primary-rgb), 0.25)"
+                  : "1px solid rgba(var(--codedock-primary-rgb), 0.12)"
+              }}>
+                <span className="font-mono flex-shrink-0" style={{
+                  color: isOpen ? "var(--neon-cyan)" : "rgba(var(--codedock-secondary-rgb), 0.9)",
+                  fontSize: 12,
+                  fontWeight: 950,
+                  minWidth: 52
+                }}>
+                  {isOpen ? 'OPEN' : shortSha}
+                </span>
+                <div className="min-w-0">
+                  <p className="m-0 mb-1 truncate tracking-tight" style={{ color: "var(--white)", fontSize: 14, fontWeight: 950 }}>
+                    {event.author}
+                  </p>
+                  <p className="m-0 tracking-tight" style={{ color: "var(--soft-mint)", fontSize: 14, fontWeight: 800, wordBreak: 'break-word' }}>
+                    {event.message}
+                  </p>
+                  {displayDate && (
+                    <p className="m-0 mt-1 tracking-tight" style={{ color: "var(--muted)", fontSize: 12, fontWeight: 700 }}>
+                      {displayDate}
+                    </p>
+                  )}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    );
+  };
 
   const renderPrThreadChat = (showClose = false) => {
     const selectedFile = activeDiffThread
@@ -1822,18 +1888,21 @@ export function PRReviewPanel({ prData, onClose, onMergePR, externalThreadMessag
           <button
             type="button"
             onClick={handleApprove}
+            disabled={isApproved}
             className="inline-flex items-center gap-2 rounded-lg px-5 py-3 tracking-tight"
             style={{
-              background: "linear-gradient(135deg, var(--neon-cyan), var(--matrix-green))",
-              border: 0,
-              color: "#021014",
+              background: isApproved
+                ? "rgba(100,100,100,0.3)"
+                : "linear-gradient(135deg, var(--neon-cyan), var(--matrix-green))",
+              border: isApproved ? "1px solid rgba(100,100,100,0.4)" : 0,
+              color: isApproved ? "rgba(200,200,200,0.6)" : "#021014",
               fontSize: 14,
               fontWeight: 950,
-              cursor: "pointer"
+              cursor: isApproved ? "not-allowed" : "pointer"
             }}
           >
             <CheckCircle2 size={16} />
-            승인
+            {isApproved ? "승인됨" : "승인"}
           </button>
           <button
             type="button"

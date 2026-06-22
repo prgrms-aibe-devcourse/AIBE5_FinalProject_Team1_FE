@@ -75,7 +75,8 @@ import {
   connectWorkspaceRepository,
   fetchWorkspaceRepositories,
   registerWorkspaceRepositoryWebhook,
-  syncRepositoryIssueStatuses
+  syncRepositoryIssueStatuses,
+  syncRepositoryPullRequests
 } from "../api/github";
 
 const APISpecPage = lazy(() => import("./APISpecPage").then((module) => ({ default: module.APISpecPage })));
@@ -698,6 +699,27 @@ function mapChannelMessageToWorkspaceMessage(message: ChannelMessage) {
     }
   }
 
+  // GitHub bot PR notification — parse meta JSON from the PR attachment
+  const prAttachment = (message.attachments ?? []).find(
+    (a) => a.attachmentType === "pr" || a.type === "pr"
+  );
+let prFields: Record<string, unknown> = {};
+  if (prAttachment?.meta) {
+    try {
+      const parsed = JSON.parse(prAttachment.meta);
+      if (!parsed.aiRisk) parsed.aiRisk = 'Medium';
+      if (parsed.approved === undefined) parsed.approved = 0;
+      if (parsed.pending === undefined) parsed.pending = 0;
+      if (parsed.passed === undefined) parsed.passed = 0;
+      if (parsed.filesChanged === undefined) parsed.filesChanged = 0;
+      if (parsed.additions === undefined) parsed.additions = 0;
+      if (parsed.deletions === undefined) parsed.deletions = 0;
+      prFields = { type: "pr", ...parsed };
+    } catch {
+      // meta가 JSON이 아닌 경우 무시
+    }
+  }
+
   return {
     id: message.id,
     backendMessageId: message.id,
@@ -715,6 +737,7 @@ function mapChannelMessageToWorkspaceMessage(message: ChannelMessage) {
     ...(replyTo ? { replyTo } : {}),
     ...(isDeleted ? { deleted: true } : {}),
     ...issueFields,
+    ...prFields,
   };
 }
 
@@ -1252,8 +1275,31 @@ export function ChatPage() {
       .finally(() => setWorkspacesLoaded(true));
   }, []);
 
+  // presence 변경 등으로 워크스페이스별 실시간 접속 인원이 달라졌을 때 목록 카운트를 갱신.
+  const refreshWorkspaceList = useCallback(() => {
+    fetchMyWorkspaces().then(setApiWorkspaces).catch(() => {});
+  }, []);
+
+  // presence 이벤트가 몰려와도 목록 refetch를 한 번으로 묶는 디바운스.
+  const workspaceListRefreshTimeoutRef = useRef<number | null>(null);
+  const scheduleWorkspaceListRefresh = useCallback(() => {
+    if (workspaceListRefreshTimeoutRef.current != null) {
+      window.clearTimeout(workspaceListRefreshTimeoutRef.current);
+    }
+    workspaceListRefreshTimeoutRef.current = window.setTimeout(() => {
+      workspaceListRefreshTimeoutRef.current = null;
+      refreshWorkspaceList();
+    }, 400);
+  }, [refreshWorkspaceList]);
+
+  // 내가 속한 워크스페이스 id 집합. 이 집합이 바뀔 때만 presence 구독을 재설정(카운트 변경 refetch로는 재구독 안 함).
+  const workspacePresenceSubKey = useMemo(
+    () => apiWorkspaces.map((w) => w.id).sort((a, b) => a - b).join(","),
+    [apiWorkspaces]
+  );
+
   const workspaceList = apiWorkspaces.length > 0
-    ? apiWorkspaces.map(ws => ({ id: toWorkspaceUiId(ws.id), apiId: ws.id, name: ws.name, myRole: ws.myRole, membersOnline: ws.memberCount, connected: true }))
+    ? apiWorkspaces.map(ws => ({ id: toWorkspaceUiId(ws.id), apiId: ws.id, name: ws.name, myRole: ws.myRole, membersOnline: ws.membersOnline ?? ws.memberCount, connected: true }))
     : DEFAULT_WORKSPACES;
 
   const [repositoriesImported, setRepositoriesImported] = useState(true);
@@ -1770,6 +1816,27 @@ export function ChatPage() {
       ? currentRepositoryApiChannelId
       : apiChannelIdByUiChannel[selectedChannel];
   const hasActiveApiChatChannel = activeApiChannelId !== undefined;
+
+  // pull-requests 탭 진입 시 GitHub API에서 PR 목록을 DB로 동기화한 뒤 메시지 재로드
+  useEffect(() => {
+    if (selectedChannel !== 'pull-requests' || !currentRepo || !activeApiChannelId) return;
+    const repoDbId = Number(currentRepo.id.replace('repo-', ''));
+    if (!Number.isFinite(repoDbId)) return;
+
+    const channelKey = selectedChannelMessageKey;
+    const channelId = activeApiChannelId;
+
+    // sync 실패해도 getChannelMessages는 반드시 실행 (DB에 저장된 meta 기반으로 메시지 로드)
+    syncRepositoryPullRequests(repoDbId).catch(() => { /* ignore sync failure */ })
+      .then(() => getChannelMessages(channelId, { limit: 50 }))
+      .then((serverMessages) => {
+        const mapped = serverMessages.map(mapChannelMessageToWorkspaceMessage);
+        const filtered = mapped.filter((m) => (m as any).type === 'pr');
+        setMessages((prev) => ({ ...prev, [channelKey]: filtered }));
+      })
+      .catch(() => { /* ignore */ });
+  }, [selectedChannel, currentRepo?.id, activeApiChannelId, selectedChannelMessageKey]);
+
   const hasChatAccessToken = Boolean(getAccessToken());
   const realtimeConnectionBlockReason = useMemo<RealtimeConnectionReason | null>(() => {
     if (!Number.isFinite(currentWorkspaceApiId) || currentWorkspaceApiId <= 0) return "workspace-unavailable";
@@ -2168,6 +2235,8 @@ export function ChatPage() {
 
   // Sorted team member list for the current workspace — used by the member list popup.
   // Order: presence group (active→away→busy→offline) → role privilege → Korean alphabetical.
+  // presence는 BE가 신뢰원: 실시간 override(스냅샷+브로드캐스트)가 있으면 그것을, 없으면 멤버 목록의 마지막
+  // 상태를 사용한다. (WS 연결 여부로 화면에서 강제 offline 처리하지 않음 — 실제 접속자를 가리는 문제 방지)
   const sortedWorkspaceMembers = useMemo(() => {
     const resolvePresence = (m: WorkspaceMember): PresenceKey => {
       if (currentWorkspaceMemberId != null && Number(m.memberId) === Number(currentWorkspaceMemberId)) {
@@ -2211,10 +2280,10 @@ export function ChatPage() {
   const workspaceOnlineCounts = useMemo(() => {
     if (!selectedWorkspace || workspaceMembers.length === 0) return {};
     const onlineCount = workspaceMembers.reduce((acc, member) => {
-      const presence =
-        currentWorkspaceMemberId != null && Number(member.memberId) === Number(currentWorkspaceMemberId)
-          ? userPresence
-          : (presenceOverrides[String(member.memberId)] ?? member.presence ?? 'active');
+      const isSelf = currentWorkspaceMemberId != null && Number(member.memberId) === Number(currentWorkspaceMemberId);
+      const presence = isSelf
+        ? userPresence
+        : (presenceOverrides[String(member.memberId)] ?? member.presence ?? 'active');
       return acc + (presence !== 'offline' ? 1 : 0);
     }, 0);
     return { [selectedWorkspace]: onlineCount };
@@ -2301,6 +2370,8 @@ export function ChatPage() {
     setSelectedPR(null);
     setSelectedIssue(null);
     setRemoteTypingByChannel({});
+    // 이전 워크스페이스의 실시간 presence가 다른 워크스페이스 멤버 상태로 잘못 비치지 않도록 초기화.
+    setPresenceOverrides({});
   }, [currentWorkspaceApiId]);
 
   useEffect(() => {
@@ -3080,9 +3151,15 @@ export function ChatPage() {
       signal: controller.signal
     })
       .then((serverMessages) => {
+        const mapped = serverMessages.map(mapChannelMessageToWorkspaceMessage);
+        const filtered = selectedChannel === 'pull-requests'
+          ? mapped.filter((m) => (m as any).type === 'pr')
+          : selectedChannel === 'issues'
+            ? mapped.filter((m) => (m as any).type === 'issue')
+            : mapped;
         setMessages((prev) => ({
           ...prev,
-          [selectedChannelMessageKey]: serverMessages.map(mapChannelMessageToWorkspaceMessage)
+          [selectedChannelMessageKey]: filtered
         }));
       })
       .catch(() => {
@@ -3575,16 +3652,40 @@ export function ChatPage() {
 
   useEffect(() => {
     const client = chatStompRef.current;
-    if (!currentWorkspaceApiId || !client) return;
-    const sub = client.subscribe<{ memberId: number; presence: string }>(
-      `/topic/workspaces/${currentWorkspaceApiId}/presence`,
+    if (!client || apiWorkspaces.length === 0) return;
+    // 입장/재연결 시 BE가 보내는 presence 스냅샷(개인 큐). 토픽 구독보다 먼저 구독해 스냅샷을 놓치지 않음.
+    const snapshotSub = client.subscribe<Array<{ memberId: number; presence: string }>>(
+      "/user/queue/presence",
       (payload) => {
-        if (!payload?.memberId || !payload?.presence) return;
-        setPresenceOverrides((prev) => ({ ...prev, [String(payload.memberId)]: payload.presence }));
+        if (!Array.isArray(payload)) return;
+        setPresenceOverrides((prev) => {
+          const next = { ...prev };
+          payload.forEach((entry) => {
+            if (entry?.memberId != null && entry?.presence) {
+              next[String(entry.memberId)] = entry.presence;
+            }
+          });
+          return next;
+        });
       }
     );
-    return () => sub.unsubscribe();
-  }, [currentWorkspaceApiId, chatStompReadyKey]);
+    // 내가 속한 "모든" 워크스페이스의 presence 토픽 구독 → 어느 워크스페이스에서 누가 들고나도 실시간 반영.
+    // 현재 워크스페이스: override로 헤더/멤버목록 즉시 갱신. 모든 워크스페이스: 목록 카운트 디바운스 refetch.
+    const topicSubs = apiWorkspaces.map((ws) =>
+      client.subscribe<{ memberId: number; presence: string }>(
+        `/topic/workspaces/${ws.id}/presence`,
+        (payload) => {
+          if (!payload?.memberId || !payload?.presence) return;
+          setPresenceOverrides((prev) => ({ ...prev, [String(payload.memberId)]: payload.presence }));
+          scheduleWorkspaceListRefresh();
+        }
+      )
+    );
+    return () => {
+      snapshotSub.unsubscribe();
+      topicSubs.forEach((sub) => sub.unsubscribe());
+    };
+  }, [workspacePresenceSubKey, chatStompReadyKey]);
 
   const handleChannelTypingChange = useCallback((typing: boolean) => {
     if (!activeApiChannelId) return;
@@ -4301,7 +4402,7 @@ export function ChatPage() {
                     onClick={() => {
                       setUserPresence(option.id);
                       const apiId = currentWorkspaceApiId;
-                      if (apiId) updatePresence(apiId, option.id).catch(() => {});
+                      if (apiId) updatePresence(apiId, option.id).then(() => refreshWorkspaceList()).catch(() => {});
                     }}
                     className="flex w-full items-center gap-3 rounded-xl border-0 px-3 py-2.5 text-left tracking-tight"
                     style={{
@@ -4462,35 +4563,27 @@ export function ChatPage() {
       const newMessages = { ...prevMessages };
       const channelMessages = newMessages[selectedChannelMessageKey];
       if (channelMessages) {
-        const originalPR = channelMessages.find(msg => msg.id === messageId);
-
-        if (originalPR && originalPR.type === 'pr') {
-          const newMergeMessage = {
-            id: Date.now(),
-            user: 'GitHub Bot',
-            text: `PR #${originalPR.prNumber} merged: ${originalPR.text.replace(/^.*?: /, '')}`,
-            time: '방금',
-            type: 'pr' as const,
-            prNumber: originalPR.prNumber,
-            prStatus: 'merged' as const,
-            filesChanged: originalPR.filesChanged,
-            additions: originalPR.additions,
-            deletions: originalPR.deletions
-          };
-
-          newMessages[selectedChannelMessageKey] = [
-            ...channelMessages.map(msg =>
-              msg.id === messageId && msg.type === 'pr'
-                ? { ...msg, prStatus: 'completed' as const }
-                : msg
-            ),
-            newMergeMessage
-          ];
-        }
+        // 원본 PR 카드를 approved(보라색)로 변경 — 새로고침 후에도 DB에서 같은 상태로 로드됨
+        newMessages[selectedChannelMessageKey] = channelMessages.map(msg =>
+          msg.id === messageId && msg.type === 'pr'
+            ? { ...msg, prStatus: 'approved' as const }
+            : msg
+        );
       }
       return newMessages;
     });
   };
+
+  // 메시지가 갱신(sync 후 재로드)되면 열려있는 PR 패널 데이터도 최신화
+  useEffect(() => {
+    if (!selectedPR) return;
+    const updated = currentMessages.find(
+      (m: any) => m.type === 'pr' && m.prNumber === selectedPR.prNumber
+    );
+    if (updated && (updated as any).prBody !== selectedPR.prBody) {
+      setSelectedPR(updated);
+    }
+  }, [currentMessages]);
 
   const handleReviewPR = (prData: any) => {
     prevMainExpanded.current = isMainExpanded;
@@ -5224,7 +5317,7 @@ export function ChatPage() {
                             </span>
                           </div>
                           <span className="tracking-tight" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 800, color: 'var(--muted)' }}>
-                            {workspaceOnlineCounts[ws.id] ?? ws.membersOnline}명 접속 중
+                            {workspaceOnlineCounts[ws.id] ?? (ws.membersOnline + (userPresence !== 'offline' ? 1 : 0))}명 접속 중
                           </span>
                         </div>
                       </button>
@@ -5254,7 +5347,7 @@ export function ChatPage() {
               >
                 <div className="w-2 h-2 rounded-full" style={{ background: 'var(--matrix-green)' }} />
                 <span className="tracking-tight" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 800, color: 'var(--muted)' }}>
-                  {workspaceOnlineCounts[selectedWorkspace] ?? currentWorkspace.membersOnline}명 접속 중
+                  {workspaceOnlineCounts[selectedWorkspace] ?? (currentWorkspace.membersOnline + (userPresence !== 'offline' ? 1 : 0))}명 접속 중
                 </span>
               </button>
             </div>
@@ -6083,6 +6176,7 @@ export function ChatPage() {
           <section className="h-full min-h-0 rounded-[30px] overflow-hidden">
             <PRReviewPanel
               prData={selectedPR}
+              repositoryDbId={currentRepo ? Number(currentRepo.id.replace('repo-', '')) : undefined}
               onClose={handleClosePRReview}
               onMergePR={handleMergePR}
               externalThreadMessages={currentThreadReplies[`pr-${selectedPR.id}`] ?? []}

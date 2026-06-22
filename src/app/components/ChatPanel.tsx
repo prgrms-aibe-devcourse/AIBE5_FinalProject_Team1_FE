@@ -588,7 +588,7 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
   const filteredMessages = isRepository ? messages.filter(msg => {
     if (activeTab === 'all') return true;
     if (activeTab === 'pending') return msg.type === 'pr' && msg.prStatus === 'open';
-    if (activeTab === 'completed') return msg.type === 'pr' && msg.prStatus === 'merged';
+    if (activeTab === 'completed') return msg.type === 'pr' && (msg.prStatus === 'merged' || msg.prStatus === 'approved');
     return true;
   }) : messages;
   const reactionMap = reactions ?? localMessageReactions;
@@ -757,18 +757,18 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
                     }}
                     className="rounded-xl overflow-hidden transition-all hover:translate-y-[-1px]"
                     style={{
-                    background: msg.prStatus === 'merged' ? 'rgba(20, 10, 30, 0.85)' : 'rgba(11, 22, 40, 0.85)',
-                    border: msg.prStatus === 'merged' ? '1px solid rgba(138, 43, 226, 0.35)' : '1px solid rgba(var(--codedock-primary-rgb), 0.2)',
-                    boxShadow: msg.prStatus === 'merged' ? '0 4px 16px rgba(138, 43, 226, 0.2)' : '0 4px 16px rgba(0, 0, 0, 0.3)',
+                    background: (msg.prStatus === 'merged' || msg.prStatus === 'approved') ? 'rgba(20, 10, 30, 0.85)' : 'rgba(11, 22, 40, 0.85)',
+                    border: (msg.prStatus === 'merged' || msg.prStatus === 'approved') ? '1px solid rgba(138, 43, 226, 0.35)' : '1px solid rgba(var(--codedock-primary-rgb), 0.2)',
+                    boxShadow: (msg.prStatus === 'merged' || msg.prStatus === 'approved') ? '0 4px 16px rgba(138, 43, 226, 0.2)' : '0 4px 16px rgba(0, 0, 0, 0.3)',
                     cursor: 'pointer'
                   }}>
                     {/* Header */}
                     <div className="px-4 py-2.5 flex items-center justify-between" style={{
-                      background: msg.prStatus === 'merged' ? 'rgba(138, 43, 226, 0.1)' : 'rgba(5, 11, 20, 0.5)',
-                      borderBottom: msg.prStatus === 'merged' ? '1px solid rgba(138, 43, 226, 0.2)' : '1px solid rgba(var(--codedock-primary-rgb), 0.14)'
+                      background: (msg.prStatus === 'merged' || msg.prStatus === 'approved') ? 'rgba(138, 43, 226, 0.1)' : 'rgba(5, 11, 20, 0.5)',
+                      borderBottom: (msg.prStatus === 'merged' || msg.prStatus === 'approved') ? '1px solid rgba(138, 43, 226, 0.2)' : '1px solid rgba(var(--codedock-primary-rgb), 0.14)'
                     }}>
                       <div className="flex items-center gap-2">
-                        <GitPullRequest size={14} style={{ color: msg.prStatus === 'merged' ? '#A78BFA' : 'var(--neon-cyan)' }} />
+                        <GitPullRequest size={14} style={{ color: (msg.prStatus === 'merged' || msg.prStatus === 'approved') ? '#A78BFA' : 'var(--neon-cyan)' }} />
                         <span className="font-mono tracking-tight" style={{
                           fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 800,
@@ -804,7 +804,7 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
 
                     {/* Title */}
                     <div className="px-4 py-3" style={{
-                      borderBottom: msg.prStatus === 'merged' ? '1px solid rgba(138, 43, 226, 0.15)' : '1px solid rgba(var(--codedock-primary-rgb), 0.1)'
+                      borderBottom: (msg.prStatus === 'merged' || msg.prStatus === 'approved') ? '1px solid rgba(138, 43, 226, 0.15)' : '1px solid rgba(var(--codedock-primary-rgb), 0.1)'
                     }}>
                       <h4 className="m-0 mb-2 tracking-tight" style={{
                         fontSize: '15px',
@@ -816,13 +816,13 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
                       </h4>
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="px-2 py-0.5 rounded-md flex items-center gap-1" style={{
-                          background: msg.prStatus === 'merged' ? 'rgba(138, 43, 226, 0.15)' : 'rgba(34, 197, 94, 0.15)',
-                          border: msg.prStatus === 'merged' ? '1px solid rgba(138, 43, 226, 0.3)' : '1px solid rgba(34, 197, 94, 0.3)',
+                          background: (msg.prStatus === 'merged' || msg.prStatus === 'approved') ? 'rgba(138, 43, 226, 0.15)' : 'rgba(34, 197, 94, 0.15)',
+                          border: (msg.prStatus === 'merged' || msg.prStatus === 'approved') ? '1px solid rgba(138, 43, 226, 0.3)' : '1px solid rgba(34, 197, 94, 0.3)',
                           fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 900,
-                          color: msg.prStatus === 'merged' ? '#A78BFA' : '#22C55E'
+                          color: (msg.prStatus === 'merged' || msg.prStatus === 'approved') ? '#A78BFA' : '#22C55E'
                         }}>
-                          {msg.prStatus === 'merged' ? '병합됨' : '열림'}
+                          {msg.prStatus === 'merged' ? '병합됨' : msg.prStatus === 'approved' ? '승인됨' : '열림'}
                         </span>
                         <span className="tracking-tight" style={{
                           fontSize: "var(--krds-body-xsmall)",
@@ -843,7 +843,7 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
 
                     {/* Stats */}
                     <div className="px-4 py-3 flex items-center gap-4" style={{
-                      borderBottom: msg.prStatus === 'merged' ? '1px solid rgba(138, 43, 226, 0.15)' : '1px solid rgba(var(--codedock-primary-rgb), 0.1)'
+                      borderBottom: (msg.prStatus === 'merged' || msg.prStatus === 'approved') ? '1px solid rgba(138, 43, 226, 0.15)' : '1px solid rgba(var(--codedock-primary-rgb), 0.1)'
                     }}>
                       {msg.approved !== undefined && (
                         <div className="flex items-center gap-1">
@@ -874,7 +874,7 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
                         fontWeight: 800,
                         color: 'var(--muted)'
                       }}>
-                        {msg.filesChanged || 8}
+                        {msg.filesChanged ?? 0}
                       </span>
                       <div className="flex items-center gap-2">
                         <span className="tracking-tight" style={{
@@ -882,14 +882,14 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
                           fontWeight: 800,
                           color: '#22C55E'
                         }}>
-                          +{msg.additions || 145}
+                          +{msg.additions ?? 0}
                         </span>
                         <span className="tracking-tight" style={{
                           fontSize: "var(--krds-body-xsmall)",
                           fontWeight: 800,
                           color: '#FF6B6B'
                         }}>
-                          -{msg.deletions || 47}
+                          -{msg.deletions ?? 0}
                         </span>
                       </div>
                     </div>
@@ -946,7 +946,10 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
                       >
                         리뷰 열기
                       </button>
-                      <button
+                      <a
+                        href={msg.prUrl || '#'}
+                        target="_blank"
+                        rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
                         className="px-3 py-1.5 rounded-md border-0 tracking-tight transition-all flex items-center gap-1.5"
                         style={{
@@ -955,11 +958,12 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
                         color: 'var(--muted)',
                         fontSize: "var(--krds-body-xsmall)",
                         fontWeight: 800,
-                        cursor: 'pointer'
+                        cursor: 'pointer',
+                        textDecoration: 'none'
                       }}>
                         <ExternalLink size={12} />
                         GitHub에서 보기
-                      </button>
+                      </a>
                     </div>
                   </div>
                   {(hoveredMessageId === msg.id || emojiPickerMsgId === msg.id) && renderHoverMenu(msg)}
