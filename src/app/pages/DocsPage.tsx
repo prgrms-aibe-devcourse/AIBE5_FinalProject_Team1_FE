@@ -59,7 +59,7 @@ function parseInline(text: string): React.ReactNode[] {
   const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|_[^_]+_|`[^`]+`|~~[^~]+~~)/g);
   return parts.map((part, i) => {
     if (part.startsWith('**') && part.endsWith('**') && part.length > 4)
-      return <strong key={i} style={{ fontWeight: 950 }}>{part.slice(2, -2)}</strong>;
+      return <strong key={i} style={{ fontWeight: 1000, color: 'var(--white)' }}>{part.slice(2, -2)}</strong>;
     if ((part.startsWith('*') && part.endsWith('*') || part.startsWith('_') && part.endsWith('_')) && part.length > 2)
       return <em key={i}>{part.slice(1, -1)}</em>;
     if (part.startsWith('`') && part.endsWith('`') && part.length > 2)
@@ -357,9 +357,9 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
             <div key={index} className="flex gap-3 rounded-xl px-4 py-3 tracking-tight" style={{
               background: 'rgba(234, 247, 255, 0.035)',
               border: '1px solid rgba(234, 247, 255, 0.07)',
-              color: 'rgba(234, 247, 255, 0.86)',
+              color: 'rgba(234, 247, 255, 0.82)',
               fontSize: '14px',
-              fontWeight: 780,
+              fontWeight: 500,
               lineHeight: 1.65
             }}>
               <span style={{ color: 'var(--neon-cyan)', fontWeight: 950 }}>•</span>
@@ -374,9 +374,9 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
 
         return (
           <p key={index} className="m-0 tracking-tight" style={{
-            color: 'rgba(234, 247, 255, 0.86)',
+            color: 'rgba(234, 247, 255, 0.82)',
             fontSize: '15px',
-            fontWeight: 760,
+            fontWeight: 500,
             lineHeight: 1.85
           }}>
             {parseInline(trimmedLine)}
