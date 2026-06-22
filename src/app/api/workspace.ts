@@ -80,6 +80,16 @@ export function updateWorkspace(workspaceId: number, payload: WorkspaceUpdatePay
   return apiClient.patch<WorkspaceDto>(`/api/v1/workspaces/${workspaceId}`, payload);
 }
 
+export function uploadWorkspaceLogo(workspaceId: number, file: File): Promise<WorkspaceDto> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  return fetchWithAuth<WorkspaceDto>(`/api/v1/workspaces/${workspaceId}/logo`, {
+    method: "POST",
+    body: formData,
+  });
+}
+
 export function changeMemberRole(workspaceId: number, memberId: number, role: string): Promise<void> {
   return apiClient.patch<void>(`/api/v1/workspaces/${workspaceId}/members/${memberId}/role`, { role });
 }

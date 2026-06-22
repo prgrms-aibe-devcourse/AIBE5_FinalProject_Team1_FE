@@ -247,7 +247,7 @@ export function OverviewPanel({ repositories, selectedRepositoryId, onSelectRepo
               {activeDetails.summary}
             </p>
           </div>
-          <div className="mt-10 -mr-2 rounded-2xl px-4 py-3 text-center" style={{
+          <div className="mt-10 -mr-2 flex-shrink-0 rounded-2xl px-4 py-3 text-center" style={{
             background: "rgba(234, 247, 255, 0.045)",
             border: "1px solid rgba(var(--codedock-primary-rgb), 0.14)"
           }}>

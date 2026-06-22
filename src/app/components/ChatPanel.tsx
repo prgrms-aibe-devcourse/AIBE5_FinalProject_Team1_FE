@@ -85,6 +85,7 @@ interface ChatPanelProps {
   onReviewPR?: (prData: any) => void;
   onViewIssue?: (issueData: any) => void;
   onOpenThread?: (message: any) => void;
+  onOpenProfile?: (message: Message) => void;
   selectedThreadId?: number | string;
   onToggleReaction?: (reactionKey: string, emoji: string) => void;
   isRepository?: boolean;
@@ -138,7 +139,7 @@ function getUserInitial(user?: string) {
   return trimmed ? trimmed.charAt(0).toUpperCase() : "?";
 }
 
-export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messages, reactions, replyCounts = {}, onSendMessage, onAddMessageAttachments, onDeleteMessageAttachment, onSharePR, showAISummary = true, onMergePR, onReviewPR, onViewIssue, onOpenThread, selectedThreadId, onToggleReaction, isRepository = false, myMemberId, myDisplayName, myAvatarUrl, onTypingChange, remoteTypingLabel }: ChatPanelProps) {
+export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messages, reactions, replyCounts = {}, onSendMessage, onAddMessageAttachments, onDeleteMessageAttachment, onSharePR, showAISummary = true, onMergePR, onReviewPR, onViewIssue, onOpenThread, onOpenProfile, selectedThreadId, onToggleReaction, isRepository = false, myMemberId, myDisplayName, myAvatarUrl, onTypingChange, remoteTypingLabel }: ChatPanelProps) {
   const bookmarkStorageKey = `codedock-chat-bookmarks:${bookmarkScopeId ?? channelId}`;
   const displayCurrentUserName = myDisplayName?.trim() || currentUserDisplayName;
   const displayCurrentUserAvatar = displayCurrentUserName.charAt(0) || currentUserAvatar;
@@ -284,7 +285,6 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
       setReplyTo(null);
       setAttachmentTarget(null);
       setAttachmentError("");
-      triggerResponderTyping();
     }
   };
 
@@ -369,13 +369,7 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
     };
   }, [message, onTypingChange]);
 
-  const localTypingLabel = responderTyping
-    ? composerTyping
-      ? `CodeDock AI, ${displayCurrentUserName} 입력 중입니다`
-      : "CodeDock AI가 답변을 정리 중입니다"
-    : composerTyping
-      ? "내가 입력 중입니다"
-      : "";
+  const localTypingLabel = composerTyping ? "내가 입력 중입니다" : "";
   const typingLabel = remoteTypingLabel || localTypingLabel;
 
   const handleAttachmentToggle = (attachment: MessageAttachment) => {
@@ -473,6 +467,8 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
   };
 
   const renderHoverMenu = (msg: Message) => {
+    if (msg.deleted) return null;
+
     const isBookmarked = bookmarkedMessageIds[msg.id];
     const isPR = msg.type === 'pr';
     const bk = (label: string) => `${msg.id}:${label}`;
@@ -605,7 +601,7 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
     });
 
     return () => window.cancelAnimationFrame(frameId);
-  }, [filteredMessages.length, responderTyping, typingLabel]);
+  }, [filteredMessages.length, typingLabel]);
 
   return (
     <div className="flex flex-col h-full min-h-0 relative overflow-hidden">
@@ -686,6 +682,7 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
             const messageAvatarUrl = isOwnMessage
               ? displayCurrentUserAvatarUrl
               : msg.avatarUrl?.trim() || "";
+            const canOpenProfile = Boolean(onOpenProfile && !msg.deleted && msg.type !== "system");
 
             return (
             <div
@@ -703,10 +700,11 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
             >
               <div className="flex items-center gap-2">
                 {showSlackAvatar && (
-                  <span className="grid h-7 w-7 flex-shrink-0 place-items-center overflow-hidden rounded-full tracking-tight" style={{
+                  <button type="button" disabled={!canOpenProfile} onClick={() => onOpenProfile?.(msg)} className="grid h-7 w-7 flex-shrink-0 place-items-center overflow-hidden rounded-full border-0 p-0 tracking-tight" style={{
                     background: isOwnMessage ? 'rgba(var(--codedock-primary-rgb), 0.16)' : msg.type === 'system' ? 'rgba(var(--codedock-primary-rgb), 0.18)' : 'rgba(var(--codedock-secondary-rgb), 0.14)',
                     border: isOwnMessage ? '1px solid rgba(var(--codedock-primary-rgb), 0.30)' : msg.type === 'system' ? '1px solid rgba(var(--codedock-primary-rgb), 0.32)' : '1px solid rgba(var(--codedock-secondary-rgb), 0.28)',
                     color: isOwnMessage ? 'var(--neon-cyan)' : msg.type === 'system' ? 'var(--neon-cyan)' : 'var(--matrix-green)',
+                    cursor: canOpenProfile ? 'pointer' : 'default',
                     fontSize: messageAvatarUrl ? 0 : "var(--krds-body-xsmall)",
                     fontWeight: 950
                   }}>
@@ -715,7 +713,7 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
                     ) : (
                       isOwnMessage ? displayCurrentUserAvatar : msg.type === 'system' ? 'AI' : getUserInitial(msg.user)
                     )}
-                  </span>
+                  </button>
                 )}
                 <span className="tracking-tight" style={{
                   fontSize: '13px',
@@ -966,7 +964,7 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
                       </a>
                     </div>
                   </div>
-                  {(hoveredMessageId === msg.id || emojiPickerMsgId === msg.id) && renderHoverMenu(msg)}
+                  {!msg.deleted && (hoveredMessageId === msg.id || emojiPickerMsgId === msg.id) && renderHoverMenu(msg)}
                 </div>
               ) : msg.type === 'issue' ? (
                 <div className="relative">
@@ -1120,7 +1118,7 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
                       </button>
                     </div>
                   </div>
-                  {(hoveredMessageId === msg.id || emojiPickerMsgId === msg.id) && renderHoverMenu(msg)}
+                  {!msg.deleted && (hoveredMessageId === msg.id || emojiPickerMsgId === msg.id) && renderHoverMenu(msg)}
                 </div>
               ) : msg.type === 'code' && msg.code ? (
                 <div className="relative">
@@ -1148,7 +1146,7 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
                       {msg.code}
                     </pre>
                   </div>
-                  {(hoveredMessageId === msg.id || emojiPickerMsgId === msg.id) && renderHoverMenu(msg)}
+                  {!msg.deleted && (hoveredMessageId === msg.id || emojiPickerMsgId === msg.id) && renderHoverMenu(msg)}
                 </div>
               ) : (
                 <div className="relative">
@@ -1181,7 +1179,7 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
                     <div>
                       <MessageTextWithCodeBlocks text={msg.text} color={msg.type === 'system' ? 'var(--neon-cyan)' : 'var(--white)'} />
                     </div>
-                    {msg.mentions && msg.mentions.length > 0 && (
+                    {!msg.deleted && msg.mentions && msg.mentions.length > 0 && (
                       <div className="flex gap-2 mt-2">
                         {msg.mentions.map((mention, idx) => (
                           <motion.span
@@ -1201,7 +1199,7 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
                         ))}
                       </div>
                     )}
-                    {msg.attachments && msg.attachments.length > 0 && (
+                    {!msg.deleted && msg.attachments && msg.attachments.length > 0 && (
                       <div className="grid gap-2 mt-3">
                         {msg.attachments.map((attachment) => (
                           <MessageAttachmentCard
@@ -1231,31 +1229,35 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
                       </p>
                     )}
                   </div>
-                  {(hoveredMessageId === msg.id || emojiPickerMsgId === msg.id) && renderHoverMenu(msg)}
+                  {!msg.deleted && (hoveredMessageId === msg.id || emojiPickerMsgId === msg.id) && renderHoverMenu(msg)}
                 </div>
               )}
-              <button
-                type="button"
-                onClick={() => onOpenThread?.(msg)}
-                className="mt-2 inline-flex w-fit items-center gap-1.5 rounded-full border-0 px-3 py-1.5 tracking-tight transition-all"
-                style={{
-                  background: 'rgba(32, 227, 255, 0.08)',
-                  border: '1px solid rgba(32, 227, 255, 0.18)',
-                  color: 'var(--neon-cyan)',
-                  cursor: 'pointer',
-                  fontSize: '11px',
-                  fontWeight: 900
-                }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(32, 227, 255, 0.16)'; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(32, 227, 255, 0.08)'; }}
-              >
-                <MessageSquare size={13} />
-                답글 {getReplyCount(msg)}개
-              </button>
-              <MessageReactions
-                reactions={reactionMap[getMessageReactionKey(msg.id)]}
-                onToggle={(emoji) => handleReactionToggle(msg.id, emoji)}
-              />
+              {!msg.deleted && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => onOpenThread?.(msg)}
+                    className="mt-2 inline-flex w-fit items-center gap-1.5 rounded-full border-0 px-3 py-1.5 tracking-tight transition-all"
+                    style={{
+                      background: 'rgba(32, 227, 255, 0.08)',
+                      border: '1px solid rgba(32, 227, 255, 0.18)',
+                      color: 'var(--neon-cyan)',
+                      cursor: 'pointer',
+                      fontSize: '11px',
+                      fontWeight: 900
+                    }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(32, 227, 255, 0.16)'; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(32, 227, 255, 0.08)'; }}
+                  >
+                    <MessageSquare size={13} />
+                    답글 {getReplyCount(msg)}개
+                  </button>
+                  <MessageReactions
+                    reactions={reactionMap[getMessageReactionKey(msg.id)]}
+                    onToggle={(emoji) => handleReactionToggle(msg.id, emoji)}
+                  />
+                </>
+              )}
             </div>
             );
           })}

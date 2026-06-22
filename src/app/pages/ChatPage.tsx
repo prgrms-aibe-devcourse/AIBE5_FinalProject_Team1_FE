@@ -45,6 +45,7 @@ import {
   toggleChannelReaction,
   toggleMessageBookmark,
   updateWorkspaceChannel,
+  updateWorkspaceChannelOrder,
   updateChannelMessage,
   updateThreadReply,
   type Channel,
@@ -122,6 +123,24 @@ type SidebarGroupId = 'documentation';
 type UserPresence = 'active' | 'away' | 'busy' | 'offline';
 type NotificationMode = 'all' | 'mentions' | 'muted';
 type RemoteTypingMembers = Record<number, string>;
+type ChatProfilePreview = {
+  name: string;
+  avatarUrl?: string;
+  memberId?: number;
+  userId?: number;
+  email?: string;
+  role?: string;
+  presence?: PresenceKey;
+};
+
+function isGithubNoreplyEmail(email?: string | null) {
+  return Boolean(email?.trim().toLowerCase().endsWith("@users.noreply.github.com"));
+}
+
+function getPublicProfileEmail(email?: string | null) {
+  const trimmed = email?.trim();
+  return trimmed && !isGithubNoreplyEmail(trimmed) ? trimmed : "";
+}
 type ChannelFetchStatus = "idle" | "loading" | "ready" | "failed";
 type RealtimeConnectionStatus = "idle" | "waiting" | "connecting" | "connected" | "blocked" | "failed" | "disconnected";
 type RealtimeConnectionReason =
@@ -189,6 +208,7 @@ type CustomChannelItem = {
   id: string;
   label: string;
   apiChannelId?: number;
+  displayOrder?: number | null;
 };
 
 const REPO_CHANNEL_IDS: Record<string, string> = {
@@ -650,6 +670,52 @@ function createClientMessageId(): string {
 
 function isRepositoryApiChannel(channel: Channel) {
   return String(channel.channelType ?? "").toLowerCase() === "repository";
+}
+
+type RepositoryMessageView = "pull-requests" | "issues" | "repository";
+
+function normalizeRepositoryAttachmentType(value: unknown) {
+  return String(value ?? "").trim().toLowerCase().replace(/[_\s]+/g, "-");
+}
+
+function getRepositoryMessageViewFromAttachments(message: {
+  attachments?: Array<{ type?: unknown; attachmentType?: unknown }>;
+}): RepositoryMessageView {
+  const attachmentTypes = (message.attachments ?? []).map((attachment) =>
+    normalizeRepositoryAttachmentType(attachment.attachmentType ?? attachment.type)
+  );
+
+  if (attachmentTypes.some((type) => type === "pr" || type === "pull-request" || type === "pullrequest")) {
+    return "pull-requests";
+  }
+
+  if (attachmentTypes.some((type) => type === "issue")) {
+    return "issues";
+  }
+
+  return "repository";
+}
+
+function filterRepositoryMessagesForView<T extends { attachments?: Array<{ type?: unknown; attachmentType?: unknown }> }>(
+  messages: T[],
+  view: RepositoryMessageView | null
+) {
+  if (!view) return messages;
+
+  // 백엔드는 레포지토리 PR/이슈가 같은 repository channelId를 공유한다.
+  // 그래서 프론트의 PR/이슈 탭은 별도 채널이 아니라 같은 조회 결과를 attachment type으로 나누는 가상 탭이다.
+  // 이 필터가 없으면 같은 GET /api/channels/{repositoryChannelId}/messages 결과가 두 탭에 모두 저장되어
+  // PR 채팅방과 이슈 채팅방이 같은 내용처럼 보인다.
+  return messages.filter((message) => getRepositoryMessageViewFromAttachments(message) === view);
+}
+
+function sortChannelsByDisplayOrder(channels: Channel[]) {
+  return [...channels].sort((a, b) => {
+    const aOrder = a.displayOrder ?? Number.MAX_SAFE_INTEGER;
+    const bOrder = b.displayOrder ?? Number.MAX_SAFE_INTEGER;
+    if (aOrder !== bOrder) return aOrder - bOrder;
+    return a.id - b.id;
+  });
 }
 
 function formatApiDateTime(value: string) {
@@ -1369,6 +1435,8 @@ export function ChatPage() {
   const prevMainExpanded = useRef(false);
   const pendingEventRef = useRef<WorkspaceEventDto | null>(null);
   const [teamInviteOpen, setTeamInviteOpen] = useState(false);
+  const [chatProfilePreview, setChatProfilePreview] = useState<ChatProfilePreview | null>(null);
+  const [isGeneralChannelsOpen, setIsGeneralChannelsOpen] = useState(true);
   const [expandedSidebarGroups, setExpandedSidebarGroups] = useState<Record<SidebarGroupId, boolean>>({
     documentation: true
   });
@@ -1383,7 +1451,9 @@ export function ChatPage() {
   });
   const [presenceOverrides, setPresenceOverrides] = useState<Record<string, string>>({});
   const [remoteTypingByChannel, setRemoteTypingByChannel] = useState<Record<string, RemoteTypingMembers>>({});
+  const [remoteTypingByThread, setRemoteTypingByThread] = useState<Record<string, RemoteTypingMembers>>({});
   const remoteTypingTimeoutsRef = useRef<Record<string, number>>({});
+  const remoteThreadTypingTimeoutsRef = useRef<Record<string, number>>({});
   const chatStompRef = useRef<ChatStompClient | null>(null);
   const [chatStompReadyKey, setChatStompReadyKey] = useState(0);
   const [serverBookmarkedThreadsByChannel, setServerBookmarkedThreadsByChannel] = useState<Record<string, Record<number, boolean>>>({});
@@ -1506,6 +1576,31 @@ export function ChatPage() {
     if (userId == null) return null;
     return workspaceMembers.find((member) => Number(member.userId) === Number(userId))?.memberId ?? null;
   }, [userId, workspaceMembers]);
+  const handleOpenChatProfile = useCallback((message: any) => {
+    const senderMemberId = Number(message?.senderMemberId ?? message?.memberId);
+    const member = Number.isFinite(senderMemberId)
+      ? workspaceMembers.find((item) => Number(item.memberId) === senderMemberId)
+      : workspaceMembers.find((item) => item.username === message?.user);
+    const rawPresence =
+      member && currentWorkspaceMemberId != null && Number(member.memberId) === Number(currentWorkspaceMemberId)
+        ? userPresence
+        : member
+          ? presenceOverrides[String(member.memberId)] ?? member.presence ?? "offline"
+          : "offline";
+    const presence = (PRESENCE_ORDER as readonly string[]).includes(rawPresence)
+      ? rawPresence as PresenceKey
+      : "offline";
+
+    setChatProfilePreview({
+      name: member?.username ?? message?.user ?? "Unknown",
+      avatarUrl: message?.avatarUrl,
+      memberId: member?.memberId ?? (Number.isFinite(senderMemberId) ? senderMemberId : undefined),
+      userId: member?.userId,
+      email: getPublicProfileEmail(member?.email),
+      role: member?.position?.trim() || formatMemberAuthority(member?.role),
+      presence
+    });
+  }, [currentWorkspaceMemberId, presenceOverrides, userPresence, workspaceMembers]);
   const updateRealtimeConnection = useCallback((next: RealtimeConnectionState) => {
     setRealtimeConnection((prev) => {
       if (
@@ -1545,10 +1640,11 @@ export function ChatPage() {
   const refreshWorkspaceChannels = useCallback((signal?: AbortSignal) => {
     return getWorkspaceChannels(currentWorkspaceApiId, signal ? { signal } : undefined)
       .then((channels) => {
-        setApiChannels(channels);
+        const sortedChannels = sortChannelsByDisplayOrder(channels);
+        setApiChannels(sortedChannels);
         setChannelFetchStatus("ready");
         setChannelFetchError("");
-        return channels;
+        return sortedChannels;
       });
   }, [currentWorkspaceApiId]);
 
@@ -1855,7 +1951,8 @@ export function ChatPage() {
       .map((channel) => ({
         id: getApiChannelUiId(channel),
         label: cleanChannelLabel(channel.name),
-        apiChannelId: channel.id
+        apiChannelId: channel.id,
+        displayOrder: channel.displayOrder
       }));
   }, [apiChannels]);
   const allCustomChannels = useMemo(
@@ -1877,6 +1974,7 @@ export function ChatPage() {
         id: getApiChannelUiIdById(channel.id),
         label: cleanChannelLabel(channel.name),
         apiChannelId: channel.id,
+        displayOrder: channel.displayOrder
       }));
   }, [apiChannels, claimedRepositoryChannelIds]);
 
@@ -1921,6 +2019,13 @@ export function ChatPage() {
 
   const activeRemoteTypingNames = Object.values(remoteTypingByChannel[selectedChannel] ?? {});
   const activeRemoteTypingLabel = formatRemoteTypingLabel(activeRemoteTypingNames);
+  const activeThreadTypingStateKey = selectedThread
+    ? String(selectedThread.backendMessageId ?? selectedThread.id)
+    : "";
+  const activeRemoteThreadTypingNames = activeThreadTypingStateKey
+    ? Object.values(remoteTypingByThread[activeThreadTypingStateKey] ?? {})
+    : [];
+  const activeRemoteThreadTypingLabel = formatRemoteTypingLabel(activeRemoteThreadTypingNames);
   const activeServerBookmarkedThreadIds = serverBookmarkedThreadsByChannel[selectedChannelMessageKey] ?? {};
   // Mentions are removed from workspaceMentions on delete (server-backed), so the list is the source of truth.
   const visibleWorkspaceMentions = workspaceMentions;
@@ -2179,21 +2284,41 @@ export function ChatPage() {
   const deleteChannelTarget = deleteChannelTargetId
     ? allCustomChannels.find((channel) => channel.id === deleteChannelTargetId) ?? null
     : null;
+  const orderedApiChannels = useMemo(() => sortChannelsByDisplayOrder(apiChannels), [apiChannels]);
   const channelMenuTarget = channelMenuOpenId
     ? allCustomChannels.find((channel) => channel.id === channelMenuOpenId) ?? null
     : null;
   const channelMenuTargetSource = channelMenuTarget?.apiChannelId
     ? apiChannels.find((apiChannel) => apiChannel.id === channelMenuTarget.apiChannelId)
     : undefined;
+  const channelMenuTargetOrderIndex = channelMenuTargetSource
+    ? orderedApiChannels.findIndex((apiChannel) => apiChannel.id === channelMenuTargetSource.id)
+    : -1;
   const isChannelMenuTargetPending = channelMenuTarget
     ? channelActionPendingId === channelMenuTarget.id
     : false;
   const canManageChannelMenuTarget = canManageWorkspaceChannels && Boolean(channelMenuTargetSource?.isDeletable);
+  const canMoveChannelMenuTargetUp = canManageChannelMenuTarget && channelMenuTargetOrderIndex > 0;
+  const canMoveChannelMenuTargetDown =
+    canManageChannelMenuTarget
+    && channelMenuTargetOrderIndex >= 0
+    && channelMenuTargetOrderIndex < orderedApiChannels.length - 1;
   const selectedRepoForChannel = visibleRepositories.find(r => getRepositoryChannelUiId(r) === selectedChannel);
   const selectedRepositoryApiChannel = selectedRepoForChannel
     ? repositoryApiChannelByRepoId[selectedRepoForChannel.id]
     : undefined;
   const selectedOrphanRepositoryChannel = orphanRepositoryChannels.find(ch => ch.id === selectedChannel);
+  const selectedRepositoryMessageView = useMemo<RepositoryMessageView | null>(() => {
+    if (selectedChannel === "pull-requests" || selectedChannel === "issues") {
+      return selectedChannel;
+    }
+
+    if (selectedRepoForChannel || selectedOrphanRepositoryChannel) {
+      return "repository";
+    }
+
+    return null;
+  }, [selectedChannel, selectedOrphanRepositoryChannel, selectedRepoForChannel]);
   const selectedChannelTitle = selectedChannel === 'pull-requests'
     ? `${cleanChannelLabel(currentRepo?.name ?? '레포')} - PR`
     : selectedChannel === 'issues'
@@ -2370,6 +2495,7 @@ export function ChatPage() {
     setSelectedPR(null);
     setSelectedIssue(null);
     setRemoteTypingByChannel({});
+    setRemoteTypingByThread({});
     // 이전 워크스페이스의 실시간 presence가 다른 워크스페이스 멤버 상태로 잘못 비치지 않도록 초기화.
     setPresenceOverrides({});
   }, [currentWorkspaceApiId]);
@@ -3151,15 +3277,10 @@ export function ChatPage() {
       signal: controller.signal
     })
       .then((serverMessages) => {
-        const mapped = serverMessages.map(mapChannelMessageToWorkspaceMessage);
-        const filtered = selectedChannel === 'pull-requests'
-          ? mapped.filter((m) => (m as any).type === 'pr')
-          : selectedChannel === 'issues'
-            ? mapped.filter((m) => (m as any).type === 'issue')
-            : mapped;
+        const visibleServerMessages = filterRepositoryMessagesForView(serverMessages, selectedRepositoryMessageView);
         setMessages((prev) => ({
           ...prev,
-          [selectedChannelMessageKey]: filtered
+          [selectedChannelMessageKey]: visibleServerMessages.map(mapChannelMessageToWorkspaceMessage)
         }));
       })
       .catch(() => {
@@ -3168,7 +3289,7 @@ export function ChatPage() {
       });
 
     return () => controller.abort();
-  }, [activeApiChannelId, selectedChannelMessageKey]);
+  }, [activeApiChannelId, selectedChannelMessageKey, selectedRepositoryMessageView]);
 
   useEffect(() => {
     if (!activeApiChannelId) return;
@@ -3294,8 +3415,13 @@ export function ChatPage() {
       Object.values(remoteTypingTimeoutsRef.current).forEach((timeoutId) => {
         window.clearTimeout(timeoutId);
       });
+      Object.values(remoteThreadTypingTimeoutsRef.current).forEach((timeoutId) => {
+        window.clearTimeout(timeoutId);
+      });
       remoteTypingTimeoutsRef.current = {};
+      remoteThreadTypingTimeoutsRef.current = {};
       setRemoteTypingByChannel({});
+      setRemoteTypingByThread({});
       h.updateRealtimeConnection(getRealtimeBlockState(
         realtimeConnectionBlockReason,
         realtimeConnectionBlockReason === "channels-failed" ? h.channelFetchError : undefined
@@ -3351,15 +3477,13 @@ export function ChatPage() {
         const getRepositoryEventUiChannelId = (payload?: ChannelMessage) => {
           if (!isRepositoryChannel) return genericUiChannelId;
 
-          const attachmentType = (payload?.attachments ?? [])
-            .map((attachment) => String(attachment.attachmentType ?? attachment.type ?? "").toLowerCase())
-            .find(Boolean);
-
-          if (attachmentType === "pr" || attachmentType === "pull_request" || attachmentType === "pull-request") {
-            return "pull-requests";
-          }
-          if (attachmentType === "issue") {
-            return "issues";
+          if (payload) {
+            // repository 채널은 PR/이슈 탭이 같은 channelId를 구독하므로,
+            // 실시간 메시지도 REST 조회와 같은 attachment type 기준으로 라우팅해야 새로고침 전후 화면이 섞이지 않는다.
+            const repositoryMessageView = getRepositoryMessageViewFromAttachments(payload);
+            if (repositoryMessageView === "pull-requests") return "pull-requests";
+            if (repositoryMessageView === "issues") return "issues";
+            return genericUiChannelId;
           }
 
           const selected = selectedChannelRef.current;
@@ -3585,6 +3709,74 @@ export function ChatPage() {
     };
   }, [activeApiChannelId, selectedChannel, chatStompReadyKey, isCurrentWorkspaceMember]);
 
+  useEffect(() => {
+    const client = chatStompRef.current;
+    const threadId = Number(selectedThread?.backendMessageId ?? selectedThread?.id);
+    if (!client || !Number.isFinite(threadId) || threadId <= 0) return;
+
+    const threadTypingKey = String(threadId);
+    const subscription = client.subscribe<ChatEvent<TypingEvent>>(
+      chatWebSocketDestinations.subscribeThreadTyping(threadId),
+      (event) => {
+        const typingPayload = getChatEventPayload<TypingEvent>(event, CHAT_EVENT_TYPE.TYPING);
+        if (!typingPayload) return;
+        if (isCurrentWorkspaceMember(typingPayload.workspaceMemberId)) return;
+        const typingKey = `${threadTypingKey}:${typingPayload.workspaceMemberId}`;
+
+        if (remoteThreadTypingTimeoutsRef.current[typingKey]) {
+          window.clearTimeout(remoteThreadTypingTimeoutsRef.current[typingKey]);
+          delete remoteThreadTypingTimeoutsRef.current[typingKey];
+        }
+
+        if (typingPayload.typing) {
+          remoteThreadTypingTimeoutsRef.current[typingKey] = window.setTimeout(() => {
+            setRemoteTypingByThread((prev) => ({
+              ...prev,
+              [threadTypingKey]: Object.fromEntries(
+                Object.entries(prev[threadTypingKey] ?? {}).filter(
+                  ([memberId]) => Number(memberId) !== typingPayload.workspaceMemberId
+                )
+              )
+            }));
+            delete remoteThreadTypingTimeoutsRef.current[typingKey];
+          }, 10000);
+        }
+
+        setRemoteTypingByThread((prev) => {
+          const currentTypers = prev[threadTypingKey] ?? {};
+          const {
+            [typingPayload.workspaceMemberId]: _removedTypingMember,
+            ...withoutTypingMember
+          } = currentTypers;
+
+          return {
+            ...prev,
+            [threadTypingKey]: typingPayload.typing
+              ? {
+                  ...currentTypers,
+                  [typingPayload.workspaceMemberId]: typingPayload.senderName
+                }
+              : withoutTypingMember
+          };
+        });
+      }
+    );
+
+    return () => {
+      subscription.unsubscribe();
+      Object.entries(remoteThreadTypingTimeoutsRef.current)
+        .filter(([key]) => key.startsWith(`${threadTypingKey}:`))
+        .forEach(([key, timeoutId]) => {
+          window.clearTimeout(timeoutId);
+          delete remoteThreadTypingTimeoutsRef.current[key];
+        });
+      setRemoteTypingByThread((prev) => ({
+        ...prev,
+        [threadTypingKey]: {}
+      }));
+    };
+  }, [activeThreadTypingStateKey, chatStompReadyKey, isCurrentWorkspaceMember, selectedThread?.backendMessageId, selectedThread?.id]);
+
   // Keep the latest targets/handlers in a ref so the subscription effect below can read fresh
   // values without listing them as dependencies (which would force a re-subscribe each render).
   const threadSubLatestRef = useRef({
@@ -3697,6 +3889,19 @@ export function ChatPage() {
       }
     );
   }, [activeApiChannelId]);
+
+  const handleThreadTypingChange = useCallback((typing: boolean) => {
+    const thread = selectedThreadRef.current;
+    const threadId = Number(thread?.backendMessageId ?? thread?.id);
+    if (!Number.isFinite(threadId) || threadId <= 0) return;
+
+    chatStompRef.current?.send(
+      chatWebSocketDestinations.sendThreadTyping(threadId),
+      {
+        typing
+      }
+    );
+  }, []);
 
   const parseRepoNameFromUrl = (url: string): string | null => {
     try {
@@ -3903,9 +4108,10 @@ export function ChatPage() {
       let selectedCreatedChannel = createdChannel;
       setApiChannels((prev) => {
         const alreadyExists = prev.some((channel) => channel.id === createdChannel.id);
-        return alreadyExists
+        const nextChannels = alreadyExists
           ? prev.map((channel) => (channel.id === createdChannel.id ? createdChannel : channel))
           : [...prev, createdChannel];
+        return sortChannelsByDisplayOrder(nextChannels);
       });
 
       try {
@@ -4043,6 +4249,46 @@ export function ChatPage() {
     setDeleteChannelTargetId(null);
   };
 
+  const handleMoveCustomChannel = async (channelId: string, direction: -1 | 1) => {
+    if (channelActionInFlightRef.current) return;
+
+    const channel = allCustomChannels.find((item) => item.id === channelId);
+    if (!channel?.apiChannelId) return;
+    if (!canManageWorkspaceChannels) {
+      setChannelActionError('채널 순서 변경은 워크스페이스 owner/admin만 가능합니다.');
+      closeChannelMenu();
+      return;
+    }
+
+    const previousChannels = orderedApiChannels;
+    const currentIndex = previousChannels.findIndex((apiChannel) => apiChannel.id === channel.apiChannelId);
+    const nextIndex = currentIndex + direction;
+    if (currentIndex < 0 || nextIndex < 0 || nextIndex >= previousChannels.length) return;
+
+    const nextChannels = [...previousChannels];
+    const [movedChannel] = nextChannels.splice(currentIndex, 1);
+    nextChannels.splice(nextIndex, 0, movedChannel);
+
+    channelActionInFlightRef.current = true;
+    setChannelActionPendingId(channelId);
+    setChannelActionError('');
+    setApiChannels(nextChannels);
+
+    try {
+      const savedChannels = await updateWorkspaceChannelOrder(currentWorkspaceApiId, {
+        channelIds: nextChannels.map((apiChannel) => apiChannel.id)
+      });
+      setApiChannels(Array.isArray(savedChannels) ? sortChannelsByDisplayOrder(savedChannels) : nextChannels);
+      closeChannelMenu();
+    } catch (error) {
+      setApiChannels(previousChannels);
+      setChannelActionError(getChannelActionErrorMessage(error, '채널 순서를 저장하지 못했어요. 잠시 후 다시 시도해주세요.'));
+    } finally {
+      setChannelActionPendingId(null);
+      channelActionInFlightRef.current = false;
+    }
+  };
+
   const handleConfirmDeleteCustomChannel = async () => {
     if (channelActionInFlightRef.current || !deleteChannelTargetId) return;
 
@@ -4063,7 +4309,7 @@ export function ChatPage() {
       }
 
       await deleteWorkspaceChannel(currentWorkspaceApiId, channel.apiChannelId);
-      setApiChannels((prev) => prev.filter((apiChannel) => apiChannel.id !== channel.apiChannelId));
+      setApiChannels((prev) => sortChannelsByDisplayOrder(prev.filter((apiChannel) => apiChannel.id !== channel.apiChannelId)));
       setDeleteChannelTargetId(null);
       refreshWorkspaceChannels().catch(() => {
         // The deleted channel has already been removed locally after server success.
@@ -4130,7 +4376,9 @@ export function ChatPage() {
       });
 
       setApiChannels((prev) =>
-        prev.map((apiChannel) => (apiChannel.id === updatedChannel.id ? updatedChannel : apiChannel))
+        sortChannelsByDisplayOrder(
+          prev.map((apiChannel) => (apiChannel.id === updatedChannel.id ? updatedChannel : apiChannel))
+        )
       );
       refreshWorkspaceChannels().catch(() => {
         // Keep the updated channel in local state when only the follow-up sync fails.
@@ -5359,8 +5607,24 @@ export function ChatPage() {
 
               <div className="my-1" style={{ borderTop: '1px solid rgba(var(--codedock-primary-rgb), 0.14)' }} />
 
-              <div className="flex items-center justify-between px-3 pb-1 pt-2">
-                <p style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 950, color: 'var(--muted)', margin: 0 }}>채널</p>
+              <div className="flex items-center justify-between gap-2 px-3 pb-1 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsGeneralChannelsOpen((open) => !open)}
+                  className="min-w-0 flex flex-1 items-center gap-1.5 rounded-lg border-0 px-0 py-1 text-left tracking-tight transition-colors"
+                  style={{ background: "transparent", color: 'var(--muted)', cursor: 'pointer' }}
+                  aria-expanded={isGeneralChannelsOpen}
+                >
+                  {isGeneralChannelsOpen ? (
+                    <ChevronDown size={14} style={{ color: 'var(--muted)', flexShrink: 0 }} />
+                  ) : (
+                    <ChevronRight size={14} style={{ color: 'var(--muted)', flexShrink: 0 }} />
+                  )}
+                  <span className="truncate" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}>채널</span>
+                  <span className="ml-auto" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 900 }}>
+                    {allCustomChannels.length + 1}
+                  </span>
+                </button>
                 <button
                   type="button"
                   onClick={handleAddCustomChannel}
@@ -5372,11 +5636,12 @@ export function ChatPage() {
                   <Plus size={13} />
                 </button>
               </div>
-              <div
-                className="grid max-h-[164px] min-h-[44px] gap-1 overflow-y-auto pr-1"
-                style={{ scrollbarWidth: 'none' }}
-              >
-              {renderSidebarChannel({ id: 'general', label: '일반', icon: Hash, badge: getChannelBadge('general') })}
+              {isGeneralChannelsOpen && (
+                <div
+                  className="grid max-h-[164px] min-h-[44px] gap-1 overflow-y-auto pr-1"
+                  style={{ scrollbarWidth: 'none' }}
+                >
+                {renderSidebarChannel({ id: 'general', label: '일반', icon: Hash, badge: getChannelBadge('general') })}
 
               {allCustomChannels.map((ch) => {
                 const isActive = selectedChannel === ch.id;
@@ -5483,6 +5748,7 @@ export function ChatPage() {
                 </p>
               )}
               </div>
+              )}
 
               <div
                 aria-hidden="true"
@@ -5697,8 +5963,8 @@ export function ChatPage() {
                     </AnimatePresence>
                   </div>
                 );
-              })}
-              </div>
+                })}
+                </div>
               )}
 
               {orphanRepositoryChannels.length > 0 && (
@@ -6026,6 +6292,7 @@ export function ChatPage() {
                 onToggleBookmark={activeApiChannelId ? handleToggleThreadBookmark : undefined}
                 onEditThread={handleEditThreadMessage}
                 onDeleteThread={handleDeleteThreadMessage}
+                onOpenProfile={handleOpenChatProfile}
               />
             ) : REPO_CHANNEL_IDS_REVERSE[selectedChannel] !== undefined ? (
               <ChannelPanel
@@ -6067,6 +6334,7 @@ export function ChatPage() {
                 onToggleBookmark={activeApiChannelId ? handleToggleThreadBookmark : undefined}
                 onEditThread={handleEditThreadMessage}
                 onDeleteThread={handleDeleteThreadMessage}
+                onOpenProfile={handleOpenChatProfile}
               />
             ) : repositories.find(r => r.id === selectedChannel) ? (
               <ChannelPanel
@@ -6108,6 +6376,7 @@ export function ChatPage() {
                 onToggleBookmark={activeApiChannelId ? handleToggleThreadBookmark : undefined}
                 onEditThread={handleEditThreadMessage}
                 onDeleteThread={handleDeleteThreadMessage}
+                onOpenProfile={handleOpenChatProfile}
               />
             ) : selectedChannel === 'work-board' ? (
               <WorkBoardPanel
@@ -6162,6 +6431,7 @@ export function ChatPage() {
                 onReviewPR={handleReviewPR}
                 onViewIssue={handleViewIssue}
                 onOpenThread={handleOpenThread}
+                onOpenProfile={handleOpenChatProfile}
                 selectedThreadId={selectedThread?.id}
                 onToggleReaction={handleToggleReaction}
                 isRepository={isRepository}
@@ -6226,10 +6496,106 @@ export function ChatPage() {
                   )
                 : undefined}
               onToggleReaction={handleToggleReaction}
+              onTypingChange={activeApiChannelId ? handleThreadTypingChange : undefined}
+              remoteTypingLabel={activeRemoteThreadTypingLabel}
+              onOpenProfile={handleOpenChatProfile}
             />
           </section>
         )}
       </div>
+
+      {chatProfilePreview && (() => {
+        const presenceMeta = PRESENCE_META[chatProfilePreview.presence ?? "offline"];
+        const initial = chatProfilePreview.name.trim().slice(0, 1).toUpperCase() || "U";
+
+        return (
+          <div
+            className="fixed inset-0 z-[95] flex items-center justify-center px-4"
+            style={{ background: "rgba(0, 0, 0, 0.58)", backdropFilter: "blur(10px)" }}
+            onClick={() => setChatProfilePreview(null)}
+          >
+            <div
+              className="w-full max-w-[420px] rounded-[28px] p-6"
+              style={{
+                background: "rgba(8, 16, 32, 0.98)",
+                border: "1px solid rgba(var(--codedock-primary-rgb), 0.22)",
+                boxShadow: "0 28px 80px rgba(0, 0, 0, 0.48)"
+              }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="mb-5 flex items-start justify-between gap-4">
+                <div className="flex min-w-0 items-center gap-4">
+                  <div className="grid h-16 w-16 flex-shrink-0 place-items-center overflow-hidden rounded-2xl" style={{
+                    background: "rgba(var(--codedock-primary-rgb), 0.14)",
+                    border: "1px solid rgba(var(--codedock-primary-rgb), 0.28)",
+                    color: "var(--neon-cyan)",
+                    fontSize: chatProfilePreview.avatarUrl ? 0 : "24px",
+                    fontWeight: 950
+                  }}>
+                    {chatProfilePreview.avatarUrl ? (
+                      <img src={chatProfilePreview.avatarUrl} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      initial
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="m-0 truncate tracking-tight" style={{ color: "var(--white)", fontSize: "20px", fontWeight: 950 }}>
+                      {chatProfilePreview.name}
+                    </p>
+                    <p className="m-0 mt-1 tracking-tight" style={{ color: "var(--muted)", fontSize: "13px", fontWeight: 800 }}>
+                      {chatProfilePreview.role ?? "멤버"}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setChatProfilePreview(null)}
+                  className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full border-0"
+                  style={{ background: "rgba(255,255,255,0.06)", color: "var(--muted)", cursor: "pointer" }}
+                  aria-label="프로필 닫기"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="grid gap-2">
+                <div className="flex items-center justify-between gap-3 rounded-2xl px-4 py-3" style={{
+                  background: "rgba(234,247,255,0.045)",
+                  border: "1px solid rgba(var(--codedock-primary-rgb), 0.12)"
+                }}>
+                  <span style={{ color: "var(--muted)", fontSize: "12px", fontWeight: 900 }}>상태</span>
+                  <span className="inline-flex items-center gap-2" style={{ color: "var(--white)", fontSize: "13px", fontWeight: 900 }}>
+                    <span className="h-2 w-2 rounded-full" style={{ background: presenceMeta.color }} />
+                    {presenceMeta.label}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-3 rounded-2xl px-4 py-3" style={{
+                  background: "rgba(234,247,255,0.045)",
+                  border: "1px solid rgba(var(--codedock-primary-rgb), 0.12)"
+                }}>
+                  <span style={{ color: "var(--muted)", fontSize: "12px", fontWeight: 900 }}>이메일</span>
+                  <span className="truncate" style={{ color: chatProfilePreview.email ? "var(--white)" : "var(--muted)", fontSize: "13px", fontWeight: 900 }}>
+                    {chatProfilePreview.email || "공개 이메일 없음"}
+                  </span>
+                </div>
+              </div>
+
+              <div
+                className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 tracking-tight"
+                style={{
+                  background: "linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))",
+                  color: "#021014",
+                  fontSize: "14px",
+                  fontWeight: 950
+                }}
+              >
+                <UserRound size={16} />
+                프로필 보기
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       <TeamInviteModal
         isOpen={teamInviteOpen}
@@ -6463,6 +6829,46 @@ export function ChatPage() {
                 exit={{ opacity: 0, y: -4, scale: 0.98 }}
                 transition={{ duration: 0.12 }}
               >
+                <div
+                  className="grid grid-cols-2"
+                  style={{ borderBottom: '1px solid rgba(var(--codedock-primary-rgb), 0.10)' }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => { void handleMoveCustomChannel(channelMenuTarget.id, -1); }}
+                    disabled={isChannelMenuTargetPending || !canMoveChannelMenuTargetUp}
+                    className="flex items-center justify-center gap-1 border-0 px-2 py-2 tracking-tight transition-all hover:bg-[rgba(var(--codedock-primary-rgb),0.08)]"
+                    style={{
+                      background: 'transparent',
+                      color: 'var(--neon-cyan)',
+                      fontSize: "var(--krds-body-xsmall)",
+                      fontWeight: 800,
+                      cursor: isChannelMenuTargetPending || !canMoveChannelMenuTargetUp ? 'not-allowed' : 'pointer',
+                      opacity: isChannelMenuTargetPending || !canMoveChannelMenuTargetUp ? 0.42 : 1,
+                      borderRight: '1px solid rgba(var(--codedock-primary-rgb), 0.10)'
+                    }}
+                  >
+                    <ChevronDown size={13} style={{ transform: 'rotate(180deg)' }} />
+                    위로
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { void handleMoveCustomChannel(channelMenuTarget.id, 1); }}
+                    disabled={isChannelMenuTargetPending || !canMoveChannelMenuTargetDown}
+                    className="flex items-center justify-center gap-1 border-0 px-2 py-2 tracking-tight transition-all hover:bg-[rgba(var(--codedock-primary-rgb),0.08)]"
+                    style={{
+                      background: 'transparent',
+                      color: 'var(--neon-cyan)',
+                      fontSize: "var(--krds-body-xsmall)",
+                      fontWeight: 800,
+                      cursor: isChannelMenuTargetPending || !canMoveChannelMenuTargetDown ? 'not-allowed' : 'pointer',
+                      opacity: isChannelMenuTargetPending || !canMoveChannelMenuTargetDown ? 0.42 : 1
+                    }}
+                  >
+                    <ChevronDown size={13} />
+                    아래
+                  </button>
+                </div>
                 <button
                   type="button"
                   onClick={() => handleStartRenameCustomChannel(channelMenuTarget)}

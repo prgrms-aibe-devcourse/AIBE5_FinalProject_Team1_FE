@@ -53,6 +53,7 @@ interface ChannelPanelProps {
   onToggleBookmark?: (thread: Thread, nextBookmarked: boolean) => void;
   onEditThread?: (thread: Thread, nextMessage: string) => void;
   onDeleteThread?: (thread: Thread) => void;
+  onOpenProfile?: (thread: Thread) => void;
   onAddMessageAttachments?: (thread: Thread, attachments: MessageAttachment[]) => Promise<void> | void;
   onDeleteMessageAttachment?: (thread: Thread, attachment: MessageAttachment) => Promise<void> | void;
   myMemberId?: number | null;
@@ -148,7 +149,7 @@ function getThreadBody(thread: Thread) {
   return thread.message ?? (thread as any).text ?? "";
 }
 
-export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, threads, reactions, replyCounts = {}, onOpenThread, selectedThreadId, focusedThreadId, onOpenInvite, onSendThread, onTypingChange, remoteTypingLabel, onToggleReaction, bookmarkedThreadIds, onToggleBookmark, onEditThread, onDeleteThread, onAddMessageAttachments, onDeleteMessageAttachment, myMemberId, myDisplayName, myAvatarUrl }: ChannelPanelProps) {
+export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, threads, reactions, replyCounts = {}, onOpenThread, selectedThreadId, focusedThreadId, onOpenInvite, onSendThread, onTypingChange, remoteTypingLabel, onToggleReaction, bookmarkedThreadIds, onToggleBookmark, onEditThread, onDeleteThread, onOpenProfile, onAddMessageAttachments, onDeleteMessageAttachment, myMemberId, myDisplayName, myAvatarUrl }: ChannelPanelProps) {
   const channelStorageId = storageScopeId ?? channelId ?? repoId ?? "general";
   const reactionChannelId = channelId ?? repoId ?? "general";
   const channelStorageKey = `${CHANNEL_THREADS_KEY_PREFIX}:${channelStorageId}`;
@@ -281,7 +282,7 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
     });
 
     return () => window.cancelAnimationFrame(frameId);
-  }, [displayedThreads.length, responderTyping, messageText]);
+  }, [displayedThreads.length]);
 
   const triggerResponderTyping = () => {
     if (responderTypingTimerRef.current) {
@@ -304,13 +305,7 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
     ? selectedAttachments.length > 0
     : messageText.trim().length > 0 || codeBlockText.trim().length > 0 || selectedAttachments.length > 0;
   const composerTyping = messageText.trim().length > 0;
-  const localTypingLabel = responderTyping
-    ? composerTyping
-      ? `CodeDock AI, ${displayCurrentUserName} 입력 중입니다`
-      : "CodeDock AI가 답변을 정리 중입니다"
-    : composerTyping
-      ? "내가 입력 중입니다"
-      : "";
+  const localTypingLabel = composerTyping ? "내가 입력 중입니다" : "";
   const typingLabel = remoteTypingLabel || localTypingLabel;
 
   useEffect(() => {
@@ -502,6 +497,8 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
   };
 
   const renderHoverMenu = (thread: Thread) => {
+    if (thread.deleted) return null;
+
     const isBookmarked = isThreadBookmarked(thread);
     const canManageThread = isThreadMine(thread) && !thread.deleted;
     const bk = (label: string) => `${thread.id}:${label}`;
@@ -677,10 +674,9 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
     setReplyTo(null);
     setAttachmentTarget(null);
     setAttachmentError("");
-    triggerResponderTyping();
   };
 
-  const handleMessageKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+  const handleMessageKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
       event.preventDefault();
       handleSendMessage();
@@ -704,10 +700,10 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
         </div>
       )}
       {/* Header */}
-      <div className="px-6 py-4 flex items-center justify-between" style={{
+      <div className="px-6 py-4 flex items-center" style={{
         borderBottom: '1px solid rgba(var(--codedock-primary-rgb), 0.14)'
       }}>
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <Hash size={18} style={{ color: 'var(--neon-cyan)' }} />
           <h2 className="m-0 tracking-tight" style={{
             fontSize: '18px',
@@ -716,24 +712,24 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
           }}>
             {channelLabel}
           </h2>
+          <button
+            type="button"
+            onClick={onOpenInvite}
+            className="ml-3 inline-flex items-center gap-2 rounded-full border-0 px-3 py-2 tracking-tight transition-all"
+            style={{
+              background: 'rgba(var(--codedock-primary-rgb), 0.12)',
+              border: '1px solid rgba(var(--codedock-primary-rgb), 0.24)',
+              color: 'var(--neon-cyan)',
+              cursor: 'pointer',
+              fontSize: "var(--krds-body-xsmall)",
+              fontWeight: 950
+            }}
+            aria-label="팀원 추가"
+          >
+            <UserPlus size={15} />
+            팀원 추가
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={onOpenInvite}
-          className="inline-flex items-center gap-2 rounded-full border-0 px-3 py-2 tracking-tight transition-all"
-          style={{
-            background: 'rgba(var(--codedock-primary-rgb), 0.12)',
-            border: '1px solid rgba(var(--codedock-primary-rgb), 0.24)',
-            color: 'var(--neon-cyan)',
-            cursor: 'pointer',
-            fontSize: "var(--krds-body-xsmall)",
-            fontWeight: 950
-          }}
-          aria-label="팀원 추가"
-        >
-          <UserPlus size={15} />
-          팀원 추가
-        </button>
       </div>
 
       {/* Thread List */}
@@ -751,6 +747,7 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
             const threadAvatarUrl = isOwnThread
               ? displayCurrentUserAvatarUrl
               : thread.avatarUrl?.trim() || "";
+            const canOpenProfile = Boolean(onOpenProfile && !thread.deleted);
             const threadBody = getThreadBody(thread);
             const isSelectedThread = selectedThreadId === thread.id;
             const isFocusedThread =
@@ -788,10 +785,11 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
             >
               <div className="w-full px-5 py-4">
                 <div className="flex items-start gap-3">
-                  <span className="grid h-10 w-10 flex-shrink-0 place-items-center overflow-hidden rounded-full" style={{
+                  <button type="button" disabled={!canOpenProfile} onClick={() => onOpenProfile?.(thread)} className="grid h-10 w-10 flex-shrink-0 place-items-center overflow-hidden rounded-full border-0 p-0" style={{
                     background: isOwnThread ? 'rgba(var(--codedock-primary-rgb), 0.16)' : 'rgba(var(--codedock-primary-rgb), 0.12)',
                     border: isOwnThread ? '1px solid rgba(var(--codedock-primary-rgb), 0.30)' : '1px solid rgba(var(--codedock-primary-rgb), 0.22)',
                     color: 'var(--neon-cyan)',
+                    cursor: canOpenProfile ? 'pointer' : 'default',
                     fontSize: threadAvatarUrl ? 0 : threadAvatar.length > 2 ? '18px' : '13px',
                     fontWeight: 950,
                     lineHeight: 1
@@ -801,7 +799,7 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
                     ) : (
                       isOwnThread ? displayCurrentUserAvatar : threadAvatar
                     )}
-                  </span>
+                  </button>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="tracking-tight" style={{
@@ -885,7 +883,7 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
                         <MessageTextWithCodeBlocks text={threadBody} color={thread.deleted ? 'var(--muted)' : 'var(--white)'} />
                       </div>
                     )}
-                    {thread.mentions && thread.mentions.length > 0 && (
+                    {!thread.deleted && thread.mentions && thread.mentions.length > 0 && (
                       <div className="mb-3 flex flex-wrap gap-2">
                         {thread.mentions.map((mention, idx) => (
                           <motion.span
@@ -905,7 +903,7 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
                         ))}
                       </div>
                     )}
-                    {thread.attachments && thread.attachments.length > 0 && (
+                    {!thread.deleted && thread.attachments && thread.attachments.length > 0 && (
                       <div className="grid gap-2 mb-3">
                         {thread.attachments.map((attachment) => (
                           <MessageAttachmentCard
@@ -926,7 +924,7 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
                         ))}
                       </div>
                     )}
-                    {(
+                    {!thread.deleted && (
                       <div className="flex items-center gap-3">
                         <button
                           onClick={(e) => {
@@ -964,14 +962,16 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
                   </div>
                 </div>
                 <div className="pl-11">
-                  <MessageReactions
-                    reactions={reactionMap[getThreadReactionKey(thread.id)]}
-                    onToggle={(emoji) => handleReactionToggle(thread.id, emoji)}
-                  />
+                  {!thread.deleted && (
+                    <MessageReactions
+                      reactions={reactionMap[getThreadReactionKey(thread.id)]}
+                      onToggle={(emoji) => handleReactionToggle(thread.id, emoji)}
+                    />
+                  )}
                 </div>
               </div>
 
-              {(hoveredMessageId === thread.id || emojiPickerMsgId === thread.id) && renderHoverMenu(thread)}
+              {!thread.deleted && (hoveredMessageId === thread.id || emojiPickerMsgId === thread.id) && renderHoverMenu(thread)}
             </div>
           );
           })}

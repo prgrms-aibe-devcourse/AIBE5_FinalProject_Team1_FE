@@ -38,6 +38,9 @@ interface ThreadPanelProps {
   onDeleteReply?: (reply: ThreadMessage) => void;
   onDeleteMessageAttachment?: (message: any, attachment: MessageAttachment) => Promise<void> | void;
   onToggleReaction?: (reactionKey: string, emoji: string) => void;
+  onTypingChange?: (typing: boolean) => void;
+  remoteTypingLabel?: string;
+  onOpenProfile?: (message: any) => void;
   myMemberId?: number | null;
   myDisplayName?: string;
   myAvatarUrl?: string;
@@ -56,7 +59,7 @@ function getDisplayUserName(user?: string) {
   return isSelfUser(trimmed) ? currentUserDisplayName : trimmed;
 }
 
-export function ThreadPanel({ originalMessage, replies, displayReplyCount, reactionScope, reactions, onClose, onSendReply, onEditReply, onDeleteReply, onDeleteMessageAttachment, onToggleReaction, myMemberId, myDisplayName, myAvatarUrl }: ThreadPanelProps) {
+export function ThreadPanel({ originalMessage, replies, displayReplyCount, reactionScope, reactions, onClose, onSendReply, onEditReply, onDeleteReply, onDeleteMessageAttachment, onToggleReaction, onTypingChange, remoteTypingLabel, onOpenProfile, myMemberId, myDisplayName, myAvatarUrl }: ThreadPanelProps) {
   const displayCurrentUserName = myDisplayName?.trim() || currentUserDisplayName;
   const displayCurrentUserAvatar = displayCurrentUserName.charAt(0) || currentUserAvatar;
   const displayCurrentUserAvatarUrl = myAvatarUrl?.trim() || "";
@@ -67,18 +70,21 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
   const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null);
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [hoveredToolBtn, setHoveredToolBtn] = useState<string | null>(null);
-  const [responderTyping, setResponderTyping] = useState(false);
   const [localMessageReactions, setLocalMessageReactions] = useState<Record<string, MessageReaction[]>>({});
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-  const responderTypingTimerRef = useRef<number | null>(null);
+  const typingDebounceRef = useRef<number | null>(null);
+  const isSendingTypingRef = useRef(false);
 
   useEffect(() => {
     return () => {
-      if (responderTypingTimerRef.current) {
-        window.clearTimeout(responderTypingTimerRef.current);
+      if (typingDebounceRef.current) {
+        window.clearTimeout(typingDebounceRef.current);
+      }
+      if (isSendingTypingRef.current) {
+        onTypingChange?.(false);
       }
     };
-  }, []);
+  }, [onTypingChange]);
 
   useEffect(() => {
     const scrollContainer = scrollContainerRef.current;
@@ -92,25 +98,13 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
     });
 
     return () => window.cancelAnimationFrame(frameId);
-  }, [replies.length, responderTyping, replyText]);
-
-  const triggerResponderTyping = () => {
-    if (responderTypingTimerRef.current) {
-      window.clearTimeout(responderTypingTimerRef.current);
-    }
-
-    setResponderTyping(true);
-    responderTypingTimerRef.current = window.setTimeout(() => {
-      setResponderTyping(false);
-    }, 2200);
-  };
+  }, [replies.length]);
 
   const handleSend = () => {
     if (replyText.trim()) {
       onSendReply(replyText);
       setReplyText('');
       setEmojiPickerOpen(false);
-      triggerResponderTyping();
     }
   };
 
@@ -122,13 +116,39 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
   };
 
   const composerTyping = replyText.trim().length > 0;
-  const typingLabel = responderTyping
-    ? composerTyping
-      ? `CodeDock AI, ${displayCurrentUserName} 입력 중입니다`
-      : "CodeDock AI가 답글을 정리 중입니다"
-    : composerTyping
-      ? "내가 답글 입력 중입니다"
-      : "";
+  const localTypingLabel = composerTyping ? "내가 답글 입력 중입니다" : "";
+  const typingLabel = remoteTypingLabel || localTypingLabel;
+
+  useEffect(() => {
+    if (!onTypingChange) return;
+
+    if (typingDebounceRef.current) {
+      window.clearTimeout(typingDebounceRef.current);
+      typingDebounceRef.current = null;
+    }
+
+    if (composerTyping) {
+      if (!isSendingTypingRef.current) {
+        onTypingChange(true);
+        isSendingTypingRef.current = true;
+      }
+      typingDebounceRef.current = window.setTimeout(() => {
+        onTypingChange(false);
+        isSendingTypingRef.current = false;
+        typingDebounceRef.current = null;
+      }, 1500);
+    } else if (isSendingTypingRef.current) {
+      onTypingChange(false);
+      isSendingTypingRef.current = false;
+    }
+
+    return () => {
+      if (typingDebounceRef.current) {
+        window.clearTimeout(typingDebounceRef.current);
+        typingDebounceRef.current = null;
+      }
+    };
+  }, [composerTyping, onTypingChange]);
 
   const handleEmojiSelect = (key: string) => {
     const emoji = REACTION_KEY_TO_EMOJI[key] ?? key;
@@ -240,13 +260,20 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
             borderBottom: '1px solid rgba(var(--codedock-primary-rgb), 0.14)'
           }}>
             <div className="flex items-center gap-2 mb-2">
-              <span className="tracking-tight" style={{
-                fontSize: '13px',
-                fontWeight: 900,
-                color: 'var(--matrix-green)'
-              }}>
+              <button
+                type="button"
+                disabled={!onOpenProfile || originalMessage.deleted}
+                onClick={() => onOpenProfile?.(originalMessage)}
+                className="border-0 bg-transparent p-0 text-left tracking-tight"
+                style={{
+                  cursor: onOpenProfile && !originalMessage.deleted ? "pointer" : "default",
+                  fontSize: '13px',
+                  fontWeight: 900,
+                  color: 'var(--matrix-green)'
+                }}
+              >
                 {originalMessage.user}
-              </span>
+              </button>
               <span className="tracking-tight" style={{
                 fontSize: "var(--krds-body-xsmall)",
                 fontWeight: 700,
@@ -266,7 +293,7 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
               }}>
                 {originalMessage.message || originalMessage.text}
               </p>
-              {originalMessage.attachments && originalMessage.attachments.length > 0 && (
+              {!originalMessage.deleted && originalMessage.attachments && originalMessage.attachments.length > 0 && (
                 <div className="mt-3 grid gap-2">
                   {originalMessage.attachments.map((attachment: MessageAttachment) => (
                     <MessageAttachmentCard
@@ -298,10 +325,12 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
                 </p>
               )}
             </div>
-            <MessageReactions
-              reactions={reactionMap[`${activeReactionScope}:original`]}
-              onToggle={(emoji) => handleReactionToggle(`${activeReactionScope}:original`, emoji)}
-            />
+            {!originalMessage.deleted && (
+              <MessageReactions
+                reactions={reactionMap[`${activeReactionScope}:original`]}
+                onToggle={(emoji) => handleReactionToggle(`${activeReactionScope}:original`, emoji)}
+              />
+            )}
           </div>
 
           {/* 답글 개수 표시 */}
@@ -327,6 +356,7 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
             const replyAvatarUrl = isMine
               ? displayCurrentUserAvatarUrl
               : reply.avatarUrl?.trim() || "";
+            const canOpenProfile = Boolean(onOpenProfile && !reply.deleted);
             const hasDiffRef = reply.fileId && reply.line > 0;
             const isEditingReply = editingReplyId === reply.id;
             const canManageReply = isMine && !reply.deleted && (onEditReply || onDeleteReply);
@@ -343,8 +373,9 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
                   <div className="flex items-center gap-2 mb-2 pb-2" style={{
                     borderBottom: '1px solid rgba(var(--codedock-primary-rgb), 0.1)'
                   }}>
-                    <div className="w-7 h-7 flex-shrink-0 overflow-hidden rounded-full flex items-center justify-center" style={{
-                      background: isMine ? 'rgba(var(--codedock-primary-rgb), 0.16)' : 'rgba(var(--codedock-primary-rgb), 0.14)'
+                    <button type="button" disabled={!canOpenProfile} onClick={() => onOpenProfile?.(reply)} className="w-7 h-7 flex-shrink-0 overflow-hidden rounded-full flex items-center justify-center border-0 p-0" style={{
+                      background: isMine ? 'rgba(var(--codedock-primary-rgb), 0.16)' : 'rgba(var(--codedock-primary-rgb), 0.14)',
+                      cursor: canOpenProfile ? "pointer" : "default"
                     }}>
                       {replyAvatarUrl ? (
                         <img src={replyAvatarUrl} alt="" className="h-full w-full object-cover" />
@@ -357,7 +388,7 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
                           {isMine ? displayCurrentUserAvatar : reply.user.charAt(0)}
                         </span>
                       )}
-                    </div>
+                    </button>
                     <div className="flex flex-col flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="tracking-tight" style={{
@@ -512,10 +543,12 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
                       {reply.text}
                     </p>
                   )}
-                  <MessageReactions
-                    reactions={reactionMap[`${activeReactionScope}:reply:${reply.id}`]}
-                    onToggle={(emoji) => handleReactionToggle(`${activeReactionScope}:reply:${reply.id}`, emoji)}
-                  />
+                  {!reply.deleted && (
+                    <MessageReactions
+                      reactions={reactionMap[`${activeReactionScope}:reply:${reply.id}`]}
+                      onToggle={(emoji) => handleReactionToggle(`${activeReactionScope}:reply:${reply.id}`, emoji)}
+                    />
+                  )}
                   {reply.sendError && (
                     <p className="m-0 mt-2 rounded-lg px-3 py-2 tracking-tight" style={{
                       background: 'rgba(255, 107, 107, 0.10)',

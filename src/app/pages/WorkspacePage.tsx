@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, useLayoutEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router";
 import { ArrowRight, AtSign, Check, ChevronDown, CircleDot, CornerDownRight, GitFork, GitPullRequest, Loader2, MessageSquare, Plus, Settings2, Users, X } from "lucide-react";
@@ -13,8 +13,19 @@ import { ApiClientError } from "../api/client";
 
 const DRAG_TYPE = "TEAM_CARD";
 const WORKSPACE_COLORS_KEY = "codedock-workspace-colors-v1";
+const DASHBOARD_EVENT_SCROLL_MAX_HEIGHT = 420;
 const DEFAULT_ACCENT = "#8B94A7"; // default grey
 type SortOrder = "name" | "latest" | "activity";
+type DashboardEventFilter = "ALL" | EventType;
+
+const DASHBOARD_EVENT_FILTERS: Array<{ value: DashboardEventFilter; label: string }> = [
+  { value: "ALL", label: "전체" },
+  { value: "PR_CREATED", label: "PR" },
+  { value: "ISSUE_CREATED", label: "이슈" },
+  { value: "PR_REVIEW", label: "리뷰" },
+  { value: "MENTION", label: "멘션" },
+  { value: "REPLY", label: "답장" }
+];
 
 const TEAM_SORT_OPTIONS: Array<{ value: SortOrder; label: string; color: string }> = [
   { value: "latest", label: "최신 순", color: "var(--neon-cyan)" },
@@ -1407,10 +1418,37 @@ export function WorkspacePage() {
 
   const [events, setEvents] = useState<WorkspaceEventDto[]>([]);
   const [eventRepositoryNamesByChannelId, setEventRepositoryNamesByChannelId] = useState<Record<number, string>>({});
+  const [dashboardEventFilter, setDashboardEventFilter] = useState<DashboardEventFilter>("ALL");
 
   useEffect(() => {
     fetchMyEvents().then((data) => setEvents(data ?? [])).catch(() => setEvents([]));
   }, []);
+
+  const sortedEvents = useMemo(() => {
+    return [...events]
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [events]);
+
+  const visibleEvents = useMemo(() => {
+    return dashboardEventFilter === "ALL"
+      ? sortedEvents
+      : sortedEvents.filter((event) => event.type === dashboardEventFilter);
+  }, [dashboardEventFilter, sortedEvents]);
+
+  const dashboardEventCounts = useMemo(() => {
+    return sortedEvents.reduce<Record<DashboardEventFilter, number>>((acc, event) => {
+      acc.ALL += 1;
+      acc[event.type] += 1;
+      return acc;
+    }, {
+      ALL: 0,
+      PR_CREATED: 0,
+      ISSUE_CREATED: 0,
+      PR_REVIEW: 0,
+      MENTION: 0,
+      REPLY: 0
+    });
+  }, [sortedEvents]);
 
   useEffect(() => {
     const workspaceIds = Array.from(new Set(events.map((event) => event.workspaceId)));
@@ -1604,69 +1642,112 @@ export function WorkspacePage() {
           <h2 className="m-0 mb-6 leading-none tracking-[-0.075em]" style={{ fontSize: "clamp(28px, 4vw, 44px)", fontWeight: 950 }}>
             주요 이벤트
           </h2>
+          {events.length > 0 && (
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              {DASHBOARD_EVENT_FILTERS.map((filter) => {
+                const selected = dashboardEventFilter === filter.value;
+                return (
+                  <button
+                    key={filter.value}
+                    type="button"
+                    onClick={() => setDashboardEventFilter(filter.value)}
+                    className="rounded-full border-0 px-3 py-2 tracking-tight transition-all hover:brightness-110"
+                    style={{
+                      background: selected
+                        ? "rgba(var(--codedock-primary-rgb), 0.18)"
+                        : "rgba(255,255,255,0.045)",
+                      border: selected
+                        ? "1px solid rgba(var(--codedock-primary-rgb), 0.36)"
+                        : "1px solid rgba(255,255,255,0.08)",
+                      color: selected ? "var(--neon-cyan)" : "var(--muted)",
+                      cursor: "pointer",
+                      fontSize: "12px",
+                      fontWeight: 900
+                    }}
+                  >
+                    {filter.label} {dashboardEventCounts[filter.value]}
+                  </button>
+                );
+              })}
+            </div>
+          )}
           <div className="grid gap-3">
             {events.length === 0 ? (
               <p className="m-0 py-6 text-center tracking-tight" style={{ fontSize: "14px", fontWeight: 700, color: "var(--muted)" }}>
                 최근 이벤트가 없습니다.
               </p>
-            ) : events.map((event) => {
-              const { label, icon: Icon, color } = getEventMeta(event.type);
-              const workspaceName = orgs.find((o) => o.id === event.workspaceId)?.name ?? "";
-              const repositoryName = event.repositoryName ?? (
-                event.channelId ? eventRepositoryNamesByChannelId[event.channelId] : undefined
-              );
-              const eventContextLabels = [
-                workspaceName,
-                repositoryName ? `repo: ${repositoryName}` : "",
-                event.channelId ? `channel #${event.channelId}` : "",
-                event.threadId ? `thread #${event.threadId}` : ""
-              ].filter(Boolean);
+            ) : visibleEvents.length === 0 ? (
+              <p className="m-0 py-6 text-center tracking-tight" style={{ fontSize: "14px", fontWeight: 700, color: "var(--muted)" }}>
+                선택한 필터에 해당하는 이벤트가 없습니다.
+              </p>
+            ) : (
+              <div
+                className="grid gap-3 overflow-y-auto pr-1"
+                style={{
+                  maxHeight: `${DASHBOARD_EVENT_SCROLL_MAX_HEIGHT}px`,
+                  scrollbarWidth: "thin"
+                }}
+              >
+                {visibleEvents.map((event) => {
+                  const { label, icon: Icon, color } = getEventMeta(event.type);
+                  const workspaceName = orgs.find((o) => o.id === event.workspaceId)?.name ?? "";
+                  const repositoryName = event.repositoryName ?? (
+                    event.channelId ? eventRepositoryNamesByChannelId[event.channelId] : undefined
+                  );
+                  const eventContextLabels = [
+                    workspaceName,
+                    repositoryName ? `repo: ${repositoryName}` : "",
+                    event.channelId ? `channel #${event.channelId}` : "",
+                    event.threadId ? `thread #${event.threadId}` : ""
+                  ].filter(Boolean);
 
-              return (
-                <div
-                  key={event.id}
-                  className="px-5 py-4 rounded-2xl cursor-pointer transition-all hover:brightness-110"
-                  style={{ background: "rgba(5, 11, 20, 0.42)", border: "1px solid rgba(32, 227, 255, 0.10)" }}
-                  onClick={() => navigate("/chat", { state: { pendingEvent: event } })}
-                >
-                  <div className="flex items-start gap-3">
-                    <span className="flex-shrink-0 mt-0.5">
-                      <Icon size={18} style={{ color }} />
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <span className="tracking-tight" style={{ fontSize: "15px", fontWeight: 900, color: "var(--white)" }}>
-                          <span style={{ color: "var(--matrix-green)" }}>{event.actorName}</span>
-                          {"  "}
-                          <span style={{ color, fontSize: "13px", fontWeight: 800 }}>{label}</span>
+                  return (
+                    <div
+                      key={event.id}
+                      className="px-5 py-4 rounded-2xl cursor-pointer transition-all hover:brightness-110"
+                      style={{ background: "rgba(5, 11, 20, 0.42)", border: "1px solid rgba(32, 227, 255, 0.10)" }}
+                      onClick={() => navigate("/chat", { state: { pendingEvent: event } })}
+                    >
+                      <div className="flex items-start gap-3">
+                        <span className="flex-shrink-0 mt-0.5">
+                          <Icon size={18} style={{ color }} />
                         </span>
-                        {eventContextLabels.map((contextLabel) => (
-                          <span
-                            key={contextLabel}
-                            className="rounded-full px-2 py-0.5 tracking-tight"
-                            style={{
-                              background: "rgba(var(--codedock-primary-rgb), 0.08)",
-                              border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)",
-                              fontSize: "11px",
-                              fontWeight: 800,
-                              color: "var(--muted)"
-                            }}
-                          >
-                            {contextLabel}
-                          </span>
-                        ))}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <span className="tracking-tight" style={{ fontSize: "15px", fontWeight: 900, color: "var(--white)" }}>
+                              <span style={{ color: "var(--matrix-green)" }}>{event.actorName}</span>
+                              {"  "}
+                              <span style={{ color, fontSize: "13px", fontWeight: 800 }}>{label}</span>
+                            </span>
+                            {eventContextLabels.map((contextLabel) => (
+                              <span
+                                key={contextLabel}
+                                className="rounded-full px-2 py-0.5 tracking-tight"
+                                style={{
+                                  background: "rgba(var(--codedock-primary-rgb), 0.08)",
+                                  border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)",
+                                  fontSize: "11px",
+                                  fontWeight: 800,
+                                  color: "var(--muted)"
+                                }}
+                              >
+                                {contextLabel}
+                              </span>
+                            ))}
+                          </div>
+                          <p className="m-0 tracking-tight truncate" style={{ fontSize: "13px", fontWeight: 700, color: "rgba(255,255,255,0.55)" }}>
+                            {event.content}
+                          </p>
+                        </div>
+                        <span className="flex-shrink-0 tracking-tight" style={{ fontSize: "12px", fontWeight: 700, color: "var(--muted)", whiteSpace: "nowrap" }}>
+                          {formatRelativeTime(event.createdAt)}
+                        </span>
                       </div>
-                      <p className="m-0 tracking-tight truncate" style={{ fontSize: "13px", fontWeight: 700, color: "rgba(255,255,255,0.55)" }}>
-                        {event.content}
-                      </p>
                     </div>
-                    <span className="flex-shrink-0 tracking-tight" style={{ fontSize: "12px", fontWeight: 700, color: "var(--muted)", whiteSpace: "nowrap" }}>
-                      {formatRelativeTime(event.createdAt)}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+                  );
+                })}
+              </div>
+            )}
           </div>
         </section>
       </div>

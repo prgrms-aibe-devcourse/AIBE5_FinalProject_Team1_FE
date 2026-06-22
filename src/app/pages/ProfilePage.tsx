@@ -27,6 +27,22 @@ import { apiClient } from "../api/client";
 
 type ProfileSection = "profile" | "account" | "github";
 
+function formatProfileDateTime(value?: string) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value.split(".")[0].replace("T", " ");
+  }
+
+  return new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(date);
+}
+
 const SKILL_PRESETS = [
   "React",
   "TypeScript",
@@ -221,7 +237,7 @@ export function ProfilePage() {
   return (
     <div className="mx-auto w-[min(1120px,calc(100vw-36px))] py-12 pb-20">
       <button
-        onClick={() => navigate(-1)}
+        onClick={() => navigate("/workspace")}
         className="mb-6 flex items-center gap-1.5 tracking-tight transition-colors hover:text-white"
         style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: '14px', fontWeight: 800, padding: 0 }}
       >
@@ -787,7 +803,7 @@ function GithubSection({ user, colors, onConnect, onDisconnect }: { user: Profil
           <div className="grid gap-3 md:grid-cols-3">
             <InfoTile icon={Github} label="GitHub 사용자명" value={`@${user.githubUsername}`} colors={colors} />
             <InfoTile icon={Mail} label="GitHub 이메일" value={user.githubEmail || "비공개"} colors={colors} />
-            <InfoTile icon={Calendar} label="연동일" value={user.connectedAt} colors={colors} />
+            <InfoTile icon={Calendar} label="연동일" value={formatProfileDateTime(user.connectedAt)} colors={colors} />
           </div>
 
           <div className="rounded-[20px] px-5 py-4" style={{ background: "rgba(234,247,255,0.045)", border: `1px solid ${colors.primary}, 0.12)` }}>
