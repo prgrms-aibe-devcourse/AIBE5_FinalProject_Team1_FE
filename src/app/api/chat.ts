@@ -14,6 +14,7 @@ export type Channel = {
   lastMessageAt: ISODateTime | null;
   messageCount: number;
   unreadCount: number;
+  displayOrder?: number | null;
 };
 
 export type ChannelCreateRequest = {
@@ -24,6 +25,10 @@ export type ChannelCreateRequest = {
 export type ChannelUpdateRequest = {
   name: string;
   description?: string | null;
+};
+
+export type ChannelOrderUpdateRequest = {
+  channelIds: number[];
 };
 
 export type ChannelMessageReplyTo = {
@@ -161,7 +166,8 @@ export type MentionDeletedEvent = {
 };
 
 export type TypingEvent = {
-  channelId: number;
+  channelId?: number;
+  threadId?: number;
   workspaceMemberId: number;
   senderName: string;
   typing: boolean;
@@ -239,6 +245,12 @@ export const chatWebSocketDestinations = {
   subscribeWorkspaceChannels(workspaceId: number) {
     return `/topic/workspaces/${workspaceId}/channels`;
   },
+  sendThreadTyping(threadId: number) {
+    return `/app/threads/${threadId}/typing`;
+  },
+  subscribeThreadTyping(threadId: number) {
+    return `/topic/threads/${threadId}/typing`;
+  },
   sendThreadReply(threadId: number) {
     return `/app/threads/${threadId}/replies`;
   },
@@ -297,6 +309,14 @@ export function deleteWorkspaceChannel(
   options?: ApiRequestOptions
 ) {
   return apiClient.delete<void>(`/api/workspaces/${workspaceId}/channels/${channelId}`, options);
+}
+
+export function updateWorkspaceChannelOrder(
+  workspaceId: number,
+  request: ChannelOrderUpdateRequest,
+  options?: ApiRequestOptions
+) {
+  return apiClient.patch<Channel[]>(`/api/workspaces/${workspaceId}/channels/order`, request, options);
 }
 
 export function getChannelMessages(channelId: number, query: ChannelMessagesQuery = {}, options?: ApiRequestOptions) {

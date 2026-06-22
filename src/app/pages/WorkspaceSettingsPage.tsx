@@ -27,6 +27,7 @@ import {
   getWorkspace,
   getWorkspaceMembers,
   updateWorkspace,
+  uploadWorkspaceLogo,
   leaveWorkspace,
   transferOwnership,
   deleteWorkspace as deleteWorkspaceApi,
@@ -180,6 +181,34 @@ export function WorkspaceSettingsPage() {
       return;
     }
     if (message) notify(message);
+  };
+
+  const handleUploadLogo = async (id: string, file: File) => {
+    const realId = Number(id);
+    if (!Number.isFinite(realId)) return;
+
+    try {
+      const dto = await uploadWorkspaceLogo(realId, file);
+      setWorkspaces((current) =>
+        current.map((workspace) =>
+          workspace.id === id
+            ? {
+                ...workspace,
+                name: dto.name,
+                slug: dto.slug,
+                description: dto.description ?? "",
+                avatarUrl: dto.logoUrl ?? "",
+                role: toRole(dto.myRole),
+                memberCount: dto.memberCount
+              }
+            : workspace
+        )
+      );
+      notify("워크스페이스 로고를 변경했어요.");
+    } catch (e) {
+      notify(conflictMessage(e, "로고 업로드에 실패했습니다."), "warn");
+      throw e;
+    }
   };
 
   const handleTransfer = (id: string, memberId: string) => {
@@ -353,6 +382,7 @@ export function WorkspaceSettingsPage() {
               workspace={selected}
               colors={colors}
               onUpdate={handleUpdate}
+              onUploadLogo={handleUploadLogo}
               onTransfer={handleTransfer}
               onLeave={handleLeave}
               onDelete={handleDelete}
@@ -379,6 +409,7 @@ function WorkspaceDetail({
   workspace,
   colors,
   onUpdate,
+  onUploadLogo,
   onTransfer,
   onLeave,
   onDelete,
@@ -386,6 +417,7 @@ function WorkspaceDetail({
   workspace: Workspace;
   colors: ThemeColors;
   onUpdate: (id: string, partial: Partial<Workspace>, message?: string) => void;
+  onUploadLogo: (id: string, file: File) => Promise<void>;
   onTransfer: (id: string, memberId: string) => void;
   onLeave: (id: string) => void;
   onDelete: (id: string) => void;
@@ -397,6 +429,7 @@ function WorkspaceDetail({
   const transferableMembers = workspace.members.filter((member) => member.role !== "owner");
   const [transferTargetId, setTransferTargetId] = useState<string>(transferableMembers[0]?.id ?? "");
   const [deleteText, setDeleteText] = useState("");
+  const [logoUploading, setLogoUploading] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -419,11 +452,16 @@ function WorkspaceDetail({
   const transferTargetName = workspace.members.find((member) => member.id === transferTargetId)?.name ?? "";
   const connectedRepoCount = workspace.repos.filter((repo) => repo.connected).length;
 
-  const handleLogoChange = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleLogoChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file || !file.type.startsWith("image/")) return;
-    onUpdate(workspace.id, {}, "로고 업로드는 파일 저장소 연동 후 저장할 수 있어요.");
+    setLogoUploading(true);
+    try {
+      await onUploadLogo(workspace.id, file);
+    } finally {
+      setLogoUploading(false);
+    }
   };
 
   return (
@@ -474,11 +512,13 @@ function WorkspaceDetail({
           <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
           <button
             type="button"
-            disabled={!canManage}
-            onClick={() => logoInputRef.current?.click()}
+            disabled={!canManage || logoUploading}
+            onClick={() => {
+              if (!logoUploading) logoInputRef.current?.click();
+            }}
             aria-label="워크스페이스 로고 변경"
             className="group relative grid h-16 w-16 flex-shrink-0 place-items-center overflow-hidden rounded-2xl border-0 text-2xl font-black"
-            style={{ background: `linear-gradient(135deg, ${colors.primaryHex}, ${colors.secondary})`, color: "#021014", cursor: canManage ? "pointer" : "default" }}
+            style={{ background: `linear-gradient(135deg, ${colors.primaryHex}, ${colors.secondary})`, color: "#021014", cursor: canManage && !logoUploading ? "pointer" : "default", opacity: logoUploading ? 0.72 : 1 }}
           >
             {workspace.avatarUrl ? <img src={workspace.avatarUrl} alt="" className="h-full w-full object-cover" /> : workspace.name.trim().slice(0, 1)}
             {canManage && (
@@ -493,8 +533,8 @@ function WorkspaceDetail({
             </p>
             {canManage ? (
               <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={() => logoInputRef.current?.click()} className="inline-flex items-center gap-1 rounded-lg border-0 px-3 py-1.5 text-xs font-black" style={{ background: `${colors.primary}, 0.10)`, border: `1px solid ${colors.primary}, 0.22)`, color: colors.primaryHex, cursor: "pointer" }}>
-                  <Camera size={13} /> 변경
+                <button type="button" disabled={logoUploading} onClick={() => logoInputRef.current?.click()} className="inline-flex items-center gap-1 rounded-lg border-0 px-3 py-1.5 text-xs font-black" style={{ background: `${colors.primary}, 0.10)`, border: `1px solid ${colors.primary}, 0.22)`, color: colors.primaryHex, cursor: logoUploading ? "not-allowed" : "pointer", opacity: logoUploading ? 0.64 : 1 }}>
+                  <Camera size={13} /> {logoUploading ? "업로드 중" : "변경"}
                 </button>
                 {workspace.avatarUrl && (
                   <button type="button" onClick={() => onUpdate(workspace.id, { avatarUrl: "" }, "로고를 삭제했어요.")} className="inline-flex items-center gap-1 rounded-lg border-0 px-3 py-1.5 text-xs font-black" style={{ background: "rgba(255,107,107,0.10)", border: "1px solid rgba(255,107,107,0.26)", color: "#FF6B6B", cursor: "pointer" }}>

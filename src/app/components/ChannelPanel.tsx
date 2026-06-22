@@ -700,10 +700,10 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
         </div>
       )}
       {/* Header */}
-      <div className="px-6 py-4 flex items-center justify-between" style={{
+      <div className="px-6 py-4 flex items-center" style={{
         borderBottom: '1px solid rgba(var(--codedock-primary-rgb), 0.14)'
       }}>
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <Hash size={18} style={{ color: 'var(--neon-cyan)' }} />
           <h2 className="m-0 tracking-tight" style={{
             fontSize: '18px',
@@ -712,24 +712,24 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
           }}>
             {channelLabel}
           </h2>
+          <button
+            type="button"
+            onClick={onOpenInvite}
+            className="ml-3 inline-flex items-center gap-2 rounded-full border-0 px-3 py-2 tracking-tight transition-all"
+            style={{
+              background: 'rgba(var(--codedock-primary-rgb), 0.12)',
+              border: '1px solid rgba(var(--codedock-primary-rgb), 0.24)',
+              color: 'var(--neon-cyan)',
+              cursor: 'pointer',
+              fontSize: "var(--krds-body-xsmall)",
+              fontWeight: 950
+            }}
+            aria-label="팀원 추가"
+          >
+            <UserPlus size={15} />
+            팀원 추가
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={onOpenInvite}
-          className="inline-flex items-center gap-2 rounded-full border-0 px-3 py-2 tracking-tight transition-all"
-          style={{
-            background: 'rgba(var(--codedock-primary-rgb), 0.12)',
-            border: '1px solid rgba(var(--codedock-primary-rgb), 0.24)',
-            color: 'var(--neon-cyan)',
-            cursor: 'pointer',
-            fontSize: "var(--krds-body-xsmall)",
-            fontWeight: 950
-          }}
-          aria-label="팀원 추가"
-        >
-          <UserPlus size={15} />
-          팀원 추가
-        </button>
       </div>
 
       {/* Thread List */}

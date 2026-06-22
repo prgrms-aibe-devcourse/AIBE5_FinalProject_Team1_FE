@@ -45,6 +45,7 @@ import {
   toggleChannelReaction,
   toggleMessageBookmark,
   updateWorkspaceChannel,
+  updateWorkspaceChannelOrder,
   updateChannelMessage,
   updateThreadReply,
   type Channel,
@@ -207,6 +208,7 @@ type CustomChannelItem = {
   id: string;
   label: string;
   apiChannelId?: number;
+  displayOrder?: number | null;
 };
 
 const REPO_CHANNEL_IDS: Record<string, string> = {
@@ -668,6 +670,52 @@ function createClientMessageId(): string {
 
 function isRepositoryApiChannel(channel: Channel) {
   return String(channel.channelType ?? "").toLowerCase() === "repository";
+}
+
+type RepositoryMessageView = "pull-requests" | "issues" | "repository";
+
+function normalizeRepositoryAttachmentType(value: unknown) {
+  return String(value ?? "").trim().toLowerCase().replace(/[_\s]+/g, "-");
+}
+
+function getRepositoryMessageViewFromAttachments(message: {
+  attachments?: Array<{ type?: unknown; attachmentType?: unknown }>;
+}): RepositoryMessageView {
+  const attachmentTypes = (message.attachments ?? []).map((attachment) =>
+    normalizeRepositoryAttachmentType(attachment.attachmentType ?? attachment.type)
+  );
+
+  if (attachmentTypes.some((type) => type === "pr" || type === "pull-request" || type === "pullrequest")) {
+    return "pull-requests";
+  }
+
+  if (attachmentTypes.some((type) => type === "issue")) {
+    return "issues";
+  }
+
+  return "repository";
+}
+
+function filterRepositoryMessagesForView<T extends { attachments?: Array<{ type?: unknown; attachmentType?: unknown }> }>(
+  messages: T[],
+  view: RepositoryMessageView | null
+) {
+  if (!view) return messages;
+
+  // 백엔드는 레포지토리 PR/이슈가 같은 repository channelId를 공유한다.
+  // 그래서 프론트의 PR/이슈 탭은 별도 채널이 아니라 같은 조회 결과를 attachment type으로 나누는 가상 탭이다.
+  // 이 필터가 없으면 같은 GET /api/channels/{repositoryChannelId}/messages 결과가 두 탭에 모두 저장되어
+  // PR 채팅방과 이슈 채팅방이 같은 내용처럼 보인다.
+  return messages.filter((message) => getRepositoryMessageViewFromAttachments(message) === view);
+}
+
+function sortChannelsByDisplayOrder(channels: Channel[]) {
+  return [...channels].sort((a, b) => {
+    const aOrder = a.displayOrder ?? Number.MAX_SAFE_INTEGER;
+    const bOrder = b.displayOrder ?? Number.MAX_SAFE_INTEGER;
+    if (aOrder !== bOrder) return aOrder - bOrder;
+    return a.id - b.id;
+  });
 }
 
 function formatApiDateTime(value: string) {
@@ -1403,7 +1451,9 @@ export function ChatPage() {
   });
   const [presenceOverrides, setPresenceOverrides] = useState<Record<string, string>>({});
   const [remoteTypingByChannel, setRemoteTypingByChannel] = useState<Record<string, RemoteTypingMembers>>({});
+  const [remoteTypingByThread, setRemoteTypingByThread] = useState<Record<string, RemoteTypingMembers>>({});
   const remoteTypingTimeoutsRef = useRef<Record<string, number>>({});
+  const remoteThreadTypingTimeoutsRef = useRef<Record<string, number>>({});
   const chatStompRef = useRef<ChatStompClient | null>(null);
   const [chatStompReadyKey, setChatStompReadyKey] = useState(0);
   const [serverBookmarkedThreadsByChannel, setServerBookmarkedThreadsByChannel] = useState<Record<string, Record<number, boolean>>>({});
@@ -1590,10 +1640,11 @@ export function ChatPage() {
   const refreshWorkspaceChannels = useCallback((signal?: AbortSignal) => {
     return getWorkspaceChannels(currentWorkspaceApiId, signal ? { signal } : undefined)
       .then((channels) => {
-        setApiChannels(channels);
+        const sortedChannels = sortChannelsByDisplayOrder(channels);
+        setApiChannels(sortedChannels);
         setChannelFetchStatus("ready");
         setChannelFetchError("");
-        return channels;
+        return sortedChannels;
       });
   }, [currentWorkspaceApiId]);
 
@@ -1900,7 +1951,8 @@ export function ChatPage() {
       .map((channel) => ({
         id: getApiChannelUiId(channel),
         label: cleanChannelLabel(channel.name),
-        apiChannelId: channel.id
+        apiChannelId: channel.id,
+        displayOrder: channel.displayOrder
       }));
   }, [apiChannels]);
   const allCustomChannels = useMemo(
@@ -1922,6 +1974,7 @@ export function ChatPage() {
         id: getApiChannelUiIdById(channel.id),
         label: cleanChannelLabel(channel.name),
         apiChannelId: channel.id,
+        displayOrder: channel.displayOrder
       }));
   }, [apiChannels, claimedRepositoryChannelIds]);
 
@@ -1966,6 +2019,13 @@ export function ChatPage() {
 
   const activeRemoteTypingNames = Object.values(remoteTypingByChannel[selectedChannel] ?? {});
   const activeRemoteTypingLabel = formatRemoteTypingLabel(activeRemoteTypingNames);
+  const activeThreadTypingStateKey = selectedThread
+    ? String(selectedThread.backendMessageId ?? selectedThread.id)
+    : "";
+  const activeRemoteThreadTypingNames = activeThreadTypingStateKey
+    ? Object.values(remoteTypingByThread[activeThreadTypingStateKey] ?? {})
+    : [];
+  const activeRemoteThreadTypingLabel = formatRemoteTypingLabel(activeRemoteThreadTypingNames);
   const activeServerBookmarkedThreadIds = serverBookmarkedThreadsByChannel[selectedChannelMessageKey] ?? {};
   // Mentions are removed from workspaceMentions on delete (server-backed), so the list is the source of truth.
   const visibleWorkspaceMentions = workspaceMentions;
@@ -2224,21 +2284,41 @@ export function ChatPage() {
   const deleteChannelTarget = deleteChannelTargetId
     ? allCustomChannels.find((channel) => channel.id === deleteChannelTargetId) ?? null
     : null;
+  const orderedApiChannels = useMemo(() => sortChannelsByDisplayOrder(apiChannels), [apiChannels]);
   const channelMenuTarget = channelMenuOpenId
     ? allCustomChannels.find((channel) => channel.id === channelMenuOpenId) ?? null
     : null;
   const channelMenuTargetSource = channelMenuTarget?.apiChannelId
     ? apiChannels.find((apiChannel) => apiChannel.id === channelMenuTarget.apiChannelId)
     : undefined;
+  const channelMenuTargetOrderIndex = channelMenuTargetSource
+    ? orderedApiChannels.findIndex((apiChannel) => apiChannel.id === channelMenuTargetSource.id)
+    : -1;
   const isChannelMenuTargetPending = channelMenuTarget
     ? channelActionPendingId === channelMenuTarget.id
     : false;
   const canManageChannelMenuTarget = canManageWorkspaceChannels && Boolean(channelMenuTargetSource?.isDeletable);
+  const canMoveChannelMenuTargetUp = canManageChannelMenuTarget && channelMenuTargetOrderIndex > 0;
+  const canMoveChannelMenuTargetDown =
+    canManageChannelMenuTarget
+    && channelMenuTargetOrderIndex >= 0
+    && channelMenuTargetOrderIndex < orderedApiChannels.length - 1;
   const selectedRepoForChannel = visibleRepositories.find(r => getRepositoryChannelUiId(r) === selectedChannel);
   const selectedRepositoryApiChannel = selectedRepoForChannel
     ? repositoryApiChannelByRepoId[selectedRepoForChannel.id]
     : undefined;
   const selectedOrphanRepositoryChannel = orphanRepositoryChannels.find(ch => ch.id === selectedChannel);
+  const selectedRepositoryMessageView = useMemo<RepositoryMessageView | null>(() => {
+    if (selectedChannel === "pull-requests" || selectedChannel === "issues") {
+      return selectedChannel;
+    }
+
+    if (selectedRepoForChannel || selectedOrphanRepositoryChannel) {
+      return "repository";
+    }
+
+    return null;
+  }, [selectedChannel, selectedOrphanRepositoryChannel, selectedRepoForChannel]);
   const selectedChannelTitle = selectedChannel === 'pull-requests'
     ? `${cleanChannelLabel(currentRepo?.name ?? '레포')} - PR`
     : selectedChannel === 'issues'
@@ -2256,10 +2336,6 @@ export function ChatPage() {
   const shouldShowRealtimeConnectionNotice =
     Boolean(realtimeConnectionNotice)
     && !['overview', 'api-spec', 'erd', 'docs', 'work-board', 'team'].includes(selectedChannel);
-  const hasMainPanelFloatingActions = hasRepositories && selectedChannel !== 'team';
-  const mainPanelReservedTop = hasMainPanelFloatingActions
-    ? shouldShowRealtimeConnectionNotice ? 118 : 66
-    : shouldShowRealtimeConnectionNotice ? 74 : 0;
   const selectedRepositoryName = repositories.find((repo) => repo.id === selectedRepository)?.name ?? '전체 리포지토리';
 
   const currentPresence = presenceOptions.find((option) => option.id === userPresence) ?? presenceOptions[0];
@@ -2419,6 +2495,7 @@ export function ChatPage() {
     setSelectedPR(null);
     setSelectedIssue(null);
     setRemoteTypingByChannel({});
+    setRemoteTypingByThread({});
     // 이전 워크스페이스의 실시간 presence가 다른 워크스페이스 멤버 상태로 잘못 비치지 않도록 초기화.
     setPresenceOverrides({});
   }, [currentWorkspaceApiId]);
@@ -3200,15 +3277,10 @@ export function ChatPage() {
       signal: controller.signal
     })
       .then((serverMessages) => {
-        const mapped = serverMessages.map(mapChannelMessageToWorkspaceMessage);
-        const filtered = selectedChannel === 'pull-requests'
-          ? mapped.filter((m) => (m as any).type === 'pr')
-          : selectedChannel === 'issues'
-            ? mapped.filter((m) => (m as any).type === 'issue')
-            : mapped;
+        const visibleServerMessages = filterRepositoryMessagesForView(serverMessages, selectedRepositoryMessageView);
         setMessages((prev) => ({
           ...prev,
-          [selectedChannelMessageKey]: filtered
+          [selectedChannelMessageKey]: visibleServerMessages.map(mapChannelMessageToWorkspaceMessage)
         }));
       })
       .catch(() => {
@@ -3217,7 +3289,7 @@ export function ChatPage() {
       });
 
     return () => controller.abort();
-  }, [activeApiChannelId, selectedChannelMessageKey]);
+  }, [activeApiChannelId, selectedChannelMessageKey, selectedRepositoryMessageView]);
 
   useEffect(() => {
     if (!activeApiChannelId) return;
@@ -3343,8 +3415,13 @@ export function ChatPage() {
       Object.values(remoteTypingTimeoutsRef.current).forEach((timeoutId) => {
         window.clearTimeout(timeoutId);
       });
+      Object.values(remoteThreadTypingTimeoutsRef.current).forEach((timeoutId) => {
+        window.clearTimeout(timeoutId);
+      });
       remoteTypingTimeoutsRef.current = {};
+      remoteThreadTypingTimeoutsRef.current = {};
       setRemoteTypingByChannel({});
+      setRemoteTypingByThread({});
       h.updateRealtimeConnection(getRealtimeBlockState(
         realtimeConnectionBlockReason,
         realtimeConnectionBlockReason === "channels-failed" ? h.channelFetchError : undefined
@@ -3400,15 +3477,13 @@ export function ChatPage() {
         const getRepositoryEventUiChannelId = (payload?: ChannelMessage) => {
           if (!isRepositoryChannel) return genericUiChannelId;
 
-          const attachmentType = (payload?.attachments ?? [])
-            .map((attachment) => String(attachment.attachmentType ?? attachment.type ?? "").toLowerCase())
-            .find(Boolean);
-
-          if (attachmentType === "pr" || attachmentType === "pull_request" || attachmentType === "pull-request") {
-            return "pull-requests";
-          }
-          if (attachmentType === "issue") {
-            return "issues";
+          if (payload) {
+            // repository 채널은 PR/이슈 탭이 같은 channelId를 구독하므로,
+            // 실시간 메시지도 REST 조회와 같은 attachment type 기준으로 라우팅해야 새로고침 전후 화면이 섞이지 않는다.
+            const repositoryMessageView = getRepositoryMessageViewFromAttachments(payload);
+            if (repositoryMessageView === "pull-requests") return "pull-requests";
+            if (repositoryMessageView === "issues") return "issues";
+            return genericUiChannelId;
           }
 
           const selected = selectedChannelRef.current;
@@ -3634,6 +3709,74 @@ export function ChatPage() {
     };
   }, [activeApiChannelId, selectedChannel, chatStompReadyKey, isCurrentWorkspaceMember]);
 
+  useEffect(() => {
+    const client = chatStompRef.current;
+    const threadId = Number(selectedThread?.backendMessageId ?? selectedThread?.id);
+    if (!client || !Number.isFinite(threadId) || threadId <= 0) return;
+
+    const threadTypingKey = String(threadId);
+    const subscription = client.subscribe<ChatEvent<TypingEvent>>(
+      chatWebSocketDestinations.subscribeThreadTyping(threadId),
+      (event) => {
+        const typingPayload = getChatEventPayload<TypingEvent>(event, CHAT_EVENT_TYPE.TYPING);
+        if (!typingPayload) return;
+        if (isCurrentWorkspaceMember(typingPayload.workspaceMemberId)) return;
+        const typingKey = `${threadTypingKey}:${typingPayload.workspaceMemberId}`;
+
+        if (remoteThreadTypingTimeoutsRef.current[typingKey]) {
+          window.clearTimeout(remoteThreadTypingTimeoutsRef.current[typingKey]);
+          delete remoteThreadTypingTimeoutsRef.current[typingKey];
+        }
+
+        if (typingPayload.typing) {
+          remoteThreadTypingTimeoutsRef.current[typingKey] = window.setTimeout(() => {
+            setRemoteTypingByThread((prev) => ({
+              ...prev,
+              [threadTypingKey]: Object.fromEntries(
+                Object.entries(prev[threadTypingKey] ?? {}).filter(
+                  ([memberId]) => Number(memberId) !== typingPayload.workspaceMemberId
+                )
+              )
+            }));
+            delete remoteThreadTypingTimeoutsRef.current[typingKey];
+          }, 10000);
+        }
+
+        setRemoteTypingByThread((prev) => {
+          const currentTypers = prev[threadTypingKey] ?? {};
+          const {
+            [typingPayload.workspaceMemberId]: _removedTypingMember,
+            ...withoutTypingMember
+          } = currentTypers;
+
+          return {
+            ...prev,
+            [threadTypingKey]: typingPayload.typing
+              ? {
+                  ...currentTypers,
+                  [typingPayload.workspaceMemberId]: typingPayload.senderName
+                }
+              : withoutTypingMember
+          };
+        });
+      }
+    );
+
+    return () => {
+      subscription.unsubscribe();
+      Object.entries(remoteThreadTypingTimeoutsRef.current)
+        .filter(([key]) => key.startsWith(`${threadTypingKey}:`))
+        .forEach(([key, timeoutId]) => {
+          window.clearTimeout(timeoutId);
+          delete remoteThreadTypingTimeoutsRef.current[key];
+        });
+      setRemoteTypingByThread((prev) => ({
+        ...prev,
+        [threadTypingKey]: {}
+      }));
+    };
+  }, [activeThreadTypingStateKey, chatStompReadyKey, isCurrentWorkspaceMember, selectedThread?.backendMessageId, selectedThread?.id]);
+
   // Keep the latest targets/handlers in a ref so the subscription effect below can read fresh
   // values without listing them as dependencies (which would force a re-subscribe each render).
   const threadSubLatestRef = useRef({
@@ -3746,6 +3889,19 @@ export function ChatPage() {
       }
     );
   }, [activeApiChannelId]);
+
+  const handleThreadTypingChange = useCallback((typing: boolean) => {
+    const thread = selectedThreadRef.current;
+    const threadId = Number(thread?.backendMessageId ?? thread?.id);
+    if (!Number.isFinite(threadId) || threadId <= 0) return;
+
+    chatStompRef.current?.send(
+      chatWebSocketDestinations.sendThreadTyping(threadId),
+      {
+        typing
+      }
+    );
+  }, []);
 
   const parseRepoNameFromUrl = (url: string): string | null => {
     try {
@@ -3952,9 +4108,10 @@ export function ChatPage() {
       let selectedCreatedChannel = createdChannel;
       setApiChannels((prev) => {
         const alreadyExists = prev.some((channel) => channel.id === createdChannel.id);
-        return alreadyExists
+        const nextChannels = alreadyExists
           ? prev.map((channel) => (channel.id === createdChannel.id ? createdChannel : channel))
           : [...prev, createdChannel];
+        return sortChannelsByDisplayOrder(nextChannels);
       });
 
       try {
@@ -4092,6 +4249,46 @@ export function ChatPage() {
     setDeleteChannelTargetId(null);
   };
 
+  const handleMoveCustomChannel = async (channelId: string, direction: -1 | 1) => {
+    if (channelActionInFlightRef.current) return;
+
+    const channel = allCustomChannels.find((item) => item.id === channelId);
+    if (!channel?.apiChannelId) return;
+    if (!canManageWorkspaceChannels) {
+      setChannelActionError('梨꾨꼸 ?쒖꽌 蹂寃쎌? ?뚰겕?ㅽ럹?댁뒪 owner/admin留?媛?ν빀?덈떎.');
+      closeChannelMenu();
+      return;
+    }
+
+    const previousChannels = orderedApiChannels;
+    const currentIndex = previousChannels.findIndex((apiChannel) => apiChannel.id === channel.apiChannelId);
+    const nextIndex = currentIndex + direction;
+    if (currentIndex < 0 || nextIndex < 0 || nextIndex >= previousChannels.length) return;
+
+    const nextChannels = [...previousChannels];
+    const [movedChannel] = nextChannels.splice(currentIndex, 1);
+    nextChannels.splice(nextIndex, 0, movedChannel);
+
+    channelActionInFlightRef.current = true;
+    setChannelActionPendingId(channelId);
+    setChannelActionError('');
+    setApiChannels(nextChannels);
+
+    try {
+      const savedChannels = await updateWorkspaceChannelOrder(currentWorkspaceApiId, {
+        channelIds: nextChannels.map((apiChannel) => apiChannel.id)
+      });
+      setApiChannels(Array.isArray(savedChannels) ? sortChannelsByDisplayOrder(savedChannels) : nextChannels);
+      closeChannelMenu();
+    } catch (error) {
+      setApiChannels(previousChannels);
+      setChannelActionError(getChannelActionErrorMessage(error, '梨꾨꼸 ?쒖꽌瑜???ν븯吏 紐삵뻽?댁슂. ?좎떆 ???ㅼ떆 ?쒕룄?댁＜?몄슂.'));
+    } finally {
+      setChannelActionPendingId(null);
+      channelActionInFlightRef.current = false;
+    }
+  };
+
   const handleConfirmDeleteCustomChannel = async () => {
     if (channelActionInFlightRef.current || !deleteChannelTargetId) return;
 
@@ -4112,7 +4309,7 @@ export function ChatPage() {
       }
 
       await deleteWorkspaceChannel(currentWorkspaceApiId, channel.apiChannelId);
-      setApiChannels((prev) => prev.filter((apiChannel) => apiChannel.id !== channel.apiChannelId));
+      setApiChannels((prev) => sortChannelsByDisplayOrder(prev.filter((apiChannel) => apiChannel.id !== channel.apiChannelId)));
       setDeleteChannelTargetId(null);
       refreshWorkspaceChannels().catch(() => {
         // The deleted channel has already been removed locally after server success.
@@ -4179,7 +4376,9 @@ export function ChatPage() {
       });
 
       setApiChannels((prev) =>
-        prev.map((apiChannel) => (apiChannel.id === updatedChannel.id ? updatedChannel : apiChannel))
+        sortChannelsByDisplayOrder(
+          prev.map((apiChannel) => (apiChannel.id === updatedChannel.id ? updatedChannel : apiChannel))
+        )
       );
       refreshWorkspaceChannels().catch(() => {
         // Keep the updated channel in local state when only the follow-up sync fails.
@@ -5844,7 +6043,7 @@ export function ChatPage() {
             boxShadow: '0 20px 60px rgba(0, 0, 0, 0.32)',
             backdropFilter: 'blur(16px)'
           }}>
-            {hasMainPanelFloatingActions && (
+            {hasRepositories && selectedChannel !== 'team' && (
               <div className="absolute right-4 top-4 z-40 flex items-start gap-2">
                 {selectedChannel !== 'overview' && (
                 <div className="relative">
@@ -5980,9 +6179,8 @@ export function ChatPage() {
             )}
             {shouldShowRealtimeConnectionNotice && realtimeConnectionNotice && (
               <div
-                className="pointer-events-none absolute right-5 z-30 flex max-w-[360px] items-start gap-2 rounded-2xl px-3 py-2 tracking-tight"
+                className="pointer-events-none absolute right-5 top-16 z-30 flex max-w-[360px] items-start gap-2 rounded-2xl px-3 py-2 tracking-tight"
                 style={{
-                  top: hasMainPanelFloatingActions ? 72 : 16,
                   background:
                     realtimeConnectionNotice.tone === "error"
                       ? "rgba(58, 13, 22, 0.88)"
@@ -6034,13 +6232,6 @@ export function ChatPage() {
                 </span>
               </div>
             )}
-            <div
-              className="h-full min-h-0"
-              style={{
-                boxSizing: "border-box",
-                paddingTop: mainPanelReservedTop
-              }}
-            >
             {selectedChannel === 'overview' ? (
               <OverviewPanel
                 repositories={visibleRepositories}
@@ -6248,7 +6439,6 @@ export function ChatPage() {
                 remoteTypingLabel={activeRemoteTypingLabel}
               />
             )}
-            </div>
           </section>
         )}
 
@@ -6306,8 +6496,8 @@ export function ChatPage() {
                   )
                 : undefined}
               onToggleReaction={handleToggleReaction}
-              onTypingChange={activeApiChannelId ? handleChannelTypingChange : undefined}
-              remoteTypingLabel={activeRemoteTypingLabel}
+              onTypingChange={activeApiChannelId ? handleThreadTypingChange : undefined}
+              remoteTypingLabel={activeRemoteThreadTypingLabel}
               onOpenProfile={handleOpenChatProfile}
             />
           </section>
@@ -6639,6 +6829,46 @@ export function ChatPage() {
                 exit={{ opacity: 0, y: -4, scale: 0.98 }}
                 transition={{ duration: 0.12 }}
               >
+                <div
+                  className="grid grid-cols-2"
+                  style={{ borderBottom: '1px solid rgba(var(--codedock-primary-rgb), 0.10)' }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => { void handleMoveCustomChannel(channelMenuTarget.id, -1); }}
+                    disabled={isChannelMenuTargetPending || !canMoveChannelMenuTargetUp}
+                    className="flex items-center justify-center gap-1 border-0 px-2 py-2 tracking-tight transition-all hover:bg-[rgba(var(--codedock-primary-rgb),0.08)]"
+                    style={{
+                      background: 'transparent',
+                      color: 'var(--neon-cyan)',
+                      fontSize: "var(--krds-body-xsmall)",
+                      fontWeight: 800,
+                      cursor: isChannelMenuTargetPending || !canMoveChannelMenuTargetUp ? 'not-allowed' : 'pointer',
+                      opacity: isChannelMenuTargetPending || !canMoveChannelMenuTargetUp ? 0.42 : 1,
+                      borderRight: '1px solid rgba(var(--codedock-primary-rgb), 0.10)'
+                    }}
+                  >
+                    <ChevronDown size={13} style={{ transform: 'rotate(180deg)' }} />
+                    위로
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { void handleMoveCustomChannel(channelMenuTarget.id, 1); }}
+                    disabled={isChannelMenuTargetPending || !canMoveChannelMenuTargetDown}
+                    className="flex items-center justify-center gap-1 border-0 px-2 py-2 tracking-tight transition-all hover:bg-[rgba(var(--codedock-primary-rgb),0.08)]"
+                    style={{
+                      background: 'transparent',
+                      color: 'var(--neon-cyan)',
+                      fontSize: "var(--krds-body-xsmall)",
+                      fontWeight: 800,
+                      cursor: isChannelMenuTargetPending || !canMoveChannelMenuTargetDown ? 'not-allowed' : 'pointer',
+                      opacity: isChannelMenuTargetPending || !canMoveChannelMenuTargetDown ? 0.42 : 1
+                    }}
+                  >
+                    <ChevronDown size={13} />
+                    아래
+                  </button>
+                </div>
                 <button
                   type="button"
                   onClick={() => handleStartRenameCustomChannel(channelMenuTarget)}
