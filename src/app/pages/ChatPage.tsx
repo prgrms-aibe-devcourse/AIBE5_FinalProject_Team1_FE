@@ -1266,8 +1266,31 @@ export function ChatPage() {
       .finally(() => setWorkspacesLoaded(true));
   }, []);
 
+  // presence 변경 등으로 워크스페이스별 실시간 접속 인원이 달라졌을 때 목록 카운트를 갱신.
+  const refreshWorkspaceList = useCallback(() => {
+    fetchMyWorkspaces().then(setApiWorkspaces).catch(() => {});
+  }, []);
+
+  // presence 이벤트가 몰려와도 목록 refetch를 한 번으로 묶는 디바운스.
+  const workspaceListRefreshTimeoutRef = useRef<number | null>(null);
+  const scheduleWorkspaceListRefresh = useCallback(() => {
+    if (workspaceListRefreshTimeoutRef.current != null) {
+      window.clearTimeout(workspaceListRefreshTimeoutRef.current);
+    }
+    workspaceListRefreshTimeoutRef.current = window.setTimeout(() => {
+      workspaceListRefreshTimeoutRef.current = null;
+      refreshWorkspaceList();
+    }, 400);
+  }, [refreshWorkspaceList]);
+
+  // 내가 속한 워크스페이스 id 집합. 이 집합이 바뀔 때만 presence 구독을 재설정(카운트 변경 refetch로는 재구독 안 함).
+  const workspacePresenceSubKey = useMemo(
+    () => apiWorkspaces.map((w) => w.id).sort((a, b) => a - b).join(","),
+    [apiWorkspaces]
+  );
+
   const workspaceList = apiWorkspaces.length > 0
-    ? apiWorkspaces.map(ws => ({ id: toWorkspaceUiId(ws.id), apiId: ws.id, name: ws.name, myRole: ws.myRole, membersOnline: ws.memberCount, connected: true }))
+    ? apiWorkspaces.map(ws => ({ id: toWorkspaceUiId(ws.id), apiId: ws.id, name: ws.name, myRole: ws.myRole, membersOnline: ws.membersOnline ?? ws.memberCount, connected: true }))
     : DEFAULT_WORKSPACES;
 
   const [repositoriesImported, setRepositoriesImported] = useState(true);
@@ -2205,6 +2228,8 @@ export function ChatPage() {
 
   // Sorted team member list for the current workspace — used by the member list popup.
   // Order: presence group (active→away→busy→offline) → role privilege → Korean alphabetical.
+  // presence는 BE가 신뢰원: 실시간 override(스냅샷+브로드캐스트)가 있으면 그것을, 없으면 멤버 목록의 마지막
+  // 상태를 사용한다. (WS 연결 여부로 화면에서 강제 offline 처리하지 않음 — 실제 접속자를 가리는 문제 방지)
   const sortedWorkspaceMembers = useMemo(() => {
     const resolvePresence = (m: WorkspaceMember): PresenceKey => {
       if (currentWorkspaceMemberId != null && Number(m.memberId) === Number(currentWorkspaceMemberId)) {
@@ -2248,10 +2273,10 @@ export function ChatPage() {
   const workspaceOnlineCounts = useMemo(() => {
     if (!selectedWorkspace || workspaceMembers.length === 0) return {};
     const onlineCount = workspaceMembers.reduce((acc, member) => {
-      const presence =
-        currentWorkspaceMemberId != null && Number(member.memberId) === Number(currentWorkspaceMemberId)
-          ? userPresence
-          : (presenceOverrides[String(member.memberId)] ?? member.presence ?? 'active');
+      const isSelf = currentWorkspaceMemberId != null && Number(member.memberId) === Number(currentWorkspaceMemberId);
+      const presence = isSelf
+        ? userPresence
+        : (presenceOverrides[String(member.memberId)] ?? member.presence ?? 'active');
       return acc + (presence !== 'offline' ? 1 : 0);
     }, 0);
     return { [selectedWorkspace]: onlineCount };
@@ -2338,6 +2363,8 @@ export function ChatPage() {
     setSelectedPR(null);
     setSelectedIssue(null);
     setRemoteTypingByChannel({});
+    // 이전 워크스페이스의 실시간 presence가 다른 워크스페이스 멤버 상태로 잘못 비치지 않도록 초기화.
+    setPresenceOverrides({});
   }, [currentWorkspaceApiId]);
 
   useEffect(() => {
@@ -3505,16 +3532,40 @@ export function ChatPage() {
 
   useEffect(() => {
     const client = chatStompRef.current;
-    if (!currentWorkspaceApiId || !client) return;
-    const sub = client.subscribe<{ memberId: number; presence: string }>(
-      `/topic/workspaces/${currentWorkspaceApiId}/presence`,
+    if (!client || apiWorkspaces.length === 0) return;
+    // 입장/재연결 시 BE가 보내는 presence 스냅샷(개인 큐). 토픽 구독보다 먼저 구독해 스냅샷을 놓치지 않음.
+    const snapshotSub = client.subscribe<Array<{ memberId: number; presence: string }>>(
+      "/user/queue/presence",
       (payload) => {
-        if (!payload?.memberId || !payload?.presence) return;
-        setPresenceOverrides((prev) => ({ ...prev, [String(payload.memberId)]: payload.presence }));
+        if (!Array.isArray(payload)) return;
+        setPresenceOverrides((prev) => {
+          const next = { ...prev };
+          payload.forEach((entry) => {
+            if (entry?.memberId != null && entry?.presence) {
+              next[String(entry.memberId)] = entry.presence;
+            }
+          });
+          return next;
+        });
       }
     );
-    return () => sub.unsubscribe();
-  }, [currentWorkspaceApiId, chatStompReadyKey]);
+    // 내가 속한 "모든" 워크스페이스의 presence 토픽 구독 → 어느 워크스페이스에서 누가 들고나도 실시간 반영.
+    // 현재 워크스페이스: override로 헤더/멤버목록 즉시 갱신. 모든 워크스페이스: 목록 카운트 디바운스 refetch.
+    const topicSubs = apiWorkspaces.map((ws) =>
+      client.subscribe<{ memberId: number; presence: string }>(
+        `/topic/workspaces/${ws.id}/presence`,
+        (payload) => {
+          if (!payload?.memberId || !payload?.presence) return;
+          setPresenceOverrides((prev) => ({ ...prev, [String(payload.memberId)]: payload.presence }));
+          scheduleWorkspaceListRefresh();
+        }
+      )
+    );
+    return () => {
+      snapshotSub.unsubscribe();
+      topicSubs.forEach((sub) => sub.unsubscribe());
+    };
+  }, [workspacePresenceSubKey, chatStompReadyKey]);
 
   const handleChannelTypingChange = useCallback((typing: boolean) => {
     if (!activeApiChannelId) return;
@@ -4231,7 +4282,7 @@ export function ChatPage() {
                     onClick={() => {
                       setUserPresence(option.id);
                       const apiId = currentWorkspaceApiId;
-                      if (apiId) updatePresence(apiId, option.id).catch(() => {});
+                      if (apiId) updatePresence(apiId, option.id).then(() => refreshWorkspaceList()).catch(() => {});
                     }}
                     className="flex w-full items-center gap-3 rounded-xl border-0 px-3 py-2.5 text-left tracking-tight"
                     style={{
@@ -5146,7 +5197,7 @@ export function ChatPage() {
                             </span>
                           </div>
                           <span className="tracking-tight" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 800, color: 'var(--muted)' }}>
-                            {workspaceOnlineCounts[ws.id] ?? ws.membersOnline}명 접속 중
+                            {workspaceOnlineCounts[ws.id] ?? (ws.membersOnline + (userPresence !== 'offline' ? 1 : 0))}명 접속 중
                           </span>
                         </div>
                       </button>
@@ -5176,7 +5227,7 @@ export function ChatPage() {
               >
                 <div className="w-2 h-2 rounded-full" style={{ background: 'var(--matrix-green)' }} />
                 <span className="tracking-tight" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 800, color: 'var(--muted)' }}>
-                  {workspaceOnlineCounts[selectedWorkspace] ?? currentWorkspace.membersOnline}명 접속 중
+                  {workspaceOnlineCounts[selectedWorkspace] ?? (currentWorkspace.membersOnline + (userPresence !== 'offline' ? 1 : 0))}명 접속 중
                 </span>
               </button>
             </div>
