@@ -30,10 +30,71 @@ interface DiffFile {
   id: string;
   name: string;
   path: string;
-  status: "modified" | "added";
+  status: "modified" | "added" | "removed" | "renamed";
   tag: string;
   additions: number;
   deletions: number;
+}
+
+// 실제 PR diff 한 줄. removed=true면 삭제된 줄(빨강/-), added=true면 추가된 줄(초록/+), 둘 다 false면 context.
+interface DiffRow {
+  line: number | string;
+  code: string;
+  added: boolean;
+  removed?: boolean;
+}
+
+interface RealDiffFile extends DiffFile {
+  rows: DiffRow[];
+}
+
+// diff 행 헬퍼들이 받는 느슨한 타입 (목데이터의 comment 필드와 실제 데이터 모두 수용)
+type DiffRowLike = DiffRow & { comment?: { author: string; time: string; text: string } };
+
+// GitHub PR files API 응답을 화면용 파일/diff 행으로 변환
+function mapPrFileStatus(status: string): DiffFile["status"] {
+  if (status === "added") return "added";
+  if (status === "removed") return "removed";
+  if (status === "renamed") return "renamed";
+  return "modified"; // modified, changed, copied 등
+}
+
+function extToTag(filename: string): string {
+  const dot = filename.lastIndexOf(".");
+  return dot >= 0 ? filename.slice(dot + 1) : "file";
+}
+
+// GitHub unified diff(patch)를 줄 단위로 파싱. 새 파일 기준 줄번호를 추적한다.
+function parsePatchToRows(patch: string): DiffRow[] {
+  if (!patch) return [];
+  const rows: DiffRow[] = [];
+  let newLine = 0;
+  let oldLine = 0;
+  for (const raw of patch.split("\n")) {
+    if (raw.startsWith("@@")) {
+      // @@ -oldStart,oldCount +newStart,newCount @@
+      const m = raw.match(/@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+      if (m) {
+        oldLine = parseInt(m[1], 10);
+        newLine = parseInt(m[2], 10);
+      }
+      rows.push({ line: "…", code: raw.replace(/^@@.*?@@\s?/, "").trim() || raw, added: false });
+      continue;
+    }
+    if (raw.startsWith("+")) {
+      rows.push({ line: newLine, code: raw.slice(1), added: true });
+      newLine += 1;
+    } else if (raw.startsWith("-")) {
+      rows.push({ line: oldLine, code: raw.slice(1), added: false, removed: true });
+      oldLine += 1;
+    } else {
+      // context line (앞에 공백 1칸)
+      rows.push({ line: newLine, code: raw.startsWith(" ") ? raw.slice(1) : raw, added: false });
+      newLine += 1;
+      oldLine += 1;
+    }
+  }
+  return rows;
 }
 
 interface DiffThreadComment {
@@ -47,7 +108,7 @@ interface DiffThreadComment {
   fileId: string;
   fileName: string;
   filePath: string;
-  line: number;
+  line: number | string;
   code?: string;
   pending?: boolean;
   serverSyncState?: "pending" | "failed";
@@ -56,7 +117,7 @@ interface DiffThreadComment {
 
 interface ActiveDiffThread {
   fileId: string;
-  line: number;
+  line: number | string;
 }
 
 interface AiFeedbackFile {
@@ -328,13 +389,19 @@ function renderInlineCode(text: string) {
 }
 
 function statusColor(status: DiffFile["status"]) {
-  return status === "added" ? "#22C55E" : "var(--neon-cyan)";
+  if (status === "added") return "#22C55E";
+  if (status === "removed") return "#EF4444";
+  if (status === "renamed") return "#A78BFA";
+  return "var(--neon-cyan)";
 }
 
 const colorAlpha = (color: string, percent: number) => `color-mix(in srgb, ${color} ${percent}%, transparent)`;
 
 function statusLabel(status: DiffFile["status"]) {
-  return status === "added" ? "추가됨" : "수정됨";
+  if (status === "added") return "추가됨";
+  if (status === "removed") return "삭제됨";
+  if (status === "renamed") return "이름변경";
+  return "수정됨";
 }
 
 function tagLabel(tag: string) {
@@ -416,6 +483,8 @@ export function PRReviewPanel({ prData, repositoryDbId, onClose, onMergePR, exte
   const [isApproved, setIsApproved] = useState(
     () => prData?.prStatus === 'approved' || prData?.prStatus === 'merged'
   );
+  // 병합 완료 여부 (병합 성공 시 즉시 버튼을 "병합됨"으로 고정 — prData prop 갱신 지연과 무관)
+  const [isMerged, setIsMerged] = useState(() => prData?.prStatus === 'merged');
 
   // prBody가 없을 때 GitHub API에서 직접 실시간 fetch
   useEffect(() => {
@@ -437,14 +506,18 @@ export function PRReviewPanel({ prData, repositoryDbId, onClose, onMergePR, exte
   }, [repositoryDbId, prData?.prNumber, prData?.prBody]);
 
   // 패널 열릴 때 현재 유저의 승인 상태 조회
+  // prStatus가 merged/approved면 이미 완료 상태이므로 my-review 결과가 null이어도 true 유지
   useEffect(() => {
     if (!repositoryDbId || !prData?.prNumber) return;
     fetchWithAuth<{ reviewState: string | null }>(
       `/api/v1/github/repositories/${repositoryDbId}/pull-requests/${prData.prNumber}/my-review`
     )
-      .then((res) => { setIsApproved(res.reviewState === 'approved'); })
+      .then((res) => {
+        const alreadyDone = prData?.prStatus === 'merged' || prData?.prStatus === 'approved';
+        setIsApproved(alreadyDone || res.reviewState === 'approved');
+      })
       .catch(() => { /* 조회 실패 시 기본값 유지 */ });
-  }, [repositoryDbId, prData?.prNumber]);
+  }, [repositoryDbId, prData?.prNumber, prData?.prStatus]);
 
   const resolvedPrBody: string = liveBody ?? prData?.prBody ?? '';
   const resolvedPrCommits: string = liveCommits ?? prData?.prCommits ?? '[]';
@@ -462,7 +535,42 @@ export function PRReviewPanel({ prData, repositoryDbId, onClose, onMergePR, exte
     mapExternalThreadMessages(externalThreadMessages)
   );
   const [showThreadModal, setShowThreadModal] = useState(false);
-  const activeFile = diffFiles.find((file) => file.id === activeFileId) ?? diffFiles[0];
+  // 실제 PR의 변경 파일 (GitHub files API). null이면 데모 목데이터로 폴백.
+  const [realFiles, setRealFiles] = useState<RealDiffFile[] | null>(null);
+
+  useEffect(() => {
+    if (!repositoryDbId || !prData?.prNumber) { setRealFiles(null); return; }
+    fetchWithAuth<Array<{ filename: string; status: string; additions: number; deletions: number; patch: string }>>(
+      `/api/v1/github/repositories/${repositoryDbId}/pull-requests/${prData.prNumber}/files`
+    )
+      .then((files) => {
+        if (!Array.isArray(files) || files.length === 0) { setRealFiles(null); return; }
+        const mapped: RealDiffFile[] = files.map((f) => {
+          const slash = f.filename.lastIndexOf("/");
+          return {
+            id: f.filename,
+            name: slash >= 0 ? f.filename.slice(slash + 1) : f.filename,
+            path: slash >= 0 ? f.filename.slice(0, slash) : "",
+            status: mapPrFileStatus(f.status),
+            tag: extToTag(f.filename),
+            additions: f.additions ?? 0,
+            deletions: f.deletions ?? 0,
+            rows: parsePatchToRows(f.patch ?? ""),
+          };
+        });
+        setRealFiles(mapped);
+        setActiveFileId(mapped[0].id);
+      })
+      .catch(() => setRealFiles(null));
+  }, [repositoryDbId, prData?.prNumber]);
+
+  // 실제 파일이 있으면 그것을, 없으면 데모 목데이터를 사용
+  const effectiveFiles: DiffFile[] = realFiles ?? diffFiles;
+  const activeFile = effectiveFiles.find((file) => file.id === activeFileId) ?? effectiveFiles[0];
+  // 활성 파일의 diff 행: 실제 데이터면 파싱된 rows, 아니면 데모 diffRows
+  const activeRows: DiffRow[] = realFiles
+    ? ((activeFile as RealDiffFile).rows ?? [])
+    : diffRows;
   const prNumber = prData.prNumber ?? 142;
   const prTitle =
     prData.prTitle ||
@@ -522,26 +630,47 @@ export function PRReviewPanel({ prData, repositoryDbId, onClose, onMergePR, exte
     setPrThreadComments(mapExternalThreadMessages(externalThreadMessages));
   }, [externalThreadMessages]);
 
-  const handleApprove = () => {
-    if (isApproved) return;
+  const handleApprove = async () => {
+    // 이미 병합된 PR만 막는다. "승인됨"이지만 아직 병합 안 된 경우엔
+    // (예: 직전에 GitHub 권한 문제로 merge가 막혔던 경우) 다시 눌러 병합을 재시도할 수 있게 한다.
+    if (isMerged || prData?.prStatus === 'merged') return;
+
+    // 버튼은 즉시 "승인됨"으로 전환
     setIsApproved(true);
-    // 이미 merged/approved 카드에서 열린 패널이면 중복 메시지 생성 방지
-    const alreadyMergedOrApproved = prData?.prStatus === 'merged' || prData?.prStatus === 'approved';
-    if (!alreadyMergedOrApproved) {
-      onMergePR?.(prData.id);
+
+    if (!repositoryDbId || !prData?.prNumber) return;
+
+    // 1) 아직 승인 기록이 없을 때만 저장 (새로고침 후 my-review로 복원됨)
+    if (!isApproved) {
+      try {
+        await fetchWithAuth(`/api/v1/github/repositories/${repositoryDbId}/pull-requests/${prData.prNumber}/approve`, {
+          method: 'POST',
+        });
+      } catch {
+        // 승인 기록 저장 실패는 무시하고 병합은 계속 시도
+      }
     }
-    // 백그라운드로 DB 저장
-    if (repositoryDbId && prData?.prNumber) {
-      fetchWithAuth(`/api/v1/github/repositories/${repositoryDbId}/pull-requests/${prData.prNumber}/approve`, {
+
+    // 2) 승인 저장 "후"에 GitHub merge를 시도한다.
+    //    approve(meta="approved")보다 뒤에 실행해야 최종 meta가 "merged"로 확정되어
+    //    경합으로 인해 "병합됨"이 "승인됨"으로 덮어써지지 않는다.
+    //    성공 시에만 카드를 병합됨으로 전환하며, 서버도 MESSAGE_UPDATED를 브로드캐스트한다.
+    try {
+      await fetchWithAuth(`/api/v1/github/repositories/${repositoryDbId}/pull-requests/${prData.prNumber}/merge`, {
         method: 'POST',
-      }).catch(() => { /* DB 저장 실패해도 UI는 이미 반영됨 */ });
+      });
+      setIsMerged(true);
+      onMergePR?.(prData.id);
+    } catch (e) {
+      // merge 실패(충돌/권한 등): 승인됨 상태는 유지하되 병합됨으로 표시하지 않는다.
+      console.warn('PR 병합 실패', e);
     }
   };
 
-  const getDiffThreadKey = (fileId: string, line: number) => `${fileId}:${line}`;
+  const getDiffThreadKey = (fileId: string, line: number | string) => `${fileId}:${line}`;
 
   // seed 댓글은 PR #104 (id:1)에만 표시
-  const getSeedDiffComments = (file: DiffFile, row: (typeof diffRows)[number]): DiffThreadComment[] => (
+  const getSeedDiffComments = (file: DiffFile, row: DiffRowLike): DiffThreadComment[] => (
     prData.id === 1 && file.id === "security" && row.comment
       ? [{
           id: `seed-${file.id}-${row.line}`,
@@ -556,7 +685,7 @@ export function PRReviewPanel({ prData, repositoryDbId, onClose, onMergePR, exte
       : []
   );
 
-  const getDiffLineComments = (file: DiffFile, row: (typeof diffRows)[number]) => {
+  const getDiffLineComments = (file: DiffFile, row: DiffRowLike) => {
     const threadKey = getDiffThreadKey(file.id, row.line);
     return [
       ...getSeedDiffComments(file, row),
@@ -564,7 +693,7 @@ export function PRReviewPanel({ prData, repositoryDbId, onClose, onMergePR, exte
     ];
   };
 
-  const handleDiffCommentSubmit = (file: DiffFile, row: (typeof diffRows)[number]) => {
+  const handleDiffCommentSubmit = (file: DiffFile, row: DiffRowLike) => {
     const threadKey = getDiffThreadKey(file.id, row.line);
     const draft = diffCommentDrafts[threadKey]?.trim();
     if (!draft) return;
@@ -589,7 +718,7 @@ export function PRReviewPanel({ prData, repositoryDbId, onClose, onMergePR, exte
     setActiveDiffThread({ fileId: file.id, line: row.line });
   };
 
-  const getEditedDiffCode = (file: DiffFile, row: (typeof diffRows)[number]) => (
+  const getEditedDiffCode = (file: DiffFile, row: DiffRowLike) => (
     diffEdits[getDiffThreadKey(file.id, row.line)] ?? row.code
   );
 
@@ -600,16 +729,16 @@ export function PRReviewPanel({ prData, repositoryDbId, onClose, onMergePR, exte
     return [...seeds, ...local];
   };
 
-  const getPrLineMessages = (file: DiffFile, row: (typeof diffRows)[number]) => (
+  const getPrLineMessages = (file: DiffFile, row: DiffRowLike) => (
     getPrThreadMessages().filter((comment) => comment.fileId === file.id && comment.line === row.line)
   );
 
-  const handleDiffReferenceSelect = (file: DiffFile, row: (typeof diffRows)[number]) => {
+  const handleDiffReferenceSelect = (file: DiffFile, row: DiffRowLike) => {
     setActiveDiffThread({ fileId: file.id, line: row.line });
     setShowThreadModal(true);
   };
 
-  const handleDiffLineCodeChange = (file: DiffFile, row: (typeof diffRows)[number], value: string) => {
+  const handleDiffLineCodeChange = (file: DiffFile, row: DiffRowLike, value: string) => {
     setDiffEdits((prev) => ({
       ...prev,
       [getDiffThreadKey(file.id, row.line)]: value
@@ -624,7 +753,7 @@ export function PRReviewPanel({ prData, repositoryDbId, onClose, onMergePR, exte
       ? diffFiles.find((file) => file.id === activeDiffThread.fileId)
       : null;
     const referencedRow = activeDiffThread
-      ? diffRows.find((row) => row.line === activeDiffThread.line)
+      ? activeRows.find((row) => row.line === activeDiffThread.line)
       : null;
 
     const referencedCode = referencedFile && referencedRow
@@ -1040,7 +1169,7 @@ export function PRReviewPanel({ prData, repositoryDbId, onClose, onMergePR, exte
       ? diffFiles.find((file) => file.id === activeDiffThread.fileId)
       : null;
     const selectedRow = activeDiffThread
-      ? diffRows.find((row) => row.line === activeDiffThread.line)
+      ? activeRows.find((row) => row.line === activeDiffThread.line)
       : null;
     const threadMessages = getPrThreadMessages();
     const selectedReferenceLabel = selectedFile && selectedRow
@@ -1305,13 +1434,13 @@ export function PRReviewPanel({ prData, repositoryDbId, onClose, onMergePR, exte
             변경 파일
           </h3>
           <p className="m-0" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>
-            파일 {diffFiles.length}개
+            파일 {effectiveFiles.length}개
           </p>
         </div>
 
         <div className="grid gap-3">
-          {diffFiles.map((file) => {
-            const isActive = file.id === activeFileId;
+          {effectiveFiles.map((file) => {
+            const isActive = file.id === activeFile.id;
             return (
               <button
                 key={file.id}
@@ -1378,7 +1507,12 @@ export function PRReviewPanel({ prData, repositoryDbId, onClose, onMergePR, exte
         </div>
 
         <div className="py-5 font-mono" style={{ color: "var(--soft-mint)", fontSize: 13, lineHeight: 1.65 }}>
-          {diffRows.map((row) => {
+          {activeRows.length === 0 && (
+            <div className="px-5 py-3" style={{ color: "var(--muted)", fontSize: 13, fontWeight: 800 }}>
+              이 파일은 표시할 diff가 없습니다 (바이너리이거나 변경 내용이 너무 큼).
+            </div>
+          )}
+          {activeRows.map((row, rowIdx) => {
             const threadKey = getDiffThreadKey(activeFile.id, row.line);
             const editedCode = getEditedDiffCode(activeFile, row);
             const lineComments = getPrLineMessages(activeFile, row);
@@ -1386,7 +1520,7 @@ export function PRReviewPanel({ prData, repositoryDbId, onClose, onMergePR, exte
             const isEdited = editedCode !== row.code;
 
             return (
-              <div key={row.line}>
+              <div key={`${rowIdx}-${row.line}`}>
                 <div
                   className="grid items-center"
                   style={{
@@ -1395,21 +1529,29 @@ export function PRReviewPanel({ prData, repositoryDbId, onClose, onMergePR, exte
                       ? "rgba(var(--codedock-primary-rgb), 0.11)"
                       : row.added
                         ? "rgba(34, 197, 94, 0.12)"
-                        : "transparent",
-                    borderLeft: isThreadOpen ? "3px solid var(--neon-cyan)" : row.added ? "3px solid #22C55E" : "3px solid transparent",
+                        : row.removed
+                          ? "rgba(239, 68, 68, 0.12)"
+                          : "transparent",
+                    borderLeft: isThreadOpen
+                      ? "3px solid var(--neon-cyan)"
+                      : row.added
+                        ? "3px solid #22C55E"
+                        : row.removed
+                          ? "3px solid #EF4444"
+                          : "3px solid transparent",
                   }}
                 >
                   <span className="select-none text-right" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>
                     {row.line}
                   </span>
-                  <span className="select-none text-center" style={{ color: row.added ? "#22C55E" : "var(--muted)", fontWeight: 950 }}>
-                    {row.added ? "+" : ""}
+                  <span className="select-none text-center" style={{ color: row.added ? "#22C55E" : row.removed ? "#EF4444" : "var(--muted)", fontWeight: 950 }}>
+                    {row.added ? "+" : row.removed ? "-" : ""}
                   </span>
                   <span
                     className="min-w-0 whitespace-pre-wrap break-words px-2 py-1.5 font-mono"
                     style={{
                       display: "block",
-                      color: row.added ? "#D7FFE7" : "#C6D4E5",
+                      color: row.added ? "#D7FFE7" : row.removed ? "#FFD7D7" : "#C6D4E5",
                       fontSize: 13,
                       fontWeight: 850,
                       lineHeight: 1.65,
@@ -1564,7 +1706,7 @@ export function PRReviewPanel({ prData, repositoryDbId, onClose, onMergePR, exte
             ? diffFiles.find((file) => file.id === activeDiffThread.fileId)
             : null;
           const activeThreadRow = activeDiffThread
-            ? diffRows.find((row) => row.line === activeDiffThread.line)
+            ? activeRows.find((row) => row.line === activeDiffThread.line)
             : null;
           const activeThreadKey = activeThreadFile && activeThreadRow
             ? getDiffThreadKey(activeThreadFile.id, activeThreadRow.line)
@@ -1888,24 +2030,29 @@ export function PRReviewPanel({ prData, repositoryDbId, onClose, onMergePR, exte
           <button
             type="button"
             onClick={handleApprove}
-            disabled={isApproved}
+            disabled={isMerged || prData?.prStatus === 'merged'}
             className="inline-flex items-center gap-2 rounded-lg px-5 py-3 tracking-tight"
             style={{
-              background: isApproved
+              background: (isMerged || prData?.prStatus === 'merged')
                 ? "rgba(100,100,100,0.3)"
                 : "linear-gradient(135deg, var(--neon-cyan), var(--matrix-green))",
-              border: isApproved ? "1px solid rgba(100,100,100,0.4)" : 0,
-              color: isApproved ? "rgba(200,200,200,0.6)" : "#021014",
+              border: (isMerged || prData?.prStatus === 'merged') ? "1px solid rgba(100,100,100,0.4)" : 0,
+              color: (isMerged || prData?.prStatus === 'merged') ? "rgba(200,200,200,0.6)" : "#021014",
               fontSize: 14,
               fontWeight: 950,
-              cursor: isApproved ? "not-allowed" : "pointer"
+              cursor: (isMerged || prData?.prStatus === 'merged') ? "not-allowed" : "pointer"
             }}
           >
             <CheckCircle2 size={16} />
-            {isApproved ? "승인됨" : "승인"}
+            {(isMerged || prData?.prStatus === 'merged') ? "병합됨" : isApproved ? "승인됨 · 병합 재시도" : "승인"}
           </button>
           <button
             type="button"
+            onClick={() => {
+              const url = prData.prUrl || prData.url;
+              if (url) window.open(url, "_blank", "noopener,noreferrer");
+            }}
+            disabled={!(prData.prUrl || prData.url)}
             className="inline-flex items-center gap-2 rounded-xl px-4 py-3 tracking-tight transition-all hover:scale-[1.02]"
             style={{
               background: "rgba(234, 247, 255, 0.055)",
@@ -1913,7 +2060,7 @@ export function PRReviewPanel({ prData, repositoryDbId, onClose, onMergePR, exte
               color: "var(--muted)",
               fontSize: 13,
               fontWeight: 950,
-              cursor: "pointer"
+              cursor: (prData.prUrl || prData.url) ? "pointer" : "not-allowed"
             }}
           >
             <ExternalLink size={15} />
