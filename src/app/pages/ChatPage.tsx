@@ -54,12 +54,15 @@ import {
   type ApiErrorResponse,
   type BookmarkResponse,
   type MentionResponse,
+  type MentionDeletedEvent,
   type PersonalNotification,
   type ReactionSummary,
   type ReactionToggleResponse,
+  type ChannelReadStatusResponse,
   type ThreadReply,
   type ThreadEventPayload,
-  type TypingEvent
+  type TypingEvent,
+  type WorkspaceChannelEventPayload
 } from "../api";
 import type { ChatStompClient } from "../api/stomp";
 import { getAccessToken } from "../auth";
@@ -736,12 +739,16 @@ function mapReactionSummaryToMessageReaction(
   summary: ReactionSummary,
   previousReaction?: MessageReaction
 ): MessageReaction {
+  const reacted = typeof summary.reacted === "boolean"
+    ? summary.reacted
+    : typeof summary.userReacted === "boolean"
+      ? summary.userReacted
+      : previousReaction?.reacted ?? false;
+
   return {
     emoji: summary.emoji,
     count: summary.count,
-    reacted: typeof summary.reacted === "boolean"
-      ? summary.reacted
-      : previousReaction?.reacted ?? false
+    reacted
   };
 }
 
@@ -882,7 +889,9 @@ function upsertReactionSummary(
   const nextReaction: MessageReaction = {
     emoji: response.emoji,
     count: response.count,
-    reacted: response.reacted
+    reacted: typeof response.reacted === "boolean"
+      ? response.reacted
+      : response.userReacted ?? false
   };
 
   if (!hasReaction) {
@@ -1320,6 +1329,7 @@ export function ChatPage() {
   const [expandedRepoSubmenus, setExpandedRepoSubmenus] = useState<Record<string, boolean>>({});
   const [repoMenuOpenId, setRepoMenuOpenId] = useState<string | null>(null);
   const [apiChannels, setApiChannels] = useState<Channel[]>([]);
+  const [repositoryRefreshKey, setRepositoryRefreshKey] = useState(0);
   const [channelFetchStatus, setChannelFetchStatus] = useState<ChannelFetchStatus>("idle");
   const [channelFetchError, setChannelFetchError] = useState("");
   const [realtimeConnection, setRealtimeConnection] = useState<RealtimeConnectionState>({
@@ -1766,11 +1776,8 @@ export function ChatPage() {
     if (!hasChatAccessToken) return "missing-token";
     if (channelFetchStatus === "idle" || channelFetchStatus === "loading") return "channels-loading";
     if (channelFetchStatus === "failed") return "channels-failed";
-    if (apiChannels.length === 0) return "no-api-channels";
-
     return null;
   }, [
-    apiChannels.length,
     channelFetchStatus,
     currentWorkspaceApiId,
     hasChatAccessToken
@@ -2401,6 +2408,71 @@ export function ChatPage() {
       });
     }, 500);
   }, []);
+
+  const applyChannelReadStatus = useCallback((status: ChannelReadStatusResponse) => {
+    if (status.workspaceId !== undefined && Number(status.workspaceId) !== Number(currentWorkspaceApiId)) return;
+    if (
+      status.workspaceMemberId !== undefined
+      && currentWorkspaceMemberId !== null
+      && Number(status.workspaceMemberId) !== Number(currentWorkspaceMemberId)
+    ) {
+      return;
+    }
+
+    const uiChannelId = apiChannelUiById[status.channelId] ?? getApiChannelUiIdById(status.channelId);
+    const channelStateKey = getMessageChannelKey(uiChannelId);
+    const nextUnreadCount = typeof status.unreadCount === "number"
+      ? Math.max(0, status.unreadCount)
+      : 0;
+
+    setChannelUnreadCounts((prev) => ({
+      ...prev,
+      [channelStateKey]: nextUnreadCount
+    }));
+  }, [apiChannelUiById, currentWorkspaceApiId, currentWorkspaceMemberId, getMessageChannelKey]);
+
+  const handleWorkspaceChannelEvent = useCallback((eventType: string, payload: Partial<Channel> & { channelId?: number }) => {
+    const eventWorkspaceId = payload.workspaceId ?? currentWorkspaceApiId;
+    if (eventWorkspaceId !== undefined && Number(eventWorkspaceId) !== Number(currentWorkspaceApiId)) return;
+
+    const channelId = Number(payload.id ?? payload.channelId);
+    if (!Number.isFinite(channelId)) {
+      refreshWorkspaceChannels().catch(() => {});
+      setRepositoryRefreshKey((key) => key + 1);
+      return;
+    }
+
+    if (eventType === CHAT_EVENT_TYPE.CHANNEL_DELETED) {
+      setApiChannels((prev) => prev.filter((channel) => channel.id !== channelId));
+    } else if (typeof payload.name === "string" && typeof payload.channelType === "string") {
+      const nextChannel = payload as Channel;
+      setApiChannels((prev) => {
+        const exists = prev.some((channel) => channel.id === nextChannel.id);
+        return exists
+          ? prev.map((channel) => channel.id === nextChannel.id ? { ...channel, ...nextChannel } : channel)
+          : [...prev, nextChannel];
+      });
+    }
+
+    refreshWorkspaceChannels().catch(() => {});
+    setRepositoryRefreshKey((key) => key + 1);
+  }, [currentWorkspaceApiId, refreshWorkspaceChannels]);
+
+  const handleMentionDeletedEvent = useCallback((payload: MentionDeletedEvent) => {
+    if (payload.workspaceId !== undefined && Number(payload.workspaceId) !== Number(currentWorkspaceApiId)) return;
+
+    const mentionId = Number(payload.mentionId ?? payload.id);
+    if (!Number.isFinite(mentionId)) {
+      if (!currentWorkspaceApiId) return;
+      getWorkspaceMentions(currentWorkspaceApiId)
+        .then(setWorkspaceMentions)
+        .catch(() => {});
+      return;
+    }
+
+    setWorkspaceMentions((prev) => prev.filter((mention) => Number(mention.id) !== mentionId));
+    setOptimisticMentionBumps((count) => Math.max(0, count - 1));
+  }, [currentWorkspaceApiId, repositoryRefreshKey]);
 
   const setServerBookmarkState = useCallback((uiChannelId: string, messageId: number, bookmarked: boolean) => {
     setServerBookmarkedThreadsByChannel((prev) => {
@@ -3094,6 +3166,9 @@ export function ChatPage() {
     channelFetchError,
     handleRealtimeError,
     claimedRepositoryChannelIds,
+    applyChannelReadStatus,
+    handleWorkspaceChannelEvent,
+    handleMentionDeletedEvent,
   });
   useEffect(() => {
     wsChannelHandlersRef.current = {
@@ -3108,6 +3183,9 @@ export function ChatPage() {
       channelFetchError,
       handleRealtimeError,
       claimedRepositoryChannelIds,
+      applyChannelReadStatus,
+      handleWorkspaceChannelEvent,
+      handleMentionDeletedEvent,
     };
   }, [
     appendServerMessage,
@@ -3121,6 +3199,9 @@ export function ChatPage() {
     channelFetchError,
     handleRealtimeError,
     claimedRepositoryChannelIds,
+    applyChannelReadStatus,
+    handleWorkspaceChannelEvent,
+    handleMentionDeletedEvent,
   ]);
 
   // Main WebSocket client effect. Deps are narrowed to the channel-id set and workspace/auth
@@ -3148,6 +3229,7 @@ export function ChatPage() {
     let cancelled = false;
     let client: ChatStompClient | null = null;
     let eventSubscriptions: Array<{ unsubscribe: () => void }> = [];
+    let workspaceChannelSubscription: { unsubscribe: () => void } | null = null;
     let personalNotificationSubscription: { unsubscribe: () => void } | null = null;
     let personalErrorSubscription: { unsubscribe: () => void } | null = null;
 
@@ -3259,9 +3341,46 @@ export function ChatPage() {
         );
       });
 
-      personalNotificationSubscription = client.subscribe<ChatEvent<PersonalNotification> | PersonalNotification>(
+      workspaceChannelSubscription = client.subscribe<ChatEvent<WorkspaceChannelEventPayload>>(
+        chatWebSocketDestinations.subscribeWorkspaceChannels(wsChannelHandlersRef.current.currentWorkspaceApiId),
+        (event) => {
+          const ch = wsChannelHandlersRef.current;
+
+          const createdChannel = getChatEventPayload<Channel>(event, CHAT_EVENT_TYPE.CHANNEL_CREATED);
+          if (createdChannel) {
+            ch.handleWorkspaceChannelEvent(CHAT_EVENT_TYPE.CHANNEL_CREATED, createdChannel);
+            return;
+          }
+
+          const updatedChannel = getChatEventPayload<Channel>(event, CHAT_EVENT_TYPE.CHANNEL_UPDATED);
+          if (updatedChannel) {
+            ch.handleWorkspaceChannelEvent(CHAT_EVENT_TYPE.CHANNEL_UPDATED, updatedChannel);
+            return;
+          }
+
+          const deletedChannel = getChatEventPayload<Partial<Channel> & { channelId?: number }>(event, CHAT_EVENT_TYPE.CHANNEL_DELETED);
+          if (deletedChannel) {
+            ch.handleWorkspaceChannelEvent(CHAT_EVENT_TYPE.CHANNEL_DELETED, deletedChannel);
+            return;
+          }
+
+          const readStatus = getChatEventPayload<ChannelReadStatusResponse>(event, CHAT_EVENT_TYPE.CHANNEL_READ)
+            ?? getChatEventPayload<ChannelReadStatusResponse>(event, CHAT_EVENT_TYPE.CHANNEL_READ_UPDATED);
+          if (readStatus) {
+            ch.applyChannelReadStatus(readStatus);
+          }
+        }
+      );
+
+      personalNotificationSubscription = client.subscribe<ChatEvent<PersonalNotification | MentionDeletedEvent> | PersonalNotification>(
         chatWebSocketDestinations.subscribePersonalNotifications(),
         (event) => {
+          const deletedMention = getChatEventPayload<MentionDeletedEvent>(event, CHAT_EVENT_TYPE.MENTION_DELETED);
+          if (deletedMention) {
+            wsChannelHandlersRef.current.handleMentionDeletedEvent(deletedMention);
+            return;
+          }
+
           const notification = getChatEventPayload<PersonalNotification>(event, CHAT_EVENT_TYPE.NOTIFICATION_CREATED)
             ?? (
               event && typeof event === "object" && !("type" in event)
@@ -3311,6 +3430,7 @@ export function ChatPage() {
     return () => {
       cancelled = true;
       eventSubscriptions.forEach((subscription) => subscription.unsubscribe());
+      workspaceChannelSubscription?.unsubscribe();
       personalNotificationSubscription?.unsubscribe();
       personalErrorSubscription?.unsubscribe();
       client?.disconnect();

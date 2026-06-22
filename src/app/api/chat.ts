@@ -99,7 +99,7 @@ export type ReactionToggleResponse = {
   targetType: ReactionTargetType;
   targetId: number;
   emoji: string;
-  reacted: boolean;
+  reacted?: boolean;
   userReacted?: boolean;
   count: number;
 };
