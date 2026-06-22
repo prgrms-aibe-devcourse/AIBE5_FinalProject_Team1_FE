@@ -849,6 +849,64 @@ function formatRemoteTypingLabel(names: string[]) {
   return `${names[0]} 외 ${names.length - 1}명 입력 중입니다`;
 }
 
+type PresencePayloadEntry = {
+  id?: number | string | null;
+  memberId?: number | string | null;
+  workspaceMemberId?: number | string | null;
+  userId?: number | string | null;
+  workspaceId?: number | string | null;
+  presence?: unknown;
+  status?: unknown;
+  online?: unknown;
+};
+
+function normalizePresenceValue(entry: PresencePayloadEntry): PresenceKey | null {
+  const raw = entry.presence ?? entry.status ?? (typeof entry.online === "boolean" ? (entry.online ? "active" : "offline") : undefined);
+  const normalized = String(raw ?? "").trim().toLowerCase();
+
+  if ((PRESENCE_ORDER as readonly string[]).includes(normalized)) {
+    return normalized as PresenceKey;
+  }
+  if (normalized === "online" || normalized === "connected") return "active";
+  if (normalized === "disconnect" || normalized === "disconnected") return "offline";
+  if (normalized === "dnd" || normalized === "do-not-disturb") return "busy";
+  return null;
+}
+
+function getPresencePayloadEntries(payload: unknown): PresencePayloadEntry[] {
+  if (Array.isArray(payload)) return payload as PresencePayloadEntry[];
+  if (!payload || typeof payload !== "object") return [];
+
+  const record = payload as Record<string, unknown>;
+  const nested = record.members ?? record.presences ?? record.items ?? record.data;
+  if (Array.isArray(nested)) return nested as PresencePayloadEntry[];
+  return [record as PresencePayloadEntry];
+}
+
+function hasPresencePayload(payload: unknown) {
+  return getPresencePayloadEntries(payload).some((entry) => Boolean(normalizePresenceValue(entry)));
+}
+
+function resolvePresenceMemberId(entry: PresencePayloadEntry, members: WorkspaceMember[]) {
+  const workspaceMemberId = Number(entry.workspaceMemberId);
+  if (Number.isFinite(workspaceMemberId) && workspaceMemberId > 0) return workspaceMemberId;
+
+  const ambiguousMemberId = Number(entry.memberId ?? entry.id);
+  if (Number.isFinite(ambiguousMemberId) && ambiguousMemberId > 0) {
+    const memberIdMatch = members.find((member) => Number(member.memberId) === ambiguousMemberId);
+    if (memberIdMatch) return memberIdMatch.memberId;
+
+    const userIdMatch = members.find((member) => Number(member.userId) === ambiguousMemberId);
+    if (userIdMatch) return userIdMatch.memberId;
+
+    return ambiguousMemberId;
+  }
+
+  const userId = Number(entry.userId);
+  if (!Number.isFinite(userId)) return null;
+  return members.find((member) => Number(member.userId) === userId)?.memberId ?? null;
+}
+
 function getReadableErrorMessage(error: unknown) {
   if (error instanceof Error) return error.message;
   if (typeof error === "string") return error;
@@ -1311,6 +1369,11 @@ export function ChatPage() {
   const [apiWorkspaces, setApiWorkspaces] = useState<WorkspaceDto[]>([]);
   const [workspacesLoaded, setWorkspacesLoaded] = useState(false);
   const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMember[]>([]);
+  const workspaceMembersRef = useRef<WorkspaceMember[]>([]);
+
+  useEffect(() => {
+    workspaceMembersRef.current = workspaceMembers;
+  }, [workspaceMembers]);
 
   useEffect(() => {
     const state = location.state as { workspaceId?: string | number; pendingEvent?: WorkspaceEventDto } | null;
@@ -1365,7 +1428,7 @@ export function ChatPage() {
   );
 
   const workspaceList = apiWorkspaces.length > 0
-    ? apiWorkspaces.map(ws => ({ id: toWorkspaceUiId(ws.id), apiId: ws.id, name: ws.name, myRole: ws.myRole, membersOnline: ws.membersOnline ?? ws.memberCount, connected: true }))
+    ? apiWorkspaces.map(ws => ({ id: toWorkspaceUiId(ws.id), apiId: ws.id, name: ws.name, myRole: ws.myRole, membersOnline: ws.membersOnline ?? 0, connected: true }))
     : DEFAULT_WORKSPACES;
 
   const [repositoriesImported, setRepositoriesImported] = useState(true);
@@ -1533,6 +1596,11 @@ export function ChatPage() {
   const currentWorkspace = workspaceList.find(ws => ws.id === selectedWorkspace) ?? workspaceList[0];
   const canManageWorkspaceChannels = canManageWorkspaceChannel(currentWorkspace?.myRole);
   const currentWorkspaceApiId = getWorkspaceApiId(selectedWorkspace, currentWorkspace);
+  const selfOnlineCount = userPresence !== 'offline' ? 1 : 0;
+  const getWorkspaceDisplayedOnlineCount = useCallback(
+    (workspace: WorkspaceItem) => Math.max(0, (workspace.membersOnline ?? 0) + selfOnlineCount),
+    [selfOnlineCount]
+  );
   const selectedChannelMessageKey = useMemo(
     () => getWorkspaceScopedChatKey(currentWorkspaceApiId, selectedChannel),
     [currentWorkspaceApiId, selectedChannel]
@@ -2136,6 +2204,32 @@ export function ChatPage() {
     return () => controller.abort();
   }, [currentWorkspaceApiId, userId]);
 
+  const workspaceMembersRefreshTimeoutRef = useRef<number | null>(null);
+  const refreshCurrentWorkspaceMembers = useCallback(() => {
+    if (!currentWorkspaceApiId || userId == null) return;
+    getWorkspaceMembers(currentWorkspaceApiId)
+      .then(setWorkspaceMembers)
+      .catch(() => {});
+  }, [currentWorkspaceApiId, userId]);
+  const scheduleCurrentWorkspaceMembersRefresh = useCallback(() => {
+    if (workspaceMembersRefreshTimeoutRef.current != null) {
+      window.clearTimeout(workspaceMembersRefreshTimeoutRef.current);
+    }
+    workspaceMembersRefreshTimeoutRef.current = window.setTimeout(() => {
+      workspaceMembersRefreshTimeoutRef.current = null;
+      refreshCurrentWorkspaceMembers();
+    }, 400);
+  }, [refreshCurrentWorkspaceMembers]);
+
+  useEffect(() => {
+    return () => {
+      if (workspaceMembersRefreshTimeoutRef.current != null) {
+        window.clearTimeout(workspaceMembersRefreshTimeoutRef.current);
+        workspaceMembersRefreshTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
   const isCurrentWorkspaceMember = useCallback((memberId?: number | null) => {
     return currentWorkspaceMemberId != null
       && memberId != null
@@ -2399,26 +2493,41 @@ export function ChatPage() {
       });
   }, [workspaceMembers, presenceOverrides, currentWorkspaceMemberId, userPresence]);
 
-  // 현재 워크스페이스의 접속 인원을 실제 멤버 + 실시간 presence로 계산.
-  // offline만 제외(활동중/자리비움/방해금지는 접속 중). 본인은 userPresence, 타인은 실시간 override > 멤버 초기 presence.
-  // 다른 워크스페이스는 실시간 presence가 없으므로 표시 측에서 membersOnline(총원)으로 폴백함.
-  const workspaceOnlineCounts = useMemo(() => {
-    if (!selectedWorkspace || workspaceMembers.length === 0) return {};
-    const onlineCount = workspaceMembers.reduce((acc, member) => {
+  const currentWorkspaceDisplayedOnlineCount = useMemo(() => {
+    const serverCount = getWorkspaceDisplayedOnlineCount(currentWorkspace);
+    if (workspaceMembers.length === 0) return serverCount;
+
+    const memberCount = workspaceMembers.reduce((acc, member) => {
       const isSelf = currentWorkspaceMemberId != null && Number(member.memberId) === Number(currentWorkspaceMemberId);
-      const presence = isSelf
+      const rawPresence = isSelf
         ? userPresence
-        : (presenceOverrides[String(member.memberId)] ?? member.presence ?? 'active');
-      return acc + (presence !== 'offline' ? 1 : 0);
+        : presenceOverrides[String(member.memberId)] ?? member.presence ?? "offline";
+      const presence = (PRESENCE_ORDER as readonly string[]).includes(rawPresence)
+        ? rawPresence as PresenceKey
+        : "offline";
+      return acc + (presence !== "offline" ? 1 : 0);
     }, 0);
-    return { [selectedWorkspace]: onlineCount };
-  }, [selectedWorkspace, workspaceMembers, presenceOverrides, currentWorkspaceMemberId, userPresence]);
+
+    return Math.max(serverCount, memberCount);
+  }, [
+    currentWorkspace,
+    currentWorkspaceMemberId,
+    getWorkspaceDisplayedOnlineCount,
+    presenceOverrides,
+    userPresence,
+    workspaceMembers
+  ]);
 
   // 워크스페이스 진입/전환 시 현재 presence를 자동 송신 → 다른 멤버 화면에 접속 중으로 즉시 표시
   useEffect(() => {
     if (!currentWorkspaceApiId) return;
-    updatePresence(currentWorkspaceApiId, userPresenceRef.current).catch(() => {});
-  }, [currentWorkspaceApiId]);
+    updatePresence(currentWorkspaceApiId, userPresenceRef.current)
+      .then(() => {
+        refreshWorkspaceList();
+        refreshCurrentWorkspaceMembers();
+      })
+      .catch(() => {});
+  }, [currentWorkspaceApiId, refreshCurrentWorkspaceMembers, refreshWorkspaceList]);
 
   // 페이지 이탈 시 offline 송신 (best-effort). 탭 강제 종료 등 비정상 종료는 BE WS disconnect 감지가 필요(별건).
   useEffect(() => {
@@ -3842,33 +3951,65 @@ export function ChatPage() {
     };
   }, [threadSubscriptionKey, chatStompReadyKey]);
 
+  const applyPresencePayload = useCallback((payload: unknown, sourceWorkspaceId?: number) => {
+    if (
+      sourceWorkspaceId != null
+      && currentWorkspaceApiId
+      && Number(sourceWorkspaceId) !== Number(currentWorkspaceApiId)
+    ) {
+      return false;
+    }
+
+    const entries = getPresencePayloadEntries(payload);
+    if (entries.length === 0) return false;
+
+    const updates: Record<string, PresenceKey> = {};
+    entries.forEach((entry) => {
+      const payloadWorkspaceId = Number(entry.workspaceId ?? sourceWorkspaceId);
+      if (
+        Number.isFinite(payloadWorkspaceId)
+        && currentWorkspaceApiId
+        && payloadWorkspaceId !== currentWorkspaceApiId
+      ) {
+        return;
+      }
+
+      const memberId = resolvePresenceMemberId(entry, workspaceMembersRef.current);
+      const presence = normalizePresenceValue(entry);
+      if (memberId == null || !presence) return;
+
+      updates[String(memberId)] = presence;
+    });
+
+    if (Object.keys(updates).length === 0) return false;
+    setPresenceOverrides((prev) => ({ ...prev, ...updates }));
+    return true;
+  }, [currentWorkspaceApiId]);
+
   useEffect(() => {
     const client = chatStompRef.current;
     if (!client || apiWorkspaces.length === 0) return;
     // 입장/재연결 시 BE가 보내는 presence 스냅샷(개인 큐). 토픽 구독보다 먼저 구독해 스냅샷을 놓치지 않음.
-    const snapshotSub = client.subscribe<Array<{ memberId: number; presence: string }>>(
+    const snapshotSub = client.subscribe<unknown>(
       "/user/queue/presence",
       (payload) => {
-        if (!Array.isArray(payload)) return;
-        setPresenceOverrides((prev) => {
-          const next = { ...prev };
-          payload.forEach((entry) => {
-            if (entry?.memberId != null && entry?.presence) {
-              next[String(entry.memberId)] = entry.presence;
-            }
-          });
-          return next;
-        });
+        if (!hasPresencePayload(payload)) return;
+        applyPresencePayload(payload);
+        scheduleCurrentWorkspaceMembersRefresh();
+        scheduleWorkspaceListRefresh();
       }
     );
     // 내가 속한 "모든" 워크스페이스의 presence 토픽 구독 → 어느 워크스페이스에서 누가 들고나도 실시간 반영.
     // 현재 워크스페이스: override로 헤더/멤버목록 즉시 갱신. 모든 워크스페이스: 목록 카운트 디바운스 refetch.
     const topicSubs = apiWorkspaces.map((ws) =>
-      client.subscribe<{ memberId: number; presence: string }>(
+      client.subscribe<unknown>(
         `/topic/workspaces/${ws.id}/presence`,
         (payload) => {
-          if (!payload?.memberId || !payload?.presence) return;
-          setPresenceOverrides((prev) => ({ ...prev, [String(payload.memberId)]: payload.presence }));
+          if (!hasPresencePayload(payload)) return;
+          if (Number(ws.id) === Number(currentWorkspaceApiId)) {
+            applyPresencePayload(payload, ws.id);
+            scheduleCurrentWorkspaceMembersRefresh();
+          }
           scheduleWorkspaceListRefresh();
         }
       )
@@ -3877,7 +4018,15 @@ export function ChatPage() {
       snapshotSub.unsubscribe();
       topicSubs.forEach((sub) => sub.unsubscribe());
     };
-  }, [workspacePresenceSubKey, chatStompReadyKey]);
+  }, [
+    applyPresencePayload,
+    apiWorkspaces,
+    chatStompReadyKey,
+    currentWorkspaceApiId,
+    scheduleCurrentWorkspaceMembersRefresh,
+    scheduleWorkspaceListRefresh,
+    workspacePresenceSubKey
+  ]);
 
   const handleChannelTypingChange = useCallback((typing: boolean) => {
     if (!activeApiChannelId) return;
@@ -4650,7 +4799,14 @@ export function ChatPage() {
                     onClick={() => {
                       setUserPresence(option.id);
                       const apiId = currentWorkspaceApiId;
-                      if (apiId) updatePresence(apiId, option.id).then(() => refreshWorkspaceList()).catch(() => {});
+                      if (apiId) {
+                        updatePresence(apiId, option.id)
+                          .then(() => {
+                            refreshWorkspaceList();
+                            refreshCurrentWorkspaceMembers();
+                          })
+                          .catch(() => {});
+                      }
                     }}
                     className="flex w-full items-center gap-3 rounded-xl border-0 px-3 py-2.5 text-left tracking-tight"
                     style={{
@@ -5565,7 +5721,7 @@ export function ChatPage() {
                             </span>
                           </div>
                           <span className="tracking-tight" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 800, color: 'var(--muted)' }}>
-                            {workspaceOnlineCounts[ws.id] ?? (ws.membersOnline + (userPresence !== 'offline' ? 1 : 0))}명 접속 중
+                            {getWorkspaceDisplayedOnlineCount(ws)}명 접속 중
                           </span>
                         </div>
                       </button>
@@ -5588,14 +5744,23 @@ export function ChatPage() {
               <button
                 ref={memberListButtonRef}
                 type="button"
-                onClick={() => setMemberListOpen((o) => !o)}
+                onClick={() => {
+                  setMemberListOpen((open) => {
+                    const nextOpen = !open;
+                    if (nextOpen) {
+                      refreshCurrentWorkspaceMembers();
+                      refreshWorkspaceList();
+                    }
+                    return nextOpen;
+                  });
+                }}
                 className="flex items-center gap-2 rounded-lg border-0 transition-all"
                 style={{ background: 'transparent', cursor: 'pointer', padding: '2px 6px', margin: '-2px -6px' }}
                 title="팀원 목록 보기"
               >
                 <div className="w-2 h-2 rounded-full" style={{ background: 'var(--matrix-green)' }} />
                 <span className="tracking-tight" style={{ fontSize: "var(--krds-body-xsmall)", fontWeight: 800, color: 'var(--muted)' }}>
-                  {workspaceOnlineCounts[selectedWorkspace] ?? (currentWorkspace.membersOnline + (userPresence !== 'offline' ? 1 : 0))}명 접속 중
+                  {currentWorkspaceDisplayedOnlineCount}명 접속 중
                 </span>
               </button>
             </div>
@@ -6387,7 +6552,7 @@ export function ChatPage() {
               <TeamPanel
                 workspaceId={selectedWorkspace}
                 workspaceApiId={currentWorkspaceApiId}
-                currentUserId={myProfile.id}
+                currentMemberId={currentWorkspaceMemberId}
                 currentUserOnline={userPresence !== 'offline'}
                 presenceOverrides={presenceOverrides}
                 onInvite={() => setTeamInviteOpen(true)}
@@ -6803,7 +6968,7 @@ export function ChatPage() {
       {createPortal(
         <AnimatePresence>
           {channelMenuTarget && channelMenuPosition && (
-            <>
+            <motion.div key="channel-menu-layer" style={{ display: 'contents' }}>
               <motion.button
                 type="button"
                 className="fixed inset-0 z-[9997] cursor-default border-0 bg-transparent"
@@ -6905,7 +7070,7 @@ export function ChatPage() {
                   {isChannelMenuTargetPending ? '삭제 중' : canManageChannelMenuTarget ? '채널 삭제' : '삭제 불가'}
                 </button>
               </motion.div>
-            </>
+            </motion.div>
           )}
         </AnimatePresence>,
         document.body
@@ -7038,9 +7203,8 @@ export function ChatPage() {
 
       {/* Team member list — compact anchored popup near "X명 접속 중" */}
       {createPortal(
-        <AnimatePresence>
-          {memberListOpen && memberListPos && (
-            <motion.div
+        memberListOpen && memberListPos ? (
+          <motion.div
               ref={memberListPopupRef}
               className="codedock-scrollbar-hidden"
               style={{
@@ -7064,7 +7228,7 @@ export function ChatPage() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -6, scale: 0.98 }}
               transition={{ type: 'spring', stiffness: 420, damping: 34 }}
-            >
+          >
               {sortedWorkspaceMembers.length === 0 ? (
                 <p style={{ margin: 0, padding: '12px', textAlign: 'center', fontSize: "var(--krds-body-xsmall)", color: 'var(--muted)' }}>팀원이 없습니다</p>
               ) : sortedWorkspaceMembers.map((member, idx) => {
@@ -7129,9 +7293,8 @@ export function ChatPage() {
                   </div>
                 );
               })}
-            </motion.div>
-          )}
-        </AnimatePresence>,
+          </motion.div>
+        ) : null,
         document.body
       )}
     </div>

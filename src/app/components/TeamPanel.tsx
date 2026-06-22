@@ -27,7 +27,7 @@ interface UserProfile {
 interface TeamPanelProps {
   workspaceId: string;
   workspaceApiId: number;
-  currentUserId: string;
+  currentMemberId?: number | string | null;
   currentUserOnline: boolean;   // true when presence is not 'offline'
   onInvite?: () => void;
   onOpenChannel?: (channelId: string) => void;
@@ -259,7 +259,7 @@ function presenceToColor(p: string): string {
   return '#8B94A7';
 }
 
-export function TeamPanel({ workspaceId, workspaceApiId, currentUserId, currentUserOnline, onOpenChannel, presenceOverrides = {} }: TeamPanelProps) {
+export function TeamPanel({ workspaceId, workspaceApiId, currentMemberId, currentUserOnline, onOpenChannel, presenceOverrides = {} }: TeamPanelProps) {
   ensureSeeded();   // no-op after first run
 
   const [members, setMembers] = useState<TeamMember[]>([]);
@@ -327,7 +327,7 @@ export function TeamPanel({ workspaceId, workspaceApiId, currentUserId, currentU
   }), [members, presenceOverrides]);
 
   const onlineCount = effectiveMembers.filter((member) =>
-    member.id === currentUserId ? currentUserOnline : member.online
+    currentMemberId != null && member.id === String(currentMemberId) ? currentUserOnline : member.online
   ).length;
   const activityItems = useMemo(() => {
     const commits = members.reduce((sum, member) => sum + member.commits, 0);
