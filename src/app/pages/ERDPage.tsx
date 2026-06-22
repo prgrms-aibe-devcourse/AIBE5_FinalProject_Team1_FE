@@ -545,6 +545,8 @@ export function ERDPage({ embedded = false, workspaceId }: ERDPageProps) {
           setGenerateError("GitHub 레포지토리가 연결되지 않았습니다.");
         } else if (error.code === "WORKSPACE_MEMBER_NOT_FOUND") {
           setGenerateError("워크스페이스 멤버 정보를 찾을 수 없습니다.");
+        } else if (error.code === "E002") {
+          setGenerateError("연결된 레포에서 ERD 생성에 필요한 파일을 찾을 수 없습니다. 레포를 확인해주세요.");
         } else {
           setGenerateError(error.message || "ERD 생성에 실패했습니다.");
         }
