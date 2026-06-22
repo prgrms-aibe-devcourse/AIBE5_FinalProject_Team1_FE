@@ -16,6 +16,7 @@ import {
 
 interface DocsPageProps {
   embedded?: boolean;
+  expanded?: boolean;
   workspaceId?: number;
 }
 
@@ -71,7 +72,7 @@ function parseInline(text: string): React.ReactNode[] {
 }
 
 
-export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: DocsPageProps) {
+export function DocsPage({ embedded = false, expanded = false, workspaceId: workspaceIdProp }: DocsPageProps) {
   const { language } = useLanguage();
   const { workspaceId: contextWorkspaceId, getMemberName, myMemberId } = useWorkspace();
   const workspaceId = contextWorkspaceId ?? workspaceIdProp ?? null;
@@ -479,7 +480,7 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
         })()}
       </div>
 
-      <div className={embedded ? "grid min-h-0 flex-1 gap-5 xl:grid-cols-[330px_1fr]" : "grid lg:grid-cols-[360px_1fr] gap-6"}>
+      <div className={embedded ? `grid min-h-0 flex-1 gap-5 xl:grid-cols-[${expanded ? '420px' : '330px'}_1fr]` : "grid lg:grid-cols-[360px_1fr] gap-6"}>
         <section className={embedded ? "flex min-h-0 flex-col overflow-hidden px-5 py-5 rounded-2xl" : "flex max-h-[calc(100vh-170px)] min-h-[620px] flex-col overflow-hidden px-6 py-6 rounded-[30px]"} style={{
           background: 'rgba(11, 22, 40, 0.82)',
           border: '1px solid rgba(var(--codedock-primary-rgb), 0.16)',
@@ -502,7 +503,7 @@ export function DocsPage({ embedded = false, workspaceId: workspaceIdProp }: Doc
                 {selectedCategory !== null ? `${filteredDocs.length} / ${docs.length}` : docs.length}
               </span>
             </h2>
-            <div className="flex gap-2">
+            <div className="flex flex-shrink-0 gap-2">
               <button
                 type="button"
                 onClick={() => { setAiSelectedType(null); setAiTopic(""); setAiStartDate(""); setAiEndDate(""); setAiErrorMessage(""); setIsAiTypeModalOpen(true); }}
