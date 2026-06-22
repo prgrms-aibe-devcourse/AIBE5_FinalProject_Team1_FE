@@ -6434,15 +6434,15 @@ export function ChatPage() {
                 onOpenBookmark={focusChannelMessage}
               />
             ) : selectedChannel === 'api-spec' ? (
-              <EmbeddedPanelBoundary key="api-spec">
+              <EmbeddedPanelBoundary key="api-spec" reserveTopActionSpace={shouldShowPanelActions}>
                 <APISpecPage embedded expanded={isMainExpanded} workspaceId={currentWorkspaceApiId} />
               </EmbeddedPanelBoundary>
             ) : selectedChannel === 'erd' ? (
-              <EmbeddedPanelBoundary key={`erd-${selectedRepository}`}>
+              <EmbeddedPanelBoundary key={`erd-${selectedRepository}`} reserveTopActionSpace={shouldShowPanelActions}>
                 <ERDPage embedded workspaceId={currentWorkspaceApiId} />
               </EmbeddedPanelBoundary>
             ) : selectedChannel === 'docs' ? (
-              <EmbeddedPanelBoundary key="docs">
+              <EmbeddedPanelBoundary key="docs" reserveTopActionSpace={shouldShowPanelActions}>
                 <DocsPage embedded expanded={isMainExpanded} workspaceId={currentWorkspaceApiId} />
               </EmbeddedPanelBoundary>
             ) : selectedChannel === 'general' || allCustomChannels.some(ch => ch.id === selectedChannel) || selectedRepositoryApiChannel || selectedOrphanRepositoryChannel ? (
@@ -7338,8 +7338,18 @@ export function ChatPage() {
   );
 }
 
-function EmbeddedPanelBoundary({ children }: { children: ReactNode }) {
+function EmbeddedPanelBoundary({
+  children,
+  reserveTopActionSpace = false
+}: {
+  children: ReactNode;
+  reserveTopActionSpace?: boolean;
+}) {
   return (
+    <div
+      className="h-full min-h-0"
+      style={{ paddingTop: reserveTopActionSpace ? 68 : 0, boxSizing: "border-box" }}
+    >
     <ErrorBoundary
       fallbackTitle="탭 화면을 불러오지 못했습니다"
       fallbackMessage="API 명세, ERD, 문서 화면 렌더링 중 오류가 발생했습니다. 다른 채널로 이동한 뒤 다시 열어주세요."
@@ -7348,6 +7358,7 @@ function EmbeddedPanelBoundary({ children }: { children: ReactNode }) {
         {children}
       </Suspense>
     </ErrorBoundary>
+    </div>
   );
 }
 
