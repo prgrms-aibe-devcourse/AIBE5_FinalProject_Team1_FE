@@ -502,6 +502,8 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
   };
 
   const renderHoverMenu = (thread: Thread) => {
+    if (thread.deleted) return null;
+
     const isBookmarked = isThreadBookmarked(thread);
     const canManageThread = isThreadMine(thread) && !thread.deleted;
     const bk = (label: string) => `${thread.id}:${label}`;
@@ -885,7 +887,7 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
                         <MessageTextWithCodeBlocks text={threadBody} color={thread.deleted ? 'var(--muted)' : 'var(--white)'} />
                       </div>
                     )}
-                    {thread.mentions && thread.mentions.length > 0 && (
+                    {!thread.deleted && thread.mentions && thread.mentions.length > 0 && (
                       <div className="mb-3 flex flex-wrap gap-2">
                         {thread.mentions.map((mention, idx) => (
                           <motion.span
@@ -905,7 +907,7 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
                         ))}
                       </div>
                     )}
-                    {thread.attachments && thread.attachments.length > 0 && (
+                    {!thread.deleted && thread.attachments && thread.attachments.length > 0 && (
                       <div className="grid gap-2 mb-3">
                         {thread.attachments.map((attachment) => (
                           <MessageAttachmentCard
@@ -926,7 +928,7 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
                         ))}
                       </div>
                     )}
-                    {(
+                    {!thread.deleted && (
                       <div className="flex items-center gap-3">
                         <button
                           onClick={(e) => {
@@ -964,14 +966,16 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
                   </div>
                 </div>
                 <div className="pl-11">
-                  <MessageReactions
-                    reactions={reactionMap[getThreadReactionKey(thread.id)]}
-                    onToggle={(emoji) => handleReactionToggle(thread.id, emoji)}
-                  />
+                  {!thread.deleted && (
+                    <MessageReactions
+                      reactions={reactionMap[getThreadReactionKey(thread.id)]}
+                      onToggle={(emoji) => handleReactionToggle(thread.id, emoji)}
+                    />
+                  )}
                 </div>
               </div>
 
-              {(hoveredMessageId === thread.id || emojiPickerMsgId === thread.id) && renderHoverMenu(thread)}
+              {!thread.deleted && (hoveredMessageId === thread.id || emojiPickerMsgId === thread.id) && renderHoverMenu(thread)}
             </div>
           );
           })}

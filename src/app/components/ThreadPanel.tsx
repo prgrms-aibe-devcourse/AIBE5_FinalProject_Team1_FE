@@ -266,7 +266,7 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
               }}>
                 {originalMessage.message || originalMessage.text}
               </p>
-              {originalMessage.attachments && originalMessage.attachments.length > 0 && (
+              {!originalMessage.deleted && originalMessage.attachments && originalMessage.attachments.length > 0 && (
                 <div className="mt-3 grid gap-2">
                   {originalMessage.attachments.map((attachment: MessageAttachment) => (
                     <MessageAttachmentCard
@@ -298,10 +298,12 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
                 </p>
               )}
             </div>
-            <MessageReactions
-              reactions={reactionMap[`${activeReactionScope}:original`]}
-              onToggle={(emoji) => handleReactionToggle(`${activeReactionScope}:original`, emoji)}
-            />
+            {!originalMessage.deleted && (
+              <MessageReactions
+                reactions={reactionMap[`${activeReactionScope}:original`]}
+                onToggle={(emoji) => handleReactionToggle(`${activeReactionScope}:original`, emoji)}
+              />
+            )}
           </div>
 
           {/* 답글 개수 표시 */}
@@ -512,10 +514,12 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
                       {reply.text}
                     </p>
                   )}
-                  <MessageReactions
-                    reactions={reactionMap[`${activeReactionScope}:reply:${reply.id}`]}
-                    onToggle={(emoji) => handleReactionToggle(`${activeReactionScope}:reply:${reply.id}`, emoji)}
-                  />
+                  {!reply.deleted && (
+                    <MessageReactions
+                      reactions={reactionMap[`${activeReactionScope}:reply:${reply.id}`]}
+                      onToggle={(emoji) => handleReactionToggle(`${activeReactionScope}:reply:${reply.id}`, emoji)}
+                    />
+                  )}
                   {reply.sendError && (
                     <p className="m-0 mt-2 rounded-lg px-3 py-2 tracking-tight" style={{
                       background: 'rgba(255, 107, 107, 0.10)',

@@ -473,6 +473,8 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
   };
 
   const renderHoverMenu = (msg: Message) => {
+    if (msg.deleted) return null;
+
     const isBookmarked = bookmarkedMessageIds[msg.id];
     const isPR = msg.type === 'pr';
     const bk = (label: string) => `${msg.id}:${label}`;
@@ -966,7 +968,7 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
                       </a>
                     </div>
                   </div>
-                  {(hoveredMessageId === msg.id || emojiPickerMsgId === msg.id) && renderHoverMenu(msg)}
+                  {!msg.deleted && (hoveredMessageId === msg.id || emojiPickerMsgId === msg.id) && renderHoverMenu(msg)}
                 </div>
               ) : msg.type === 'issue' ? (
                 <div className="relative">
@@ -1120,7 +1122,7 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
                       </button>
                     </div>
                   </div>
-                  {(hoveredMessageId === msg.id || emojiPickerMsgId === msg.id) && renderHoverMenu(msg)}
+                  {!msg.deleted && (hoveredMessageId === msg.id || emojiPickerMsgId === msg.id) && renderHoverMenu(msg)}
                 </div>
               ) : msg.type === 'code' && msg.code ? (
                 <div className="relative">
@@ -1148,7 +1150,7 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
                       {msg.code}
                     </pre>
                   </div>
-                  {(hoveredMessageId === msg.id || emojiPickerMsgId === msg.id) && renderHoverMenu(msg)}
+                  {!msg.deleted && (hoveredMessageId === msg.id || emojiPickerMsgId === msg.id) && renderHoverMenu(msg)}
                 </div>
               ) : (
                 <div className="relative">
@@ -1181,7 +1183,7 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
                     <div>
                       <MessageTextWithCodeBlocks text={msg.text} color={msg.type === 'system' ? 'var(--neon-cyan)' : 'var(--white)'} />
                     </div>
-                    {msg.mentions && msg.mentions.length > 0 && (
+                    {!msg.deleted && msg.mentions && msg.mentions.length > 0 && (
                       <div className="flex gap-2 mt-2">
                         {msg.mentions.map((mention, idx) => (
                           <motion.span
@@ -1201,7 +1203,7 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
                         ))}
                       </div>
                     )}
-                    {msg.attachments && msg.attachments.length > 0 && (
+                    {!msg.deleted && msg.attachments && msg.attachments.length > 0 && (
                       <div className="grid gap-2 mt-3">
                         {msg.attachments.map((attachment) => (
                           <MessageAttachmentCard
@@ -1231,31 +1233,35 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
                       </p>
                     )}
                   </div>
-                  {(hoveredMessageId === msg.id || emojiPickerMsgId === msg.id) && renderHoverMenu(msg)}
+                  {!msg.deleted && (hoveredMessageId === msg.id || emojiPickerMsgId === msg.id) && renderHoverMenu(msg)}
                 </div>
               )}
-              <button
-                type="button"
-                onClick={() => onOpenThread?.(msg)}
-                className="mt-2 inline-flex w-fit items-center gap-1.5 rounded-full border-0 px-3 py-1.5 tracking-tight transition-all"
-                style={{
-                  background: 'rgba(32, 227, 255, 0.08)',
-                  border: '1px solid rgba(32, 227, 255, 0.18)',
-                  color: 'var(--neon-cyan)',
-                  cursor: 'pointer',
-                  fontSize: '11px',
-                  fontWeight: 900
-                }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(32, 227, 255, 0.16)'; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(32, 227, 255, 0.08)'; }}
-              >
-                <MessageSquare size={13} />
-                답글 {getReplyCount(msg)}개
-              </button>
-              <MessageReactions
-                reactions={reactionMap[getMessageReactionKey(msg.id)]}
-                onToggle={(emoji) => handleReactionToggle(msg.id, emoji)}
-              />
+              {!msg.deleted && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => onOpenThread?.(msg)}
+                    className="mt-2 inline-flex w-fit items-center gap-1.5 rounded-full border-0 px-3 py-1.5 tracking-tight transition-all"
+                    style={{
+                      background: 'rgba(32, 227, 255, 0.08)',
+                      border: '1px solid rgba(32, 227, 255, 0.18)',
+                      color: 'var(--neon-cyan)',
+                      cursor: 'pointer',
+                      fontSize: '11px',
+                      fontWeight: 900
+                    }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(32, 227, 255, 0.16)'; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(32, 227, 255, 0.08)'; }}
+                  >
+                    <MessageSquare size={13} />
+                    답글 {getReplyCount(msg)}개
+                  </button>
+                  <MessageReactions
+                    reactions={reactionMap[getMessageReactionKey(msg.id)]}
+                    onToggle={(emoji) => handleReactionToggle(msg.id, emoji)}
+                  />
+                </>
+              )}
             </div>
             );
           })}
