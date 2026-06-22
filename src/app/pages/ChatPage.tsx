@@ -4255,7 +4255,7 @@ export function ChatPage() {
     const channel = allCustomChannels.find((item) => item.id === channelId);
     if (!channel?.apiChannelId) return;
     if (!canManageWorkspaceChannels) {
-      setChannelActionError('梨꾨꼸 ?쒖꽌 蹂寃쎌? ?뚰겕?ㅽ럹?댁뒪 owner/admin留?媛?ν빀?덈떎.');
+      setChannelActionError('채널 순서 변경은 워크스페이스 owner/admin만 가능합니다.');
       closeChannelMenu();
       return;
     }
@@ -4282,7 +4282,7 @@ export function ChatPage() {
       closeChannelMenu();
     } catch (error) {
       setApiChannels(previousChannels);
-      setChannelActionError(getChannelActionErrorMessage(error, '梨꾨꼸 ?쒖꽌瑜???ν븯吏 紐삵뻽?댁슂. ?좎떆 ???ㅼ떆 ?쒕룄?댁＜?몄슂.'));
+      setChannelActionError(getChannelActionErrorMessage(error, '채널 순서를 저장하지 못했어요. 잠시 후 다시 시도해주세요.'));
     } finally {
       setChannelActionPendingId(null);
       channelActionInFlightRef.current = false;
