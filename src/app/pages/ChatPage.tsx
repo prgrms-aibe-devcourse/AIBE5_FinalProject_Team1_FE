@@ -237,6 +237,8 @@ const DOCUMENTATION_CHANNELS: SidebarChannel[] = [
   { id: 'docs', label: '문서', icon: BookOpen }
 ];
 
+const CHANNEL_BOOKMARK_EXCLUDED_CHANNELS = new Set(['overview', 'api-spec', 'erd', 'docs', 'work-board', 'team']);
+
 const ALL_SIDEBAR_CHANNELS = [
   { id: 'overview', label: '통합 개요', icon: Home },
   { id: 'general', label: '일반', icon: Hash },
@@ -2457,6 +2459,8 @@ export function ChatPage() {
   const shouldShowRealtimeConnectionNotice =
     Boolean(realtimeConnectionNotice)
     && !['overview', 'api-spec', 'erd', 'docs', 'work-board', 'team'].includes(selectedChannel);
+  const shouldShowPanelActions = hasRepositories && selectedChannel !== 'team';
+  const shouldShowChannelBookmarkAction = shouldShowPanelActions && !CHANNEL_BOOKMARK_EXCLUDED_CHANNELS.has(selectedChannel);
   const selectedRepositoryName = repositories.find((repo) => repo.id === selectedRepository)?.name ?? '전체 리포지토리';
 
   const currentPresence = presenceOptions.find((option) => option.id === userPresence) ?? presenceOptions[0];
@@ -6232,9 +6236,9 @@ export function ChatPage() {
             boxShadow: '0 20px 60px rgba(0, 0, 0, 0.32)',
             backdropFilter: 'blur(16px)'
           }}>
-            {hasRepositories && selectedChannel !== 'team' && (
+            {shouldShowPanelActions && (
               <div className="absolute right-4 top-4 z-40 flex items-start gap-2">
-                {selectedChannel !== 'overview' && (
+                {shouldShowChannelBookmarkAction && (
                 <div className="relative">
                   <button
                     type="button"
