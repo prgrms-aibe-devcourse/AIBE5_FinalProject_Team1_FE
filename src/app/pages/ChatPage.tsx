@@ -2256,6 +2256,10 @@ export function ChatPage() {
   const shouldShowRealtimeConnectionNotice =
     Boolean(realtimeConnectionNotice)
     && !['overview', 'api-spec', 'erd', 'docs', 'work-board', 'team'].includes(selectedChannel);
+  const hasMainPanelFloatingActions = hasRepositories && selectedChannel !== 'team';
+  const mainPanelReservedTop = hasMainPanelFloatingActions
+    ? shouldShowRealtimeConnectionNotice ? 118 : 66
+    : shouldShowRealtimeConnectionNotice ? 74 : 0;
   const selectedRepositoryName = repositories.find((repo) => repo.id === selectedRepository)?.name ?? '전체 리포지토리';
 
   const currentPresence = presenceOptions.find((option) => option.id === userPresence) ?? presenceOptions[0];
@@ -5840,7 +5844,7 @@ export function ChatPage() {
             boxShadow: '0 20px 60px rgba(0, 0, 0, 0.32)',
             backdropFilter: 'blur(16px)'
           }}>
-            {hasRepositories && selectedChannel !== 'team' && (
+            {hasMainPanelFloatingActions && (
               <div className="absolute right-4 top-4 z-40 flex items-start gap-2">
                 {selectedChannel !== 'overview' && (
                 <div className="relative">
@@ -5976,8 +5980,9 @@ export function ChatPage() {
             )}
             {shouldShowRealtimeConnectionNotice && realtimeConnectionNotice && (
               <div
-                className="pointer-events-none absolute right-5 top-16 z-30 flex max-w-[360px] items-start gap-2 rounded-2xl px-3 py-2 tracking-tight"
+                className="pointer-events-none absolute right-5 z-30 flex max-w-[360px] items-start gap-2 rounded-2xl px-3 py-2 tracking-tight"
                 style={{
+                  top: hasMainPanelFloatingActions ? 72 : 16,
                   background:
                     realtimeConnectionNotice.tone === "error"
                       ? "rgba(58, 13, 22, 0.88)"
@@ -6029,6 +6034,13 @@ export function ChatPage() {
                 </span>
               </div>
             )}
+            <div
+              className="h-full min-h-0"
+              style={{
+                boxSizing: "border-box",
+                paddingTop: mainPanelReservedTop
+              }}
+            >
             {selectedChannel === 'overview' ? (
               <OverviewPanel
                 repositories={visibleRepositories}
@@ -6236,6 +6248,7 @@ export function ChatPage() {
                 remoteTypingLabel={activeRemoteTypingLabel}
               />
             )}
+            </div>
           </section>
         )}
 
