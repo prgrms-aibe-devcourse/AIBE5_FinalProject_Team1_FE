@@ -18,9 +18,14 @@ export type WorkspaceEventDto = {
   content: string;
   emoji?: string | null;
   reactionEmoji?: string | null;
+  emojiKey?: string | null;
+  reactionKey?: string | null;
   metadata?: {
     emoji?: string | null;
     reactionEmoji?: string | null;
+    emojiKey?: string | null;
+    reactionKey?: string | null;
+    [key: string]: unknown;
   } | null;
   createdAt: string;
 };
