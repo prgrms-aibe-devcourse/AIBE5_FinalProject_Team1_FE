@@ -32,19 +32,19 @@ const reviewSignals = [
 
 const mascotMessages = [
   "GitHub, 채팅, 문서... 다 모셔뒀어요. ☕",
-  "PR과 이슈는 부두에 정박해뒀어요.",
+  "PR과 이슈를 한곳에 모아뒀어요.",
   "리뷰 결정도 작업 옆에 남겨둘게요.",
-  "문서까지 항해일지처럼 챙겨요.",
+  "문서까지 한 흐름으로 이어둘게요.",
 ];
 
 const introMessages = [
   "GitHub, 채팅, 문서... 다 모셔뒀어요. ☕",
-  "GitHub · 채팅 · 문서, 한 부두에서 이어드릴게요.",
+  "GitHub · 채팅 · 문서, 한 워크스페이스에서 이어드릴게요.",
   "PR·이슈 작업, 팀 대화, API·ERD 문서가 같은 흐름으로 이어져요.",
   "CodeDock은 결정과 기록이 흩어지지 않도록 GitHub 작업, 팀 채팅, 문서 허브를 하나의 개발 워크스페이스로 묶습니다.",
 ];
 
-const INTRO_DURATION_MS = 7000;
+const INTRO_DURATION_MS = 5000;
 
 const featureCards = [
   {
@@ -68,10 +68,10 @@ const featureCards = [
 ];
 
 const workspaceFlow = [
-  "저장소 연결(정박)",
-  "PR·이슈·변경 모으기(적재)",
-  "채팅에서 리뷰 정리(점검)",
-  "문서·결정으로 기록(항해일지)",
+  "저장소 연결",
+  "PR·이슈·변경 모으기",
+  "채팅에서 리뷰 정리",
+  "문서·결정으로 기록",
 ];
 
 const toneAlpha = (color: string, percent: number) => `color-mix(in srgb, ${color} ${percent}%, transparent)`;
@@ -120,9 +120,9 @@ export function HomePage() {
         {
           id: "brand",
           eyebrow: "CodeDock",
-          title: "GitHub, chat, and docs at one dock.",
+          title: "GitHub, chat, and docs in one workspace.",
           lines: [
-            "GitHub, chat, and docs are aboard. ☕",
+            "GitHub, chat, and docs are all here. ☕",
             "I keep decisions and records from scattering across tools.",
           ],
         },
@@ -131,7 +131,7 @@ export function HomePage() {
           eyebrow: "What I do",
           title: "PRs, team chat, and docs flow as one.",
           lines: [
-            "I dock repositories, PRs, issues, and changes.",
+            "I bring repositories, PRs, issues, and changes together.",
             "I keep review questions and decisions in team chat.",
             "I connect API docs, ERDs, and review notes to the work.",
           ],
@@ -141,7 +141,7 @@ export function HomePage() {
         {
           id: "brand",
           eyebrow: "CodeDock",
-          title: "GitHub · 채팅 · 문서, 한 부두에서.",
+          title: "GitHub · 채팅 · 문서, 한 워크스페이스에서.",
           lines: [
             "GitHub, 채팅, 문서... 다 모셔뒀어요. ☕",
             "결정과 기록이 흩어지지 않도록 한 워크스페이스로 연결해요.",
@@ -152,9 +152,9 @@ export function HomePage() {
           eyebrow: "제가 도와드릴 일",
           title: "PR·이슈, 팀 대화, 문서가 같은 흐름으로 이어져요.",
           lines: [
-            "저장소와 PR·이슈를 정박시켜요.",
+            "저장소와 PR·이슈를 한곳에 모아요.",
             "리뷰 질문과 결정을 채팅에 남겨요.",
-            "API 명세, ERD, 리뷰 문서까지 항해일지처럼 이어둬요.",
+            "API 명세, ERD, 리뷰 문서까지 한 흐름으로 이어둬요.",
           ],
         },
       ];
@@ -164,8 +164,8 @@ export function HomePage() {
     : ["GitHub", "PR", "이슈", "팀 채팅", "API 명세", "ERD"];
   const mascotMessagesCopy = isEnglish
     ? [
-        "GitHub, chat, and docs are aboard. ☕",
-        "PRs and issues are docked.",
+        "GitHub, chat, and docs are all here. ☕",
+        "PRs and issues are all in one place.",
         "Decisions stay beside the work.",
         "Docs are ready for the next sprint.",
       ]
@@ -201,23 +201,23 @@ export function HomePage() {
     : featureCards;
   const signalDetailsCopy = isEnglish
     ? [
-        "GitHub PRs, issues, and changed files dock in one workspace with the AI review process.",
-        "Team chat stays beside the work so review questions and decisions do not drift away.",
+        "GitHub PRs, issues, and changed files come together in one workspace with the AI review process.",
+        "Team chat stays beside the work so review questions and decisions do not get lost.",
         "API specs, ERDs, notes, and review docs stay tied to PRs and issues.",
       ]
     : [
-        "GitHub의 PR, 이슈, 변경 파일을 AI 리뷰 프로세스와 함께 한 부두에 정박시켜요.",
-        "팀 채팅을 작업 옆에 붙여 리뷰 질문과 결정 사항이 떠내려가지 않게 해요.",
+        "GitHub의 PR, 이슈, 변경 파일을 AI 리뷰 프로세스와 함께 한 워크스페이스로 모아요.",
+        "팀 채팅을 작업 옆에 붙여 리뷰 질문과 결정 사항이 흩어지지 않게 해요.",
         "API 명세, ERD, 회의 노트, 리뷰 문서를 PR·이슈 프로세스에 묶어둬요.",
       ];
   const featureDetailsCopy = isEnglish
     ? [
         {
           eyebrow: "GitHub",
-          title: "GitHub work docks at the center of the workspace.",
+          title: "GitHub work sits at the center of the workspace.",
           description:
             "CodeDock brings repositories, PRs, issues, changed files, AI summaries, and review process into one screen so the team can move from source to decision without tab hopping.",
-          bullets: ["Docked repository", "PR and issue process", "AI review summary"],
+          bullets: ["Connected repository", "PR and issue process", "AI review summary"],
         },
         {
           eyebrow: "Team Chat",
@@ -228,7 +228,7 @@ export function HomePage() {
         },
         {
           eyebrow: "Docs",
-          title: "Docs become the captain's log for the work.",
+          title: "Docs become the record for every decision.",
           description:
             "API specs, ERDs, meeting notes, and review documents stay linked to PRs, issues, and chat decisions so knowledge remains traceable after the work ships.",
           bullets: ["API spec page", "ERD diagram", "Review documents"],
@@ -237,54 +237,54 @@ export function HomePage() {
     : [
         {
           eyebrow: "GitHub",
-          title: "GitHub 작업이 워크스페이스의 중심에 정박해요.",
+          title: "GitHub 작업이 워크스페이스의 중심이 돼요.",
           description:
             "저장소, PR, 이슈, 변경 파일, AI 요약, 리뷰 프로세스를 한 화면에 모아서 소스 확인부터 결정까지 탭 전환 없이 이어갈 수 있어요.",
-          bullets: ["저장소 정박", "PR·이슈 프로세스", "AI 리뷰 요약"],
+          bullets: ["저장소 연결", "PR·이슈 프로세스", "AI 리뷰 요약"],
         },
         {
           eyebrow: "팀 채팅",
           title: "팀 대화가 결정 로그로 남아요.",
           description:
-            "리뷰 중 나온 질문, 기술 결정, 후속 메모를 채팅에서 바로 정리해 다음에 같은 고민을 반복하지 않게 해요.",
+            "리뷰 질문, 기술 결정, 후속 메모를 채팅에서 바로 정리해 같은 고민의 반복을 줄입니다.",
           bullets: ["리뷰 대화", "결정 로그", "후속 메모"],
         },
         {
           eyebrow: "문서",
-          title: "문서는 작업의 항해일지처럼 남아요.",
+          title: "문서가 모든 결정의 기록으로 남아요.",
           description:
             "API 명세, ERD, 회의 노트, 리뷰 문서를 PR·이슈·채팅 결정과 연결해 배포 후에도 팀 지식이 추적 가능하게 남아요.",
           bullets: ["API 명세 화면", "ERD 다이어그램", "리뷰 문서"],
         },
       ];
   const workspaceFlowCopy = isEnglish
-    ? ["Dock the repository", "Load PRs, issues, and changes", "Check reviews in team chat", "Log decisions into docs"]
+    ? ["Connect the repository", "Collect PRs, issues, and changes", "Resolve reviews in team chat", "Record decisions in docs"]
     : workspaceFlow;
   const landingCopy = {
     skipIntro: isEnglish ? "Skip" : "건너뛰기",
-    badge: isEnglish ? "GitHub, chat, and docs — one dock" : "GitHub · 채팅 · 문서, 하나의 부두에서",
+    badge: isEnglish ? "GitHub, chat, and docs in one workspace" : "GitHub · 채팅 · 문서, 하나의 워크스페이스로",
     headlinePrefix: isEnglish ? "Where code ships safely," : "코드가 안전하게 출항하는 곳,",
     headlineBrand: "CodeDock",
     subtitle: isEnglish
       ? "PRs, team chat, and docs flow as one. Decisions stop scattering."
       : "PR·이슈 작업, 팀 대화, API·ERD 문서가 같은 흐름으로 이어집니다. 결정과 기록이 더는 흩어지지 않습니다.",
     start: isEnglish ? "Start with GitHub" : "GitHub으로 시작하기",
-    mascotTitle: isEnglish ? "GitHub, chat, and docs aboard" : "GitHub · 채팅 · 문서 승선 완료",
-    flowEyebrow: isEnglish ? "Dock Flow" : "항해 흐름",
-    flowTitle: isEnglish ? "From docking to captain's log, one connected flow." : "정박에서 항해일지까지, 같은 흐름으로 이어집니다.",
+    mascotTitle: isEnglish ? "GitHub, chat, and docs connected" : "GitHub · 채팅 · 문서 연결 완료",
+    flowEyebrow: isEnglish ? "Workflow" : "작업 흐름",
+    flowTitle: isEnglish ? "From connect to record, one connected flow." : "연결에서 기록까지, 하나의 흐름으로 이어집니다.",
     catTitle: isEnglish ? "Today's decisions, ready for the next sprint." : "오늘 내린 결정, 다음 스프린트에서도 그대로.",
     catDescription: isEnglish
-      ? "GitHub, chat, and docs stay at one dock. Open the dock now."
-      : "GitHub · 채팅 · 문서, 한 부두에서. 지금 부두를 엽니다.",
+      ? "GitHub, chat, and docs stay in one workspace. Open your workspace now."
+      : "GitHub · 채팅 · 문서, 한 워크스페이스에서. 지금 시작하세요.",
     points: isEnglish
       ? [
-          { icon: GitPullRequest, label: "Repositories, PRs, issues, and changed files stay docked in one workspace." },
+          { icon: GitPullRequest, label: "Repositories, PRs, issues, and changed files stay together in one workspace." },
           { icon: MessageSquare, label: "Review questions and decisions stay beside team chat." },
           { icon: Code2, label: "API specs and ERDs remain traceable from PRs and issues." },
           { icon: FileText, label: "Review notes and decisions become records for the next sprint." },
         ]
       : [
-          { icon: GitPullRequest, label: "저장소, PR, 이슈, 변경 파일이 한 워크스페이스에 정박합니다." },
+          { icon: GitPullRequest, label: "저장소, PR, 이슈, 변경 파일이 한 워크스페이스에 모입니다." },
           { icon: MessageSquare, label: "리뷰 질문과 결정은 팀 채팅 옆에 남습니다." },
           { icon: Code2, label: "API 명세와 ERD는 PR·이슈에서 추적됩니다." },
           { icon: FileText, label: "리뷰 노트와 결정 사항은 다음 스프린트의 기록이 됩니다." },
@@ -293,40 +293,40 @@ export function HomePage() {
 
   const sectionMascotMessages: Record<LandingSection, string> = isEnglish
     ? {
-        hero: "GitHub, chat, and docs are aboard. ☕",
-        features: "The dock keeps source, decisions, and records connected.",
-        flow: "I am moving the crew from docking to captain's log.",
+        hero: "GitHub, chat, and docs are all here. ☕",
+        features: "The workspace keeps source, decisions, and records connected.",
+        flow: "I am wiring the flow from connect to record.",
         closing: "Today's decisions are ready for the next sprint.",
       }
     : {
         hero: "GitHub, 채팅, 문서... 다 모셔뒀어요. ☕",
-        features: "소스, 결정, 기록이 같은 부두에서 이어져요.",
-        flow: "정박부터 항해일지까지 순서대로 이어둘게요.",
+        features: "소스, 결정, 기록이 한 워크스페이스에서 이어져요.",
+        flow: "연결부터 기록까지 순서대로 이어둘게요.",
         closing: "오늘 내린 결정, 다음 스프린트에서도 그대로 남겨둘게요.",
       };
   const signalMascotMessages = isEnglish
     ? [
-        "GitHub work is docked in the workspace.",
+        "GitHub work is synced into the workspace.",
         "Team chat keeps decisions beside the work.",
         "Docs stay tied to PRs and issues.",
       ]
     : [
-        "GitHub 작업을 워크스페이스에 정박시켜둘게요.",
+        "GitHub 작업을 워크스페이스로 모아둘게요.",
         "팀 채팅이 결정 사항을 작업 옆에 붙잡아둬요.",
         "문서도 PR·이슈 프로세스에 묶어둘게요.",
       ];
   const flowMascotMessages = isEnglish
     ? [
-        "First, dock the repository.",
-        "Then load PRs, issues, and changes.",
+        "First, connect the repository.",
+        "Then collect PRs, issues, and changes.",
         "Next, check reviews in team chat.",
-        "Finally, log decisions into docs.",
+        "Finally, record decisions in docs.",
       ]
     : [
-        "먼저 저장소를 정박시켜요.",
-        "PR, 이슈, 변경 파일을 적재할게요.",
+        "먼저 저장소를 연결해요.",
+        "PR, 이슈, 변경 파일을 모을게요.",
         "팀 채팅에서 리뷰를 점검해요.",
-        "마지막 결정은 항해일지처럼 문서로 남겨요.",
+        "마지막 결정은 문서로 남겨요.",
       ];
   const activeSignalIndex = hoveredSignalIndex ?? selectedSignalIndex;
   const mascotSignalIndex = hoveredSignalIndex ?? (activeLandingSection === "hero" ? selectedSignalIndex : null);
@@ -342,8 +342,8 @@ export function HomePage() {
   const flowProgressPercent = Math.round(flowScrollProgress * 100);
   const activeMascotMessage = isCtaHovering
     ? isEnglish
-      ? "Ready. Shall we open the dock?"
-      : "준비 끝났어요. 부두 문 열어드릴까요?"
+      ? "Ready. Shall we open your workspace?"
+      : "준비 끝났어요. 워크스페이스 열어드릴까요?"
     : hoveredSignalIndex !== null
       ? signalMascotMessages[hoveredSignalIndex] ?? sectionMascotMessages.hero
       : hoveredFlowIndex !== null
@@ -369,7 +369,7 @@ export function HomePage() {
 
     const introStepTimer = window.setTimeout(() => {
       setIntroStep(1);
-    }, 3200);
+    }, INTRO_DURATION_MS / 2);
 
     const introTimer = window.setTimeout(() => {
       setShowIntro(false);
@@ -494,7 +494,7 @@ export function HomePage() {
       const rect = element.getBoundingClientRect();
       const viewportStart = window.innerHeight * 0.82;
       const viewportEnd = window.innerHeight * 0.34;
-      const travel = rect.height + viewportStart - viewportEnd;
+      const travel = Math.max(1, viewportStart - viewportEnd);
       const nextProgress = Math.min(1, Math.max(0, (viewportStart - rect.top) / travel));
 
       setFlowScrollProgress((currentProgress) =>
@@ -571,7 +571,7 @@ export function HomePage() {
         {showIntro && (
           <motion.section
             key="landing-intro"
-            className="fixed inset-0 z-[90] flex items-center justify-center overflow-hidden px-5"
+            className="fixed inset-0 z-[90] flex items-center justify-center overflow-hidden px-5 [&_h2]:break-keep [&_h2]:[text-wrap:balance] [&_p]:break-keep [&_p]:[text-wrap:pretty] [&_span]:break-keep"
             style={{
               background: `
                 radial-gradient(circle at 50% 38%, ${colors.primary}, 0.18), transparent 34%),
@@ -714,7 +714,7 @@ export function HomePage() {
 
       {!showIntro && (
         <motion.div
-          className="mx-auto w-[min(1180px,calc(100vw-32px))] pb-0 pt-0"
+          className="mx-auto w-[min(1180px,calc(100vw-32px))] pb-0 pt-0 [&_h1]:break-keep [&_h1]:[text-wrap:balance] [&_h2]:break-keep [&_h2]:[text-wrap:balance] [&_h3]:break-keep [&_h3]:[text-wrap:balance] [&_p]:break-keep [&_p]:[text-wrap:pretty] [&_span]:break-keep"
           initial={{ opacity: 0, y: 28, scale: 0.985 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.62, ease: "easeOut" }}
@@ -1117,7 +1117,7 @@ export function HomePage() {
             />
             <div className="relative z-10 mx-auto max-w-[430px] text-center">
               <p className="m-0 text-sm font-black tracking-tight" style={{ color: colors.primaryHex }}>
-                {isEnglish ? "One Dock Workflow" : "한 부두의 개발 흐름"}
+                {isEnglish ? "One Workspace Flow" : "하나의 개발 흐름"}
               </p>
               <h2 className="m-0 mt-3 text-2xl font-black leading-tight tracking-tight" style={{ color: "var(--white)" }}>
                 {isEnglish ? "From source to decision to record." : "소스에서 결정, 기록까지 한 흐름으로."}
@@ -1798,7 +1798,7 @@ function MascotTypingBubble({
         }`}
       >
         <MessageSquare className="flex-shrink-0" size={compact ? 14 : 16} strokeWidth={2.4} />
-        <span className="min-w-0 break-keep leading-5">{showTypingDots ? "" : text}</span>
+        <span className="min-w-0 break-keep leading-5 [text-wrap:pretty]">{showTypingDots ? "" : text}</span>
         {showTypingDots ? (
           <span className="flex items-center gap-1">
             {[0, 1, 2].map((index) => (
