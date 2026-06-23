@@ -122,20 +122,6 @@ interface ActiveDiffThread {
   line: number | string;
 }
 
-interface AiFeedbackFile {
-  id: string;
-  name: string;
-  path: string;
-  risk: "높음" | "중간";
-  vulnerability: string;
-  fix: string;
-  currentStartLine: number;
-  recommendedStartLine: number;
-  currentCode: string[];
-  recommendedCode: string[];
-  findings: string[];
-}
-
 type PrDialogTab = "original" | "summary" | "content" | "history" | "diff";
 
 const diffFiles: DiffFile[] = [
@@ -222,108 +208,6 @@ const checklist = [
   { text: "테스트 코드 추가 여부 확인", checked: true }
 ];
 
-const aiFeedbackFiles: AiFeedbackFile[] = [
-  {
-    id: "security-config-csrf",
-    name: "SecurityConfig.java",
-    path: "src/main/java/com/codedock/config",
-    risk: "높음",
-    vulnerability: "CSRF를 전역으로 꺼 두면 브라우저 기반 요청에서 의도하지 않은 상태 변경 요청을 막기 어렵습니다.",
-    fix: "JWT 기반 인증 API처럼 필요한 경로만 예외 처리하고, 인증 실패 응답과 필터 순서를 명확히 고정합니다.",
-    currentStartLine: 23,
-    recommendedStartLine: 23,
-    currentCode: [
-      "http.csrf(csrf -> csrf.disable());",
-      "http.sessionManagement(session ->",
-      "  session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)",
-      ");",
-      "return http.build();"
-    ],
-    recommendedCode: [
-      "http.csrf(csrf -> csrf",
-      "  .ignoringRequestMatchers(\"/api/auth/**\")",
-      ");",
-      "http.exceptionHandling(handler -> handler",
-      "  .authenticationEntryPoint(jwtEntryPoint)",
-      ");",
-      "http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);",
-      "return http.build();"
-    ],
-    findings: [
-      "23번째 줄: CSRF 전역 비활성화",
-      "인증 실패 응답 형식이 설정에 보이지 않음",
-      "JWT 필터 순서가 명시되지 않음"
-    ]
-  },
-  {
-    id: "auth-controller-rate-limit",
-    name: "AuthController.java",
-    path: "src/main/java/com/codedock/controller",
-    risk: "높음",
-    vulnerability: "로그인 요청에 제한이 없으면 같은 계정이나 IP로 비밀번호 대입 공격이 반복될 수 있습니다.",
-    fix: "이메일과 요청 IP 기준으로 시도 횟수를 제한하고, 초과 시 같은 응답 포맷으로 차단합니다.",
-    currentStartLine: 41,
-    recommendedStartLine: 41,
-    currentCode: [
-      "@PostMapping(\"/login\")",
-      "public ResponseEntity<TokenResponse> login(@RequestBody LoginRequest request) {",
-      "  TokenResponse token = authService.login(request);",
-      "  return ResponseEntity.ok(token);",
-      "}"
-    ],
-    recommendedCode: [
-      "@PostMapping(\"/login\")",
-      "public ResponseEntity<TokenResponse> login(",
-      "  @RequestBody LoginRequest request, HttpServletRequest servletRequest",
-      ") {",
-      "  rateLimitService.consume(request.email(), servletRequest.getRemoteAddr());",
-      "  TokenResponse token = authService.login(request);",
-      "  return ResponseEntity.ok(token);",
-      "}"
-    ],
-    findings: [
-      "로그인 반복 시도 제한 없음",
-      "IP와 계정 기준 차단 정책 없음",
-      "초과 요청 응답 정책 필요"
-    ]
-  },
-  {
-    id: "jwt-filter-expiry",
-    name: "JwtAuthenticationFilter.java",
-    path: "src/main/java/com/codedock/filter",
-    risk: "중간",
-    vulnerability: "만료되었거나 손상된 토큰이 들어왔을 때 예외 처리가 흩어지면 클라이언트가 실패 이유를 일관되게 받지 못합니다.",
-    fix: "토큰 검증 예외를 필터에서 한 번에 잡고, 표준 오류 응답을 내려 보안 로그와 사용자 경험을 맞춥니다.",
-    currentStartLine: 28,
-    recommendedStartLine: 28,
-    currentCode: [
-      "String token = resolveToken(request);",
-      "if (jwtProvider.validate(token)) {",
-      "  Authentication auth = jwtProvider.getAuthentication(token);",
-      "  SecurityContextHolder.getContext().setAuthentication(auth);",
-      "}",
-      "filterChain.doFilter(request, response);"
-    ],
-    recommendedCode: [
-      "try {",
-      "  String token = resolveToken(request);",
-      "  if (jwtProvider.validate(token)) {",
-      "    Authentication auth = jwtProvider.getAuthentication(token);",
-      "    SecurityContextHolder.getContext().setAuthentication(auth);",
-      "  }",
-      "} catch (JwtException ex) {",
-      "  jwtErrorResponder.writeUnauthorized(response, ex.getMessage());",
-      "  return;",
-      "}",
-      "filterChain.doFilter(request, response);"
-    ],
-    findings: [
-      "JWT 검증 예외 응답이 명확하지 않음",
-      "만료 토큰 로그 기준 필요",
-      "필터 이후 체인 진행 여부를 고정해야 함"
-    ]
-  }
-];
 
 const reviewers = [
   { initials: "JP", name: "김진필", status: "Approved", color: "#22C55E" },
@@ -942,201 +826,233 @@ export function PRReviewPanel({ prData, repositoryDbId, workspaceId, onClose, on
     );
   };
 
-  const renderContentTab = () => (
-    <div className="grid gap-5">
-      <section
-        className="overflow-hidden rounded-2xl px-6 py-5"
-        style={{
-          background: "linear-gradient(135deg, rgba(var(--codedock-primary-rgb), 0.12), rgba(var(--codedock-secondary-rgb), 0.055))",
-          border: "1px solid rgba(var(--codedock-primary-rgb), 0.24)",
-          boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)"
-        }}
-      >
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <span
-              className="flex h-11 w-11 items-center justify-center rounded-2xl"
-              style={{
-                background: "rgba(var(--codedock-primary-rgb), 0.12)",
-                border: "1px solid rgba(var(--codedock-primary-rgb), 0.26)",
-                color: "var(--neon-cyan)"
-              }}
-            >
-              <ShieldCheck size={22} />
-            </span>
-            <div>
-              <p className="m-0 mb-1 font-mono uppercase tracking-[0.14em]" style={{ color: "var(--neon-cyan)", fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}>
-                AI Feedback
-              </p>
-              <h3 className="m-0 tracking-tight" style={{ color: "var(--white)", fontSize: 22, fontWeight: 950 }}>
-                고쳐야 할 부분을 코드 기준으로 비교합니다
-              </h3>
-            </div>
-          </div>
-          <span
-            className="rounded-full px-3 py-1.5"
-            style={{
-              background: "rgba(245, 158, 11, 0.14)",
-              border: "1px solid rgba(245, 158, 11, 0.38)",
-              color: "#FBBF24",
-              fontSize: "var(--krds-body-xsmall)",
-              fontWeight: 950
-            }}
-          >
-            취약점 {aiFeedbackFiles.length}건 감지
-          </span>
-        </div>
-        <p className="m-0 tracking-tight" style={{ color: "var(--soft-mint)", fontSize: 15, fontWeight: 800, lineHeight: 1.75 }}>
-          PR 설명 대신 AI가 발견한 위험 지점과 수정 방향을 먼저 보여줍니다. 각 파일은 왼쪽에 현재 코드, 오른쪽에 AI가 추천하는 코드가 나란히 표시되어 바로 비교할 수 있습니다.
-        </p>
-      </section>
+  const getRiskStyle = (risk: string) => {
+    if (risk === "High") return { bg: "rgba(239, 68, 68, 0.13)", border: "1px solid rgba(239, 68, 68, 0.38)", color: "#FF8FA3", label: "높음" };
+    if (risk === "Low") return { bg: "rgba(34, 197, 94, 0.13)", border: "1px solid rgba(34, 197, 94, 0.38)", color: "var(--matrix-green)", label: "낮음" };
+    return { bg: "rgba(245, 158, 11, 0.13)", border: "1px solid rgba(245, 158, 11, 0.38)", color: "#FBBF24", label: "보통" };
+  };
 
-      {aiFeedbackFiles.map((file) => (
+  const renderContentTab = () => {
+    const fileFeedbacks = aiSummary?.fileFeedbacks ?? null;
+
+    if (aiSummaryLoading || aiSummary?.status === "pending" || aiSummary?.status === "processing") {
+      return (
+        <div className="flex flex-col items-center justify-center gap-4 py-16">
+          <ShieldCheck size={32} style={{ color: "var(--neon-cyan)", opacity: 0.7 }} />
+          <p className="m-0 tracking-tight" style={{ color: "var(--muted)", fontSize: 15, fontWeight: 850 }}>
+            AI가 PR을 분석하고 있습니다...
+          </p>
+        </div>
+      );
+    }
+    if (aiSummary?.status === "failed") {
+      return (
+        <div className="flex flex-col items-center justify-center gap-4 py-16">
+          <AlertTriangle size={32} style={{ color: "#FF6B6B", opacity: 0.8 }} />
+          <p className="m-0 tracking-tight" style={{ color: "var(--muted)", fontSize: 15, fontWeight: 850 }}>
+            AI 분석에 실패했습니다. 잠시 후 다시 시도해주세요.
+          </p>
+        </div>
+      );
+    }
+    if (!fileFeedbacks || fileFeedbacks.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center gap-4 py-16">
+          <ShieldCheck size={32} style={{ color: "var(--muted)", opacity: 0.5 }} />
+          <p className="m-0 tracking-tight" style={{ color: "var(--muted)", fontSize: 15, fontWeight: 850 }}>
+            피드백 정보가 없습니다.
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="grid gap-5">
         <section
-          key={file.id}
-          className="overflow-hidden rounded-2xl"
+          className="overflow-hidden rounded-2xl px-6 py-5"
           style={{
-            background: "rgba(5, 11, 20, 0.52)",
-            border: "1px solid rgba(var(--codedock-primary-rgb), 0.15)"
+            background: "linear-gradient(135deg, rgba(var(--codedock-primary-rgb), 0.12), rgba(var(--codedock-secondary-rgb), 0.055))",
+            border: "1px solid rgba(var(--codedock-primary-rgb), 0.24)",
+            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)"
           }}
         >
-          <div
-            className="flex flex-wrap items-start justify-between gap-4 px-5 py-4"
-            style={{ borderBottom: "1px solid rgba(var(--codedock-primary-rgb), 0.12)" }}
-          >
-            <div className="flex min-w-0 gap-3">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
               <span
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl"
+                className="flex h-11 w-11 items-center justify-center rounded-2xl"
                 style={{
-                  background: "rgba(234, 247, 255, 0.06)",
-                  border: "1px solid rgba(234, 247, 255, 0.12)",
+                  background: "rgba(var(--codedock-primary-rgb), 0.12)",
+                  border: "1px solid rgba(var(--codedock-primary-rgb), 0.26)",
                   color: "var(--neon-cyan)"
                 }}
               >
-                <FileCode size={21} />
+                <ShieldCheck size={22} />
               </span>
-              <div className="min-w-0">
-                <h4 className="m-0 truncate tracking-tight" style={{ color: "var(--white)", fontSize: 17, fontWeight: 950 }}>
-                  {file.name}
-                </h4>
-                <p className="m-0 mt-1 truncate font-mono" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>
-                  {file.path}
+              <div>
+                <p className="m-0 mb-1 font-mono uppercase tracking-[0.14em]" style={{ color: "var(--neon-cyan)", fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}>
+                  AI Feedback
                 </p>
+                <h3 className="m-0 tracking-tight" style={{ color: "var(--white)", fontSize: 22, fontWeight: 950 }}>
+                  고쳐야 할 부분을 코드 기준으로 비교합니다
+                </h3>
               </div>
             </div>
             <span
-              className="inline-flex items-center gap-2 rounded-full px-3 py-1.5"
+              className="rounded-full px-3 py-1.5"
               style={{
-                background: file.risk === "높음" ? "rgba(239, 68, 68, 0.13)" : "rgba(245, 158, 11, 0.13)",
-                border: file.risk === "높음" ? "1px solid rgba(239, 68, 68, 0.38)" : "1px solid rgba(245, 158, 11, 0.38)",
-                color: file.risk === "높음" ? "#FF8FA3" : "#FBBF24",
+                background: "rgba(245, 158, 11, 0.14)",
+                border: "1px solid rgba(245, 158, 11, 0.38)",
+                color: "#FBBF24",
                 fontSize: "var(--krds-body-xsmall)",
                 fontWeight: 950
               }}
             >
-              <AlertTriangle size={14} />
-              위험도 {file.risk}
+              취약점 {fileFeedbacks.length}건 감지
             </span>
           </div>
+          <p className="m-0 tracking-tight" style={{ color: "var(--soft-mint)", fontSize: 15, fontWeight: 800, lineHeight: 1.75 }}>
+            PR 설명 대신 AI가 발견한 위험 지점과 수정 방향을 먼저 보여줍니다. 각 파일은 왼쪽에 현재 코드, 오른쪽에 AI가 추천하는 코드가 나란히 표시되어 바로 비교할 수 있습니다.
+          </p>
+        </section>
 
-          <div className="grid gap-4 px-5 py-5 lg:grid-cols-2">
-            <div className="rounded-2xl px-4 py-4" style={{
-              background: "rgba(239, 68, 68, 0.08)",
-              border: "1px solid rgba(239, 68, 68, 0.20)"
-            }}>
-              <p className="m-0 mb-2 tracking-tight" style={{ color: "#FF8FA3", fontSize: 13, fontWeight: 950 }}>
-                어떤 취약점인가요
-              </p>
-              <p className="m-0 tracking-tight" style={{ color: "var(--white)", fontSize: 14, fontWeight: 800, lineHeight: 1.65 }}>
-                {file.vulnerability}
-              </p>
-            </div>
-            <div className="rounded-2xl px-4 py-4" style={{
-              background: "rgba(34, 197, 94, 0.08)",
-              border: "1px solid rgba(34, 197, 94, 0.22)"
-            }}>
-              <p className="m-0 mb-2 tracking-tight" style={{ color: "var(--matrix-green)", fontSize: 13, fontWeight: 950 }}>
-                어떻게 고치면 좋나요
-              </p>
-              <p className="m-0 tracking-tight" style={{ color: "var(--white)", fontSize: 14, fontWeight: 800, lineHeight: 1.65 }}>
-                {file.fix}
-              </p>
-            </div>
-          </div>
-
-          <div className="grid gap-0 lg:grid-cols-2" style={{ borderTop: "1px solid rgba(var(--codedock-primary-rgb), 0.12)" }}>
-            {[
-              {
-                title: "현재 코드",
-                tone: "#FF8FA3",
-                bg: "rgba(239, 68, 68, 0.055)",
-                prefix: "-",
-                startLine: file.currentStartLine,
-                lines: file.currentCode
-              },
-              {
-                title: "AI 추천 코드",
-                tone: "var(--matrix-green)",
-                bg: "rgba(34, 197, 94, 0.055)",
-                prefix: "+",
-                startLine: file.recommendedStartLine,
-                lines: file.recommendedCode
-              }
-            ].map((block) => (
+        {fileFeedbacks.map((file, fileIndex) => {
+          const riskStyle = getRiskStyle(file.risk);
+          return (
+            <section
+              key={`${file.name}-${fileIndex}`}
+              className="overflow-hidden rounded-2xl"
+              style={{
+                background: "rgba(5, 11, 20, 0.52)",
+                border: "1px solid rgba(var(--codedock-primary-rgb), 0.15)"
+              }}
+            >
               <div
-                key={`${file.id}-${block.title}`}
-                className="min-w-0"
-                style={{
-                  background: block.bg,
-                  borderRight: block.title === "현재 코드" ? "1px solid rgba(var(--codedock-primary-rgb), 0.12)" : undefined
-                }}
+                className="flex flex-wrap items-start justify-between gap-4 px-5 py-4"
+                style={{ borderBottom: "1px solid rgba(var(--codedock-primary-rgb), 0.12)" }}
               >
-                <div className="flex items-center justify-between gap-3 px-4 py-3" style={{ borderBottom: "1px solid rgba(234, 247, 255, 0.08)" }}>
-                  <span className="tracking-tight" style={{ color: block.tone, fontSize: 13, fontWeight: 950 }}>
-                    {block.title}
+                <div className="flex min-w-0 gap-3">
+                  <span
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl"
+                    style={{
+                      background: "rgba(234, 247, 255, 0.06)",
+                      border: "1px solid rgba(234, 247, 255, 0.12)",
+                      color: "var(--neon-cyan)"
+                    }}
+                  >
+                    <FileCode size={21} />
                   </span>
-                  <span className="font-mono" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>
-                    {file.name}
-                  </span>
+                  <div className="min-w-0">
+                    <h4 className="m-0 truncate tracking-tight" style={{ color: "var(--white)", fontSize: 17, fontWeight: 950 }}>
+                      {file.name}
+                    </h4>
+                    <p className="m-0 mt-1 truncate font-mono" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>
+                      {file.path}
+                    </p>
+                  </div>
                 </div>
-                <div className="codedock-scrollbar-hidden overflow-x-auto px-0 py-2">
-                  {block.lines.map((line, index) => (
-                    <div key={`${file.id}-${block.title}-${index}`} className="grid min-w-[520px] grid-cols-[52px_28px_minmax(0,1fr)] items-start px-4 py-1.5 font-mono">
-                      <span style={{ color: "rgba(234, 247, 255, 0.38)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>
-                        {block.startLine + index}
-                      </span>
-                      <span style={{ color: block.tone, fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}>{block.prefix}</span>
-                      <code className="whitespace-pre-wrap break-words" style={{ color: "var(--soft-mint)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800, lineHeight: 1.65 }}>
-                        {line}
-                      </code>
-                    </div>
-                  ))}
+                <span
+                  className="inline-flex items-center gap-2 rounded-full px-3 py-1.5"
+                  style={{
+                    background: riskStyle.bg,
+                    border: riskStyle.border,
+                    color: riskStyle.color,
+                    fontSize: "var(--krds-body-xsmall)",
+                    fontWeight: 950
+                  }}
+                >
+                  <AlertTriangle size={14} />
+                  위험도 {riskStyle.label}
+                </span>
+              </div>
+
+              <div className="grid gap-4 px-5 py-5 lg:grid-cols-2">
+                <div className="rounded-2xl px-4 py-4" style={{
+                  background: "rgba(239, 68, 68, 0.08)",
+                  border: "1px solid rgba(239, 68, 68, 0.20)"
+                }}>
+                  <p className="m-0 mb-2 tracking-tight" style={{ color: "#FF8FA3", fontSize: 13, fontWeight: 950 }}>
+                    어떤 취약점인가요
+                  </p>
+                  <p className="m-0 tracking-tight" style={{ color: "var(--white)", fontSize: 14, fontWeight: 800, lineHeight: 1.65 }}>
+                    {file.vulnerability}
+                  </p>
+                </div>
+                <div className="rounded-2xl px-4 py-4" style={{
+                  background: "rgba(34, 197, 94, 0.08)",
+                  border: "1px solid rgba(34, 197, 94, 0.22)"
+                }}>
+                  <p className="m-0 mb-2 tracking-tight" style={{ color: "var(--matrix-green)", fontSize: 13, fontWeight: 950 }}>
+                    어떻게 고치면 좋나요
+                  </p>
+                  <p className="m-0 tracking-tight" style={{ color: "var(--white)", fontSize: 14, fontWeight: 800, lineHeight: 1.65 }}>
+                    {file.fix}
+                  </p>
                 </div>
               </div>
-            ))}
-          </div>
 
-          <div className="flex flex-wrap gap-2 px-5 py-4" style={{ borderTop: "1px solid rgba(var(--codedock-primary-rgb), 0.12)" }}>
-            {file.findings.map((finding) => (
-              <span
-                key={finding}
-                className="rounded-full px-3 py-1.5 tracking-tight"
-                style={{
-                  background: "rgba(234, 247, 255, 0.055)",
-                  border: "1px solid rgba(234, 247, 255, 0.10)",
-                  color: "var(--soft-mint)",
-                  fontSize: "var(--krds-body-xsmall)",
-                  fontWeight: 850
-                }}
-              >
-                {finding}
-              </span>
-            ))}
-          </div>
-        </section>
-      ))}
-    </div>
-  );
+              <div className="grid gap-0 lg:grid-cols-2" style={{ borderTop: "1px solid rgba(var(--codedock-primary-rgb), 0.12)" }}>
+                {[
+                  { title: "현재 코드", tone: "#FF8FA3", bg: "rgba(239, 68, 68, 0.055)", prefix: "-", lines: file.currentCode },
+                  { title: "AI 추천 코드", tone: "var(--matrix-green)", bg: "rgba(34, 197, 94, 0.055)", prefix: "+", lines: file.recommendedCode }
+                ].map((block) => (
+                  <div
+                    key={`${file.name}-${block.title}`}
+                    className="min-w-0"
+                    style={{
+                      background: block.bg,
+                      borderRight: block.title === "현재 코드" ? "1px solid rgba(var(--codedock-primary-rgb), 0.12)" : undefined
+                    }}
+                  >
+                    <div className="flex items-center justify-between gap-3 px-4 py-3" style={{ borderBottom: "1px solid rgba(234, 247, 255, 0.08)" }}>
+                      <span className="tracking-tight" style={{ color: block.tone, fontSize: 13, fontWeight: 950 }}>
+                        {block.title}
+                      </span>
+                      <span className="font-mono" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>
+                        {file.name}
+                      </span>
+                    </div>
+                    <div className="codedock-scrollbar-hidden overflow-x-auto px-0 py-2">
+                      {block.lines.map((line, index) => (
+                        <div key={`${file.name}-${block.title}-${index}`} className="grid min-w-[520px] grid-cols-[52px_28px_minmax(0,1fr)] items-start px-4 py-1.5 font-mono">
+                          <span style={{ color: "rgba(234, 247, 255, 0.38)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>
+                            {index + 1}
+                          </span>
+                          <span style={{ color: block.tone, fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}>{block.prefix}</span>
+                          <code className="whitespace-pre-wrap break-words" style={{ color: "var(--soft-mint)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800, lineHeight: 1.65 }}>
+                            {line}
+                          </code>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {file.findings.length > 0 && (
+                <div className="flex flex-wrap gap-2 px-5 py-4" style={{ borderTop: "1px solid rgba(var(--codedock-primary-rgb), 0.12)" }}>
+                  {file.findings.map((finding, i) => (
+                    <span
+                      key={`${file.name}-finding-${i}`}
+                      className="rounded-full px-3 py-1.5 tracking-tight"
+                      style={{
+                        background: "rgba(234, 247, 255, 0.055)",
+                        border: "1px solid rgba(234, 247, 255, 0.10)",
+                        color: "var(--soft-mint)",
+                        fontSize: "var(--krds-body-xsmall)",
+                        fontWeight: 850
+                      }}
+                    >
+                      {finding}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </section>
+          );
+        })}
+      </div>
+    );
+  };
 
   const renderHistoryTab = () => {
     let commits: Array<{ sha: string; message: string; author: string; date: string }> = [];
