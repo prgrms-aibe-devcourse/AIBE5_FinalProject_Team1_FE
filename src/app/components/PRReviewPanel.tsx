@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { fetchWithAuth } from "../api/fetchWithAuth";
+import { getAiSummary, type AiSummaryResponse } from "../api/pr";
 import { AnimatePresence, motion } from "motion/react";
 
 interface PRReviewPanelProps {
@@ -480,6 +481,8 @@ function mapExternalThreadMessages(messages?: any[]): DiffThreadComment[] {
 export function PRReviewPanel({ prData, repositoryDbId, workspaceId, onClose, onMergePR, externalThreadMessages, onAddThreadMessage }: PRReviewPanelProps) {
   const [liveBody, setLiveBody] = useState<string | null>(null);
   const [liveCommits, setLiveCommits] = useState<string | null>(null);
+  const [aiSummary, setAiSummary] = useState<AiSummaryResponse | null>(null);
+  const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
   // prStatus가 이미 approved/merged면 처음부터 승인 완료 상태로 초기화
   const [isApproved, setIsApproved] = useState(
     () => prData?.prStatus === 'approved' || prData?.prStatus === 'merged'
@@ -519,6 +522,37 @@ export function PRReviewPanel({ prData, repositoryDbId, workspaceId, onClose, on
       })
       .catch(() => { /* 조회 실패 시 기본값 유지 */ });
   }, [repositoryDbId, prData?.prNumber, prData?.prStatus]);
+
+  // AI 요약 폴링: pending/processing 동안 3초 간격으로 재조회
+  useEffect(() => {
+    if (!workspaceId || !prData?.prDbId) return;
+    setAiSummaryLoading(true);
+
+    let cancelled = false;
+    let timerId: ReturnType<typeof setTimeout>;
+
+    const fetchSummary = () => {
+      getAiSummary(workspaceId, prData.prDbId)
+        .then((res) => {
+          if (cancelled) return;
+          setAiSummary(res);
+          if (res.status === "pending" || res.status === "processing") {
+            timerId = setTimeout(fetchSummary, 3000);
+          } else {
+            setAiSummaryLoading(false);
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setAiSummaryLoading(false);
+        });
+    };
+
+    fetchSummary();
+    return () => {
+      cancelled = true;
+      clearTimeout(timerId);
+    };
+  }, [workspaceId, prData?.prDbId]);
 
   const resolvedPrBody: string = liveBody ?? prData?.prBody ?? '';
   const resolvedPrCommits: string = liveCommits ?? prData?.prCommits ?? '[]';
