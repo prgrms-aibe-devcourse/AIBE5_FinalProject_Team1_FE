@@ -2529,15 +2529,10 @@ export function ChatPage() {
       .catch(() => {});
   }, [currentWorkspaceApiId, refreshCurrentWorkspaceMembers, refreshWorkspaceList]);
 
-  // 페이지 이탈 시 offline 송신 (best-effort). 탭 강제 종료 등 비정상 종료는 BE WS disconnect 감지가 필요(별건).
-  useEffect(() => {
-    if (!currentWorkspaceApiId) return;
-    const handleLeave = () => {
-      updatePresence(currentWorkspaceApiId, 'offline').catch(() => {});
-    };
-    window.addEventListener('beforeunload', handleLeave);
-    return () => window.removeEventListener('beforeunload', handleLeave);
-  }, [currentWorkspaceApiId]);
+  // 페이지 이탈 시 presence를 offline으로 "영속화"하지 않는다. 그렇게 하면 저장된 고른 상태가 offline으로
+  // 남아, 다시 접속(세션 살아있음)해도 계속 오프라인으로 보이는 문제가 생김. 연결 끊김은 BE의 WS disconnect
+  // 감지(WebSocketPresenceTracker)가 트래킹하므로 별도 송신이 필요 없음.
+  // ("오프라인"은 사용자가 셀렉터에서 직접 고른 경우에만 저장되어 의도적으로 숨김 처리됨)
 
   const persistableLocalMessages = useMemo(
     () => getLocalPersistableMessages(messages, apiChannelIdByUiChannel, currentWorkspaceApiId),
