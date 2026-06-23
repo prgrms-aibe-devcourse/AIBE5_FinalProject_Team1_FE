@@ -14,16 +14,16 @@ concurrency:
 
 env:
   NODE_VERSION: "22"
-  FRONTEND_TEMP_PATH: /tmp/codedock-frontend
+  AWS_REGION: ${{ vars.AWS_REGION || secrets.AWS_REGION }}
+  AWS_S3_BUCKET: ${{ vars.AWS_S3_BUCKET || secrets.AWS_S3_BUCKET }}
+  AWS_CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.AWS_CLOUDFRONT_DISTRIBUTION_ID || secrets.AWS_CLOUDFRONT_DISTRIBUTION_ID }}
+  VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || secrets.VITE_API_BASE_URL }}
+  VITE_WS_BASE_URL: ${{ vars.VITE_WS_BASE_URL || secrets.VITE_WS_BASE_URL }}
 
 jobs:
   build-and-deploy:
-    name: Build and deploy frontend
+    name: Build and deploy frontend to S3
     runs-on: ubuntu-latest
-
-    env:
-      VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || secrets.VITE_API_BASE_URL }}
-      VITE_WS_BASE_URL: ${{ vars.VITE_WS_BASE_URL || secrets.VITE_WS_BASE_URL }}
 
     steps:
       - name: Checkout source
@@ -38,52 +38,45 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Validate deploy configuration
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          set -e
+          test -n "$AWS_REGION" || (echo "AWS_REGION is required." && exit 1)
+          test -n "$AWS_S3_BUCKET" || (echo "AWS_S3_BUCKET is required." && exit 1)
+          test -n "$AWS_CLOUDFRONT_DISTRIBUTION_ID" || (echo "AWS_CLOUDFRONT_DISTRIBUTION_ID is required." && exit 1)
+          test -n "$VITE_API_BASE_URL" || (echo "VITE_API_BASE_URL is required." && exit 1)
+          test -n "$VITE_WS_BASE_URL" || (echo "VITE_WS_BASE_URL is required." && exit 1)
+          test -n "$AWS_ACCESS_KEY_ID" || (echo "AWS_ACCESS_KEY_ID is required." && exit 1)
+          test -n "$AWS_SECRET_ACCESS_KEY" || (echo "AWS_SECRET_ACCESS_KEY is required." && exit 1)
+
       - name: Build frontend
         run: npm run build
 
-      - name: Upload dist to EC2
-        uses: appleboy/scp-action@v0.1.7
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
-          port: ${{ secrets.EC2_SSH_PORT || '22' }}
-          source: "dist/*"
-          target: ${{ env.FRONTEND_TEMP_PATH }}
-          strip_components: 1
-          rm: true
+          aws-region: ${{ env.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
-      - name: Replace nginx static files and reload
-        uses: appleboy/ssh-action@v1.2.2
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
-          port: ${{ secrets.EC2_SSH_PORT || '22' }}
-          script_stop: true
-          script: |
-            set -e
+      - name: Upload static assets to S3 (excluding index.html)
+        run: |
+          aws s3 sync dist/ "s3://$AWS_S3_BUCKET/" \
+            --delete \
+            --exclude "index.html" \
+            --cache-control "public,max-age=31536000,immutable"
 
-            DEPLOY_PATH="${{ secrets.FRONTEND_DEPLOY_PATH || '/var/www/codedock' }}"
-            TEMP_PATH="${{ env.FRONTEND_TEMP_PATH }}"
+      - name: Upload index.html without browser cache
+        run: |
+          aws s3 cp dist/index.html "s3://$AWS_S3_BUCKET/index.html" \
+            --cache-control "no-cache,no-store,must-revalidate" \
+            --content-type "text/html"
 
-            if [ -z "$DEPLOY_PATH" ]; then
-              echo "FRONTEND_DEPLOY_PATH is empty."
-              exit 1
-            fi
-
-            if [ ! -f "$TEMP_PATH/index.html" ]; then
-              echo "Frontend dist upload is missing index.html."
-              exit 1
-            fi
-
-            sudo mkdir -p "$DEPLOY_PATH"
-            sudo find "$DEPLOY_PATH" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
-            sudo cp -R "$TEMP_PATH"/. "$DEPLOY_PATH"/
-            sudo find "$DEPLOY_PATH" -type d -exec chmod 755 {} \;
-            sudo find "$DEPLOY_PATH" -type f -exec chmod 644 {} \;
-
-            sudo nginx -t
-            sudo nginx -s reload
-
-            rm -rf "$TEMP_PATH"
+      - name: Invalidate CloudFront cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "$AWS_CLOUDFRONT_DISTRIBUTION_ID" \
+            --paths "/*"
