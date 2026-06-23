@@ -77,7 +77,8 @@ import {
   fetchWorkspaceRepositories,
   registerWorkspaceRepositoryWebhook,
   syncRepositoryIssueStatuses,
-  syncRepositoryPullRequests
+  syncRepositoryPullRequests,
+  syncRepositoryPrStatuses
 } from "../api/github";
 
 const APISpecPage = lazy(() => import("./APISpecPage").then((module) => ({ default: module.APISpecPage })));
@@ -1990,8 +1991,9 @@ export function ChatPage() {
     const channelKey = selectedChannelMessageKey;
     const channelId = activeApiChannelId;
 
-    // sync 실패해도 getChannelMessages는 반드시 실행 (DB에 저장된 meta 기반으로 메시지 로드)
-    syncRepositoryPullRequests(repoDbId).catch(() => { /* ignore sync failure */ })
+    // 1) GitHub API로 새 PR 가져오기, 2) DB 기반 상태 동기화 (이슈와 동일 패턴), 3) 메시지 로드
+    syncRepositoryPullRequests(repoDbId).catch(() => { /* ignore */ })
+      .then(() => syncRepositoryPrStatuses(repoDbId).catch(() => { /* ignore */ }))
       .then(() => getChannelMessages(channelId, { limit: 50 }))
       .then((serverMessages) => {
         const mapped = serverMessages.map(mapChannelMessageToWorkspaceMessage);
@@ -4965,7 +4967,7 @@ export function ChatPage() {
         // 원본 PR 카드를 approved(보라색)로 변경 — 새로고침 후에도 DB에서 같은 상태로 로드됨
         newMessages[selectedChannelMessageKey] = channelMessages.map(msg =>
           msg.id === messageId && msg.type === 'pr'
-            ? { ...msg, prStatus: 'approved' as const }
+            ? { ...msg, prStatus: 'merged' as const }
             : msg
         );
       }
