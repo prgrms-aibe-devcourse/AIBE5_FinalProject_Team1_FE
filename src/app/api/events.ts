@@ -3,8 +3,10 @@ import { fetchWithAuth } from "./fetchWithAuth";
 export type EventType = "PR_CREATED" | "PR_REVIEW" | "ISSUE_CREATED" | "MENTION" | "REPLY";
 
 export type WorkspaceEventDto = {
+  eventId: number;
   id: number;
   workspaceId: number;
+  workspaceName: string | null;
   type: EventType;
   actorName: string;
   prId: number | null;
@@ -16,6 +18,7 @@ export type WorkspaceEventDto = {
   repositoryId: number | null;
   repositoryName: string | null;
   content: string;
+  isRead: boolean;
   emoji?: string | null;
   reactionEmoji?: string | null;
   emojiKey?: string | null;
@@ -31,9 +34,9 @@ export type WorkspaceEventDto = {
 };
 
 export function fetchMyEvents(): Promise<WorkspaceEventDto[]> {
-  return fetchWithAuth<WorkspaceEventDto[] | { success: boolean; data: WorkspaceEventDto[] }>("/api/v1/events")
-    .then((res) => {
-      if (Array.isArray(res)) return res;
-      return res.data ?? [];
-    });
+  return fetchWithAuth<WorkspaceEventDto[]>("/api/dashboard/events");
+}
+
+export function markEventAsRead(eventId: number): Promise<void> {
+  return fetchWithAuth<void>(`/api/dashboard/events/${eventId}/read`, { method: "PATCH" });
 }
