@@ -8,7 +8,7 @@ import { DndProvider, useDrag, useDrop, useDragLayer } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { fetchMyGithubRepos, fetchRepoCollaborators, fetchWorkspaceRepositories, connectWorkspaceRepository, type GithubCollaborator, type GithubRepo } from "../api/github";
 import { fetchMyWorkspaces, createWorkspace, deleteWorkspace, listReceivedInvites, acceptInvite, rejectInvite, createInvite, type WorkspaceDto, type ReceivedInviteDto } from "../api/workspace";
-import { fetchMyEvents, type WorkspaceEventDto, type EventType } from "../api/events";
+import { fetchMyEvents, markEventAsRead, type WorkspaceEventDto, type EventType } from "../api/events";
 import { fetchDashboardSummary, fetchDashboardWorkspaces, type DashboardSummary, type DashboardWorkspace } from "../api/dashboard";
 import { useWorkspace } from "../contexts/WorkspaceContext";
 import { ApiClientError } from "../api/client";
@@ -1760,16 +1760,33 @@ export function WorkspacePage() {
                     event.threadId ? `thread #${event.threadId}` : ""
                   ].filter(Boolean);
 
+                  const handleEventClick = () => {
+                    if (!event.isRead) {
+                      setEvents((prev) => prev.map((e) => e.id === event.id ? { ...e, isRead: true } : e));
+                      markEventAsRead(event.eventId).catch(() => {});
+                    }
+                    navigate("/chat", { state: { pendingEvent: event } });
+                  };
+
                   return (
                     <div
                       key={event.id}
                       className="px-5 py-4 rounded-2xl cursor-pointer transition-all hover:brightness-110"
-                      style={{ background: "rgba(5, 11, 20, 0.42)", border: "1px solid rgba(32, 227, 255, 0.10)" }}
-                      onClick={() => navigate("/chat", { state: { pendingEvent: event } })}
+                      style={{
+                        background: event.isRead ? "rgba(5, 11, 20, 0.42)" : "rgba(32, 227, 255, 0.06)",
+                        border: event.isRead ? "1px solid rgba(32, 227, 255, 0.10)" : "1px solid rgba(32, 227, 255, 0.22)",
+                      }}
+                      onClick={handleEventClick}
                     >
                       <div className="flex items-start gap-3">
-                        <span className="flex-shrink-0 mt-0.5">
+                        <span className="relative flex-shrink-0 mt-0.5">
                           <Icon size={18} style={{ color }} />
+                          {!event.isRead && (
+                            <span
+                              className="absolute -top-1 -right-1 rounded-full"
+                              style={{ width: 7, height: 7, background: "var(--neon-cyan)" }}
+                            />
+                          )}
                         </span>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1 flex-wrap">
