@@ -11,6 +11,7 @@ import {
 import {
   fetchMyWorkspaces,
   getWorkspaceMembers,
+  updatePresence,
   changeMemberRole as changeMemberRoleApi,
   removeMember as removeMemberApi,
   transferOwnership as transferOwnershipApi,
@@ -40,6 +41,9 @@ const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
 
 // ChatPage가 마지막 선택 워크스페이스를 저장하는 키와 동일해야 함 (codedock-last-workspace-v1)
 const LAST_WORKSPACE_KEY = "codedock-last-workspace-v1";
+const LAST_PRESENCE_KEY = "codedock-last-presence-v1";
+const PRESENCE_HEARTBEAT_INTERVAL_MS = 30_000;
+const VALID_PRESENCES = new Set(["active", "away", "busy", "offline"]);
 
 function readSavedWorkspaceId(): number | null {
   if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
@@ -52,6 +56,19 @@ function readSavedWorkspaceId(): number | null {
     return Number.isFinite(parsed) ? parsed : null;
   } catch {
     return null;
+  }
+}
+
+function readSavedPresence() {
+  if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
+    return "active";
+  }
+  try {
+    const raw = window.localStorage.getItem(LAST_PRESENCE_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return typeof parsed === "string" && VALID_PRESENCES.has(parsed) ? parsed : "active";
+  } catch {
+    return "active";
   }
 }
 
@@ -111,6 +128,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       [loadMembers, workspaceId, userId]
   );
 
+  const publishPresence = useCallback(() => {
+    if (!isAuthenticated() || workspaceId === null || userId === null) return;
+    void updatePresence(workspaceId, readSavedPresence()).catch(() => {});
+  }, [workspaceId, userId]);
+
   const clientRef = useRef<ReturnType<typeof createChatStompClient> | null>(null);
   const workspaceIdRef = useRef(workspaceId);
   workspaceIdRef.current = workspaceId;
@@ -118,14 +140,30 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   refetchRef.current = refetch;
 
   useEffect(() => {
-    const onFocus = () => { if (document.visibilityState === "visible") void refetch(); };
+    const onFocus = () => {
+      if (document.visibilityState === "visible") {
+        publishPresence();
+        void refetch();
+      }
+    };
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onFocus);
     return () => {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onFocus);
     };
-  }, [refetch]);
+  }, [publishPresence, refetch]);
+
+  useEffect(() => {
+    if (!isAuthenticated() || workspaceId === null || userId === null) return;
+
+    publishPresence();
+    const intervalId = window.setInterval(publishPresence, PRESENCE_HEARTBEAT_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [publishPresence, userId, workspaceId]);
 
   useEffect(() => {
     if (!isAuthenticated()) return;
