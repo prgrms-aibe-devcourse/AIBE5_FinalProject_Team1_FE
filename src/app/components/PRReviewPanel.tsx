@@ -750,7 +750,7 @@ export function PRReviewPanel({ prData, repositoryDbId, onClose, onMergePR, exte
     if (!draft) return;
 
     const referencedFile = activeDiffThread
-      ? diffFiles.find((file) => file.id === activeDiffThread.fileId)
+      ? effectiveFiles.find((file) => file.id === activeDiffThread.fileId)
       : null;
     const referencedRow = activeDiffThread
       ? activeRows.find((row) => row.line === activeDiffThread.line)
@@ -1166,7 +1166,7 @@ export function PRReviewPanel({ prData, repositoryDbId, onClose, onMergePR, exte
 
   const renderPrThreadChat = (showClose = false) => {
     const selectedFile = activeDiffThread
-      ? diffFiles.find((file) => file.id === activeDiffThread.fileId)
+      ? effectiveFiles.find((file) => file.id === activeDiffThread.fileId)
       : null;
     const selectedRow = activeDiffThread
       ? activeRows.find((row) => row.line === activeDiffThread.line)
@@ -1267,8 +1267,8 @@ export function PRReviewPanel({ prData, repositoryDbId, onClose, onMergePR, exte
                     </span>
                   </div>
                   {hasLineReference && (() => {
-                    const refRow = diffRows.find((r) => r.line === comment.line);
-                    const refCode = diffEdits[getDiffThreadKey(comment.fileId, comment.line)] ?? refRow?.code ?? comment.code ?? "";
+                    const refRow = activeRows.find((r) => r.line === comment.line);
+                    const refCode = comment.code ?? diffEdits[getDiffThreadKey(comment.fileId, comment.line)] ?? refRow?.code ?? "";
                     return (
                       <div
                         className="mb-2 overflow-hidden rounded-xl"

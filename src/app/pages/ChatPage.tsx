@@ -761,8 +761,15 @@ const DELETED_MESSAGE_CONTENT = "삭제된 메시지입니다";
 // 화면 표시용 통일 라벨(마침표 포함). 채널/스레드 삭제 메시지 모두 이 문구로 표시.
 const DELETED_MESSAGE_LABEL = "삭제된 메시지입니다.";
 
+// PR/이슈/ERD/API/문서 첨부는 카드 메타데이터를 담는 "구조적" 첨부라서 일반 파일 첨부 카드로
+// 그대로 렌더하면 meta JSON이 노출된다. 전용 카드(prFields/issueFields)로만 표시하고 일반
+// 첨부 목록에서는 제외한다.
+const STRUCTURAL_ATTACHMENT_TYPES = new Set(["pr", "issue", "erd", "api", "docs"]);
+
 function mapChannelMessageToWorkspaceMessage(message: ChannelMessage) {
-  const attachments = (message.attachments ?? []).map(mapMessageAttachmentResponse);
+  const attachments = (message.attachments ?? [])
+    .map(mapMessageAttachmentResponse)
+    .filter((attachment) => !STRUCTURAL_ATTACHMENT_TYPES.has(attachment.type));
   // The backend marks soft-deleted messages by replacing the content with a sentinel string.
   // Detect it here so a page refresh keeps the message in the "deleted" state (no edit/delete buttons).
   const isDeleted = message.isDeleted === true || message.content === DELETED_MESSAGE_CONTENT;
@@ -846,8 +853,72 @@ let prFields: Record<string, unknown> = {};
   };
 }
 
+// PR/이슈 DIFF 라인 참조(파일/줄/코드)를 스레드 답글 content에 실어보내기 위한 인코딩.
+// 백엔드 스레드 답글은 content(문자열)만 저장/브로드캐스트하므로, 참조를 content 앞에
+// base64 JSON 헤더로 끼워 넣고 렌더 시 다시 분리한다. (백엔드 변경 없이 WebSocket 경로 재사용)
+const THREAD_REF_PREFIX = "[[CDREF:";
+
+type ThreadLineRef = { fileName: string; filePath: string; line: number; code: string };
+
+function encodeThreadRefContent(
+  ref: { fileName?: string; filePath?: string; line?: number | string; code?: string } | null | undefined,
+  text: string
+): string {
+  if (!ref) return text;
+  const hasFile = Boolean(ref.filePath || ref.fileName);
+  const lineNum = typeof ref.line === "number" ? ref.line : Number(ref.line);
+  if (!hasFile || !Number.isFinite(lineNum) || lineNum <= 0) return text;
+  try {
+    const payload = {
+      fileName: ref.fileName ?? "",
+      filePath: ref.filePath ?? "",
+      line: lineNum,
+      code: ref.code ?? "",
+    };
+    const b64 = btoa(encodeURIComponent(JSON.stringify(payload)));
+    return `${THREAD_REF_PREFIX}${b64}]]${text}`;
+  } catch {
+    return text;
+  }
+}
+
+function decodeThreadRefContent(content: string): { text: string; ref: ThreadLineRef | null } {
+  if (typeof content !== "string" || !content.startsWith(THREAD_REF_PREFIX)) {
+    return { text: content ?? "", ref: null };
+  }
+  const end = content.indexOf("]]");
+  if (end < 0) return { text: content, ref: null };
+  const b64 = content.slice(THREAD_REF_PREFIX.length, end);
+  const text = content.slice(end + 2);
+  try {
+    const payload = JSON.parse(decodeURIComponent(atob(b64)));
+    const line = Number(payload.line);
+    return {
+      text,
+      ref: {
+        fileName: String(payload.fileName ?? ""),
+        filePath: String(payload.filePath ?? ""),
+        line: Number.isFinite(line) ? line : 0,
+        code: String(payload.code ?? ""),
+      },
+    };
+  } catch {
+    return { text: content, ref: null };
+  }
+}
+
 function mapThreadReplyToWorkspaceMessage(reply: ThreadReply) {
   const isDeleted = reply.isDeleted === true || reply.content === DELETED_MESSAGE_CONTENT;
+  const decoded = isDeleted ? { text: DELETED_MESSAGE_LABEL, ref: null } : decodeThreadRefContent(reply.content);
+  const refFields = decoded.ref
+    ? {
+        fileId: decoded.ref.filePath || decoded.ref.fileName || "ref",
+        fileName: decoded.ref.fileName,
+        filePath: decoded.ref.filePath,
+        line: decoded.ref.line,
+        code: decoded.ref.code,
+      }
+    : {};
   return {
     id: reply.id,
     backendReplyId: reply.id,
@@ -856,9 +927,10 @@ function mapThreadReplyToWorkspaceMessage(reply: ThreadReply) {
     user: reply.senderName,
     avatar: reply.senderName?.charAt(0).toUpperCase() || "U",
     avatarUrl: reply.senderAvatarUrl || undefined,
-    text: isDeleted ? DELETED_MESSAGE_LABEL : reply.content,
-    message: isDeleted ? DELETED_MESSAGE_LABEL : reply.content,
+    text: isDeleted ? DELETED_MESSAGE_LABEL : decoded.text,
+    message: isDeleted ? DELETED_MESSAGE_LABEL : decoded.text,
     time: formatApiDateTime(reply.createdAt),
+    ...refFields,
     ...(isDeleted ? { deleted: true } : {})
   };
 }
@@ -2066,6 +2138,58 @@ export function ChatPage() {
       .catch(() => { /* ignore */ });
   }, [selectedChannel, currentRepo?.id, activeApiChannelId, selectedChannelMessageKey]);
 
+  // 통합 개요 진입 시: 연결된 각 리포지토리의 채널 메시지를 동기화/로드해 PR·이슈·위험 카운트를 계산
+  const [overviewCounts, setOverviewCounts] = useState<Record<string, { openPRs: number; activeIssues: number; highRisk: number }>>({});
+  useEffect(() => {
+    if (selectedChannel !== 'overview') return;
+    let cancelled = false;
+    visibleRepositories.forEach((repo) => {
+      const apiChannel = repositoryApiChannelByRepoId[repo.id];
+      if (!apiChannel) return;
+      const channelId = apiChannel.id;
+      const repoDbId = repo.dbRepoId != null
+        ? Number(repo.dbRepoId)
+        : Number(String(repo.id).replace('repo-', ''));
+      (async () => {
+        try {
+          if (Number.isFinite(repoDbId)) {
+            await syncRepositoryPullRequests(repoDbId).catch(() => { /* ignore */ });
+            await syncRepositoryIssues(repoDbId).catch(() => { /* ignore */ });
+          }
+          const serverMessages = await getChannelMessages(channelId, { limit: 50 });
+          const mapped = dedupeRepositoryMessagesByNumber(serverMessages.map(mapChannelMessageToWorkspaceMessage)) as any[];
+          const isOpenPr = (m: any) => m.type === 'pr' && m.prStatus !== 'merged' && m.prStatus !== 'closed';
+          const isOpenIssue = (m: any) => m.type === 'issue' && m.issueStatus !== 'closed';
+          const openPRs = mapped.filter(isOpenPr).length;
+          const activeIssues = mapped.filter(isOpenIssue).length;
+          const highRisk = mapped.filter(
+            (m) => String(m.aiRisk).toLowerCase() === 'high' && (isOpenPr(m) || isOpenIssue(m))
+          ).length;
+          if (!cancelled) {
+            setOverviewCounts((prev) => ({ ...prev, [repo.id]: { openPRs, activeIssues, highRisk } }));
+          }
+        } catch {
+          /* ignore */
+        }
+      })();
+    });
+    return () => { cancelled = true; };
+  }, [selectedChannel, visibleRepositories, repositoryApiChannelByRepoId]);
+
+  const workspaceOnlineCount = getWorkspaceDisplayedOnlineCount(currentWorkspace);
+  const overviewRepositories = useMemo(() => {
+    return visibleRepositories.map((repo) => {
+      const counts = overviewCounts[repo.id];
+      return {
+        ...repo,
+        openPRs: counts?.openPRs ?? repo.openPRs ?? 0,
+        activeIssues: counts?.activeIssues ?? repo.activeIssues ?? 0,
+        highRisk: counts?.highRisk ?? repo.highRisk ?? 0,
+        membersOnline: workspaceOnlineCount,
+      };
+    });
+  }, [visibleRepositories, overviewCounts, workspaceOnlineCount]);
+
   const hasChatAccessToken = Boolean(getAccessToken());
   const realtimeConnectionBlockReason = useMemo<RealtimeConnectionReason | null>(() => {
     if (!Number.isFinite(currentWorkspaceApiId) || currentWorkspaceApiId <= 0) return "workspace-unavailable";
@@ -3098,9 +3222,10 @@ export function ChatPage() {
 
     if (alreadyExists) return;
 
+    const decodedReplyText = decodeThreadRefContent(reply.content).text;
     const pendingIndex = currentReplies.findIndex((item) =>
       item.pending
-      && item.text === reply.content
+      && (item.text === reply.content || item.text === decodedReplyText)
       && (!item.backendThreadId || Number(item.backendThreadId) === Number(reply.threadId))
       && (item.senderMemberId == null || Number(item.senderMemberId) === Number(reply.senderMemberId))
     );
@@ -3522,6 +3647,60 @@ export function ChatPage() {
 
     return () => controller.abort();
   }, [activeApiChannelId, getThreadReplyStateKey, selectedThread?.backendMessageId, selectedThread?.id]);
+
+  // PR/이슈 패널을 열 때 서버에서 스레드 답글을 로드한다.
+  // (selectedThread 전용 effect와 달리 PR/이슈는 별도 상태라, 이게 없으면 새로고침 후 답글이 사라졌다)
+  useEffect(() => {
+    const target = selectedPR ?? selectedIssue;
+    if (!target) return;
+
+    const threadId = Number(target.backendMessageId ?? target.id);
+    if (!Number.isFinite(threadId) || !target.backendMessageId) return;
+
+    const controller = new AbortController();
+    const threadKey = getThreadReplyStateKey(target);
+
+    getThreadReplies(threadId, { signal: controller.signal })
+      .then((serverReplies) => {
+        const mappedReplies = serverReplies.map(mapThreadReplyToWorkspaceMessage);
+        setThreadReplies((prev) => {
+          // 아직 서버 echo를 못 받은 pending 답글은 보존하고 서버 답글로 교체
+          const pending = (prev[threadKey] ?? []).filter((item) => item?.pending);
+          const merged = [...mappedReplies];
+          pending.forEach((p) => {
+            const decoded = decodeThreadRefContent(String(p.text ?? ""));
+            const exists = merged.some((m) => m.text === p.text || m.text === decoded.text);
+            if (!exists) merged.push(p);
+          });
+          return { ...prev, [threadKey]: merged };
+        });
+        setThreadReplyCounts((prev) => ({
+          ...prev,
+          [threadKey]: Math.max(prev[threadKey] ?? 0, mappedReplies.length)
+        }));
+        setSelectedPR((prev: any) =>
+          prev && getThreadReplyStateKey(prev) === threadKey
+            ? { ...prev, replies: Math.max(prev.replies ?? 0, mappedReplies.length) }
+            : prev
+        );
+        setSelectedIssue((prev: any) =>
+          prev && getThreadReplyStateKey(prev) === threadKey
+            ? { ...prev, replies: Math.max(prev.replies ?? 0, mappedReplies.length) }
+            : prev
+        );
+      })
+      .catch(() => {
+        // 백엔드 미가용 시 기존 로컬/pending 답글 유지
+      });
+
+    return () => controller.abort();
+  }, [
+    getThreadReplyStateKey,
+    selectedPR?.backendMessageId,
+    selectedPR?.id,
+    selectedIssue?.backendMessageId,
+    selectedIssue?.id,
+  ]);
 
   const mentionRefetchTimeoutRef = useRef<number | null>(null);
 
@@ -5630,7 +5809,11 @@ export function ChatPage() {
     if (!Number.isFinite(backendThreadId)) return;
 
     const stateKey = getInteractionStateKey(threadKey);
-    const content = String(optimisticReply.text).trim();
+    // DIFF 라인 참조가 있으면 파일/줄/코드를 content에 인코딩해 함께 전송(전체 멤버에게 브로드캐스트됨)
+    const lineRef = (msg && Number(msg.line) > 0 && (msg.filePath || msg.fileName))
+      ? { fileName: msg.fileName, filePath: msg.filePath, line: msg.line, code: msg.code }
+      : null;
+    const content = encodeThreadRefContent(lineRef, String(optimisticReply.text).trim());
     const stompClient = chatStompRef.current;
 
     if (stompClient) {
@@ -6469,7 +6652,8 @@ export function ChatPage() {
             )}
             {selectedChannel === 'overview' ? (
               <OverviewPanel
-                repositories={visibleRepositories}
+                repositories={overviewRepositories}
+                onlineMembers={workspaceOnlineCount}
                 selectedRepositoryId={selectedRepository}
                 onSelectRepository={setSelectedRepository}
                 bookmarkGroups={workspaceBookmarkGroups}
