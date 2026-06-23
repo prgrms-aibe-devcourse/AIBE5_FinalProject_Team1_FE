@@ -502,20 +502,9 @@ export function PRReviewPanel({ prData, repositoryDbId, workspaceId, onClose, on
   const summaryText = aiSummary?.summaryText ?? null;
   const cautionItems = aiSummary?.cautionItems ?? [];
   const positiveItems = aiSummary?.positiveItems ?? [];
-  const originalWhatItems = isActualPr
-    ? actualPrWhatItems
-    : [
-      "JWT 인증 미들웨어를 사용자 API 흐름에 적용한다",
-      "SecurityConfig를 stateless 세션 기준으로 정리한다",
-      "인증 실패 응답 형식을 API 공통 에러 형식에 맞춘다",
-      "CSRF 비활성화 사유와 refresh token 요청 제한을 리뷰에서 확인한다"
-    ];
-  const originalIssueTitle = isActualPr
-    ? "[Refactor] AI 인터뷰 결과 반영 시 부분 수정 유지 정책 정교화 #103"
-    : "PR #234 인증 미들웨어 적용 범위 확인";
-  const originalChecklistItems = isActualPr
-    ? actualPrChecklistItems
-    : ["브랜치 base가 적절한가요?", "보안 변경 사항을 리뷰어에게 공유했나요?", "최소 1명의 리뷰를 받았나요?"];
+  const originalWhatItems = actualPrWhatItems;
+  const originalIssueTitle = "[Refactor] AI 인터뷰 결과 반영 시 부분 수정 유지 정책 정교화 #103";
+  const originalChecklistItems = actualPrChecklistItems;
   const originalActivityText = prData.time ? `opened ${prData.time}` : "opened";
 
   useEffect(() => {
