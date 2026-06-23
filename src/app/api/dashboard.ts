@@ -18,11 +18,9 @@ export type DashboardWorkspace = {
 };
 
 export function fetchDashboardSummary(): Promise<DashboardSummary> {
-  return fetchWithAuth<{ success: boolean; data: DashboardSummary }>("/api/dashboard/summary")
-    .then((res) => res.data);
+  return fetchWithAuth<DashboardSummary>("/api/dashboard/summary");
 }
 
 export function fetchDashboardWorkspaces(): Promise<DashboardWorkspace[]> {
-  return fetchWithAuth<{ success: boolean; data: DashboardWorkspace[] }>("/api/dashboard/workspaces")
-    .then((res) => res.data ?? []);
+  return fetchWithAuth<DashboardWorkspace[]>("/api/dashboard/workspaces");
 }
