@@ -1,0 +1,89 @@
+name: Frontend Deploy
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-production
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22"
+  FRONTEND_TEMP_PATH: /tmp/codedock-frontend
+
+jobs:
+  build-and-deploy:
+    name: Build and deploy frontend
+    runs-on: ubuntu-latest
+
+    env:
+      VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || secrets.VITE_API_BASE_URL }}
+      VITE_WS_BASE_URL: ${{ vars.VITE_WS_BASE_URL || secrets.VITE_WS_BASE_URL }}
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Upload dist to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.EC2_SSH_PORT || '22' }}
+          source: "dist/*"
+          target: ${{ env.FRONTEND_TEMP_PATH }}
+          strip_components: 1
+          rm: true
+
+      - name: Replace nginx static files and reload
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.EC2_SSH_PORT || '22' }}
+          script_stop: true
+          script: |
+            set -e
+
+            DEPLOY_PATH="${{ secrets.FRONTEND_DEPLOY_PATH || '/var/www/codedock' }}"
+            TEMP_PATH="${{ env.FRONTEND_TEMP_PATH }}"
+
+            if [ -z "$DEPLOY_PATH" ]; then
+              echo "FRONTEND_DEPLOY_PATH is empty."
+              exit 1
+            fi
+
+            if [ ! -f "$TEMP_PATH/index.html" ]; then
+              echo "Frontend dist upload is missing index.html."
+              exit 1
+            fi
+
+            sudo mkdir -p "$DEPLOY_PATH"
+            sudo find "$DEPLOY_PATH" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+            sudo cp -R "$TEMP_PATH"/. "$DEPLOY_PATH"/
+            sudo find "$DEPLOY_PATH" -type d -exec chmod 755 {} \;
+            sudo find "$DEPLOY_PATH" -type f -exec chmod 644 {} \;
+
+            sudo nginx -t
+            sudo nginx -s reload
+
+            rm -rf "$TEMP_PATH"
