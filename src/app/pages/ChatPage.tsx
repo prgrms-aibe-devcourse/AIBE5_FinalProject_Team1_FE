@@ -76,6 +76,7 @@ import {
   connectWorkspaceRepository,
   fetchWorkspaceRepositories,
   registerWorkspaceRepositoryWebhook,
+  syncRepositoryIssues,
   syncRepositoryIssueStatuses,
   syncRepositoryPullRequests,
   syncRepositoryPrStatuses
@@ -1998,6 +1999,28 @@ export function ChatPage() {
       .then((serverMessages) => {
         const mapped = serverMessages.map(mapChannelMessageToWorkspaceMessage);
         const filtered = mapped.filter((m) => (m as any).type === 'pr');
+        setMessages((prev) => ({ ...prev, [channelKey]: filtered }));
+      })
+      .catch(() => { /* ignore */ });
+  }, [selectedChannel, currentRepo?.id, activeApiChannelId, selectedChannelMessageKey]);
+
+  // issues 탭 진입 시 GitHub API에서 이슈 목록을 DB로 동기화한 뒤 메시지 재로드.
+  // (PR과 달리 그동안 생성 동기화가 없어, 웹훅을 놓친/이전에 만든 이슈가 다른 멤버에게 안 보이던 문제 해결)
+  useEffect(() => {
+    if (selectedChannel !== 'issues' || !currentRepo || !activeApiChannelId) return;
+    const repoDbId = Number(currentRepo.id.replace('repo-', ''));
+    if (!Number.isFinite(repoDbId)) return;
+
+    const channelKey = selectedChannelMessageKey;
+    const channelId = activeApiChannelId;
+
+    // 1) GitHub API로 기존 이슈 가져와 스레드 생성, 2) DB 기반 상태 동기화, 3) 메시지 로드
+    syncRepositoryIssues(repoDbId).catch(() => { /* ignore */ })
+      .then(() => syncRepositoryIssueStatuses(String(repoDbId)).catch(() => { /* ignore */ }))
+      .then(() => getChannelMessages(channelId, { limit: 50 }))
+      .then((serverMessages) => {
+        const mapped = serverMessages.map(mapChannelMessageToWorkspaceMessage);
+        const filtered = mapped.filter((m) => (m as any).type === 'issue');
         setMessages((prev) => ({ ...prev, [channelKey]: filtered }));
       })
       .catch(() => { /* ignore */ });
