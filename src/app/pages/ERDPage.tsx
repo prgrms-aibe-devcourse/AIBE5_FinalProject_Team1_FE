@@ -668,7 +668,7 @@ export function ERDPage({ embedded = false, workspaceId }: ERDPageProps) {
       className={embedded ? "flex h-full min-h-0 flex-col overflow-hidden px-5 py-5" : "w-[min(1500px,calc(100vw-36px))] mx-auto py-12 pb-20"}
     >
       <header
-        className={embedded ? "mb-4 flex items-start justify-between gap-4 pr-36" : "mb-7 flex flex-wrap items-start justify-between gap-4"}
+        className={embedded ? "mb-4 flex flex-wrap items-start justify-between gap-4" : "mb-7 flex flex-wrap items-start justify-between gap-4"}
       >
         <div className="flex min-w-0 items-start gap-3">
           <Database size={embedded ? 24 : 30} style={{ color: "var(--soft-mint)", marginTop: 3 }} />
@@ -684,15 +684,15 @@ export function ERDPage({ embedded = false, workspaceId }: ERDPageProps) {
           </div>
         </div>
 
-        <div className={embedded ? "flex min-w-0 flex-nowrap items-center justify-end gap-3 overflow-visible codedock-scrollbar-hidden" : "flex flex-wrap items-center gap-2"}>
+        <div className={embedded ? "flex min-w-0 flex-wrap items-center justify-end gap-2 overflow-visible codedock-scrollbar-hidden" : "flex flex-wrap items-center gap-2"}>
           <div
-            className={embedded ? "flex shrink-0 flex-nowrap items-center gap-2" : "flex flex-wrap items-center gap-2"}
+            className={embedded ? "flex shrink-0 flex-wrap items-center gap-2" : "flex flex-wrap items-center gap-2"}
           >
             <button
               type="button"
               onClick={handleGenerateErd}
               disabled={isGenerating || !workspaceId}
-              className="inline-flex shrink-0 items-center gap-2 rounded-lg border-0 px-3 py-2 tracking-tight transition-all hover:scale-[1.02]"
+              className="inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg border-0 px-3 py-2 tracking-tight transition-all hover:scale-[1.02]"
               style={{
                 background: "rgba(255, 145, 77, 0.10)",
                 border: "1px solid rgba(255, 145, 77, 0.32)",
@@ -710,7 +710,7 @@ export function ERDPage({ embedded = false, workspaceId }: ERDPageProps) {
               <button
                 type="button"
                 onClick={() => setShowDownloadMenu((v) => !v)}
-                className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border-0 px-3 tracking-tight"
+                className="inline-flex h-9 min-w-[104px] shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border-0 px-3 tracking-tight"
                 style={{
                   background: "rgba(234, 247, 255, 0.06)",
                   border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)",

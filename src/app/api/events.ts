@@ -16,6 +16,17 @@ export type WorkspaceEventDto = {
   repositoryId: number | null;
   repositoryName: string | null;
   content: string;
+  emoji?: string | null;
+  reactionEmoji?: string | null;
+  emojiKey?: string | null;
+  reactionKey?: string | null;
+  metadata?: {
+    emoji?: string | null;
+    reactionEmoji?: string | null;
+    emojiKey?: string | null;
+    reactionKey?: string | null;
+    [key: string]: unknown;
+  } | null;
   createdAt: string;
 };
 

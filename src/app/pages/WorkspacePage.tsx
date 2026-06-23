@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useNavigate } from "react-router";
 import { ArrowRight, AtSign, Check, ChevronDown, CircleDot, CornerDownRight, GitFork, GitPullRequest, Loader2, MessageSquare, Plus, Settings2, Users, X } from "lucide-react";
 import { WorkspaceSettingsModal } from "../components/WorkspaceSettingsModal";
+import { REACTION_KEY_TO_EMOJI } from "../components/EmojiPicker";
 import { DndProvider, useDrag, useDrop, useDragLayer } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { fetchMyGithubRepos, fetchRepoCollaborators, fetchWorkspaceRepositories, connectWorkspaceRepository, type GithubCollaborator, type GithubRepo } from "../api/github";
@@ -17,6 +18,10 @@ const DASHBOARD_EVENT_SCROLL_MAX_HEIGHT = 420;
 const DEFAULT_ACCENT = "#8B94A7"; // default grey
 type SortOrder = "name" | "latest" | "activity";
 type DashboardEventFilter = "ALL" | EventType;
+const REACTION_KEY_PATTERN = new RegExp(
+  `\\b(${Object.keys(REACTION_KEY_TO_EMOJI).map((key) => key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})\\b`,
+  "g"
+);
 
 const DASHBOARD_EVENT_FILTERS: Array<{ value: DashboardEventFilter; label: string }> = [
   { value: "ALL", label: "전체" },
@@ -1499,6 +1504,50 @@ export function WorkspacePage() {
     return `${Math.floor(hours / 24)}일 전`;
   };
 
+  const normalizeEventEmoji = (value?: string | null) => {
+    const trimmed = value?.trim();
+    if (!trimmed) return "";
+    return REACTION_KEY_TO_EMOJI[trimmed] ?? trimmed;
+  };
+
+  const replaceReactionKeys = (content: string) => {
+    return content.replace(REACTION_KEY_PATTERN, (key) => REACTION_KEY_TO_EMOJI[key] ?? key);
+  };
+
+  const getEventEmoji = (event: WorkspaceEventDto) => {
+    return normalizeEventEmoji(event.emoji)
+      || normalizeEventEmoji(event.reactionEmoji)
+      || normalizeEventEmoji(event.emojiKey)
+      || normalizeEventEmoji(event.reactionKey)
+      || normalizeEventEmoji(event.metadata?.emoji)
+      || normalizeEventEmoji(event.metadata?.reactionEmoji)
+      || normalizeEventEmoji(event.metadata?.emojiKey)
+      || normalizeEventEmoji(event.metadata?.reactionKey);
+  };
+
+  const formatEventContent = (event: WorkspaceEventDto) => {
+    const content = event.content?.trim() ?? "";
+    const emoji = getEventEmoji(event).trim();
+    const contentWithReactionKeys = replaceReactionKeys(content);
+    const contentIsReactionKey = content !== contentWithReactionKeys && Object.prototype.hasOwnProperty.call(REACTION_KEY_TO_EMOJI, content);
+    const hasBrokenEmojiPlaceholder = /(?:\?\s*){2,}/.test(content);
+
+    if (!content) {
+      return emoji ? `${emoji} 이모지 반응` : "";
+    }
+
+    if (contentIsReactionKey) {
+      return `${contentWithReactionKeys} 이모지 반응`;
+    }
+
+    if (!hasBrokenEmojiPlaceholder) {
+      return contentWithReactionKeys;
+    }
+
+    // DB에는 채팅과 같은 reaction key가 저장될 수 있으니 key가 있으면 채팅 이모지 맵으로 우선 복원한다.
+    return content.replace(/(?:\?\s*){2,}/g, emoji || "이모지 반응");
+  };
+
   return (
     <DndProvider backend={HTML5Backend}>
       <div className="mx-auto w-[min(1600px,calc(100vw-24px))] py-[clamp(28px,4vw,48px)] pb-20">
@@ -1736,7 +1785,7 @@ export function WorkspacePage() {
                             ))}
                           </div>
                           <p className="m-0 tracking-tight truncate" style={{ fontSize: "13px", fontWeight: 700, color: "rgba(255,255,255,0.55)" }}>
-                            {event.content}
+                            {formatEventContent(event)}
                           </p>
                         </div>
                         <span className="flex-shrink-0 tracking-tight" style={{ fontSize: "12px", fontWeight: 700, color: "var(--muted)", whiteSpace: "nowrap" }}>

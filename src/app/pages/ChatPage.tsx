@@ -237,6 +237,8 @@ const DOCUMENTATION_CHANNELS: SidebarChannel[] = [
   { id: 'docs', label: '문서', icon: BookOpen }
 ];
 
+const CHANNEL_BOOKMARK_EXCLUDED_CHANNELS = new Set(['overview', 'api-spec', 'erd', 'docs', 'work-board', 'team']);
+
 const ALL_SIDEBAR_CHANNELS = [
   { id: 'overview', label: '통합 개요', icon: Home },
   { id: 'general', label: '일반', icon: Hash },
@@ -1424,10 +1426,11 @@ export function ChatPage() {
   }, [refreshWorkspaceList]);
 
   // 내가 속한 워크스페이스 id 집합. 이 집합이 바뀔 때만 presence 구독을 재설정(카운트 변경 refetch로는 재구독 안 함).
-  const workspacePresenceSubKey = useMemo(
-    () => apiWorkspaces.map((w) => w.id).sort((a, b) => a - b).join(","),
+  const workspacePresenceIds = useMemo(
+    () => apiWorkspaces.map((w) => w.id).sort((a, b) => a - b),
     [apiWorkspaces]
   );
+  const workspacePresenceSubKey = workspacePresenceIds.join(",");
 
   const workspaceList = apiWorkspaces.length > 0
     ? apiWorkspaces.map(ws => ({ id: toWorkspaceUiId(ws.id), apiId: ws.id, name: ws.name, myRole: ws.myRole, membersOnline: ws.membersOnline ?? 0, connected: true }))
@@ -2457,6 +2460,8 @@ export function ChatPage() {
   const shouldShowRealtimeConnectionNotice =
     Boolean(realtimeConnectionNotice)
     && !['overview', 'api-spec', 'erd', 'docs', 'work-board', 'team'].includes(selectedChannel);
+  const shouldShowPanelActions = hasRepositories && selectedChannel !== 'team';
+  const shouldShowChannelBookmarkAction = shouldShowPanelActions && !CHANNEL_BOOKMARK_EXCLUDED_CHANNELS.has(selectedChannel);
   const selectedRepositoryName = repositories.find((repo) => repo.id === selectedRepository)?.name ?? '전체 리포지토리';
 
   const currentPresence = presenceOptions.find((option) => option.id === userPresence) ?? presenceOptions[0];
@@ -4010,26 +4015,28 @@ export function ChatPage() {
 
   useEffect(() => {
     const client = chatStompRef.current;
-    if (!client || apiWorkspaces.length === 0) return;
+    const subscribedWorkspaceIds = workspacePresenceSubKey
+      .split(",")
+      .map((id) => Number(id))
+      .filter((id) => Number.isFinite(id));
+    if (!client || subscribedWorkspaceIds.length === 0) return;
     // 입장/재연결 시 BE가 보내는 presence 스냅샷(개인 큐). 토픽 구독보다 먼저 구독해 스냅샷을 놓치지 않음.
     const snapshotSub = client.subscribe<unknown>(
       "/user/queue/presence",
       (payload) => {
         if (!hasPresencePayload(payload)) return;
         applyPresencePayload(payload);
-        scheduleCurrentWorkspaceMembersRefresh();
-        scheduleWorkspaceListRefresh();
       }
     );
     // 내가 속한 "모든" 워크스페이스의 presence 토픽 구독 → 어느 워크스페이스에서 누가 들고나도 실시간 반영.
     // 현재 워크스페이스: override로 헤더/멤버목록 즉시 갱신. 모든 워크스페이스: 목록 카운트 디바운스 refetch.
-    const topicSubs = apiWorkspaces.map((ws) =>
+    const topicSubs = subscribedWorkspaceIds.map((workspaceId) =>
       client.subscribe<unknown>(
-        `/topic/workspaces/${ws.id}/presence`,
+        `/topic/workspaces/${workspaceId}/presence`,
         (payload) => {
           if (!hasPresencePayload(payload)) return;
-          if (Number(ws.id) === Number(currentWorkspaceApiId)) {
-            applyPresencePayload(payload, ws.id);
+          if (Number(workspaceId) === Number(currentWorkspaceApiId)) {
+            applyPresencePayload(payload, workspaceId);
             scheduleCurrentWorkspaceMembersRefresh();
           }
           scheduleWorkspaceListRefresh();
@@ -4042,7 +4049,6 @@ export function ChatPage() {
     };
   }, [
     applyPresencePayload,
-    apiWorkspaces,
     chatStompReadyKey,
     currentWorkspaceApiId,
     scheduleCurrentWorkspaceMembersRefresh,
@@ -6232,9 +6238,9 @@ export function ChatPage() {
             boxShadow: '0 20px 60px rgba(0, 0, 0, 0.32)',
             backdropFilter: 'blur(16px)'
           }}>
-            {hasRepositories && selectedChannel !== 'team' && (
+            {shouldShowPanelActions && (
               <div className="absolute right-4 top-4 z-40 flex items-start gap-2">
-                {selectedChannel !== 'overview' && (
+                {shouldShowChannelBookmarkAction && (
                 <div className="relative">
                   <button
                     type="button"
@@ -6430,15 +6436,15 @@ export function ChatPage() {
                 onOpenBookmark={focusChannelMessage}
               />
             ) : selectedChannel === 'api-spec' ? (
-              <EmbeddedPanelBoundary key="api-spec">
+              <EmbeddedPanelBoundary key="api-spec" reserveTopActionSpace={shouldShowPanelActions}>
                 <APISpecPage embedded expanded={isMainExpanded} workspaceId={currentWorkspaceApiId} />
               </EmbeddedPanelBoundary>
             ) : selectedChannel === 'erd' ? (
-              <EmbeddedPanelBoundary key={`erd-${selectedRepository}`}>
+              <EmbeddedPanelBoundary key={`erd-${selectedRepository}`} reserveTopActionSpace={shouldShowPanelActions}>
                 <ERDPage embedded workspaceId={currentWorkspaceApiId} />
               </EmbeddedPanelBoundary>
             ) : selectedChannel === 'docs' ? (
-              <EmbeddedPanelBoundary key="docs">
+              <EmbeddedPanelBoundary key="docs" reserveTopActionSpace={shouldShowPanelActions}>
                 <DocsPage embedded expanded={isMainExpanded} workspaceId={currentWorkspaceApiId} />
               </EmbeddedPanelBoundary>
             ) : selectedChannel === 'general' || allCustomChannels.some(ch => ch.id === selectedChannel) || selectedRepositoryApiChannel || selectedOrphanRepositoryChannel ? (
@@ -7334,8 +7340,18 @@ export function ChatPage() {
   );
 }
 
-function EmbeddedPanelBoundary({ children }: { children: ReactNode }) {
+function EmbeddedPanelBoundary({
+  children,
+  reserveTopActionSpace = false
+}: {
+  children: ReactNode;
+  reserveTopActionSpace?: boolean;
+}) {
   return (
+    <div
+      className="h-full min-h-0"
+      style={{ paddingTop: reserveTopActionSpace ? 68 : 0, boxSizing: "border-box" }}
+    >
     <ErrorBoundary
       fallbackTitle="탭 화면을 불러오지 못했습니다"
       fallbackMessage="API 명세, ERD, 문서 화면 렌더링 중 오류가 발생했습니다. 다른 채널로 이동한 뒤 다시 열어주세요."
@@ -7344,6 +7360,7 @@ function EmbeddedPanelBoundary({ children }: { children: ReactNode }) {
         {children}
       </Suspense>
     </ErrorBoundary>
+    </div>
   );
 }
 

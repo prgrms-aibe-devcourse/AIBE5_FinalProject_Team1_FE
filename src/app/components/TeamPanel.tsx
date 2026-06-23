@@ -14,7 +14,7 @@ import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { fetchWithAuth } from "../api/fetchWithAuth";
-import type { WorkspaceMember } from "../api/workspace";
+import { changeMemberRole, type WorkspaceMember } from "../api/workspace";
 
 interface UserProfile {
   id: number;
@@ -34,8 +34,11 @@ interface TeamPanelProps {
   presenceOverrides?: Record<string, string>; // memberId → presence
 }
 
+type WorkspaceRole = "owner" | "admin" | "editor" | "viewer";
+
 interface TeamMember {
   id: string;
+  userId: string;
   initials: string;
   name: string;
   role: string;
@@ -73,30 +76,45 @@ interface TeamRoom {
   icon: LucideIcon;
 }
 
-const roleOptions = [
-  "Tech Lead",
-  "Backend Developer",
-  "Frontend Developer",
-  "DevOps Engineer",
-  "QA Engineer",
-  "Product Manager",
-  "Designer",
-  "Viewer"
+const roleOptions: Array<{ value: WorkspaceRole; label: string; description: string }> = [
+  { value: "owner", label: "소유자", description: "워크스페이스 전체 권한" },
+  { value: "admin", label: "관리자", description: "팀원과 채널 관리 가능" },
+  { value: "editor", label: "편집자", description: "채팅과 콘텐츠 편집 가능" },
+  { value: "viewer", label: "뷰어", description: "조회 중심 권한" }
 ];
 
 const roleMeta: Record<string, { color: string; bg: string; border: string }> = {
-  "Tech Lead": { color: "var(--neon-cyan)", bg: "rgba(var(--codedock-primary-rgb), 0.12)", border: "rgba(var(--codedock-primary-rgb), 0.34)" },
-  "Backend Developer": { color: "var(--matrix-green)", bg: "rgba(var(--codedock-secondary-rgb), 0.11)", border: "rgba(var(--codedock-secondary-rgb), 0.30)" },
-  "Frontend Developer": { color: "#B58CFF", bg: "rgba(181, 140, 255, 0.12)", border: "rgba(181, 140, 255, 0.30)" },
-  "DevOps Engineer": { color: "#FFD166", bg: "rgba(255, 209, 102, 0.12)", border: "rgba(255, 209, 102, 0.30)" },
-  "QA Engineer": { color: "#7DD3FC", bg: "rgba(125, 211, 252, 0.12)", border: "rgba(125, 211, 252, 0.30)" },
-  "Product Manager": { color: "#F0ABFC", bg: "rgba(240, 171, 252, 0.12)", border: "rgba(240, 171, 252, 0.30)" },
-  "Designer": { color: "#FDA4AF", bg: "rgba(253, 164, 175, 0.12)", border: "rgba(253, 164, 175, 0.30)" },
-  "Viewer": { color: "#A8B3C7", bg: "rgba(168, 179, 199, 0.10)", border: "rgba(168, 179, 199, 0.24)" }
+  owner: { color: "var(--neon-cyan)", bg: "rgba(var(--codedock-primary-rgb), 0.12)", border: "rgba(var(--codedock-primary-rgb), 0.34)" },
+  admin: { color: "var(--matrix-green)", bg: "rgba(var(--codedock-secondary-rgb), 0.11)", border: "rgba(var(--codedock-secondary-rgb), 0.30)" },
+  editor: { color: "#B58CFF", bg: "rgba(181, 140, 255, 0.12)", border: "rgba(181, 140, 255, 0.30)" },
+  viewer: { color: "#A8B3C7", bg: "rgba(168, 179, 199, 0.10)", border: "rgba(168, 179, 199, 0.24)" }
 };
 
 function getRoleMeta(role: string) {
   return roleMeta[role] ?? { color: "var(--neon-cyan)", bg: "rgba(var(--codedock-primary-rgb), 0.10)", border: "rgba(var(--codedock-primary-rgb), 0.24)" };
+}
+
+function normalizeWorkspaceRole(role?: string | null): WorkspaceRole {
+  const normalized = role?.trim().toLowerCase();
+  if (normalized === "owner" || normalized === "소유자") return "owner";
+  if (normalized === "admin" || normalized === "관리자") return "admin";
+  if (normalized === "editor" || normalized === "편집자" || normalized === "편집 가능") return "editor";
+  if (normalized === "viewer" || normalized === "뷰어" || normalized === "보기 가능") return "viewer";
+  if (normalized === "owner" || normalized === "admin" || normalized === "editor" || normalized === "viewer") {
+    return normalized;
+  }
+  return "viewer";
+}
+
+function getRoleLabel(role: string) {
+  return roleOptions.find((option) => option.value === normalizeWorkspaceRole(role))?.label ?? role;
+}
+
+function canManageMemberRole(managerRole: WorkspaceRole, targetRole: WorkspaceRole, targetMemberId: string, currentMemberId?: string) {
+  if (targetMemberId === currentMemberId) return false;
+  if (managerRole === "owner") return targetRole !== "owner";
+  if (managerRole === "admin") return targetRole !== "owner" && targetRole !== "admin";
+  return false;
 }
 
 const teamRooms: TeamRoom[] = [
@@ -155,9 +173,10 @@ const roomPreviewMessages = [
 const ALL_MEMBERS: TeamMember[] = [
   {
     id: "jaejun",
+    userId: "jaejun",
     initials: "JJ",
     name: "김재준",
-    role: "Tech Lead",
+    role: "owner",
     email: "jaejun@codedock.dev",
     github: "kimjaejun",
     online: true,
@@ -169,9 +188,10 @@ const ALL_MEMBERS: TeamMember[] = [
   },
   {
     id: "jinpil",
+    userId: "jinpil",
     initials: "JP",
     name: "김진필",
-    role: "Backend Developer",
+    role: "admin",
     email: "jinpil@codedock.dev",
     github: "kimjinpil",
     online: true,
@@ -182,9 +202,10 @@ const ALL_MEMBERS: TeamMember[] = [
   },
   {
     id: "junwoo",
+    userId: "junwoo",
     initials: "JW",
     name: "김준우",
-    role: "Frontend Developer",
+    role: "editor",
     email: "junwoo@codedock.dev",
     github: "kimjunwoo",
     online: true,
@@ -195,9 +216,10 @@ const ALL_MEMBERS: TeamMember[] = [
   },
   {
     id: "jinhyun",
+    userId: "jinhyun",
     initials: "JH",
     name: "김진현",
-    role: "DevOps Engineer",
+    role: "editor",
     email: "jinhyun@codedock.dev",
     github: "kimjinhyun",
     online: false,
@@ -208,9 +230,10 @@ const ALL_MEMBERS: TeamMember[] = [
   },
   {
     id: "hyun",
+    userId: "hyun",
     initials: "AH",
     name: "안현",
-    role: "QA Engineer",
+    role: "viewer",
     email: "hyun@codedock.dev",
     github: "ahnhyun",
     online: false,
@@ -264,6 +287,7 @@ export function TeamPanel({ workspaceId, workspaceApiId, currentMemberId, curren
 
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [activeRoomId, setActiveRoomId] = useState(teamRooms[1].id);
+  const [roleChangePendingMemberId, setRoleChangePendingMemberId] = useState<string | null>(null);
   const [notice, setNotice] = useState("팀원 역할 수정이 가능합니다.");
 
   useEffect(() => {
@@ -298,9 +322,10 @@ export function TeamPanel({ workspaceId, workspaceApiId, currentMemberId, curren
             : "#8B94A7";
           return {
             id: String(m.memberId),
+            userId: String(m.userId),
             initials: nameToInitials(m.username),
             name: m.username,
-            role: m.role || "Member",
+            role: normalizeWorkspaceRole(m.role),
             email: getPublicEmail(profileMap[m.userId]?.email, m.email),
             github: "",
             avatarUrl: profileMap[m.userId]?.avatarUrl ?? "",
@@ -326,8 +351,17 @@ export function TeamPanel({ workspaceId, workspaceApiId, currentMemberId, curren
     return { ...m, online: override !== 'offline', statusColor: presenceToColor(override) };
   }), [members, presenceOverrides]);
 
+  const currentMemberKey = currentMemberId == null ? undefined : String(currentMemberId);
+  const currentMember = useMemo(() => {
+    if (!currentMemberKey) return undefined;
+    return members.find((member) => member.id === currentMemberKey);
+  }, [currentMemberKey, members]);
+  const effectiveCurrentMemberId = currentMember?.id ?? currentMemberKey;
+  const managerRole = normalizeWorkspaceRole(currentMember?.role);
+  const canManageRoles = managerRole === "owner" || managerRole === "admin";
+
   const onlineCount = effectiveMembers.filter((member) =>
-    currentMemberId != null && member.id === String(currentMemberId) ? currentUserOnline : member.online
+    effectiveCurrentMemberId != null && member.id === effectiveCurrentMemberId ? currentUserOnline : member.online
   ).length;
   const activityItems = useMemo(() => {
     const commits = members.reduce((sum, member) => sum + member.commits, 0);
@@ -358,6 +392,44 @@ export function TeamPanel({ workspaceId, workspaceApiId, currentMemberId, curren
     setMembers(next);
     persistMembers(next);
     setNotice(`${target?.name ?? "팀원"} 역할을 ${nextRole}(으)로 변경했습니다.`);
+  };
+
+  const handleAuthorityRoleChange = async (memberId: string, nextRoleValue: string) => {
+    const target = members.find((m) => m.id === memberId);
+    if (!target) return;
+
+    const previousRole = normalizeWorkspaceRole(target.role);
+    const nextRole = normalizeWorkspaceRole(nextRoleValue);
+    if (previousRole === nextRole) return;
+
+    if (nextRole === "owner") {
+      setNotice("소유자 변경은 소유권 이전 기능에서 처리해야 합니다.");
+      return;
+    }
+    if (managerRole === "admin" && nextRole === "admin") {
+      setNotice("관리자는 관리자 권한을 부여할 수 없습니다.");
+      return;
+    }
+
+    if (!canManageMemberRole(managerRole, previousRole, memberId, effectiveCurrentMemberId)) {
+      setNotice("역할 변경은 owner/admin 권한이 있는 사용자만 할 수 있습니다.");
+      return;
+    }
+
+    const next = members.map((m) => m.id === memberId ? { ...m, role: nextRole } : m);
+    setMembers(next);
+    setRoleChangePendingMemberId(memberId);
+
+    try {
+      await changeMemberRole(workspaceApiId, Number(memberId), nextRole);
+      persistMembers(next);
+      setNotice(`${target.name} 역할을 ${getRoleLabel(nextRole)}(으)로 변경했습니다.`);
+    } catch (error) {
+      setMembers((prev) => prev.map((m) => m.id === memberId ? { ...m, role: previousRole } : m));
+      setNotice(error instanceof Error ? error.message : "역할 변경에 실패했습니다.");
+    } finally {
+      setRoleChangePendingMemberId(null);
+    }
   };
 
   return (
@@ -397,9 +469,20 @@ export function TeamPanel({ workspaceId, workspaceApiId, currentMemberId, curren
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        {effectiveMembers.map((member) => (
+        {effectiveMembers.map((member) => {
+          const memberRole = normalizeWorkspaceRole(member.role);
+          const canEditThisRole = canManageMemberRole(managerRole, memberRole, member.id, effectiveCurrentMemberId);
+          const roleDisabledReason = !canManageRoles
+            ? "owner/admin만 역할을 변경할 수 있습니다."
+            : member.id === effectiveCurrentMemberId
+            ? "내 권한은 여기서 직접 변경할 수 없습니다."
+            : memberRole === "owner"
+            ? "소유자 권한은 소유권 이전 기능으로 변경해야 합니다."
+            : undefined;
+
+          return (
           <article
-            key={member.email}
+            key={member.id}
             className="rounded-2xl px-5 py-4"
             style={{
               background: "rgba(11, 22, 40, 0.72)",
@@ -432,7 +515,7 @@ export function TeamPanel({ workspaceId, workspaceApiId, currentMemberId, curren
                     {member.name}
                   </h3>
                   <p className="m-0 mt-0.5 truncate tracking-tight" style={{ color: "var(--muted)", fontSize: 13, fontWeight: 800 }}>
-                    {member.role}
+                    {getRoleLabel(member.role)}
                   </p>
                 </div>
               </div>
@@ -443,7 +526,9 @@ export function TeamPanel({ workspaceId, workspaceApiId, currentMemberId, curren
               역할
               <RoleDropdown
                 value={member.role}
-                onChange={(role) => handleRoleChange(member.id, role)}
+                onChange={(role) => handleAuthorityRoleChange(member.id, role)}
+                disabled={!canEditThisRole || roleChangePendingMemberId === member.id}
+                disabledReason={roleDisabledReason}
                 aria-label={`${member.name} 역할 변경`}
               />
             </label>
@@ -463,7 +548,8 @@ export function TeamPanel({ workspaceId, workspaceApiId, currentMemberId, curren
               </div>
             )}
           </article>
-        ))}
+          );
+        })}
       </div>
 
       <section
@@ -518,10 +604,14 @@ export function TeamPanel({ workspaceId, workspaceApiId, currentMemberId, curren
 function RoleDropdown({
   value,
   onChange,
+  disabled = false,
+  disabledReason,
   "aria-label": ariaLabel
 }: {
   value: string;
   onChange: (role: string) => void;
+  disabled?: boolean;
+  disabledReason?: string;
   "aria-label"?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -531,6 +621,7 @@ function RoleDropdown({
   const meta = getRoleMeta(value);
 
   const openDropdown = () => {
+    if (disabled) return;
     const rect = buttonRef.current?.getBoundingClientRect();
     if (rect) {
       setDropPos({
@@ -572,6 +663,7 @@ function RoleDropdown({
         ref={buttonRef}
         type="button"
         onClick={() => open ? setOpen(false) : openDropdown()}
+        disabled={disabled}
         className="mt-1 flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-2.5 tracking-tight transition-all"
         style={{
           background: open
@@ -581,7 +673,8 @@ function RoleDropdown({
             ? "1px solid rgba(var(--codedock-primary-rgb), 0.44)"
             : "1px solid rgba(var(--codedock-primary-rgb), 0.18)",
           color: "var(--white)",
-          cursor: "pointer",
+          cursor: disabled ? "not-allowed" : "pointer",
+          opacity: disabled ? 0.62 : 1,
           boxShadow: open
             ? "0 14px 34px rgba(0, 0, 0, 0.34), 0 0 24px rgba(var(--codedock-primary-rgb), 0.10), inset 0 1px 0 rgba(255,255,255,0.08)"
             : "inset 0 1px 0 rgba(255,255,255,0.04)",
@@ -589,6 +682,7 @@ function RoleDropdown({
         }}
         aria-label={ariaLabel}
         aria-expanded={open}
+        title={disabled ? disabledReason : undefined}
       >
         <span className="flex min-w-0 items-center gap-2">
           <span
@@ -599,7 +693,7 @@ function RoleDropdown({
               fontWeight: 950
             }}
           >
-            {value}
+            {getRoleLabel(value)}
           </span>
         </span>
         <ChevronDown
@@ -632,14 +726,14 @@ function RoleDropdown({
           }}
         >
           {roleOptions.map((role) => {
-            const optionMeta = getRoleMeta(role);
-            const selected = role === value;
+            const optionMeta = getRoleMeta(role.value);
+            const selected = role.value === normalizeWorkspaceRole(value);
             return (
               <button
-                key={role}
+                key={role.value}
                 type="button"
                 onClick={() => {
-                  onChange(role);
+                  onChange(role.value);
                   setOpen(false);
                 }}
                 className="flex w-full items-center gap-3 rounded-xl border-0 px-3 py-2.5 text-left tracking-tight transition-all"
@@ -669,7 +763,17 @@ function RoleDropdown({
                     fontWeight: selected ? 950 : 850
                   }}
                 >
-                  {role}
+                  {role.label}
+                </span>
+                <span
+                  className="hidden truncate sm:block"
+                  style={{
+                    color: "var(--muted)",
+                    fontSize: 11,
+                    fontWeight: 750
+                  }}
+                >
+                  {role.description}
                 </span>
                 {selected && <Check size={15} style={{ color: optionMeta.color, flexShrink: 0 }} />}
               </button>

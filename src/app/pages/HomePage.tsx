@@ -14,6 +14,7 @@ import { Link } from "react-router";
 import {
   AnimatePresence,
   motion,
+  useInView,
   useMotionValue,
   useReducedMotion,
   useScroll,
@@ -31,47 +32,47 @@ const reviewSignals = [
 ];
 
 const mascotMessages = [
-  "안녕하세요. CodeDock입니다.",
-  "GitHub 흐름을 모아둘게요.",
-  "팀 대화도 같이 이어둘게요.",
-  "문서까지 한곳에서 챙겨요.",
+  "GitHub, 채팅, 문서... 다 모셔뒀어요. ☕",
+  "PR과 이슈를 한곳에 모아뒀어요.",
+  "리뷰 결정도 작업 옆에 남겨둘게요.",
+  "문서까지 한 흐름으로 이어둘게요.",
 ];
 
 const introMessages = [
-  "안녕하세요. CodeDock입니다.",
-  "GitHub, 팀 채팅, 문서를 한 워크스페이스로 모아드릴게요.",
-  "PR과 이슈의 작업 프로세스가 대화와 문서까지 자연스럽게 이어져요.",
-  "CodeDock은 GitHub 작업, 팀 채팅, API·ERD·문서를 하나의 흐름으로 연결해 개발팀의 결정과 기록이 흩어지지 않도록 돕는 AI 개발 워크스페이스입니다.",
+  "GitHub, 채팅, 문서... 다 모셔뒀어요. ☕",
+  "GitHub · 채팅 · 문서, 한 워크스페이스에서 이어드릴게요.",
+  "PR·이슈 작업, 팀 대화, API·ERD 문서가 같은 흐름으로 이어져요.",
+  "CodeDock은 결정과 기록이 흩어지지 않도록 GitHub 작업, 팀 채팅, 문서 허브를 하나의 개발 워크스페이스로 묶습니다.",
 ];
 
-const INTRO_DURATION_MS = 7000;
+const INTRO_DURATION_MS = 5000;
 
 const featureCards = [
   {
     icon: GitPullRequest,
     title: "GitHub 워크스페이스",
-    description: "PR, 이슈, 변경 파일을 한 화면으로 모읍니다.",
+    description: "PR·이슈·변경 파일을 한 화면에. 소스에서 결정까지 탭 전환 없이.",
     tone: "var(--neon-cyan)",
   },
   {
     icon: MessageSquare,
-    title: "팀 채팅과 결정 로그",
-    description: "리뷰 질문과 결정 사항을 채팅에 남깁니다.",
+    title: "팀 채팅 · 결정 로그",
+    description: "리뷰 질문과 결정을 채팅에 남기면, 다음에 같은 고민을 반복하지 않습니다.",
     tone: "var(--soft-mint)",
   },
   {
     icon: FileText,
     title: "문서 허브",
-    description: "API 명세, ERD, 리뷰 문서를 연결합니다.",
+    description: "API 명세·ERD·리뷰 문서를 PR·이슈에 연결해 배포 후에도 추적됩니다.",
     tone: "#FFD166",
   },
 ];
 
 const workspaceFlow = [
-  "GitHub 저장소 연결",
-  "PR·이슈·변경 파일 모으기",
-  "팀 채팅에서 리뷰 프로세스 정리",
-  "문서와 결정 사항으로 남기기",
+  "저장소 연결",
+  "PR·이슈·변경 모으기",
+  "채팅에서 리뷰 정리",
+  "문서·결정으로 기록",
 ];
 
 const toneAlpha = (color: string, percent: number) => `color-mix(in srgb, ${color} ${percent}%, transparent)`;
@@ -98,6 +99,10 @@ export function HomePage() {
   const flowRef = useRef<HTMLElement | null>(null);
   const closingRef = useRef<HTMLElement | null>(null);
   const prefersReducedMotion = useReducedMotion();
+  const heroInView = useInView(heroRef, { amount: 0.12 });
+  const featuresInView = useInView(featuresRef, { amount: 0.12 });
+  const flowInView = useInView(flowRef, { amount: 0.12 });
+  const closingInView = useInView(closingRef, { amount: 0.12 });
   const pointerX = useMotionValue(0);
   const pointerY = useMotionValue(0);
   const smoothPointerX = useSpring(pointerX, { stiffness: 130, damping: 22, mass: 0.35 });
@@ -120,20 +125,20 @@ export function HomePage() {
         {
           id: "brand",
           eyebrow: "CodeDock",
-          title: "Chat, GitHub, and docs in one place.",
+          title: "GitHub, chat, and docs in one workspace.",
           lines: [
-            "Hello. I'm CodeDock.",
-            "I connect GitHub work, team chat, and product docs into one workspace.",
+            "GitHub, chat, and docs are all here. ☕",
+            "I keep decisions and records from scattering across tools.",
           ],
         },
         {
           id: "features",
           eyebrow: "What I do",
-          title: "I'll keep your development process together.",
+          title: "PRs, team chat, and docs flow as one.",
           lines: [
-            "I collect PRs, issues, and changed files.",
-            "I keep team decisions in chat.",
-            "I connect API docs, ERDs, and review notes.",
+            "I bring repositories, PRs, issues, and changes together.",
+            "I keep review questions and decisions in team chat.",
+            "I connect API docs, ERDs, and review notes to the work.",
           ],
         },
       ]
@@ -141,20 +146,20 @@ export function HomePage() {
         {
           id: "brand",
           eyebrow: "CodeDock",
-          title: "채팅, GitHub, 문서가 한곳에.",
+          title: "GitHub · 채팅 · 문서, 한 워크스페이스에서.",
           lines: [
-            "안녕하세요. CodeDock입니다.",
-            "GitHub 작업, 팀 채팅, 문서를 하나의 워크스페이스로 연결해요.",
+            "GitHub, 채팅, 문서... 다 모셔뒀어요. ☕",
+            "결정과 기록이 흩어지지 않도록 한 워크스페이스로 연결해요.",
           ],
         },
         {
           id: "features",
           eyebrow: "제가 도와드릴 일",
-          title: "개발 프로세스를 흩어지지 않게 모아둘게요.",
+          title: "PR·이슈, 팀 대화, 문서가 같은 흐름으로 이어져요.",
           lines: [
-            "PR, 이슈, 변경 파일을 모아요.",
-            "팀 채팅에서 결정 사항을 남겨요.",
-            "API 명세, ERD, 리뷰 문서까지 이어둬요.",
+            "저장소와 PR·이슈를 한곳에 모아요.",
+            "리뷰 질문과 결정을 채팅에 남겨요.",
+            "API 명세, ERD, 리뷰 문서까지 한 흐름으로 이어둬요.",
           ],
         },
       ];
@@ -163,7 +168,12 @@ export function HomePage() {
     ? ["GitHub", "PRs", "Issues", "Team Chat", "API Docs", "ERD"]
     : ["GitHub", "PR", "이슈", "팀 채팅", "API 명세", "ERD"];
   const mascotMessagesCopy = isEnglish
-    ? ["Hello. I'm CodeDock.", "I gather GitHub work.", "I keep team chat close.", "I prepare docs too."]
+    ? [
+        "GitHub, chat, and docs are all here. ☕",
+        "PRs and issues are all in one place.",
+        "Decisions stay beside the work.",
+        "Docs are ready for the next sprint.",
+      ]
     : mascotMessages;
   const reviewSignalsCopy = isEnglish
     ? [
@@ -177,53 +187,53 @@ export function HomePage() {
         {
           icon: GitPullRequest,
           title: "GitHub workspace",
-          description: "Collect PRs, issues, and changed files in one screen.",
+          description: "PRs, issues, and changed files in one screen. From source to decision without tab hopping.",
           tone: "var(--neon-cyan)",
         },
         {
           icon: MessageSquare,
-          title: "Team chat and decisions",
-          description: "Keep review questions and decisions in team chat.",
+          title: "Team chat · decision log",
+          description: "Keep review questions and decisions in chat so the team does not repeat the same debate.",
           tone: "var(--soft-mint)",
         },
         {
           icon: FileText,
           title: "Docs hub",
-          description: "Connect API specs, ERDs, and review documents.",
+          description: "Link API specs, ERDs, and review docs to PRs and issues so they stay traceable after release.",
           tone: "#FFD166",
         },
       ]
     : featureCards;
   const signalDetailsCopy = isEnglish
     ? [
-        "GitHub PRs, issues, and changed files come into the workspace with the AI review process.",
-        "Team chat stays beside the work so review questions and decisions do not disappear.",
-        "API specs, ERDs, notes, and review docs stay linked to the PR and issue process.",
+        "GitHub PRs, issues, and changed files come together in one workspace with the AI review process.",
+        "Team chat stays beside the work so review questions and decisions do not get lost.",
+        "API specs, ERDs, notes, and review docs stay tied to PRs and issues.",
       ]
     : [
-        "GitHub의 PR, 이슈, 변경 파일을 AI 리뷰 프로세스와 함께 워크스페이스로 모아줘요.",
+        "GitHub의 PR, 이슈, 변경 파일을 AI 리뷰 프로세스와 함께 한 워크스페이스로 모아요.",
         "팀 채팅을 작업 옆에 붙여 리뷰 질문과 결정 사항이 흩어지지 않게 해요.",
-        "API 명세, ERD, 회의 노트, 리뷰 문서를 PR·이슈 프로세스에 연결해요.",
+        "API 명세, ERD, 회의 노트, 리뷰 문서를 PR·이슈 프로세스에 묶어둬요.",
       ];
   const featureDetailsCopy = isEnglish
     ? [
         {
           eyebrow: "GitHub",
-          title: "GitHub work becomes the center of the workspace.",
+          title: "GitHub work sits at the center of the workspace.",
           description:
-            "CodeDock brings repositories, PRs, issues, changed files, AI summaries, and review process into one workspace so the team can move from source to decision quickly.",
+            "CodeDock brings repositories, PRs, issues, changed files, AI summaries, and review process into one screen so the team can move from source to decision without tab hopping.",
           bullets: ["Connected repository", "PR and issue process", "AI review summary"],
         },
         {
           eyebrow: "Team Chat",
-          title: "Team chat stays connected to the work.",
+          title: "Team chat becomes the decision log.",
           description:
-            "Review questions, technical decisions, and follow-up notes stay in chat beside the GitHub process, then move naturally into documentation when needed.",
+            "Review questions, technical decisions, and follow-up notes stay in chat beside the GitHub process, so the team does not repeat the same debate later.",
           bullets: ["Review discussion", "Decision log", "Follow-up notes"],
         },
         {
           eyebrow: "Docs",
-          title: "Docs stay attached to the same development process.",
+          title: "Docs become the record for every decision.",
           description:
             "API specs, ERDs, meeting notes, and review documents stay linked to PRs, issues, and chat decisions so knowledge remains traceable after the work ships.",
           bullets: ["API spec page", "ERD diagram", "Review documents"],
@@ -234,90 +244,93 @@ export function HomePage() {
           eyebrow: "GitHub",
           title: "GitHub 작업이 워크스페이스의 중심이 돼요.",
           description:
-            "저장소, PR, 이슈, 변경 파일, AI 요약, 리뷰 프로세스를 한 화면에 모아서 소스 확인부터 결정까지 빠르게 이어갈 수 있어요.",
+            "저장소, PR, 이슈, 변경 파일, AI 요약, 리뷰 프로세스를 한 화면에 모아서 소스 확인부터 결정까지 탭 전환 없이 이어갈 수 있어요.",
           bullets: ["저장소 연결", "PR·이슈 프로세스", "AI 리뷰 요약"],
         },
         {
           eyebrow: "팀 채팅",
-          title: "팀 대화가 작업 프로세스 옆에 붙어 있어요.",
+          title: "팀 대화가 결정 로그로 남아요.",
           description:
-            "리뷰 중 나온 질문, 기술 결정, 후속 메모를 채팅에서 바로 정리하고 필요하면 문서 흐름으로 자연스럽게 이어갈 수 있어요.",
+            "리뷰 질문, 기술 결정, 후속 메모를 채팅에서 바로 정리해 같은 고민의 반복을 줄입니다.",
           bullets: ["리뷰 대화", "결정 로그", "후속 메모"],
         },
         {
           eyebrow: "문서",
-          title: "문서도 같은 개발 프로세스에 붙어서 남아요.",
+          title: "문서가 모든 결정의 기록으로 남아요.",
           description:
             "API 명세, ERD, 회의 노트, 리뷰 문서를 PR·이슈·채팅 결정과 연결해 배포 후에도 팀 지식이 추적 가능하게 남아요.",
           bullets: ["API 명세 화면", "ERD 다이어그램", "리뷰 문서"],
         },
       ];
   const workspaceFlowCopy = isEnglish
-    ? ["Connect GitHub repository", "Collect PRs, issues, and changes", "Discuss review process in team chat", "Save decisions into docs"]
+    ? ["Connect the repository", "Collect PRs, issues, and changes", "Resolve reviews in team chat", "Record decisions in docs"]
     : workspaceFlow;
   const landingCopy = {
     skipIntro: isEnglish ? "Skip" : "건너뛰기",
-    badge: isEnglish ? "Chat, GitHub, and docs in one workspace" : "채팅 · GitHub · 문서 통합 워크스페이스",
+    badge: isEnglish ? "GitHub, chat, and docs in one workspace" : "GitHub · 채팅 · 문서, 하나의 워크스페이스로",
     headlinePrefix: isEnglish ? "Where code ships safely," : "코드가 안전하게 출항하는 곳,",
     headlineBrand: "CodeDock",
-    start: isEnglish ? "Get Started" : "시작하기",
-    mascotTitle: isEnglish ? "Workspace process ready" : "워크스페이스 프로세스 준비 완료",
-    flowEyebrow: isEnglish ? "Start Flow" : "시작 흐름",
-    flowTitle: isEnglish ? "Before login on landing, after login in the workspace." : "로그인 전에는 랜딩에서, 로그인 후에는 워크스페이스에서.",
-    catTitle: isEnglish ? "GitHub, chat, and docs move as one flow." : "GitHub, 채팅, 문서가 한 흐름으로.",
+    subtitle: isEnglish
+      ? "PRs, team chat, and docs flow as one. Decisions stop scattering."
+      : "PR·이슈 작업, 팀 대화, API·ERD 문서가 같은 흐름으로 이어집니다. 결정과 기록이 더는 흩어지지 않습니다.",
+    start: isEnglish ? "Start with GitHub" : "GitHub으로 시작하기",
+    mascotTitle: isEnglish ? "GitHub, chat, and docs connected" : "GitHub · 채팅 · 문서 연결 완료",
+    flowEyebrow: isEnglish ? "Workflow" : "작업 흐름",
+    flowTitle: isEnglish ? "From connect to record, one connected flow." : "연결에서 기록까지, 하나의 흐름으로 이어집니다.",
+    catTitle: isEnglish ? "Today's decisions, ready for the next sprint." : "오늘 내린 결정, 다음 스프린트에서도 그대로.",
     catDescription: isEnglish
-      ? "CodeDock keeps the density of developer tools while making daily workspace work feel connected and approachable."
-      : "CodeDock은 개발 도구의 밀도는 유지하면서도, GitHub 작업과 팀 대화, 문서 기록이 자연스럽게 이어지도록 돕습니다.",
+      ? "GitHub, chat, and docs stay in one workspace. Open your workspace now."
+      : "GitHub · 채팅 · 문서, 한 워크스페이스에서. 지금 시작하세요.",
     points: isEnglish
       ? [
-          { icon: GitPullRequest, label: "GitHub repositories, PRs, issues, and changed files stay in one workspace." },
-          { icon: MessageSquare, label: "Team chat keeps review questions and decisions beside the work." },
-          { icon: Code2, label: "API specs and ERDs stay traceable from the same process." },
-          { icon: FileText, label: "Review notes, decisions, and documents remain connected." },
+          { icon: GitPullRequest, label: "Repositories, PRs, issues, and changed files stay together in one workspace." },
+          { icon: MessageSquare, label: "Review questions and decisions stay beside team chat." },
+          { icon: Code2, label: "API specs and ERDs remain traceable from PRs and issues." },
+          { icon: FileText, label: "Review notes and decisions become records for the next sprint." },
         ]
       : [
-          { icon: GitPullRequest, label: "GitHub 저장소, PR, 이슈, 변경 파일을 한 워크스페이스에서 봅니다." },
-          { icon: MessageSquare, label: "팀 채팅은 리뷰 질문과 결정 사항을 작업 옆에 남깁니다." },
-          { icon: Code2, label: "API 명세와 ERD는 같은 프로세스에서 추적됩니다." },
-          { icon: FileText, label: "리뷰 노트, 결정 사항, 문서 기록이 연결되어 남습니다." },
+          { icon: GitPullRequest, label: "저장소, PR, 이슈, 변경 파일이 한 워크스페이스에 모입니다." },
+          { icon: MessageSquare, label: "리뷰 질문과 결정은 팀 채팅 옆에 남습니다." },
+          { icon: Code2, label: "API 명세와 ERD는 PR·이슈에서 추적됩니다." },
+          { icon: FileText, label: "리뷰 노트와 결정 사항은 다음 스프린트의 기록이 됩니다." },
         ],
   };
 
   const sectionMascotMessages: Record<LandingSection, string> = isEnglish
     ? {
-        hero: "GitHub, chat, and docs are ready together.",
-        features: "The workspace pieces stay connected here.",
-        flow: "I am connecting the workflow step by step.",
-        closing: "GitHub work, docs, and chat stay together from here.",
+        hero: "GitHub, chat, and docs are all here. ☕",
+        features: "The workspace keeps source, decisions, and records connected.",
+        flow: "I am wiring the flow from connect to record.",
+        closing: "Today's decisions are ready for the next sprint.",
       }
     : {
-        hero: "GitHub, 채팅, 문서가 같이 준비되어 있어요.",
-        features: "워크스페이스 조각들이 여기서 연결돼요.",
-        flow: "작업 흐름을 단계별로 이어두고 있어요.",
-        closing: "GitHub 작업, 문서, 대화를 한곳에 묶어둘게요.",
+        hero: "GitHub, 채팅, 문서... 다 모셔뒀어요. ☕",
+        features: "소스, 결정, 기록이 한 워크스페이스에서 이어져요.",
+        flow: "연결부터 기록까지 순서대로 이어둘게요.",
+        closing: "오늘 내린 결정, 다음 스프린트에서도 그대로 남겨둘게요.",
       };
   const signalMascotMessages = isEnglish
     ? [
-        "GitHub process is synced into the workspace.",
-        "Team chat is ready beside the work.",
-        "Docs stay connected to the PR and issue process.",
+        "GitHub work is synced into the workspace.",
+        "Team chat keeps decisions beside the work.",
+        "Docs stay tied to PRs and issues.",
       ]
     : [
-        "GitHub 프로세스를 워크스페이스로 모아둘게요.",
-        "팀 채팅이 작업 옆에서 바로 이어져요.",
-        "문서도 PR·이슈 프로세스에 붙여둘게요.",
+        "GitHub 작업을 워크스페이스로 모아둘게요.",
+        "팀 채팅이 결정 사항을 작업 옆에 붙잡아둬요.",
+        "문서도 PR·이슈 프로세스에 묶어둘게요.",
       ];
   const flowMascotMessages = isEnglish
     ? [
         "First, connect the repository.",
-        "Then I collect PRs, issues, and changes.",
-        "Next, the team discusses the review process in chat.",
-        "Finally, decisions become documents.",
+        "Then collect PRs, issues, and changes.",
+        "Next, check reviews in team chat.",
+        "Finally, record decisions in docs.",
       ]
     : [
         "먼저 저장소를 연결해요.",
         "PR, 이슈, 변경 파일을 모을게요.",
-        "팀 채팅에서 리뷰 프로세스를 정리해요.",
+        "팀 채팅에서 리뷰를 점검해요.",
         "마지막 결정은 문서로 남겨요.",
       ];
   const activeSignalIndex = hoveredSignalIndex ?? selectedSignalIndex;
@@ -334,8 +347,8 @@ export function HomePage() {
   const flowProgressPercent = Math.round(flowScrollProgress * 100);
   const activeMascotMessage = isCtaHovering
     ? isEnglish
-      ? "Ready when you are. Shall we open the workspace?"
-      : "준비됐어요. 작업 공간으로 들어가볼까요?"
+      ? "Ready. Shall we open your workspace?"
+      : "준비 끝났어요. 워크스페이스 열어드릴까요?"
     : hoveredSignalIndex !== null
       ? signalMascotMessages[hoveredSignalIndex] ?? sectionMascotMessages.hero
       : hoveredFlowIndex !== null
@@ -353,6 +366,11 @@ export function HomePage() {
             ? "focus"
             : "idle";
   const floatingMascotLabel = isEnglish ? "CodeDock is here" : "CodeDock 대기 중";
+  const shouldAnimateIntro = !prefersReducedMotion && showIntro;
+  const shouldAnimateHero = !prefersReducedMotion && heroInView;
+  const shouldAnimateFeatures = !prefersReducedMotion && featuresInView;
+  const shouldAnimateFlow = !prefersReducedMotion && flowInView;
+  const shouldAnimateClosing = !prefersReducedMotion && closingInView;
 
   useEffect(() => {
     setIntroStep(0);
@@ -361,7 +379,7 @@ export function HomePage() {
 
     const introStepTimer = window.setTimeout(() => {
       setIntroStep(1);
-    }, 3200);
+    }, INTRO_DURATION_MS / 2);
 
     const introTimer = window.setTimeout(() => {
       setShowIntro(false);
@@ -486,7 +504,7 @@ export function HomePage() {
       const rect = element.getBoundingClientRect();
       const viewportStart = window.innerHeight * 0.82;
       const viewportEnd = window.innerHeight * 0.34;
-      const travel = rect.height + viewportStart - viewportEnd;
+      const travel = Math.max(1, viewportStart - viewportEnd);
       const nextProgress = Math.min(1, Math.max(0, (viewportStart - rect.top) / travel));
 
       setFlowScrollProgress((currentProgress) =>
@@ -563,7 +581,7 @@ export function HomePage() {
         {showIntro && (
           <motion.section
             key="landing-intro"
-            className="fixed inset-0 z-[90] flex items-center justify-center overflow-hidden px-5"
+            className="fixed inset-0 z-[90] flex items-center justify-center overflow-hidden px-5 [&_h2]:break-keep [&_h2]:[text-wrap:balance] [&_p]:break-keep [&_p]:[text-wrap:pretty] [&_span]:break-keep"
             style={{
               background: `
                 radial-gradient(circle at 50% 38%, ${colors.primary}, 0.18), transparent 34%),
@@ -578,13 +596,13 @@ export function HomePage() {
               type="button"
               aria-label={landingCopy.skipIntro}
               onClick={skipIntro}
-              className="absolute right-4 top-4 z-10 inline-flex h-11 items-center gap-2 rounded-full px-4 text-sm font-black tracking-tight transition-transform hover:scale-[1.03] active:scale-95 sm:right-8 sm:top-8"
+              className="absolute right-4 top-4 z-10 inline-flex h-11 items-center gap-2 rounded-full px-4 text-sm font-black tracking-tight transition-transform hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--neon-cyan)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#050B14] active:scale-95 sm:right-8 sm:top-8"
               style={{
                 background: "rgba(5, 11, 20, 0.74)",
                 border: `1px solid ${colors.primary}, 0.22)`,
                 boxShadow: `0 14px 34px rgba(0,0,0,0.28), 0 0 20px ${colors.primary}, 0.10)`,
                 color: "#DFFAFF",
-                backdropFilter: "blur(18px) saturate(180%)",
+                backdropFilter: prefersReducedMotion ? "none" : "blur(18px) saturate(180%)",
               }}
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
@@ -605,9 +623,11 @@ export function HomePage() {
                 <motion.div
                   className="relative h-[150px] w-full min-[430px]:h-[190px] sm:h-[260px]"
                   initial={{ y: 22, scale: 0.84, opacity: 0 }}
-                  animate={{ y: [0, -8, 0], scale: 1, opacity: 1 }}
+                  animate={{ y: shouldAnimateIntro ? [0, -8, 0] : 0, scale: 1, opacity: 1 }}
                   transition={{
-                    y: { duration: 3.1, repeat: Infinity, ease: "easeInOut" },
+                    y: shouldAnimateIntro
+                      ? { duration: 3.1, repeat: Infinity, ease: "easeInOut" }
+                      : { duration: 0.2, ease: "easeOut" },
                     scale: { duration: 0.52, ease: "backOut" },
                     opacity: { duration: 0.35 },
                   }}
@@ -634,7 +654,7 @@ export function HomePage() {
                         border: `1px solid ${colors.primary}, ${activeIntroDialogue.id === "brand" ? "0.32" : "0.20"})`,
                         boxShadow: `0 0 30px ${colors.primary}, 0.15), inset 0 1px 0 rgba(255,255,255,0.12)`,
                         color: "#DFFAFF",
-                        backdropFilter: "blur(18px) saturate(180%)",
+                        backdropFilter: prefersReducedMotion ? "none" : "blur(18px) saturate(180%)",
                         maxWidth: "min(100%, 560px)",
                       }}
                       initial={{ opacity: 0, x: -18, scale: 0.94, filter: "blur(8px)" }}
@@ -706,7 +726,7 @@ export function HomePage() {
 
       {!showIntro && (
         <motion.div
-          className="mx-auto w-[min(1180px,calc(100vw-32px))] pb-0 pt-0"
+          className="mx-auto w-[min(1180px,calc(100vw-32px))] pb-0 pt-0 [&_h1]:break-keep [&_h1]:[text-wrap:balance] [&_h2]:break-keep [&_h2]:[text-wrap:balance] [&_h3]:break-keep [&_h3]:[text-wrap:balance] [&_p]:break-keep [&_p]:[text-wrap:pretty] [&_span]:break-keep"
           initial={{ opacity: 0, y: 28, scale: 0.985 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.62, ease: "easeOut" }}
@@ -730,7 +750,7 @@ export function HomePage() {
             0 0 76px ${colors.primary}, 0.11),
             inset 0 1px 0 rgba(255, 255, 255, 0.12)
           `,
-          backdropFilter: "blur(22px) saturate(180%)",
+          backdropFilter: prefersReducedMotion ? "none" : "blur(22px) saturate(180%)",
         }}
       >
         <div
@@ -766,8 +786,8 @@ export function HomePage() {
                 background: "var(--matrix-green)",
                 boxShadow: "0 0 0 5px rgba(var(--codedock-secondary-rgb),0.13), 0 0 16px rgba(var(--codedock-secondary-rgb),0.7)",
               }}
-              animate={{ scale: [1, 1.55, 1], opacity: [0.74, 1, 0.74] }}
-              transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+              animate={shouldAnimateHero ? { scale: [1, 1.55, 1], opacity: [0.74, 1, 0.74] } : { scale: 1, opacity: 0.84 }}
+              transition={shouldAnimateHero ? { duration: 1.5, repeat: Infinity, ease: "easeInOut" } : { duration: 0.2 }}
             />
             <span className="text-sm font-black tracking-tight">{landingCopy.badge}</span>
           </div>
@@ -797,6 +817,13 @@ export function HomePage() {
             </span>
           </h1>
 
+          <p
+            className="m-0 mt-5 max-w-[640px] text-base font-bold leading-7 tracking-tight sm:text-lg sm:leading-8"
+            style={{ color: "rgba(223,250,255,0.82)" }}
+          >
+            {landingCopy.subtitle}
+          </p>
+
           <motion.div
             className="mt-6 flex flex-wrap items-center gap-3"
             initial={{ opacity: 0, y: 12 }}
@@ -812,7 +839,7 @@ export function HomePage() {
               onPointerLeave={() => setIsCtaHovering(false)}
               onFocus={() => setIsCtaHovering(true)}
               onBlur={() => setIsCtaHovering(false)}
-              className="group relative inline-flex h-14 items-center justify-center gap-2 overflow-hidden rounded-2xl px-6 no-underline tracking-tight transition hover:scale-[1.02] active:scale-[0.98]"
+              className="group relative inline-flex h-14 items-center justify-center gap-2 overflow-hidden rounded-2xl px-6 no-underline tracking-tight transition hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--neon-cyan)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#050B14] active:scale-[0.98]"
               style={{
                 background: `linear-gradient(135deg, ${colors.primaryHex}, ${colors.secondary})`,
                 boxShadow: `0 0 30px ${colors.primary}, 0.24), 0 14px 34px rgba(0,0,0,0.28)`,
@@ -846,8 +873,8 @@ export function HomePage() {
           >
             <motion.div
               className="h-24 w-24 flex-shrink-0 sm:h-28 sm:w-28"
-              animate={{ y: [0, -5, 0] }}
-              transition={{ duration: 3.4, repeat: Infinity, ease: "easeInOut" }}
+              animate={shouldAnimateHero ? { y: [0, -5, 0] } : { y: 0 }}
+              transition={shouldAnimateHero ? { duration: 3.4, repeat: Infinity, ease: "easeInOut" } : { duration: 0.2 }}
             >
               <CoffeeLogo
                 alive={!prefersReducedMotion}
@@ -863,6 +890,7 @@ export function HomePage() {
                 primary={colors.primary}
                 primaryHex={colors.primaryHex}
                 tail="left"
+                animateTyping={shouldAnimateHero}
               />
             </div>
           </div>
@@ -937,15 +965,16 @@ export function HomePage() {
               <div className="relative z-10 grid w-full max-w-[320px] gap-2.5">
                 <MascotTypingBubble
                   text={typedMascotText}
-                  primary={colors.primary}
-                  primaryHex={colors.primaryHex}
-                  tail="right"
-                />
+                primary={colors.primary}
+                primaryHex={colors.primaryHex}
+                tail="right"
+                animateTyping={shouldAnimateHero}
+              />
               </div>
 
               <motion.div
-                animate={{ y: [0, -8, 0] }}
-                transition={{ duration: 4.2, repeat: Infinity, ease: "easeInOut" }}
+                animate={shouldAnimateHero ? { y: [0, -8, 0] } : { y: 0 }}
+                transition={shouldAnimateHero ? { duration: 4.2, repeat: Infinity, ease: "easeInOut" } : { duration: 0.2 }}
                 className="relative z-0 mt-5 self-center sm:mt-4 sm:self-end lg:mt-0 lg:self-center lg:justify-self-end"
               >
                 <CoffeeLogo
@@ -970,7 +999,7 @@ export function HomePage() {
                     role="button"
                     tabIndex={0}
                     aria-pressed={selectedSignalIndex === index}
-                    className="relative cursor-pointer overflow-hidden rounded-[18px] px-3 py-2 outline-none"
+                    className="relative cursor-pointer overflow-hidden rounded-[18px] px-3 py-2 outline-none focus-visible:ring-2 focus-visible:ring-[var(--neon-cyan)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#050B14]"
                     style={{
                       background: isSignalActive
                         ? `linear-gradient(135deg, ${toneAlpha(signal.tone, 10)}, rgba(234, 247, 255, 0.06))`
@@ -1085,7 +1114,7 @@ export function HomePage() {
               `,
               border: `1px solid ${colors.primary}, 0.16)`,
               boxShadow: "0 12px 36px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255,255,255,0.07)",
-              backdropFilter: "blur(16px) saturate(160%)",
+              backdropFilter: prefersReducedMotion ? "none" : "blur(16px) saturate(160%)",
             }}
           >
             <div
@@ -1102,15 +1131,15 @@ export function HomePage() {
             />
             <div className="relative z-10 mx-auto max-w-[430px] text-center">
               <p className="m-0 text-sm font-black tracking-tight" style={{ color: colors.primaryHex }}>
-                {isEnglish ? "Unified Workspace" : "통합 워크스페이스"}
+                {isEnglish ? "One Workspace Flow" : "하나의 개발 흐름"}
               </p>
               <h2 className="m-0 mt-3 text-2xl font-black leading-tight tracking-tight" style={{ color: "var(--white)" }}>
-                {isEnglish ? "GitHub, chat, and docs move as one story." : "GitHub, 채팅, 문서가 한 흐름으로 이어져요."}
+                {isEnglish ? "From source to decision to record." : "소스에서 결정, 기록까지 한 흐름으로."}
               </h2>
               <p className="m-0 mt-3 text-sm font-semibold leading-5 tracking-tight sm:text-sm sm:leading-6" style={{ color: "var(--muted)" }}>
                 {isEnglish
-                  ? "PRs, issues, team decisions, and documents stay in the same process from review to record."
-                  : "PR과 이슈의 작업 프로세스가 팀 대화와 문서 기록까지 이어져, 작업 후에도 결정 사항을 바로 추적할 수 있어요."}
+                  ? "PRs, issues, team decisions, API specs, and ERDs stay in the same flow from review to record."
+                  : "PR·이슈 작업, 팀 대화, API·ERD 문서가 같은 흐름으로 이어져 결정 사항을 바로 추적할 수 있어요."}
               </p>
 
               <div
@@ -1152,7 +1181,7 @@ export function HomePage() {
                     transition={{ duration: 0.36, delay: index * 0.06, ease: "easeOut" }}
                     onClick={() => setActiveFeatureIndex(index)}
                     onFocus={() => setActiveFeatureIndex(index)}
-                    className="group relative flex min-h-[82px] cursor-pointer items-center gap-3 overflow-hidden rounded-2xl px-3 py-3 text-left outline-none"
+                    className="group relative flex min-h-[82px] cursor-pointer items-center gap-3 overflow-hidden rounded-2xl px-3 py-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--neon-cyan)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#050B14]"
                     style={{
                       background: isFeatureActive
                         ? `linear-gradient(145deg, ${toneAlpha(feature.tone, 15)}, rgba(234, 247, 255, 0.075))`
@@ -1173,8 +1202,16 @@ export function HomePage() {
                       }}
                     >
                       <motion.span
-                        animate={{ rotate: [0, index === 1 ? -5 : 5, 0], scale: [1, 1.08, 1] }}
-                        transition={{ duration: 3.4, repeat: Infinity, delay: index * 0.42, ease: "easeInOut" }}
+                        animate={
+                          shouldAnimateFeatures
+                            ? { rotate: [0, index === 1 ? -5 : 5, 0], scale: [1, 1.08, 1] }
+                            : { rotate: 0, scale: 1 }
+                        }
+                        transition={
+                          shouldAnimateFeatures
+                            ? { duration: 3.4, repeat: Infinity, delay: index * 0.42, ease: "easeInOut" }
+                            : { duration: 0.2 }
+                        }
                       >
                         <feature.icon size={19} strokeWidth={2.4} style={{ color: feature.tone }} />
                       </motion.span>
@@ -1215,7 +1252,7 @@ export function HomePage() {
               `,
               border: `1px solid ${toneAlpha(activeFeature.tone, 33)}`,
               boxShadow: `0 18px 54px rgba(0,0,0,0.34), 0 0 34px ${toneAlpha(activeFeature.tone, 9)}, inset 0 1px 0 rgba(255,255,255,0.09)`,
-              backdropFilter: "blur(18px) saturate(165%)",
+              backdropFilter: prefersReducedMotion ? "none" : "blur(18px) saturate(165%)",
             }}
           >
             <div
@@ -1268,9 +1305,9 @@ export function HomePage() {
                   <p className="m-0 text-sm font-black tracking-tight" style={{ color: activeFeature.tone }}>
                     {activeFeatureDetail.eyebrow}
                   </p>
-                  <h2 className="m-0 mt-2 text-2xl font-black leading-tight tracking-tight" style={{ color: "var(--white)" }}>
+                  <h3 className="m-0 mt-2 text-2xl font-black leading-tight tracking-tight" style={{ color: "var(--white)" }}>
                     {activeFeatureDetail.title}
-                  </h2>
+                  </h3>
                   <p className="m-0 mt-3 text-sm font-semibold leading-6 tracking-tight" style={{ color: "#D7EAF4" }}>
                     {activeFeatureDetail.description}
                   </p>
@@ -1400,7 +1437,7 @@ export function HomePage() {
           `,
           border: `1px solid ${colors.primary}, 0.16)`,
           boxShadow: "0 12px 36px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255,255,255,0.07)",
-          backdropFilter: "blur(16px) saturate(160%)",
+          backdropFilter: prefersReducedMotion ? "none" : "blur(16px) saturate(160%)",
         }}
       >
         <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
@@ -1436,106 +1473,114 @@ export function HomePage() {
         </div>
 
         <div className="mt-6 grid gap-3 md:grid-cols-4">
-          {workspaceFlowCopy.map((item, index) => {
-            const isActiveNode = flowActiveEndIndex >= 0 && index <= flowActiveEndIndex;
-            const isActiveConnector = flowActiveEndIndex >= 0 && index < flowActiveEndIndex;
+            {workspaceFlowCopy.map((item, index) => {
+              const isActiveNode = flowActiveEndIndex >= 0 && index <= flowActiveEndIndex;
+              const isActiveConnector = flowActiveEndIndex >= 0 && index < flowActiveEndIndex;
 
-            return (
-            <motion.div
-              key={item}
-              data-flow-index={index + 1}
-              aria-current={index === flowActiveEndIndex ? "step" : undefined}
-              tabIndex={0}
-              initial={{ opacity: 0, y: 14 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              whileHover={{ y: -4 }}
-              viewport={{ once: true, margin: "-70px" }}
-              transition={{ duration: 0.36, delay: index * 0.08 }}
-              onMouseEnter={() => setHoveredFlowIndex(index)}
-              onMouseLeave={() => setHoveredFlowIndex(null)}
-              onPointerEnter={() => setHoveredFlowIndex(index)}
-              onPointerLeave={() => setHoveredFlowIndex(null)}
-              onClick={() => setHoveredFlowIndex(index)}
-              onFocus={() => setHoveredFlowIndex(index)}
-              onBlur={() => setHoveredFlowIndex(null)}
-              className="relative flex min-h-[120px] items-center gap-3 rounded-2xl px-4 py-3 outline-none"
-              style={{
-                background: isActiveNode
-                  ? `linear-gradient(145deg, ${colors.primary}, 0.12), rgba(234, 247, 255, 0.065))`
-                  : "rgba(234, 247, 255, 0.05)",
-                border: `1px solid ${colors.primary}, ${isActiveNode ? "0.34" : "0.13"})`,
-                boxShadow: isActiveNode
-                  ? `0 0 24px ${colors.primary}, 0.14), inset 0 1px 0 rgba(255,255,255,0.10)`
-                  : "inset 0 1px 0 rgba(255,255,255,0.07)",
-                transition: "background 180ms ease, border-color 180ms ease, box-shadow 180ms ease",
-              }}
-            >
-              {index < workspaceFlowCopy.length - 1 && (
-                <>
-                  <motion.span
-                    data-flow-connector={`${index + 1}-${index + 2}`}
-                    className="pointer-events-none absolute left-[calc(100%+1px)] top-1/2 z-20 hidden h-[3px] w-3 origin-left -translate-y-1/2 rounded-full md:block"
-                    style={{
-                      background: `linear-gradient(90deg, ${colors.primaryHex}, var(--matrix-green))`,
-                    }}
-                    initial={false}
-                    animate={{
-                      opacity: isActiveConnector ? 1 : 0,
-                      scaleX: isActiveConnector ? 1 : 0,
-                      boxShadow: isActiveConnector
-                        ? `0 0 16px ${colors.primary}, 0.55), 0 0 20px rgba(var(--codedock-secondary-rgb),0.30)`
-                        : "none",
-                    }}
-                    transition={{ duration: 0.2, ease: "easeOut" }}
-                  />
-                  <motion.span
-                    className="pointer-events-none absolute left-8 top-[calc(100%+1px)] z-20 h-3 w-[3px] origin-top rounded-full md:hidden"
-                    style={{
-                      background: `linear-gradient(180deg, ${colors.primaryHex}, var(--matrix-green))`,
-                    }}
-                    initial={false}
-                    animate={{
-                      opacity: isActiveConnector ? 1 : 0,
-                      scaleY: isActiveConnector ? 1 : 0,
-                    }}
-                    transition={{ duration: 0.2, ease: "easeOut" }}
-                  />
-                </>
-              )}
-              <span
-                className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full"
+              return (
+              <motion.div
+                key={item}
+                data-flow-index={index + 1}
+                role="button"
+                aria-label={`${item} ${isEnglish ? "workflow step" : "작업 흐름 단계"}`}
+                aria-current={index === flowActiveEndIndex ? "step" : undefined}
+                tabIndex={0}
+                initial={{ opacity: 0, y: 14 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                whileHover={{ y: -4 }}
+                viewport={{ once: true, margin: "-70px" }}
+                transition={{ duration: 0.36, delay: index * 0.08 }}
+                onMouseEnter={() => setHoveredFlowIndex(index)}
+                onMouseLeave={() => setHoveredFlowIndex(null)}
+                onPointerEnter={() => setHoveredFlowIndex(index)}
+                onPointerLeave={() => setHoveredFlowIndex(null)}
+                onClick={() => setHoveredFlowIndex(index)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setHoveredFlowIndex(index);
+                  }
+                }}
+                onFocus={() => setHoveredFlowIndex(index)}
+                onBlur={() => setHoveredFlowIndex(null)}
+                className="relative flex min-h-[120px] items-center gap-3 rounded-2xl px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-[var(--neon-cyan)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#050B14]"
                 style={{
                   background: isActiveNode
-                    ? `${colors.primary}, 0.18)`
-                    : index === workspaceFlowCopy.length - 1 ? "rgba(255,209,102,0.15)" : "rgba(var(--codedock-secondary-rgb),0.12)",
-                  color: index === workspaceFlowCopy.length - 1 ? "#FFD166" : "var(--matrix-green)",
-                  boxShadow: isActiveNode ? `0 0 18px ${colors.primary}, 0.28)` : "none",
+                    ? `linear-gradient(145deg, ${colors.primary}, 0.12), rgba(234, 247, 255, 0.065))`
+                    : "rgba(234, 247, 255, 0.05)",
+                  border: `1px solid ${colors.primary}, ${isActiveNode ? "0.34" : "0.13"})`,
+                  boxShadow: isActiveNode
+                    ? `0 0 24px ${colors.primary}, 0.14), inset 0 1px 0 rgba(255,255,255,0.10)`
+                    : "inset 0 1px 0 rgba(255,255,255,0.07)",
+                  transition: "background 180ms ease, border-color 180ms ease, box-shadow 180ms ease",
                 }}
               >
-                <motion.span
-                  animate={{ scale: [1, 1.18, 1] }}
-                  transition={{ duration: 2.6, repeat: Infinity, delay: index * 0.34, ease: "easeInOut" }}
+                {index < workspaceFlowCopy.length - 1 && (
+                  <>
+                    <motion.span
+                      data-flow-connector={`${index + 1}-${index + 2}`}
+                      className="pointer-events-none absolute left-[calc(100%+1px)] top-1/2 z-20 hidden h-[3px] w-3 origin-left -translate-y-1/2 rounded-full md:block"
+                      style={{
+                        background: `linear-gradient(90deg, ${colors.primaryHex}, var(--matrix-green))`,
+                      }}
+                      initial={false}
+                      animate={{
+                        opacity: isActiveConnector ? 1 : 0,
+                        scaleX: isActiveConnector ? 1 : 0,
+                        boxShadow: isActiveConnector
+                          ? `0 0 16px ${colors.primary}, 0.55), 0 0 20px rgba(var(--codedock-secondary-rgb),0.30)`
+                          : "none",
+                      }}
+                      transition={{ duration: 0.2, ease: "easeOut" }}
+                    />
+                    <motion.span
+                      className="pointer-events-none absolute left-8 top-[calc(100%+1px)] z-20 h-3 w-[3px] origin-top rounded-full md:hidden"
+                      style={{
+                        background: `linear-gradient(180deg, ${colors.primaryHex}, var(--matrix-green))`,
+                      }}
+                      initial={false}
+                      animate={{
+                        opacity: isActiveConnector ? 1 : 0,
+                        scaleY: isActiveConnector ? 1 : 0,
+                      }}
+                      transition={{ duration: 0.2, ease: "easeOut" }}
+                    />
+                  </>
+                )}
+                <span
+                  className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full"
+                  style={{
+                    background: isActiveNode
+                      ? `${colors.primary}, 0.18)`
+                      : index === workspaceFlowCopy.length - 1 ? "rgba(255,209,102,0.15)" : "rgba(var(--codedock-secondary-rgb),0.12)",
+                    color: index === workspaceFlowCopy.length - 1 ? "#FFD166" : "var(--matrix-green)",
+                    boxShadow: isActiveNode ? `0 0 18px ${colors.primary}, 0.28)` : "none",
+                  }}
                 >
-                  <CheckCircle2 size={17} strokeWidth={2.6} />
-                </motion.span>
-              </span>
-              <div>
-                <p className="m-0 text-sm font-black tracking-tight" style={{ color: colors.primaryHex }}>
-                  STEP {index + 1}
-                </p>
-                <p className="m-0 mt-1 text-sm font-bold leading-6 tracking-tight" style={{ color: "#DFFAFF" }}>
-                  {item}
-                </p>
-              </div>
-              <span
-                className="absolute bottom-3 right-3 text-3xl font-black leading-none tracking-tight"
-                style={{ color: "rgba(234, 247, 255, 0.045)" }}
-              >
-                0{index + 1}
-              </span>
-            </motion.div>
-            );
-          })}
+                  <motion.span
+                    animate={shouldAnimateFlow ? { scale: [1, 1.18, 1] } : { scale: 1 }}
+                    transition={shouldAnimateFlow ? { duration: 2.6, repeat: Infinity, delay: index * 0.34, ease: "easeInOut" } : { duration: 0.2 }}
+                  >
+                    <CheckCircle2 size={17} strokeWidth={2.6} />
+                  </motion.span>
+                </span>
+                <div>
+                  <p className="m-0 text-sm font-black tracking-tight" style={{ color: colors.primaryHex }}>
+                    STEP {index + 1}
+                  </p>
+                  <p className="m-0 mt-1 text-sm font-bold leading-6 tracking-tight" style={{ color: "#DFFAFF" }}>
+                    {item}
+                  </p>
+                </div>
+                <span
+                  className="absolute bottom-3 right-3 text-3xl font-black leading-none tracking-tight"
+                  style={{ color: "rgba(234, 247, 255, 0.045)" }}
+                >
+                  0{index + 1}
+                </span>
+              </motion.div>
+              );
+            })}
         </div>
       </section>
 
@@ -1566,7 +1611,7 @@ export function HomePage() {
             background: "rgba(11, 22, 40, 0.68)",
             border: `1px solid ${colors.primary}, 0.16)`,
             boxShadow: "0 12px 36px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255,255,255,0.07)",
-            backdropFilter: "blur(16px) saturate(160%)",
+            backdropFilter: prefersReducedMotion ? "none" : "blur(16px) saturate(160%)",
           }}
         >
           <motion.div
@@ -1575,8 +1620,8 @@ export function HomePage() {
               background: `${colors.primary}, 0.14)`,
               filter: "blur(42px)",
             }}
-            animate={{ scale: [1, 1.12, 1], opacity: [0.45, 0.72, 0.45] }}
-            transition={{ duration: 4.8, repeat: Infinity, ease: "easeInOut" }}
+            animate={shouldAnimateClosing ? { scale: [1, 1.12, 1], opacity: [0.45, 0.72, 0.45] } : { scale: 1, opacity: 0.5 }}
+            transition={shouldAnimateClosing ? { duration: 4.8, repeat: Infinity, ease: "easeInOut" } : { duration: 0.2 }}
           />
           <motion.span
             className="relative inline-flex h-12 w-12 items-center justify-center rounded-2xl"
@@ -1585,8 +1630,8 @@ export function HomePage() {
               border: `1px solid ${colors.primary}, 0.28)`,
               boxShadow: `0 0 22px ${colors.primary}, 0.22)`,
             }}
-            animate={{ rotate: [0, -4, 4, 0] }}
-            transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
+            animate={shouldAnimateClosing ? { rotate: [0, -4, 4, 0] } : { rotate: 0 }}
+            transition={shouldAnimateClosing ? { duration: 3.2, repeat: Infinity, ease: "easeInOut" } : { duration: 0.2 }}
           >
             <Sparkles size={28} strokeWidth={2.4} style={{ color: colors.primaryHex }} />
           </motion.span>
@@ -1634,8 +1679,8 @@ export function HomePage() {
                   background: `${colors.primary}, 0.10)`,
                   border: `1px solid ${colors.primary}, 0.20)`,
                 }}
-                animate={{ y: [0, -3, 0] }}
-                transition={{ duration: 3.4, repeat: Infinity, delay: index * 0.25, ease: "easeInOut" }}
+                animate={shouldAnimateClosing ? { y: [0, -3, 0] } : { y: 0 }}
+                transition={shouldAnimateClosing ? { duration: 3.4, repeat: Infinity, delay: index * 0.25, ease: "easeInOut" } : { duration: 0.2 }}
               >
                 <item.icon size={20} strokeWidth={2.4} style={{ color: colors.primaryHex }} />
               </motion.span>
@@ -1652,7 +1697,7 @@ export function HomePage() {
               background: "linear-gradient(145deg, rgba(11,22,40,0.88), rgba(5,11,20,0.74))",
               border: `1px solid ${colors.primary}, 0.22)`,
               boxShadow: `0 18px 48px rgba(0,0,0,0.34), 0 0 34px ${colors.primary}, 0.12)`,
-              backdropFilter: "blur(18px) saturate(180%)",
+              backdropFilter: prefersReducedMotion ? "none" : "blur(18px) saturate(180%)",
             }}
             initial={{ opacity: 0, y: 18, scale: 0.94 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -1661,8 +1706,8 @@ export function HomePage() {
           >
             <motion.div
               className="h-20 w-20 flex-shrink-0"
-              animate={prefersReducedMotion ? undefined : { y: [0, -4, 0] }}
-              transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
+              animate={shouldAnimateClosing ? { y: [0, -4, 0] } : { y: 0 }}
+              transition={shouldAnimateClosing ? { duration: 3.2, repeat: Infinity, ease: "easeInOut" } : { duration: 0.2 }}
             >
               <CoffeeLogo
                 alive={!prefersReducedMotion}
@@ -1681,6 +1726,7 @@ export function HomePage() {
                 primary={colors.primary}
                 primaryHex={colors.primaryHex}
                 tail="left"
+                animateTyping={shouldAnimateClosing}
               />
             </div>
           </motion.div>
@@ -1712,12 +1758,14 @@ function MascotTypingBubble({
   primaryHex,
   compact = false,
   tail = "none",
+  animateTyping = true,
 }: {
   text: string;
   primary: string;
   primaryHex: string;
   compact?: boolean;
   tail?: "none" | "left" | "right" | "bottom";
+  animateTyping?: boolean;
 }) {
   const showTypingDots = text.length === 0;
   const bubbleRef = useRef<HTMLDivElement | null>(null);
@@ -1783,7 +1831,7 @@ function MascotTypingBubble({
         }`}
       >
         <MessageSquare className="flex-shrink-0" size={compact ? 14 : 16} strokeWidth={2.4} />
-        <span className="min-w-0 break-keep leading-5">{showTypingDots ? "" : text}</span>
+        <span className="min-w-0 break-keep leading-5 [text-wrap:pretty]">{showTypingDots ? "" : text}</span>
         {showTypingDots ? (
           <span className="flex items-center gap-1">
             {[0, 1, 2].map((index) => (
@@ -1791,8 +1839,8 @@ function MascotTypingBubble({
                 key={index}
                 className="h-1.5 w-1.5 rounded-full"
                 style={{ background: primaryHex }}
-                animate={{ opacity: [0.35, 1, 0.35], y: [0, -2, 0] }}
-                transition={{ duration: 0.8, repeat: Infinity, delay: index * 0.12, ease: "easeInOut" }}
+                animate={animateTyping ? { opacity: [0.35, 1, 0.35], y: [0, -2, 0] } : { opacity: 0.78, y: 0 }}
+                transition={animateTyping ? { duration: 0.8, repeat: Infinity, delay: index * 0.12, ease: "easeInOut" } : { duration: 0.2 }}
               />
             ))}
           </span>
@@ -1800,8 +1848,8 @@ function MascotTypingBubble({
           <motion.span
             className="h-4 w-[2px] rounded-full"
             style={{ background: primaryHex }}
-            animate={{ opacity: [0, 1, 0] }}
-            transition={{ duration: 0.88, repeat: Infinity, ease: "easeInOut" }}
+            animate={animateTyping ? { opacity: [0, 1, 0] } : { opacity: 1 }}
+            transition={animateTyping ? { duration: 0.88, repeat: Infinity, ease: "easeInOut" } : { duration: 0.2 }}
           />
         )}
       </div>
