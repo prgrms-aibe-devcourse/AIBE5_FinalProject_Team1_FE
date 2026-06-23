@@ -9,7 +9,7 @@ import { HTML5Backend } from "react-dnd-html5-backend";
 import { fetchMyGithubRepos, fetchRepoCollaborators, fetchWorkspaceRepositories, connectWorkspaceRepository, type GithubCollaborator, type GithubRepo } from "../api/github";
 import { fetchMyWorkspaces, createWorkspace, deleteWorkspace, listReceivedInvites, acceptInvite, rejectInvite, createInvite, type WorkspaceDto, type ReceivedInviteDto } from "../api/workspace";
 import { fetchMyEvents, type WorkspaceEventDto, type EventType } from "../api/events";
-import { fetchDashboardSummary, type DashboardSummary } from "../api/dashboard";
+import { fetchDashboardSummary, fetchDashboardWorkspaces, type DashboardSummary, type DashboardWorkspace } from "../api/dashboard";
 import { useWorkspace } from "../contexts/WorkspaceContext";
 import { ApiClientError } from "../api/client";
 
@@ -1184,15 +1184,15 @@ function roleToKorean(role: string): string {
   }
 }
 
-function workspaceDtoToOrg(w: WorkspaceDto): Org {
+function workspaceDtoToOrg(w: WorkspaceDto, d?: DashboardWorkspace): Org {
   return {
     id: w.id,
     name: w.name,
     description: w.description ?? undefined,
-    myPendingReviews: 0,
-    myOpenPRs: 0,
-    myReviewedPRs: 0,
-    myOpenIssues: 0,
+    myPendingReviews: d?.reviewRequestCount ?? 0,
+    myOpenPRs: d?.openPrCount ?? 0,
+    myReviewedPRs: d?.receivedReviewCount ?? 0,
+    myOpenIssues: d?.openIssueCount ?? 0,
     memberCount: w.memberCount,
     repoCount: 0,
     myRole: roleToKorean(w.myRole),
@@ -1222,9 +1222,10 @@ export function WorkspacePage() {
   const loadOrgs = useCallback(() => {
     const saved = localStorage.getItem("codedock-team-sort-order");
     const order: SortOrder = saved === "name" || saved === "activity" ? saved : "latest";
-    fetchMyWorkspaces()
-      .then((list) => {
-        const mapped = list.map(workspaceDtoToOrg);
+    Promise.all([fetchMyWorkspaces(), fetchDashboardWorkspaces().catch(() => [] as DashboardWorkspace[])])
+      .then(([list, dashboardList]) => {
+        const dashboardMap = new Map(dashboardList.map((d) => [d.workspaceId, d]));
+        const mapped = list.map((w) => workspaceDtoToOrg(w, dashboardMap.get(w.id)));
         if (order === "name") setOrgs(mapped.sort((a, b) => a.name.localeCompare(b.name, "ko")));
         else if (order === "activity") setOrgs(mapped.sort((a, b) => {
           if (!a.lastActivityAt && !b.lastActivityAt) return 0;
