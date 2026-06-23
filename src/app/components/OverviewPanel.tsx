@@ -29,6 +29,7 @@ interface OverviewRepository {
 
 interface OverviewPanelProps {
   repositories: OverviewRepository[];
+  onlineMembers?: number;
   selectedRepositoryId?: string;
   onSelectRepository?: (repositoryId: string) => void;
   bookmarkGroups?: Array<{
@@ -178,7 +179,7 @@ function StatCard({
   );
 }
 
-export function OverviewPanel({ repositories, selectedRepositoryId, onSelectRepository, bookmarkGroups = [], onOpenBookmark }: OverviewPanelProps) {
+export function OverviewPanel({ repositories, onlineMembers, selectedRepositoryId, onSelectRepository, bookmarkGroups = [], onOpenBookmark }: OverviewPanelProps) {
   const [activeRepositoryId, setActiveRepositoryId] = useState<string | null>(null);
   const scrollRootRef = useRef<HTMLDivElement | null>(null);
   const activeRepository = repositories.find((repo) => repo.id === activeRepositoryId);
@@ -197,6 +198,8 @@ export function OverviewPanel({ repositories, selectedRepositoryId, onSelectRepo
       { openPRs: 0, highRisk: 0, activeIssues: 0, membersOnline: 0 }
     );
   }, [repositories]);
+
+  const onlineMembersValue = onlineMembers ?? integratedStats.membersOnline;
 
   const handleSelectRepository = (repositoryId: string) => {
     setActiveRepositoryId(repositoryId);
@@ -393,7 +396,7 @@ export function OverviewPanel({ repositories, selectedRepositoryId, onSelectRepo
         <StatCard icon={GitPullRequest} label="진행 중인 PR" value={integratedStats.openPRs} helper="전체 리뷰 대기" />
         <StatCard icon={AlertCircle} label="높은 위험" value={integratedStats.highRisk} color={integratedStats.highRisk > 0 ? "#FF6B6B" : "var(--matrix-green)"} />
         <StatCard icon={Activity} label="열린 이슈" value={integratedStats.activeIssues} />
-        <StatCard icon={Users} label="접속 중" value={integratedStats.membersOnline} helper="팀원 접속" />
+        <StatCard icon={Users} label="접속 중" value={onlineMembersValue} helper="팀원 접속" />
       </div>
 
       <section className="mb-6 rounded-2xl px-5 py-5" style={{
