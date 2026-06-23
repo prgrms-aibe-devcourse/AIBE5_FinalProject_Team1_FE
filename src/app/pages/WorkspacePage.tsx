@@ -8,7 +8,8 @@ import { DndProvider, useDrag, useDrop, useDragLayer } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { fetchMyGithubRepos, fetchRepoCollaborators, fetchWorkspaceRepositories, connectWorkspaceRepository, type GithubCollaborator, type GithubRepo } from "../api/github";
 import { fetchMyWorkspaces, createWorkspace, deleteWorkspace, listReceivedInvites, acceptInvite, rejectInvite, createInvite, type WorkspaceDto, type ReceivedInviteDto } from "../api/workspace";
-import { fetchMyEvents, type WorkspaceEventDto, type EventType } from "../api/events";
+import { fetchMyEvents, markEventAsRead, type WorkspaceEventDto, type EventType } from "../api/events";
+import { fetchDashboardSummary, fetchDashboardWorkspaces, type DashboardSummary, type DashboardWorkspace } from "../api/dashboard";
 import { useWorkspace } from "../contexts/WorkspaceContext";
 import { ApiClientError } from "../api/client";
 
@@ -1183,15 +1184,15 @@ function roleToKorean(role: string): string {
   }
 }
 
-function workspaceDtoToOrg(w: WorkspaceDto): Org {
+function workspaceDtoToOrg(w: WorkspaceDto, d?: DashboardWorkspace): Org {
   return {
     id: w.id,
     name: w.name,
     description: w.description ?? undefined,
-    myPendingReviews: 0,
-    myOpenPRs: 0,
-    myReviewedPRs: 0,
-    myOpenIssues: 0,
+    myPendingReviews: d?.reviewRequestCount ?? 0,
+    myOpenPRs: d?.openPrCount ?? 0,
+    myReviewedPRs: d?.receivedReviewCount ?? 0,
+    myOpenIssues: d?.openIssueCount ?? 0,
     memberCount: w.memberCount,
     repoCount: 0,
     myRole: roleToKorean(w.myRole),
@@ -1208,14 +1209,23 @@ export function WorkspacePage() {
   const [orgs, setOrgs] = useState<Org[]>([]);
   const [orgsLoading, setOrgsLoading] = useState(true);
 
+  const [dashboardSummary, setDashboardSummary] = useState<DashboardSummary | null>(null);
+
+  useEffect(() => {
+    fetchDashboardSummary()
+      .then(setDashboardSummary)
+      .catch(() => {});
+  }, []);
+
   const [settingsOrg, setSettingsOrg] = useState<Org | null>(null);
 
   const loadOrgs = useCallback(() => {
     const saved = localStorage.getItem("codedock-team-sort-order");
     const order: SortOrder = saved === "name" || saved === "activity" ? saved : "latest";
-    fetchMyWorkspaces()
-      .then((list) => {
-        const mapped = list.map(workspaceDtoToOrg);
+    Promise.all([fetchMyWorkspaces(), fetchDashboardWorkspaces().catch(() => [] as DashboardWorkspace[])])
+      .then(([list, dashboardList]) => {
+        const dashboardMap = new Map(dashboardList.map((d) => [d.workspaceId, d]));
+        const mapped = list.map((w) => workspaceDtoToOrg(w, dashboardMap.get(w.id)));
         if (order === "name") setOrgs(mapped.sort((a, b) => a.name.localeCompare(b.name, "ko")));
         else if (order === "activity") setOrgs(mapped.sort((a, b) => {
           if (!a.lastActivityAt && !b.lastActivityAt) return 0;
@@ -1565,10 +1575,10 @@ export function WorkspacePage() {
 
         <div className="grid md:grid-cols-4 gap-5 mb-9">
           {[
-            { label: "내 리뷰 대기", value: "8", color: "var(--neon-cyan)" },
-            { label: "내 오픈 PR", value: "4", color: "var(--matrix-green)" },
-            { label: "리뷰받은 PR", value: "2", color: "#FFD93D" },
-            { label: "미해결 이슈", value: "6", color: "#FF6B6B" },
+            { label: "내 리뷰 대기", value: dashboardSummary?.reviewRequestCount ?? "-", color: "var(--neon-cyan)" },
+            { label: "내 오픈 PR", value: dashboardSummary?.openPrCount ?? "-", color: "var(--matrix-green)" },
+            { label: "리뷰받은 PR", value: dashboardSummary?.receivedReviewCount ?? "-", color: "#FFD93D" },
+            { label: "미해결 이슈", value: dashboardSummary?.openIssueCount ?? "-", color: "#FF6B6B" },
           ].map((stat) => (
             <div
               key={stat.label}
@@ -1750,16 +1760,33 @@ export function WorkspacePage() {
                     event.threadId ? `thread #${event.threadId}` : ""
                   ].filter(Boolean);
 
+                  const handleEventClick = () => {
+                    if (!event.isRead) {
+                      setEvents((prev) => prev.map((e) => e.eventId === event.eventId ? { ...e, isRead: true } : e));
+                      markEventAsRead(event.eventId).catch(() => {});
+                    }
+                    navigate("/chat", { state: { pendingEvent: event } });
+                  };
+
                   return (
                     <div
-                      key={event.id}
+                      key={event.eventId ?? event.id}
                       className="px-5 py-4 rounded-2xl cursor-pointer transition-all hover:brightness-110"
-                      style={{ background: "rgba(5, 11, 20, 0.42)", border: "1px solid rgba(32, 227, 255, 0.10)" }}
-                      onClick={() => navigate("/chat", { state: { pendingEvent: event } })}
+                      style={{
+                        background: event.isRead ? "rgba(5, 11, 20, 0.42)" : "rgba(32, 227, 255, 0.06)",
+                        border: event.isRead ? "1px solid rgba(32, 227, 255, 0.10)" : "1px solid rgba(32, 227, 255, 0.22)",
+                      }}
+                      onClick={handleEventClick}
                     >
                       <div className="flex items-start gap-3">
-                        <span className="flex-shrink-0 mt-0.5">
+                        <span className="relative flex-shrink-0 mt-0.5">
                           <Icon size={18} style={{ color }} />
+                          {!event.isRead && (
+                            <span
+                              className="absolute -top-1 -right-1 rounded-full"
+                              style={{ width: 7, height: 7, background: "var(--neon-cyan)" }}
+                            />
+                          )}
                         </span>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1 flex-wrap">
