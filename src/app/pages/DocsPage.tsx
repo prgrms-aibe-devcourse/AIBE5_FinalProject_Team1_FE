@@ -353,7 +353,7 @@ export function DocsPage({ embedded = false, expanded = false, workspaceId: work
           );
         }
 
-        if (trimmedLine.startsWith("- ")) {
+        if (trimmedLine.startsWith("* ") || trimmedLine.startsWith("- ")) {
           return (
             <div key={index} className="flex gap-3 rounded-xl px-4 py-3 tracking-tight" style={{
               background: 'rgba(234, 247, 255, 0.035)',
@@ -364,7 +364,7 @@ export function DocsPage({ embedded = false, expanded = false, workspaceId: work
               lineHeight: 1.65
             }}>
               <span style={{ color: 'var(--neon-cyan)', fontWeight: 950 }}>•</span>
-              <span>{parseInline(trimmedLine.replace(/^-\s+/, ""))}</span>
+              <span>{parseInline(trimmedLine.replace(/^[-*]\s+/, ""))}</span>
             </div>
           );
         }
