@@ -9,6 +9,7 @@ import { HTML5Backend } from "react-dnd-html5-backend";
 import { fetchMyGithubRepos, fetchRepoCollaborators, fetchWorkspaceRepositories, connectWorkspaceRepository, type GithubCollaborator, type GithubRepo } from "../api/github";
 import { fetchMyWorkspaces, createWorkspace, deleteWorkspace, listReceivedInvites, acceptInvite, rejectInvite, createInvite, type WorkspaceDto, type ReceivedInviteDto } from "../api/workspace";
 import { fetchMyEvents, type WorkspaceEventDto, type EventType } from "../api/events";
+import { fetchDashboardSummary, type DashboardSummary } from "../api/dashboard";
 import { useWorkspace } from "../contexts/WorkspaceContext";
 import { ApiClientError } from "../api/client";
 
@@ -1208,6 +1209,14 @@ export function WorkspacePage() {
   const [orgs, setOrgs] = useState<Org[]>([]);
   const [orgsLoading, setOrgsLoading] = useState(true);
 
+  const [dashboardSummary, setDashboardSummary] = useState<DashboardSummary | null>(null);
+
+  useEffect(() => {
+    fetchDashboardSummary()
+      .then(setDashboardSummary)
+      .catch(() => {});
+  }, []);
+
   const [settingsOrg, setSettingsOrg] = useState<Org | null>(null);
 
   const loadOrgs = useCallback(() => {
@@ -1565,10 +1574,10 @@ export function WorkspacePage() {
 
         <div className="grid md:grid-cols-4 gap-5 mb-9">
           {[
-            { label: "내 리뷰 대기", value: "8", color: "var(--neon-cyan)" },
-            { label: "내 오픈 PR", value: "4", color: "var(--matrix-green)" },
-            { label: "리뷰받은 PR", value: "2", color: "#FFD93D" },
-            { label: "미해결 이슈", value: "6", color: "#FF6B6B" },
+            { label: "내 리뷰 대기", value: dashboardSummary?.reviewRequestCount ?? "-", color: "var(--neon-cyan)" },
+            { label: "내 오픈 PR", value: dashboardSummary?.openPrCount ?? "-", color: "var(--matrix-green)" },
+            { label: "리뷰받은 PR", value: dashboardSummary?.receivedReviewCount ?? "-", color: "#FFD93D" },
+            { label: "미해결 이슈", value: dashboardSummary?.openIssueCount ?? "-", color: "#FF6B6B" },
           ].map((stat) => (
             <div
               key={stat.label}
