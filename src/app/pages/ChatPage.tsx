@@ -761,10 +761,12 @@ const DELETED_MESSAGE_CONTENT = "삭제된 메시지입니다";
 // 화면 표시용 통일 라벨(마침표 포함). 채널/스레드 삭제 메시지 모두 이 문구로 표시.
 const DELETED_MESSAGE_LABEL = "삭제된 메시지입니다.";
 
-// PR/이슈/ERD/API/문서 첨부는 카드 메타데이터를 담는 "구조적" 첨부라서 일반 파일 첨부 카드로
-// 그대로 렌더하면 meta JSON이 노출된다. 전용 카드(prFields/issueFields)로만 표시하고 일반
-// 첨부 목록에서는 제외한다.
-const STRUCTURAL_ATTACHMENT_TYPES = new Set(["pr", "issue", "erd", "api", "docs"]);
+// PR/이슈 첨부는 카드 메타데이터(meta)를 JSON으로 담는 "구조적" 첨부라서, 일반 파일 첨부
+// 카드로 그대로 렌더하면 meta JSON이 노출된다. 이들은 전용 카드(prFields/issueFields)로만
+// 표시하므로 일반 첨부 목록에서 제외한다.
+// 주의: api/erd/docs는 사용자가 직접 삽입하는 일반 첨부(meta는 짧은 라벨)이고 전용 렌더링이
+// 없으므로 여기서 제외하면 새로고침/서버 조회 후 카드가 사라진다 → pr/issue로만 한정한다.
+const STRUCTURAL_ATTACHMENT_TYPES = new Set(["pr", "issue"]);
 
 function mapChannelMessageToWorkspaceMessage(message: ChannelMessage) {
   const attachments = (message.attachments ?? [])
