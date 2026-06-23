@@ -1762,7 +1762,7 @@ export function WorkspacePage() {
 
                   const handleEventClick = () => {
                     if (!event.isRead) {
-                      setEvents((prev) => prev.map((e) => e.id === event.id ? { ...e, isRead: true } : e));
+                      setEvents((prev) => prev.map((e) => e.eventId === event.eventId ? { ...e, isRead: true } : e));
                       markEventAsRead(event.eventId).catch(() => {});
                     }
                     navigate("/chat", { state: { pendingEvent: event } });
@@ -1770,7 +1770,7 @@ export function WorkspacePage() {
 
                   return (
                     <div
-                      key={event.id}
+                      key={event.eventId ?? event.id}
                       className="px-5 py-4 rounded-2xl cursor-pointer transition-all hover:brightness-110"
                       style={{
                         background: event.isRead ? "rgba(5, 11, 20, 0.42)" : "rgba(32, 227, 255, 0.06)",
