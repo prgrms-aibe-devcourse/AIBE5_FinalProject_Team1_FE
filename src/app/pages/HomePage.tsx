@@ -14,6 +14,7 @@ import { Link } from "react-router";
 import {
   AnimatePresence,
   motion,
+  useInView,
   useMotionValue,
   useReducedMotion,
   useScroll,
@@ -98,6 +99,10 @@ export function HomePage() {
   const flowRef = useRef<HTMLElement | null>(null);
   const closingRef = useRef<HTMLElement | null>(null);
   const prefersReducedMotion = useReducedMotion();
+  const heroInView = useInView(heroRef, { amount: 0.12 });
+  const featuresInView = useInView(featuresRef, { amount: 0.12 });
+  const flowInView = useInView(flowRef, { amount: 0.12 });
+  const closingInView = useInView(closingRef, { amount: 0.12 });
   const pointerX = useMotionValue(0);
   const pointerY = useMotionValue(0);
   const smoothPointerX = useSpring(pointerX, { stiffness: 130, damping: 22, mass: 0.35 });
@@ -361,6 +366,11 @@ export function HomePage() {
             ? "focus"
             : "idle";
   const floatingMascotLabel = isEnglish ? "CodeDock is here" : "CodeDock 대기 중";
+  const shouldAnimateIntro = !prefersReducedMotion && showIntro;
+  const shouldAnimateHero = !prefersReducedMotion && heroInView;
+  const shouldAnimateFeatures = !prefersReducedMotion && featuresInView;
+  const shouldAnimateFlow = !prefersReducedMotion && flowInView;
+  const shouldAnimateClosing = !prefersReducedMotion && closingInView;
 
   useEffect(() => {
     setIntroStep(0);
@@ -586,13 +596,13 @@ export function HomePage() {
               type="button"
               aria-label={landingCopy.skipIntro}
               onClick={skipIntro}
-              className="absolute right-4 top-4 z-10 inline-flex h-11 items-center gap-2 rounded-full px-4 text-sm font-black tracking-tight transition-transform hover:scale-[1.03] active:scale-95 sm:right-8 sm:top-8"
+              className="absolute right-4 top-4 z-10 inline-flex h-11 items-center gap-2 rounded-full px-4 text-sm font-black tracking-tight transition-transform hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--neon-cyan)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#050B14] active:scale-95 sm:right-8 sm:top-8"
               style={{
                 background: "rgba(5, 11, 20, 0.74)",
                 border: `1px solid ${colors.primary}, 0.22)`,
                 boxShadow: `0 14px 34px rgba(0,0,0,0.28), 0 0 20px ${colors.primary}, 0.10)`,
                 color: "#DFFAFF",
-                backdropFilter: "blur(18px) saturate(180%)",
+                backdropFilter: prefersReducedMotion ? "none" : "blur(18px) saturate(180%)",
               }}
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
@@ -613,9 +623,11 @@ export function HomePage() {
                 <motion.div
                   className="relative h-[150px] w-full min-[430px]:h-[190px] sm:h-[260px]"
                   initial={{ y: 22, scale: 0.84, opacity: 0 }}
-                  animate={{ y: [0, -8, 0], scale: 1, opacity: 1 }}
+                  animate={{ y: shouldAnimateIntro ? [0, -8, 0] : 0, scale: 1, opacity: 1 }}
                   transition={{
-                    y: { duration: 3.1, repeat: Infinity, ease: "easeInOut" },
+                    y: shouldAnimateIntro
+                      ? { duration: 3.1, repeat: Infinity, ease: "easeInOut" }
+                      : { duration: 0.2, ease: "easeOut" },
                     scale: { duration: 0.52, ease: "backOut" },
                     opacity: { duration: 0.35 },
                   }}
@@ -642,7 +654,7 @@ export function HomePage() {
                         border: `1px solid ${colors.primary}, ${activeIntroDialogue.id === "brand" ? "0.32" : "0.20"})`,
                         boxShadow: `0 0 30px ${colors.primary}, 0.15), inset 0 1px 0 rgba(255,255,255,0.12)`,
                         color: "#DFFAFF",
-                        backdropFilter: "blur(18px) saturate(180%)",
+                        backdropFilter: prefersReducedMotion ? "none" : "blur(18px) saturate(180%)",
                         maxWidth: "min(100%, 560px)",
                       }}
                       initial={{ opacity: 0, x: -18, scale: 0.94, filter: "blur(8px)" }}
@@ -738,7 +750,7 @@ export function HomePage() {
             0 0 76px ${colors.primary}, 0.11),
             inset 0 1px 0 rgba(255, 255, 255, 0.12)
           `,
-          backdropFilter: "blur(22px) saturate(180%)",
+          backdropFilter: prefersReducedMotion ? "none" : "blur(22px) saturate(180%)",
         }}
       >
         <div
@@ -774,8 +786,8 @@ export function HomePage() {
                 background: "var(--matrix-green)",
                 boxShadow: "0 0 0 5px rgba(var(--codedock-secondary-rgb),0.13), 0 0 16px rgba(var(--codedock-secondary-rgb),0.7)",
               }}
-              animate={{ scale: [1, 1.55, 1], opacity: [0.74, 1, 0.74] }}
-              transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+              animate={shouldAnimateHero ? { scale: [1, 1.55, 1], opacity: [0.74, 1, 0.74] } : { scale: 1, opacity: 0.84 }}
+              transition={shouldAnimateHero ? { duration: 1.5, repeat: Infinity, ease: "easeInOut" } : { duration: 0.2 }}
             />
             <span className="text-sm font-black tracking-tight">{landingCopy.badge}</span>
           </div>
@@ -827,7 +839,7 @@ export function HomePage() {
               onPointerLeave={() => setIsCtaHovering(false)}
               onFocus={() => setIsCtaHovering(true)}
               onBlur={() => setIsCtaHovering(false)}
-              className="group relative inline-flex h-14 items-center justify-center gap-2 overflow-hidden rounded-2xl px-6 no-underline tracking-tight transition hover:scale-[1.02] active:scale-[0.98]"
+              className="group relative inline-flex h-14 items-center justify-center gap-2 overflow-hidden rounded-2xl px-6 no-underline tracking-tight transition hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--neon-cyan)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#050B14] active:scale-[0.98]"
               style={{
                 background: `linear-gradient(135deg, ${colors.primaryHex}, ${colors.secondary})`,
                 boxShadow: `0 0 30px ${colors.primary}, 0.24), 0 14px 34px rgba(0,0,0,0.28)`,
@@ -861,8 +873,8 @@ export function HomePage() {
           >
             <motion.div
               className="h-24 w-24 flex-shrink-0 sm:h-28 sm:w-28"
-              animate={{ y: [0, -5, 0] }}
-              transition={{ duration: 3.4, repeat: Infinity, ease: "easeInOut" }}
+              animate={shouldAnimateHero ? { y: [0, -5, 0] } : { y: 0 }}
+              transition={shouldAnimateHero ? { duration: 3.4, repeat: Infinity, ease: "easeInOut" } : { duration: 0.2 }}
             >
               <CoffeeLogo
                 alive={!prefersReducedMotion}
@@ -878,6 +890,7 @@ export function HomePage() {
                 primary={colors.primary}
                 primaryHex={colors.primaryHex}
                 tail="left"
+                animateTyping={shouldAnimateHero}
               />
             </div>
           </div>
@@ -952,15 +965,16 @@ export function HomePage() {
               <div className="relative z-10 grid w-full max-w-[320px] gap-2.5">
                 <MascotTypingBubble
                   text={typedMascotText}
-                  primary={colors.primary}
-                  primaryHex={colors.primaryHex}
-                  tail="right"
-                />
+                primary={colors.primary}
+                primaryHex={colors.primaryHex}
+                tail="right"
+                animateTyping={shouldAnimateHero}
+              />
               </div>
 
               <motion.div
-                animate={{ y: [0, -8, 0] }}
-                transition={{ duration: 4.2, repeat: Infinity, ease: "easeInOut" }}
+                animate={shouldAnimateHero ? { y: [0, -8, 0] } : { y: 0 }}
+                transition={shouldAnimateHero ? { duration: 4.2, repeat: Infinity, ease: "easeInOut" } : { duration: 0.2 }}
                 className="relative z-0 mt-5 self-center sm:mt-4 sm:self-end lg:mt-0 lg:self-center lg:justify-self-end"
               >
                 <CoffeeLogo
@@ -985,7 +999,7 @@ export function HomePage() {
                     role="button"
                     tabIndex={0}
                     aria-pressed={selectedSignalIndex === index}
-                    className="relative cursor-pointer overflow-hidden rounded-[18px] px-3 py-2 outline-none"
+                    className="relative cursor-pointer overflow-hidden rounded-[18px] px-3 py-2 outline-none focus-visible:ring-2 focus-visible:ring-[var(--neon-cyan)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#050B14]"
                     style={{
                       background: isSignalActive
                         ? `linear-gradient(135deg, ${toneAlpha(signal.tone, 10)}, rgba(234, 247, 255, 0.06))`
@@ -1100,7 +1114,7 @@ export function HomePage() {
               `,
               border: `1px solid ${colors.primary}, 0.16)`,
               boxShadow: "0 12px 36px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255,255,255,0.07)",
-              backdropFilter: "blur(16px) saturate(160%)",
+              backdropFilter: prefersReducedMotion ? "none" : "blur(16px) saturate(160%)",
             }}
           >
             <div
@@ -1167,7 +1181,7 @@ export function HomePage() {
                     transition={{ duration: 0.36, delay: index * 0.06, ease: "easeOut" }}
                     onClick={() => setActiveFeatureIndex(index)}
                     onFocus={() => setActiveFeatureIndex(index)}
-                    className="group relative flex min-h-[82px] cursor-pointer items-center gap-3 overflow-hidden rounded-2xl px-3 py-3 text-left outline-none"
+                    className="group relative flex min-h-[82px] cursor-pointer items-center gap-3 overflow-hidden rounded-2xl px-3 py-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--neon-cyan)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#050B14]"
                     style={{
                       background: isFeatureActive
                         ? `linear-gradient(145deg, ${toneAlpha(feature.tone, 15)}, rgba(234, 247, 255, 0.075))`
@@ -1188,8 +1202,16 @@ export function HomePage() {
                       }}
                     >
                       <motion.span
-                        animate={{ rotate: [0, index === 1 ? -5 : 5, 0], scale: [1, 1.08, 1] }}
-                        transition={{ duration: 3.4, repeat: Infinity, delay: index * 0.42, ease: "easeInOut" }}
+                        animate={
+                          shouldAnimateFeatures
+                            ? { rotate: [0, index === 1 ? -5 : 5, 0], scale: [1, 1.08, 1] }
+                            : { rotate: 0, scale: 1 }
+                        }
+                        transition={
+                          shouldAnimateFeatures
+                            ? { duration: 3.4, repeat: Infinity, delay: index * 0.42, ease: "easeInOut" }
+                            : { duration: 0.2 }
+                        }
                       >
                         <feature.icon size={19} strokeWidth={2.4} style={{ color: feature.tone }} />
                       </motion.span>
@@ -1230,7 +1252,7 @@ export function HomePage() {
               `,
               border: `1px solid ${toneAlpha(activeFeature.tone, 33)}`,
               boxShadow: `0 18px 54px rgba(0,0,0,0.34), 0 0 34px ${toneAlpha(activeFeature.tone, 9)}, inset 0 1px 0 rgba(255,255,255,0.09)`,
-              backdropFilter: "blur(18px) saturate(165%)",
+              backdropFilter: prefersReducedMotion ? "none" : "blur(18px) saturate(165%)",
             }}
           >
             <div
@@ -1283,9 +1305,9 @@ export function HomePage() {
                   <p className="m-0 text-sm font-black tracking-tight" style={{ color: activeFeature.tone }}>
                     {activeFeatureDetail.eyebrow}
                   </p>
-                  <h2 className="m-0 mt-2 text-2xl font-black leading-tight tracking-tight" style={{ color: "var(--white)" }}>
+                  <h3 className="m-0 mt-2 text-2xl font-black leading-tight tracking-tight" style={{ color: "var(--white)" }}>
                     {activeFeatureDetail.title}
-                  </h2>
+                  </h3>
                   <p className="m-0 mt-3 text-sm font-semibold leading-6 tracking-tight" style={{ color: "#D7EAF4" }}>
                     {activeFeatureDetail.description}
                   </p>
@@ -1415,7 +1437,7 @@ export function HomePage() {
           `,
           border: `1px solid ${colors.primary}, 0.16)`,
           boxShadow: "0 12px 36px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255,255,255,0.07)",
-          backdropFilter: "blur(16px) saturate(160%)",
+          backdropFilter: prefersReducedMotion ? "none" : "blur(16px) saturate(160%)",
         }}
       >
         <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
@@ -1459,6 +1481,8 @@ export function HomePage() {
               <motion.div
                 key={item}
                 data-flow-index={index + 1}
+                role="button"
+                aria-label={`${item} ${isEnglish ? "workflow step" : "작업 흐름 단계"}`}
                 aria-current={index === flowActiveEndIndex ? "step" : undefined}
                 tabIndex={0}
                 initial={{ opacity: 0, y: 14 }}
@@ -1471,9 +1495,15 @@ export function HomePage() {
                 onPointerEnter={() => setHoveredFlowIndex(index)}
                 onPointerLeave={() => setHoveredFlowIndex(null)}
                 onClick={() => setHoveredFlowIndex(index)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setHoveredFlowIndex(index);
+                  }
+                }}
                 onFocus={() => setHoveredFlowIndex(index)}
                 onBlur={() => setHoveredFlowIndex(null)}
-                className="relative flex min-h-[120px] items-center gap-3 rounded-2xl px-4 py-3 outline-none"
+                className="relative flex min-h-[120px] items-center gap-3 rounded-2xl px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-[var(--neon-cyan)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#050B14]"
                 style={{
                   background: isActiveNode
                     ? `linear-gradient(145deg, ${colors.primary}, 0.12), rgba(234, 247, 255, 0.065))`
@@ -1528,8 +1558,8 @@ export function HomePage() {
                   }}
                 >
                   <motion.span
-                    animate={{ scale: [1, 1.18, 1] }}
-                    transition={{ duration: 2.6, repeat: Infinity, delay: index * 0.34, ease: "easeInOut" }}
+                    animate={shouldAnimateFlow ? { scale: [1, 1.18, 1] } : { scale: 1 }}
+                    transition={shouldAnimateFlow ? { duration: 2.6, repeat: Infinity, delay: index * 0.34, ease: "easeInOut" } : { duration: 0.2 }}
                   >
                     <CheckCircle2 size={17} strokeWidth={2.6} />
                   </motion.span>
@@ -1581,7 +1611,7 @@ export function HomePage() {
             background: "rgba(11, 22, 40, 0.68)",
             border: `1px solid ${colors.primary}, 0.16)`,
             boxShadow: "0 12px 36px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255,255,255,0.07)",
-            backdropFilter: "blur(16px) saturate(160%)",
+            backdropFilter: prefersReducedMotion ? "none" : "blur(16px) saturate(160%)",
           }}
         >
           <motion.div
@@ -1590,8 +1620,8 @@ export function HomePage() {
               background: `${colors.primary}, 0.14)`,
               filter: "blur(42px)",
             }}
-            animate={{ scale: [1, 1.12, 1], opacity: [0.45, 0.72, 0.45] }}
-            transition={{ duration: 4.8, repeat: Infinity, ease: "easeInOut" }}
+            animate={shouldAnimateClosing ? { scale: [1, 1.12, 1], opacity: [0.45, 0.72, 0.45] } : { scale: 1, opacity: 0.5 }}
+            transition={shouldAnimateClosing ? { duration: 4.8, repeat: Infinity, ease: "easeInOut" } : { duration: 0.2 }}
           />
           <motion.span
             className="relative inline-flex h-12 w-12 items-center justify-center rounded-2xl"
@@ -1600,8 +1630,8 @@ export function HomePage() {
               border: `1px solid ${colors.primary}, 0.28)`,
               boxShadow: `0 0 22px ${colors.primary}, 0.22)`,
             }}
-            animate={{ rotate: [0, -4, 4, 0] }}
-            transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
+            animate={shouldAnimateClosing ? { rotate: [0, -4, 4, 0] } : { rotate: 0 }}
+            transition={shouldAnimateClosing ? { duration: 3.2, repeat: Infinity, ease: "easeInOut" } : { duration: 0.2 }}
           >
             <Sparkles size={28} strokeWidth={2.4} style={{ color: colors.primaryHex }} />
           </motion.span>
@@ -1649,8 +1679,8 @@ export function HomePage() {
                   background: `${colors.primary}, 0.10)`,
                   border: `1px solid ${colors.primary}, 0.20)`,
                 }}
-                animate={{ y: [0, -3, 0] }}
-                transition={{ duration: 3.4, repeat: Infinity, delay: index * 0.25, ease: "easeInOut" }}
+                animate={shouldAnimateClosing ? { y: [0, -3, 0] } : { y: 0 }}
+                transition={shouldAnimateClosing ? { duration: 3.4, repeat: Infinity, delay: index * 0.25, ease: "easeInOut" } : { duration: 0.2 }}
               >
                 <item.icon size={20} strokeWidth={2.4} style={{ color: colors.primaryHex }} />
               </motion.span>
@@ -1667,7 +1697,7 @@ export function HomePage() {
               background: "linear-gradient(145deg, rgba(11,22,40,0.88), rgba(5,11,20,0.74))",
               border: `1px solid ${colors.primary}, 0.22)`,
               boxShadow: `0 18px 48px rgba(0,0,0,0.34), 0 0 34px ${colors.primary}, 0.12)`,
-              backdropFilter: "blur(18px) saturate(180%)",
+              backdropFilter: prefersReducedMotion ? "none" : "blur(18px) saturate(180%)",
             }}
             initial={{ opacity: 0, y: 18, scale: 0.94 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -1676,8 +1706,8 @@ export function HomePage() {
           >
             <motion.div
               className="h-20 w-20 flex-shrink-0"
-              animate={prefersReducedMotion ? undefined : { y: [0, -4, 0] }}
-              transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
+              animate={shouldAnimateClosing ? { y: [0, -4, 0] } : { y: 0 }}
+              transition={shouldAnimateClosing ? { duration: 3.2, repeat: Infinity, ease: "easeInOut" } : { duration: 0.2 }}
             >
               <CoffeeLogo
                 alive={!prefersReducedMotion}
@@ -1696,6 +1726,7 @@ export function HomePage() {
                 primary={colors.primary}
                 primaryHex={colors.primaryHex}
                 tail="left"
+                animateTyping={shouldAnimateClosing}
               />
             </div>
           </motion.div>
@@ -1727,12 +1758,14 @@ function MascotTypingBubble({
   primaryHex,
   compact = false,
   tail = "none",
+  animateTyping = true,
 }: {
   text: string;
   primary: string;
   primaryHex: string;
   compact?: boolean;
   tail?: "none" | "left" | "right" | "bottom";
+  animateTyping?: boolean;
 }) {
   const showTypingDots = text.length === 0;
   const bubbleRef = useRef<HTMLDivElement | null>(null);
@@ -1806,8 +1839,8 @@ function MascotTypingBubble({
                 key={index}
                 className="h-1.5 w-1.5 rounded-full"
                 style={{ background: primaryHex }}
-                animate={{ opacity: [0.35, 1, 0.35], y: [0, -2, 0] }}
-                transition={{ duration: 0.8, repeat: Infinity, delay: index * 0.12, ease: "easeInOut" }}
+                animate={animateTyping ? { opacity: [0.35, 1, 0.35], y: [0, -2, 0] } : { opacity: 0.78, y: 0 }}
+                transition={animateTyping ? { duration: 0.8, repeat: Infinity, delay: index * 0.12, ease: "easeInOut" } : { duration: 0.2 }}
               />
             ))}
           </span>
@@ -1815,8 +1848,8 @@ function MascotTypingBubble({
           <motion.span
             className="h-4 w-[2px] rounded-full"
             style={{ background: primaryHex }}
-            animate={{ opacity: [0, 1, 0] }}
-            transition={{ duration: 0.88, repeat: Infinity, ease: "easeInOut" }}
+            animate={animateTyping ? { opacity: [0, 1, 0] } : { opacity: 1 }}
+            transition={animateTyping ? { duration: 0.88, repeat: Infinity, ease: "easeInOut" } : { duration: 0.2 }}
           />
         )}
       </div>
