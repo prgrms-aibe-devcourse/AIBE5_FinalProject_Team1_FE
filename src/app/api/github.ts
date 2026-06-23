@@ -78,6 +78,13 @@ export function syncRepositoryPrStatuses(repositoryDbId: number): Promise<void> 
   );
 }
 
+export function syncRepositoryIssues(repositoryDbId: number): Promise<void> {
+  return fetchWithAuth<void>(
+    `/api/v1/github/repositories/${repositoryDbId}/sync-issues`,
+    { method: "POST" }
+  );
+}
+
 export function syncRepositoryIssueStatuses(repositoryDbId: string): Promise<void> {
   return fetchWithAuth<void>(
     `/api/v1/github/repositories/${repositoryDbId}/sync-issue-statuses`,
