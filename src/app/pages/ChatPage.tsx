@@ -2372,8 +2372,10 @@ export function ChatPage() {
     [apiThreadTargets]
   );
   const isRepository = ['pull-requests', 'ai-review'].includes(selectedChannel);
-  const sidebarColumn = "clamp(280px, 21vw, 340px)";
-  const threadColumn = "clamp(320px, 26vw, 400px)";
+  // 비율 스케일(데스크톱 1920 기준 통째 축소, #root zoom). 열 폭은 데스크톱 고정값을
+  // 써서 vw 재계산 없이 데스크톱과 동일한 비율로 함께 축소되게 한다.
+  const sidebarColumn = "340px";
+  const threadColumn = "400px";
   const gridTemplateColumns = selectedPR || selectedIssue
     ? 'minmax(0, 1fr)'
     : isMainExpanded
@@ -2397,7 +2399,7 @@ export function ChatPage() {
     : undefined;
   const chatGridClassName = isMainExpanded
     ? "grid h-full min-h-0 gap-[clamp(20px,1.8vw,30px)] overflow-hidden"
-    : "grid h-[calc(100svh-128px)] min-h-0 gap-[clamp(16px,1.8vw,24px)] overflow-hidden";
+    : "grid h-[calc(100svh/var(--app-scale)-128px)] min-h-0 gap-6 overflow-hidden";
   const selectedChannelMeta = ALL_SIDEBAR_CHANNELS.find((channel) => channel.id === selectedChannel);
   const selectedCustomChannel = allCustomChannels.find(ch => ch.id === selectedChannel);
   const deleteChannelTarget = deleteChannelTargetId
@@ -5635,6 +5637,8 @@ export function ChatPage() {
       }}>
         {!selectedPR && !selectedIssue && (
           <section ref={sidebarRef} className="codedock-scrollbar-hidden codedock-scroll-lock-boundary min-h-0 min-w-0 overflow-y-auto rounded-[30px] px-[clamp(16px,1.4vw,24px)] py-[clamp(16px,1.4vw,24px)] flex flex-col" style={{
+            // 좌측 사이드바만 살짝 더 축소(글씨/아이콘/간격 비율 동일하게 줄임).
+            zoom: 0.92,
             background: 'rgba(11, 22, 40, 0.82)',
             border: '1px solid rgba(var(--codedock-primary-rgb), 0.16)',
             boxShadow: '0 20px 60px rgba(0, 0, 0, 0.32)',
@@ -6793,8 +6797,12 @@ export function ChatPage() {
             <motion.div
               className="fixed z-[9998] w-[252px] rounded-xl p-2.5"
               style={{
-                top: addChannelPosition.top,
-                left: addChannelPosition.left,
+                // 앱과 같은 비율로 축소. zoom이 fixed top/left를 함께 스케일하므로
+                // 좌표를 1/scale로 보정해 트리거 기준 위치를 유지한다.
+                // 우측정렬(left=trigger.right-252) + 폭 축소 → 오른쪽 끝이 트리거에 맞도록 left 보정.
+                zoom: 'var(--app-scale, 1)',
+                top: `calc(${addChannelPosition.top}px / var(--app-scale, 1))`,
+                left: `calc((${addChannelPosition.left}px + 252px) / var(--app-scale, 1) - 252px)`,
                 background: 'linear-gradient(145deg, rgba(8, 18, 32, 0.98), rgba(4, 10, 18, 0.98))',
                 border: `1px solid ${addChannelStep === 'repo' ? 'rgba(var(--codedock-secondary-rgb), 0.24)' : 'rgba(var(--codedock-primary-rgb), 0.24)'}`,
                 boxShadow: `0 16px 44px rgba(0,0,0,0.46), 0 0 24px ${addChannelStep === 'repo' ? 'rgba(var(--codedock-secondary-rgb),0.10)' : 'rgba(var(--codedock-primary-rgb),0.10)'}`,
@@ -7001,8 +7009,11 @@ export function ChatPage() {
               <motion.div
                 className="fixed z-[9998] w-36 overflow-hidden rounded-lg"
                 style={{
-                  top: channelMenuPosition.top,
-                  left: channelMenuPosition.left,
+                  // 앱과 같은 비율로 축소(좌표는 1/scale 보정). 우측정렬(left=trigger.right-144)이라
+                  // 폭 축소분만큼 오른쪽 끝이 트리거에 맞도록 left 보정.
+                  zoom: 'var(--app-scale, 1)',
+                  top: `calc(${channelMenuPosition.top}px / var(--app-scale, 1))`,
+                  left: `calc((${channelMenuPosition.left}px + 144px) / var(--app-scale, 1) - 144px)`,
                   background: 'rgba(5, 11, 20, 0.96)',
                   border: '1px solid rgba(var(--codedock-primary-rgb), 0.18)',
                   boxShadow: '0 12px 32px rgba(0,0,0,0.46), 0 0 20px rgba(var(--codedock-primary-rgb),0.10)',
@@ -7229,8 +7240,10 @@ export function ChatPage() {
               className="codedock-scrollbar-hidden"
               style={{
                 position: 'fixed',
-                top: memberListPos.top,
-                left: memberListPos.left,
+                // 앱과 같은 비율로 축소(좌표는 1/scale 보정으로 위치 유지).
+                zoom: 'var(--app-scale, 1)',
+                top: `calc(${memberListPos.top}px / var(--app-scale, 1))`,
+                left: `calc(${memberListPos.left}px / var(--app-scale, 1))`,
                 minWidth: memberListPos.width,
                 width: '240px',
                 maxHeight: '320px',

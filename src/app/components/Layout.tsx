@@ -62,8 +62,9 @@ export function Layout() {
 
   return (
     <div
-      className="min-h-screen overflow-x-hidden"
+      className="overflow-x-hidden"
       style={{
+        minHeight: "calc(100vh / var(--app-scale, 1))",
         color: "var(--white)",
         background: `
           radial-gradient(circle at 18% 16%, ${colors.gradient1}, transparent 28%),
@@ -363,6 +364,9 @@ function AccountMenu({ variant, onLogout, tabIndex }: AccountMenuProps) {
         avoidCollisions
         className="z-[80] w-64 rounded-2xl p-2"
         style={{
+          // 앱 전체와 같은 비율로 축소(팝업은 body로 portal되어 #root zoom 바깥이므로 직접 적용).
+          // Radix Floating UI가 축소된 크기를 실측해 정렬하므로 위치는 유지된다.
+          zoom: "var(--app-scale, 1)",
           background: "rgba(5, 11, 20, 0.96)",
           border: `1px solid ${colors.primary}, 0.22)`,
           color: "var(--white)",
