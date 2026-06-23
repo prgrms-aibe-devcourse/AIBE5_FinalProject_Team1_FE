@@ -20,6 +20,7 @@ import { AnimatePresence, motion } from "motion/react";
 interface PRReviewPanelProps {
   prData: any;
   repositoryDbId?: number;
+  workspaceId?: number;
   onClose: () => void;
   onMergePR?: (messageId: number) => void;
   externalThreadMessages?: any[];
@@ -476,7 +477,7 @@ function mapExternalThreadMessages(messages?: any[]): DiffThreadComment[] {
     }));
 }
 
-export function PRReviewPanel({ prData, repositoryDbId, onClose, onMergePR, externalThreadMessages, onAddThreadMessage }: PRReviewPanelProps) {
+export function PRReviewPanel({ prData, repositoryDbId, workspaceId, onClose, onMergePR, externalThreadMessages, onAddThreadMessage }: PRReviewPanelProps) {
   const [liveBody, setLiveBody] = useState<string | null>(null);
   const [liveCommits, setLiveCommits] = useState<string | null>(null);
   // prStatus가 이미 approved/merged면 처음부터 승인 완료 상태로 초기화
