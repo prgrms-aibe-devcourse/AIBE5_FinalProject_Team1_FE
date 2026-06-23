@@ -6431,7 +6431,7 @@ export function ChatPage() {
               />
             ) : selectedChannel === 'api-spec' ? (
               <EmbeddedPanelBoundary key="api-spec">
-                <APISpecPage embedded workspaceId={currentWorkspaceApiId} />
+                <APISpecPage embedded expanded={isMainExpanded} workspaceId={currentWorkspaceApiId} />
               </EmbeddedPanelBoundary>
             ) : selectedChannel === 'erd' ? (
               <EmbeddedPanelBoundary key={`erd-${selectedRepository}`}>

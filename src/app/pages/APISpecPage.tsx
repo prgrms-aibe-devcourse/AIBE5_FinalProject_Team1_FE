@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import "swagger-ui-react/swagger-ui.css";
 import {
   CheckCircle2,
+  ChevronDown,
   Code,
   Edit2,
   FileText,
@@ -109,10 +110,11 @@ function apiToForm(api: ApiSpecResponse): FormData {
 
 interface APISpecPageProps {
   embedded?: boolean;
+  expanded?: boolean;
   workspaceId?: number;
 }
 
-export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps) {
+export function APISpecPage({ embedded = false, expanded = false, workspaceId }: APISpecPageProps) {
   const { myMemberId, getMemberName } = useWorkspace();
 
   const [apis, setApis] = useState<ApiSpecResponse[]>([]);
@@ -131,8 +133,17 @@ export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps)
   const [isSwaggerSyncing, setIsSwaggerSyncing] = useState(false);
   const [swaggerSyncError, setSwaggerSyncError] = useState("");
   const [filterMethod, setFilterMethod] = useState<ApiSpecMethod | null>(null);
+  const [filterGroup, setFilterGroup] = useState<string | null>(null);
+  const [isGroupDropdownOpen, setIsGroupDropdownOpen] = useState(false);
 
-  const filteredApis = filterMethod ? apis.filter((api) => api.method === filterMethod) : apis;
+  const groupNames = useMemo(() => {
+    const names = apis.map(api => api.groupName).filter((g): g is string => !!g);
+    return [...new Set(names)].sort();
+  }, [apis]);
+
+  const filteredApis = apis
+    .filter(api => !filterMethod || api.method === filterMethod)
+    .filter(api => !filterGroup || api.groupName === filterGroup);
   const selectedApiData = apis.find((api) => api.id === selectedApiId) ?? apis[0] ?? null;
 
   const methodCounts = useMemo(() => {
@@ -415,7 +426,12 @@ export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps)
         <StatCard label="DELETE" value={methodCounts.DELETE} color="#FF6B6B" active={filterMethod === "DELETE"} onClick={() => setFilterMethod(filterMethod === "DELETE" ? null : "DELETE")} />
       </div>
 
-      <div className={embedded ? "grid gap-5 xl:grid-cols-[340px_1fr]" : "grid gap-6 lg:grid-cols-[410px_1fr]"}>
+      <div className={embedded
+        ? (filterGroup
+          ? (expanded ? "grid gap-5 xl:grid-cols-[460px_1fr]" : "grid gap-5 xl:grid-cols-[400px_1fr]")
+          : (expanded ? "grid gap-5 xl:grid-cols-[400px_1fr]" : "grid gap-5 xl:grid-cols-[340px_1fr]"))
+        : (filterGroup ? "grid gap-6 lg:grid-cols-[470px_1fr]" : "grid gap-6 lg:grid-cols-[410px_1fr]")
+      }>
         {/* 왼쪽: 엔드포인트 목록 */}
         <section
           className={embedded ? "rounded-2xl px-5 py-5" : "rounded-[30px] px-6 py-6"}
@@ -426,8 +442,8 @@ export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps)
             backdropFilter: "blur(16px)",
           }}
         >
-          <div className="mb-6 flex items-center justify-between">
-            <h2 className="m-0 flex items-center gap-2 text-xl font-black tracking-tight" style={{ color: "var(--white)" }}>
+          <div className="mb-6 flex items-center justify-between gap-3">
+            <h2 className="m-0 flex shrink-0 items-center gap-2 text-xl font-black tracking-tight" style={{ color: "var(--white)" }}>
               엔드포인트
               <span
                 className="rounded-lg px-2 py-0.5 text-sm font-black tracking-tight"
@@ -439,18 +455,75 @@ export function APISpecPage({ embedded = false, workspaceId }: APISpecPageProps)
                 {filterMethod ? `${filteredApis.length} / ${apis.length}` : apis.length}
               </span>
             </h2>
-            <button
-              onClick={openCreateForm}
-              className="grid h-9 w-9 place-items-center rounded-xl border-0"
-              style={{
-                background: "linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))",
-                color: "#021014",
-                cursor: "pointer",
-              }}
-              type="button"
-            >
-              <Plus size={18} />
-            </button>
+            <div className="flex items-center gap-2">
+              {groupNames.length > 0 && (
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setIsGroupDropdownOpen(prev => !prev)}
+                    className={`inline-flex ${expanded ? 'max-w-[180px]' : 'max-w-[160px]'} items-center gap-1.5 rounded-xl border-0 px-3 py-2 tracking-tight`}
+                    style={{
+                      background: filterGroup ? 'rgba(var(--codedock-primary-rgb), 0.16)' : 'rgba(234, 247, 255, 0.06)',
+                      border: filterGroup ? '1px solid rgba(var(--codedock-primary-rgb), 0.34)' : '1px solid rgba(234, 247, 255, 0.12)',
+                      color: filterGroup ? 'var(--neon-cyan)' : 'var(--muted)',
+                      cursor: 'pointer',
+                      fontSize: 'var(--krds-body-xsmall)',
+                      fontWeight: 950,
+                    }}
+                  >
+                    <span className="truncate">{filterGroup ?? '전체'}</span>
+                    <ChevronDown size={12} strokeWidth={2.8} className="shrink-0" style={{ transform: isGroupDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+                  </button>
+                  {isGroupDropdownOpen && (
+                    <div
+                      className="absolute right-0 top-full z-20 mt-1 overflow-y-auto rounded-2xl py-1"
+                      style={{
+                        background: 'rgba(8, 16, 30, 0.98)',
+                        border: '1px solid rgba(var(--codedock-primary-rgb), 0.24)',
+                        boxShadow: '0 12px 32px rgba(0,0,0,0.5)',
+                        maxHeight: '280px',
+                        minWidth: '160px',
+                      }}
+                    >
+                      {(['전체', ...groupNames] as const).map((g) => {
+                        const isActive = g === '전체' ? filterGroup === null : filterGroup === g;
+                        return (
+                          <button
+                            key={g}
+                            type="button"
+                            onClick={() => { setFilterGroup(g === '전체' ? null : g); setIsGroupDropdownOpen(false); }}
+                            className="w-full px-4 py-2 text-left tracking-tight"
+                            style={{
+                              background: isActive ? 'rgba(var(--codedock-primary-rgb), 0.14)' : 'transparent',
+                              border: 'none',
+                              color: isActive ? 'var(--neon-cyan)' : 'var(--white)',
+                              cursor: 'pointer',
+                              fontSize: 'var(--krds-body-xsmall)',
+                              fontWeight: isActive ? 950 : 800,
+                              wordBreak: 'break-word',
+                            }}
+                          >
+                            {g}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+              <button
+                onClick={openCreateForm}
+                className="grid h-9 w-9 place-items-center rounded-xl border-0"
+                style={{
+                  background: "linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))",
+                  color: "#021014",
+                  cursor: "pointer",
+                }}
+                type="button"
+              >
+                <Plus size={18} />
+              </button>
+            </div>
           </div>
 
 
