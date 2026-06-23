@@ -713,6 +713,27 @@ function filterRepositoryMessagesForView<T extends { attachments?: Array<{ type?
   return messages.filter((message) => getRepositoryMessageViewFromAttachments(message) === view);
 }
 
+// 같은 이슈/PR 번호의 중복 스레드를 1개만 남기고, GitHub 생성 시각 오름차순으로 정렬한다(최신이 맨 아래 = 채팅 순서).
+function dedupeRepositoryMessagesByNumber<T extends { type?: unknown; prNumber?: unknown; issueNumber?: unknown; id?: unknown; githubCreatedAt?: unknown; backendMessageId?: unknown }>(list: T[]): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const m of list) {
+    const num = m.type === "pr" ? m.prNumber : m.type === "issue" ? m.issueNumber : undefined;
+    const key = num != null ? `${String(m.type)}:${String(num)}` : `id:${String(m.id)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(m);
+  }
+  const ts = (m: T) => {
+    const t = Date.parse(String(m.githubCreatedAt ?? ""));
+    return Number.isNaN(t) ? 0 : t;
+  };
+  return out.sort((a, b) => {
+    if (ts(a) !== ts(b)) return ts(a) - ts(b);
+    return Number(a.backendMessageId ?? a.id ?? 0) - Number(b.backendMessageId ?? b.id ?? 0);
+  });
+}
+
 function sortChannelsByDisplayOrder(channels: Channel[]) {
   return [...channels].sort((a, b) => {
     const aOrder = a.displayOrder ?? Number.MAX_SAFE_INTEGER;
@@ -763,6 +784,13 @@ function mapChannelMessageToWorkspaceMessage(message: ChannelMessage) {
       if (!parsed.issueAssignees || (parsed.issueAssignees as unknown[]).length === 0) {
         parsed.issueAssignees = parsed.issueAuthor ? [parsed.issueAuthor] : [];
       }
+      // 카드 시간: 닫힌 이슈는 닫힌 시각, 그 외는 GitHub 생성 시각 (동기화 시각 아님)
+      {
+        const issueTime = (parsed.issueStatus === 'closed' && parsed.githubClosedAt)
+          ? parsed.githubClosedAt
+          : parsed.githubCreatedAt;
+        if (issueTime) parsed.time = formatApiDateTime(String(issueTime));
+      }
       issueFields = { type: "issue", ...parsed };
     } catch {
       // meta가 JSON이 아닌 경우 무시
@@ -784,6 +812,13 @@ let prFields: Record<string, unknown> = {};
       if (parsed.filesChanged === undefined) parsed.filesChanged = 0;
       if (parsed.additions === undefined) parsed.additions = 0;
       if (parsed.deletions === undefined) parsed.deletions = 0;
+      // 카드 시간: 병합된 PR은 병합 시각, 그 외는 GitHub 생성 시각 (동기화 시각 아님)
+      {
+        const prTime = (parsed.prStatus === 'merged' && parsed.githubMergedAt)
+          ? parsed.githubMergedAt
+          : parsed.githubCreatedAt;
+        if (prTime) parsed.time = formatApiDateTime(String(prTime));
+      }
       prFields = { type: "pr", ...parsed };
     } catch {
       // meta가 JSON이 아닌 경우 무시
@@ -2000,9 +2035,10 @@ export function ChatPage() {
       .then(() => syncRepositoryPrStatuses(repoDbId).catch(() => { /* ignore */ }))
       .then(() => getChannelMessages(channelId, { limit: 50 }))
       .then((serverMessages) => {
-        const mapped = serverMessages.map(mapChannelMessageToWorkspaceMessage);
-        const filtered = mapped.filter((m) => (m as any).type === 'pr');
-        setMessages((prev) => ({ ...prev, [channelKey]: filtered }));
+        // attachment 기준으로 PR만 추려(이슈 교차 표시 방지), 번호 중복 제거. 순서는 서버 오름차순(최신이 아래) 유지.
+        const visible = filterRepositoryMessagesForView(serverMessages, 'pull-requests');
+        const mapped = dedupeRepositoryMessagesByNumber(visible.map(mapChannelMessageToWorkspaceMessage));
+        setMessages((prev) => ({ ...prev, [channelKey]: mapped }));
       })
       .catch(() => { /* ignore */ });
   }, [selectedChannel, currentRepo?.id, activeApiChannelId, selectedChannelMessageKey]);
@@ -2022,9 +2058,10 @@ export function ChatPage() {
       .then(() => syncRepositoryIssueStatuses(String(repoDbId)).catch(() => { /* ignore */ }))
       .then(() => getChannelMessages(channelId, { limit: 50 }))
       .then((serverMessages) => {
-        const mapped = serverMessages.map(mapChannelMessageToWorkspaceMessage);
-        const filtered = mapped.filter((m) => (m as any).type === 'issue');
-        setMessages((prev) => ({ ...prev, [channelKey]: filtered }));
+        // attachment 기준으로 이슈만 추려(PR 교차 표시 방지), 번호 중복 제거. 순서는 서버 오름차순(최신이 아래) 유지.
+        const visible = filterRepositoryMessagesForView(serverMessages, 'issues');
+        const mapped = dedupeRepositoryMessagesByNumber(visible.map(mapChannelMessageToWorkspaceMessage));
+        setMessages((prev) => ({ ...prev, [channelKey]: mapped }));
       })
       .catch(() => { /* ignore */ });
   }, [selectedChannel, currentRepo?.id, activeApiChannelId, selectedChannelMessageKey]);
@@ -3395,6 +3432,9 @@ export function ChatPage() {
 
   useEffect(() => {
     if (!activeApiChannelId) return;
+    // issues / pull-requests 탭은 전용 effect가 동기화+로드+중복제거를 전담한다.
+    // 여기서 또 로드하면 이중 기록 경합으로 교차표시/중복/순서 꼬임이 생기므로 건너뛴다.
+    if (selectedRepositoryMessageView === 'issues' || selectedRepositoryMessageView === 'pull-requests') return;
 
     const controller = new AbortController();
     setMessages((prev) => {
