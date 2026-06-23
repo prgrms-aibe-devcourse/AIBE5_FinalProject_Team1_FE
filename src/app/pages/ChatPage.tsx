@@ -826,7 +826,7 @@ let prFields: Record<string, unknown> = {};
           : parsed.githubCreatedAt;
         if (prTime) parsed.time = formatApiDateTime(String(prTime));
       }
-      prFields = { type: "pr", ...parsed };
+      prFields = { type: "pr", ...parsed, prDbId: prAttachment.targetId ?? undefined };
     } catch {
       // meta가 JSON이 아닌 경우 무시
     }
@@ -6866,6 +6866,7 @@ export function ChatPage() {
             <PRReviewPanel
               prData={selectedPR}
               repositoryDbId={currentRepo ? Number(currentRepo.id.replace('repo-', '')) : undefined}
+              workspaceId={currentWorkspaceApiId ?? undefined}
               onClose={handleClosePRReview}
               onMergePR={handleMergePR}
               externalThreadMessages={currentThreadReplies[`pr-${selectedPR.id}`] ?? []}
