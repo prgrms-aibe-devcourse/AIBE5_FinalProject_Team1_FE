@@ -6,9 +6,33 @@
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <title>안씨네 머슴들 - 수정본</title>
       <style>
+      :root { --app-scale: 1; }
       html, body { height: 100%; margin: 0; background-color: #050B14; }
-      #root { height: 100%; background-color: #050B14; }
+      body { overflow-x: hidden; }
+      /* 데스크톱(1920) 기준으로 그린 레이아웃을 화면 폭에 맞춰 통째 축소(zoom).
+         #root는 body의 자식이고, 팝업/드롭다운은 document.body로 portal되므로
+         zoom 바깥에 남아 좌표가 어긋나지 않는다.
+         width/min-height 역보정으로 축소 후에도 화면을 꽉 채운다. */
+      #root {
+        background-color: #050B14;
+        zoom: var(--app-scale, 1);
+        width: calc(100vw / var(--app-scale, 1));
+        min-height: calc(100vh / var(--app-scale, 1));
+      }
     </style>
+      <script>
+        // 데스크톱 기준 폭(원본 디자인 폭). 본인 데스크톱 가로 해상도에 맞게 조정.
+        (function () {
+          var BASE_WIDTH = 1920;
+          function applyAppScale() {
+            var w = document.documentElement.clientWidth || window.innerWidth;
+            var scale = Math.min(1, w / BASE_WIDTH);
+            document.documentElement.style.setProperty('--app-scale', String(scale));
+          }
+          applyAppScale();
+          window.addEventListener('resize', applyAppScale);
+        })();
+      </script>
     </head>
 
     <body>
