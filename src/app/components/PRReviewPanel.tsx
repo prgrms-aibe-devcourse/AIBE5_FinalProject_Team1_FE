@@ -615,32 +615,9 @@ export function PRReviewPanel({ prData, repositoryDbId, workspaceId, onClose, on
   const risk = prData.aiRisk || "Medium";
   const branch = prData.branch || "feature/auth";
   const authorBadge = prData.authorInitials || author.slice(0, 2).toUpperCase();
-  const isActualPr = prData.isActualPr || prTitle.includes("AI 인터뷰");
-  const summaryText = isActualPr
-    ? "이 PR은 AI 인터뷰 결과를 기존 값 보존 중심으로 반영하도록 정책과 테스트를 정리합니다. 누락된 값이 기존 모집 단위 정보를 덮어쓰지 않도록 프롬프트와 갱신 로직을 함께 보강합니다."
-    : "이 PR은 인증 미들웨어와 SecurityConfig 설정을 변경합니다. refresh token API와 인증 실패 응답 흐름까지 함께 확인해야 하는 보안 관련 변경사항입니다.";
-  const cautionItems = isActualPr
-    ? [
-      "AI 브리프와 AI 인터뷰의 반영 정책이 섞이지 않는지 확인 필요",
-      "빈 배열과 null 처리 기준이 서비스/테스트에서 동일해야 함",
-      "사용자가 명시적으로 삭제한 경우와 응답 누락을 구분해야 함"
-    ]
-    : [
-      "요청 제한 설정값이 너무 낮을 수 있음",
-      "keyGenerator가 undefined user.id를 반환할 가능성",
-      "에러 처리 누락"
-    ];
-  const positiveItems = isActualPr
-    ? [
-      "기존 값 보존 정책이 테스트로 명확해짐",
-      "신규 생성과 기존 수정 흐름을 분리해 회귀 가능성을 낮춤",
-      "프롬프트까지 함께 보강해 AI 응답 해석 기준이 선명함"
-    ]
-    : [
-      "express-rate-limit 패키지 사용으로 검증된 솔루션 적용",
-      "보안 취약점 해결",
-      "코드 가독성 양호"
-    ];
+  const summaryText = aiSummary?.summaryText ?? null;
+  const cautionItems = aiSummary?.cautionItems ?? [];
+  const positiveItems = aiSummary?.positiveItems ?? [];
   const originalWhatItems = isActualPr
     ? actualPrWhatItems
     : [
@@ -876,58 +853,94 @@ export function PRReviewPanel({ prData, repositoryDbId, workspaceId, onClose, on
     </div>
   );
 
-  const renderSummaryTab = () => (
-    <div className="grid gap-6">
-      <section className="rounded-2xl px-6 py-5" style={{
-        background: "rgba(var(--codedock-primary-rgb), 0.10)",
-        border: "1px solid rgba(var(--codedock-primary-rgb), 0.30)"
-      }}>
-        <div className="mb-4 flex items-center gap-3">
-          <Sparkles size={24} style={{ color: "var(--neon-cyan)" }} />
-          <h3 className="m-0 tracking-tight" style={{ color: "var(--white)", fontSize: 22, fontWeight: 950 }}>
-            AI 분석 요약
-          </h3>
+  const renderSummaryTab = () => {
+    if (aiSummaryLoading || aiSummary?.status === "pending" || aiSummary?.status === "processing") {
+      return (
+        <div className="flex flex-col items-center justify-center gap-4 py-16">
+          <Sparkles size={32} style={{ color: "var(--neon-cyan)", opacity: 0.7 }} />
+          <p className="m-0 tracking-tight" style={{ color: "var(--muted)", fontSize: 15, fontWeight: 850 }}>
+            AI가 PR을 분석하고 있습니다...
+          </p>
         </div>
-        <p className="m-0 tracking-tight" style={{ color: "var(--soft-mint)", fontSize: 15, fontWeight: 850, lineHeight: 1.75 }}>
-          {summaryText}
-        </p>
-      </section>
+      );
+    }
+    if (aiSummary?.status === "failed" || (!aiSummaryLoading && aiSummary && !summaryText)) {
+      return (
+        <div className="flex flex-col items-center justify-center gap-4 py-16">
+          <AlertTriangle size={32} style={{ color: "#FF6B6B", opacity: 0.8 }} />
+          <p className="m-0 tracking-tight" style={{ color: "var(--muted)", fontSize: 15, fontWeight: 850 }}>
+            AI 분석에 실패했습니다. 잠시 후 다시 시도해주세요.
+          </p>
+        </div>
+      );
+    }
+    if (!aiSummary) {
+      return (
+        <div className="flex flex-col items-center justify-center gap-4 py-16">
+          <Sparkles size={32} style={{ color: "var(--muted)", opacity: 0.5 }} />
+          <p className="m-0 tracking-tight" style={{ color: "var(--muted)", fontSize: 15, fontWeight: 850 }}>
+            AI 요약 정보가 없습니다.
+          </p>
+        </div>
+      );
+    }
+    return (
+      <div className="grid gap-6">
+        <section className="rounded-2xl px-6 py-5" style={{
+          background: "rgba(var(--codedock-primary-rgb), 0.10)",
+          border: "1px solid rgba(var(--codedock-primary-rgb), 0.30)"
+        }}>
+          <div className="mb-4 flex items-center gap-3">
+            <Sparkles size={24} style={{ color: "var(--neon-cyan)" }} />
+            <h3 className="m-0 tracking-tight" style={{ color: "var(--white)", fontSize: 22, fontWeight: 950 }}>
+              AI 분석 요약
+            </h3>
+          </div>
+          <p className="m-0 tracking-tight" style={{ color: "var(--soft-mint)", fontSize: 15, fontWeight: 850, lineHeight: 1.75 }}>
+            {summaryText}
+          </p>
+        </section>
 
-      <section className="rounded-2xl px-6 py-5" style={{
-        background: "rgba(239, 68, 68, 0.10)",
-        border: "1px solid rgba(239, 68, 68, 0.28)"
-      }}>
-        <h3 className="m-0 mb-4 tracking-tight" style={{ color: "#FF6B6B", fontSize: 18, fontWeight: 950 }}>
-          주의사항
-        </h3>
-        <div className="grid gap-3">
-          {cautionItems.map((item) => (
-            <div key={item} className="flex gap-2 m-0 tracking-tight" style={{ color: "var(--white)", fontSize: 15, fontWeight: 850 }}>
-              <span style={{ flexShrink: 0, color: "#FF6B6B", fontWeight: 950 }}>-</span>
-              <span>{item}</span>
+        {cautionItems.length > 0 && (
+          <section className="rounded-2xl px-6 py-5" style={{
+            background: "rgba(239, 68, 68, 0.10)",
+            border: "1px solid rgba(239, 68, 68, 0.28)"
+          }}>
+            <h3 className="m-0 mb-4 tracking-tight" style={{ color: "#FF6B6B", fontSize: 18, fontWeight: 950 }}>
+              주의사항
+            </h3>
+            <div className="grid gap-3">
+              {cautionItems.map((item) => (
+                <div key={item} className="flex gap-2 m-0 tracking-tight" style={{ color: "var(--white)", fontSize: 15, fontWeight: 850 }}>
+                  <span style={{ flexShrink: 0, color: "#FF6B6B", fontWeight: 950 }}>-</span>
+                  <span>{item}</span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      </section>
+          </section>
+        )}
 
-      <section className="rounded-2xl px-6 py-5" style={{
-        background: "rgba(34, 197, 94, 0.10)",
-        border: "1px solid rgba(34, 197, 94, 0.30)"
-      }}>
-        <h3 className="m-0 mb-4 tracking-tight" style={{ color: "var(--matrix-green)", fontSize: 18, fontWeight: 950 }}>
-          긍정적인 점
-        </h3>
-        <div className="grid gap-3">
-          {positiveItems.map((item) => (
-            <div key={item} className="flex gap-2 m-0 tracking-tight" style={{ color: "var(--white)", fontSize: 15, fontWeight: 850 }}>
-              <span style={{ flexShrink: 0, color: "var(--matrix-green)", fontWeight: 950 }}>-</span>
-              <span>{item}</span>
+        {positiveItems.length > 0 && (
+          <section className="rounded-2xl px-6 py-5" style={{
+            background: "rgba(34, 197, 94, 0.10)",
+            border: "1px solid rgba(34, 197, 94, 0.30)"
+          }}>
+            <h3 className="m-0 mb-4 tracking-tight" style={{ color: "var(--matrix-green)", fontSize: 18, fontWeight: 950 }}>
+              긍정적인 점
+            </h3>
+            <div className="grid gap-3">
+              {positiveItems.map((item) => (
+                <div key={item} className="flex gap-2 m-0 tracking-tight" style={{ color: "var(--white)", fontSize: 15, fontWeight: 850 }}>
+                  <span style={{ flexShrink: 0, color: "var(--matrix-green)", fontWeight: 950 }}>-</span>
+                  <span>{item}</span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      </section>
-    </div>
-  );
+          </section>
+        )}
+      </div>
+    );
+  };
 
   const renderContentTab = () => (
     <div className="grid gap-5">
