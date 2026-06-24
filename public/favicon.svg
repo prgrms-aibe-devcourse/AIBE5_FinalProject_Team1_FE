@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="CodeDock">
+  <defs>
+    <linearGradient id="bg" x1="10" y1="8" x2="54" y2="58" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#082338"/>
+      <stop offset="0.62" stop-color="#06111F"/>
+      <stop offset="1" stop-color="#053C43"/>
+    </linearGradient>
+    <linearGradient id="mark" x1="15" y1="12" x2="49" y2="52" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#20E3FF"/>
+      <stop offset="1" stop-color="#39FF88"/>
+    </linearGradient>
+    <filter id="glow" x="-35%" y="-35%" width="170%" height="170%">
+      <feDropShadow dx="0" dy="0" stdDeviation="2.4" flood-color="#20E3FF" flood-opacity="0.56"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="8" flood-color="#39FF88" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+  <rect width="64" height="64" rx="18" fill="url(#bg)"/>
+  <path
+    d="M47 20.5C43.2 16.9 38.2 15 32.4 15 22.9 15 16 22.1 16 32s6.9 17 16.4 17c5.9 0 10.9-2 14.6-5.8"
+    fill="none"
+    stroke="url(#mark)"
+    stroke-width="8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    filter="url(#glow)"
+  />
+  <path
+    d="M46.4 31.8H31.7"
+    fill="none"
+    stroke="#B7FFE3"
+    stroke-width="5"
+    stroke-linecap="round"
+    opacity="0.92"
+  />
+  <circle cx="51" cy="32" r="3.8" fill="#39FF88" opacity="0.95"/>
+</svg>
