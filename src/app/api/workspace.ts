@@ -154,6 +154,7 @@ export type ReceivedInviteDto = {
   inviterName: string;
   role: string;
   expiresAt: string;
+  createdAt: string;
   memberCount: number;
 };
 

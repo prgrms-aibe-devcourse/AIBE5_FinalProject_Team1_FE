@@ -1357,7 +1357,7 @@ export function WorkspacePage() {
             teamName: inv.workspaceName,
             inviterName: inv.inviterName,
             role: roleToKorean(inv.role),
-            time: new Date(inv.expiresAt).toLocaleDateString("ko-KR"),
+            time: new Date(inv.createdAt).toLocaleDateString("ko-KR"),
             memberCount: inv.memberCount,
             repoCount: 0,
             myPendingReviews: 0,
