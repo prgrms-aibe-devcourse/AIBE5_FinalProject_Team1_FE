@@ -78,6 +78,31 @@ export function syncRepositoryPrStatuses(repositoryDbId: number): Promise<void> 
   );
 }
 
+// 레포지토리 PR 목록 (작업 보드용). 백엔드 buildPrMessageMap 형태와 동일.
+export type RepositoryPullRequest = {
+  id: number;
+  prNumber: number;
+  prTitle: string;
+  prStatus: "open" | "approved" | "merged" | "closed" | (string & {});
+  prAuthor: string | null;
+  prUrl: string;
+  prBody?: string;
+  prCommits?: string;
+  additions?: number;
+  deletions?: number;
+  filesChanged?: number;
+  approved?: number;
+  branch?: string;
+  githubCreatedAt?: string | null;
+  githubMergedAt?: string | null;
+};
+
+export function getRepositoryPullRequests(repositoryDbId: number): Promise<RepositoryPullRequest[]> {
+  return fetchWithAuth<RepositoryPullRequest[]>(
+    `/api/v1/github/repositories/${repositoryDbId}/pull-requests`
+  );
+}
+
 export function syncRepositoryIssues(repositoryDbId: number): Promise<void> {
   return fetchWithAuth<void>(
     `/api/v1/github/repositories/${repositoryDbId}/sync-issues`,
