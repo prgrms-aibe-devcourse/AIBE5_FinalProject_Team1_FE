@@ -1,4 +1,5 @@
 import { X, FileText, History, CircleDot, Clock, CircleCheck, UserRound, Tag, MessageSquare, CheckCircle2, XCircle, Send } from "lucide-react";
+import { renderMarkdown } from "../utils/renderMarkdown";
 import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import type { IssueLabel, IssueHistoryEvent } from "./ChatPanel";
@@ -48,55 +49,6 @@ const historyIconConfig: Record<IssueHistoryEvent["eventType"], { icon: typeof C
 
 const colorAlpha = (color: string, percent: number) => `color-mix(in srgb, ${color} ${percent}%, transparent)`;
 
-function renderBody(body: string) {
-  return body.split("\n").map((line, idx) => {
-    if (line.startsWith("## ")) {
-      return (
-        <h3
-          key={idx}
-          className="m-0 mt-5 mb-2 tracking-tight first:mt-0"
-          style={{ color: "var(--white)", fontSize: 15, fontWeight: 950 }}
-        >
-          {line.replace("## ", "")}
-        </h3>
-      );
-    }
-    if (line.startsWith("- ")) {
-      return (
-        <li
-          key={idx}
-          className="ml-4 tracking-tight"
-          style={{ color: "var(--soft-mint)", fontSize: 14, fontWeight: 800, lineHeight: 1.7 }}
-        >
-          {line.replace("- ", "")}
-        </li>
-      );
-    }
-    if (line.match(/^\d+\./)) {
-      return (
-        <li
-          key={idx}
-          className="ml-4 list-decimal tracking-tight"
-          style={{ color: "var(--soft-mint)", fontSize: 14, fontWeight: 800, lineHeight: 1.7 }}
-        >
-          {line.replace(/^\d+\.\s*/, "")}
-        </li>
-      );
-    }
-    if (line === "") {
-      return <div key={idx} className="h-1" />;
-    }
-    return (
-      <p
-        key={idx}
-        className="m-0 tracking-tight"
-        style={{ color: "var(--soft-mint)", fontSize: 14, fontWeight: 800, lineHeight: 1.7 }}
-      >
-        {line}
-      </p>
-    );
-  });
-}
 
 export function IssuePanel({ issueData, onClose, externalThreadMessages, onAddThreadMessage }: IssuePanelProps) {
   const [activeTab, setActiveTab] = useState<IssueTab>("content");
@@ -232,7 +184,7 @@ export function IssuePanel({ issueData, onClose, externalThreadMessages, onAddTh
                 border:     "1px solid rgba(var(--codedock-primary-rgb), 0.12)",
               }}
             >
-              <div className="grid gap-0">{renderBody(body)}</div>
+              <div className="grid gap-4">{renderMarkdown(body)}</div>
             </section>
 
             {/* 담당자 */}

@@ -17,6 +17,7 @@ import { useEffect, useRef, useState } from "react";
 import { fetchWithAuth } from "../api/fetchWithAuth";
 import { getAiSummary, type AiSummaryResponse } from "../api/pr";
 import { AnimatePresence, motion } from "motion/react";
+import { renderMarkdown } from "../utils/renderMarkdown";
 
 interface PRReviewPanelProps {
   prData: any;
@@ -704,17 +705,8 @@ export function PRReviewPanel({ prData, repositoryDbId, workspaceId, onClose, on
 
         <div className="px-6 py-6">
           {resolvedPrBody ? (
-            <div
-              style={{
-                color: "var(--white)",
-                fontSize: 15,
-                fontWeight: 820,
-                lineHeight: 1.75,
-                whiteSpace: "pre-wrap",
-                wordBreak: "break-word"
-              }}
-            >
-              {resolvedPrBody}
+            <div className="grid gap-4">
+              {renderMarkdown(resolvedPrBody)}
             </div>
           ) : (
             <p style={{ color: "var(--muted)", fontSize: 14, fontWeight: 800, margin: 0 }}>
