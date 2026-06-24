@@ -9,6 +9,7 @@ import { MessageAttachmentCard } from "./MessageAttachmentCard";
 import { TypingIndicatorBar } from "./TypingIndicatorBar";
 import { appendMention, extractMentionNames, readBookmarkMap, saveBookmarkMap, toggleBookmark, type MessageMetadata } from "./chatInteractionUtils";
 import { CodeBlockComposer, MessageTextWithCodeBlocks, createFencedCodeBlock, getCodeLanguageLabel, type CodeBlockLanguage } from "./CodeBlockTools";
+import { CoffeeLogo } from "./CoffeeLogo";
 
 export interface IssueLabel {
   name: string;
@@ -627,6 +628,29 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
     return true;
   }) : messages;
   const reactionMap = reactions ?? localMessageReactions;
+  const emptyStateType =
+    channelId === "pull-requests" || title.toLowerCase().includes("pr")
+      ? "pr"
+      : channelId === "issues" || title.includes("이슈")
+        ? "issue"
+        : "chat";
+  const emptyState = {
+    chat: {
+      title: "아직 대화가 없어요",
+      description: "첫 메시지를 보내면 제가 흐름을 정리해둘게요.",
+      mood: "idle" as const
+    },
+    pr: {
+      title: "아직 PR 소식이 없어요",
+      description: "새 PR이 열리면 여기에서 바로 확인할게요.",
+      mood: "focus" as const
+    },
+    issue: {
+      title: "아직 이슈가 조용해요",
+      description: "새 이슈가 생기면 제가 먼저 알려드릴게요.",
+      mood: "risk" as const
+    }
+  }[emptyStateType];
 
   useEffect(() => {
     const scrollContainer = scrollContainerRef.current;
@@ -714,7 +738,46 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
 
       <div ref={scrollContainerRef} className="min-h-0 flex-1 px-6 py-4 overflow-y-auto">
         <div className="grid gap-4">
-          {filteredMessages.map((msg) => {
+          {filteredMessages.length === 0 ? (
+            <div
+              className="flex min-h-[280px] flex-col items-center justify-center rounded-2xl px-6 py-10 text-center"
+              style={{
+                background: 'rgba(5, 11, 20, 0.34)',
+                border: '1px solid rgba(var(--codedock-primary-rgb), 0.16)'
+              }}
+            >
+              <div
+                className="mb-5 grid h-28 w-28 place-items-center rounded-3xl"
+                style={{
+                  background: 'rgba(var(--codedock-primary-rgb), 0.08)',
+                  border: '1px solid rgba(var(--codedock-primary-rgb), 0.22)'
+                }}
+              >
+                <CoffeeLogo mood={emptyState.mood} className="h-24 w-24" />
+              </div>
+              <h4
+                className="m-0 tracking-tight"
+                style={{
+                  color: 'var(--white)',
+                  fontSize: '20px',
+                  fontWeight: 950
+                }}
+              >
+                {emptyState.title}
+              </h4>
+              <p
+                className="m-0 mt-2 max-w-[420px] tracking-tight"
+                style={{
+                  color: 'var(--muted)',
+                  fontSize: '14px',
+                  fontWeight: 800,
+                  lineHeight: 1.6
+                }}
+              >
+                {emptyState.description}
+              </p>
+            </div>
+          ) : filteredMessages.map((msg) => {
             const isOwnMessage = isMessageMine(msg);
             const isStructuredMessage = msg.type === 'pr' || msg.type === 'issue';
             const showSlackAvatar = !isStructuredMessage;

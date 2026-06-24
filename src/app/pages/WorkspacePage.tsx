@@ -320,7 +320,7 @@ function WorkspaceSuccessModal({
             border: "1px solid rgba(var(--codedock-primary-rgb), 0.18)"
           }}
         >
-          <CoffeeLogo className="h-28 w-28" alive mood="happy" />
+          <CoffeeLogo className="h-28 w-28" mood="success" />
         </div>
         <h2
           id="workspace-success-title"

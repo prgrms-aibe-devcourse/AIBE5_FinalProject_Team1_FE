@@ -9,6 +9,7 @@ import { MessageAttachmentCard } from "./MessageAttachmentCard";
 import { TypingIndicatorBar } from "./TypingIndicatorBar";
 import { appendMention, extractMentionNames, readBookmarkMap, saveBookmarkMap, toggleBookmark, type MessageMetadata } from "./chatInteractionUtils";
 import { CodeBlockComposer, MessageTextWithCodeBlocks, createFencedCodeBlock, type CodeBlockLanguage } from "./CodeBlockTools";
+import { CoffeeLogo } from "./CoffeeLogo";
 
 interface Thread {
   id: number;
@@ -162,6 +163,24 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
   const displayCurrentUserName = myDisplayName?.trim() || currentUserDisplayName;
   const displayCurrentUserAvatar = displayCurrentUserName.charAt(0) || currentUserAvatar;
   const displayCurrentUserAvatarUrl = myAvatarUrl?.trim() || "";
+  const emptyState =
+    channelId === "pull-requests"
+      ? {
+          title: "아직 PR 소식이 없어요",
+          description: "새 PR이 열리면 여기에서 바로 확인할게요.",
+          mood: "focus" as const
+        }
+      : channelId === "issues"
+        ? {
+            title: "아직 이슈가 조용해요",
+            description: "새 이슈가 생기면 제가 먼저 알려드릴게요.",
+            mood: "risk" as const
+          }
+        : {
+            title: "아직 대화가 없어요",
+            description: "첫 메시지를 보내면 제가 흐름을 정리해둘게요.",
+            mood: "idle" as const
+          };
 
   const channelLabel = repoName ?? '일반';
   const [hoveredMessageId, setHoveredMessageId] = useState<number | null>(null);
@@ -775,7 +794,46 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
       {/* Thread List */}
       <div ref={scrollContainerRef} className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
         <div className="grid gap-4">
-          {displayedThreads.map((thread) => {
+          {displayedThreads.length === 0 ? (
+            <div
+              className="flex min-h-[320px] flex-col items-center justify-center rounded-2xl px-6 py-10 text-center"
+              style={{
+                background: 'rgba(5, 11, 20, 0.34)',
+                border: '1px solid rgba(var(--codedock-primary-rgb), 0.16)'
+              }}
+            >
+              <div
+                className="mb-5 grid h-28 w-28 place-items-center rounded-3xl"
+                style={{
+                  background: 'rgba(var(--codedock-primary-rgb), 0.08)',
+                  border: '1px solid rgba(var(--codedock-primary-rgb), 0.22)'
+                }}
+              >
+                <CoffeeLogo mood={emptyState.mood} className="h-24 w-24" />
+              </div>
+              <h4
+                className="m-0 tracking-tight"
+                style={{
+                  color: 'var(--white)',
+                  fontSize: '20px',
+                  fontWeight: 950
+                }}
+              >
+                {emptyState.title}
+              </h4>
+              <p
+                className="m-0 mt-2 max-w-[420px] tracking-tight"
+                style={{
+                  color: 'var(--muted)',
+                  fontSize: '14px',
+                  fontWeight: 800,
+                  lineHeight: 1.6
+                }}
+              >
+                {emptyState.description}
+              </p>
+            </div>
+          ) : displayedThreads.map((thread) => {
             const displayedReplyCount =
               replyCounts[thread.id]
               ?? (thread.backendMessageId != null ? replyCounts[thread.backendMessageId] : undefined)
