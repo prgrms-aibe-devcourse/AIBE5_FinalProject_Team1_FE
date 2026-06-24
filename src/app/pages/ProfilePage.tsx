@@ -24,6 +24,8 @@ import { motion } from "motion/react";
 import { useTheme } from "../contexts/ThemeContext";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useProfile, STATUS_OPTIONS, type ProfileUser, type ProfileStatus } from "../contexts/ProfileContext";
+import { useWorkspace } from "../contexts/WorkspaceContext";
+import { updatePresence } from "../api/workspace";
 import { apiClient } from "../api/client";
 import { ensureGithubAccountPickerUrl } from "../auth";
 
@@ -69,6 +71,7 @@ export function ProfilePage() {
   const initialSection = getProfileSection(searchParams.get("section"));
   const [activeSection, setActiveSection] = useState<ProfileSection>(initialSection);
   const { profile: user, setProfile: setUser, reloadProfile } = useProfile();
+  const { workspaceId } = useWorkspace();
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({
@@ -167,6 +170,10 @@ export function ProfilePage() {
 
   const handleStatusChange = (status: ProfileStatus) => {
     setUser((current) => ({ ...current, status }));
+    // 좌측 하단 "내 상태"와 동일하게, 현재 워크스페이스가 있으면 즉시 서버에 반영해 팀원에게도 보이게 한다.
+    if (workspaceId != null) {
+      updatePresence(workspaceId, status).catch(() => {});
+    }
   };
 
   const handleAvatarChange = (file: File) => {
