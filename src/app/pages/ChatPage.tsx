@@ -3144,6 +3144,29 @@ export function ChatPage() {
         ? { ...prevThread, ...mappedMessage }
         : prevThread
     );
+
+    // 메시지가 삭제되면 그 메시지의 북마크도 즉시 목록(채널별/통합 개요)에서 제거 — 새로고침 불필요.
+    // 로컬 삭제·실시간(WS) 삭제 모두 이 함수를 isDeleted=true로 호출하므로 한 곳에서 처리.
+    const isDeletedMessage = message.isDeleted === true || message.content === DELETED_MESSAGE_CONTENT;
+    if (isDeletedMessage) {
+      const deletedId = Number(message.id);
+      setWorkspaceBookmarks((prev) => prev.filter((b) => Number(b.messageId) !== deletedId));
+      setServerBookmarkedThreadsByChannel((prev) => {
+        let changed = false;
+        const next: Record<string, Record<number, boolean>> = {};
+        Object.entries(prev).forEach(([key, map]) => {
+          if (map[deletedId]) {
+            const copy = { ...map };
+            delete copy[deletedId];
+            next[key] = copy;
+            changed = true;
+          } else {
+            next[key] = map;
+          }
+        });
+        return changed ? next : prev;
+      });
+    }
   }, [getMessageChannelKey]);
 
   const attachToExistingServerMessage = useCallback((
