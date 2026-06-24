@@ -1,7 +1,8 @@
 import { Hash, MessageSquare, Send, Bookmark, Reply, AtSign, X, Paperclip, Smile, UserPlus, FileUp, Code, Pencil, Trash2, Image as ImageIcon, Link2 } from "lucide-react";
 import { motion } from "motion/react";
 import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
-import { MAX_MESSAGE_ATTACHMENTS, createLinkMessageAttachmentFromText, createUrlMessageAttachment, getMessageAttachmentTypeLabel, isSendableMessageAttachment, messageAttachmentGroups, type MessageAttachment, type MessageAttachmentType } from "./messageAttachments";
+import { MAX_MESSAGE_ATTACHMENTS, createLinkMessageAttachmentFromText, createUploadedMessageAttachment, createUrlMessageAttachment, getMessageAttachmentTypeLabel, isSendableMessageAttachment, messageAttachmentGroups, type MessageAttachment, type MessageAttachmentType } from "./messageAttachments";
+import { uploadAttachmentFile } from "../api/chat";
 import { EmojiPicker, REACTION_KEY_TO_EMOJI } from "./EmojiPicker";
 import { MessageReactions, toggleMessageReaction, type MessageReaction } from "./MessageReactions";
 import { MessageAttachmentCard } from "./MessageAttachmentCard";
@@ -355,13 +356,32 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
     setAttachmentError("");
   };
 
-  const handleLocalFilesSelected = (event: ChangeEvent<HTMLInputElement>, type: "file" | "image") => {
+  const handleLocalFilesSelected = async (event: ChangeEvent<HTMLInputElement>, type: "file" | "image") => {
     const files = Array.from(event.target.files ?? []);
-    if (files.length === 0) return;
-    setAttachmentError(`${getMessageAttachmentTypeLabel(type)} attachments must be added as URLs. Binary upload is not supported yet.`);
-    setUrlAttachmentType(type);
-    setActivePanel("link");
     event.target.value = "";
+    if (files.length === 0) return;
+
+    for (const file of files) {
+      if (file.size > 10 * 1024 * 1024) {
+        setAttachmentError(`${file.name}: 10MB 이하 파일만 업로드할 수 있습니다.`);
+        continue;
+      }
+      try {
+        setAttachmentError("업로드 중…");
+        const url = await uploadAttachmentFile(file);
+        const attachment = createUploadedMessageAttachment(file, type, url);
+        setSelectedAttachments((prev) => {
+          if (attachmentTargetCount + prev.length >= MAX_MESSAGE_ATTACHMENTS) {
+            setAttachmentError(`메시지 하나에는 첨부파일을 최대 ${MAX_MESSAGE_ATTACHMENTS}개까지 추가할 수 있습니다.`);
+            return prev;
+          }
+          setAttachmentError("");
+          return [...prev, attachment];
+        });
+      } catch (err) {
+        setAttachmentError(err instanceof Error ? err.message : "파일 업로드에 실패했습니다.");
+      }
+    }
   };
 
   const handleAddLinkAttachment = () => {
@@ -1104,7 +1124,7 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
               </span>
             </div>
             <div className="mb-3 flex flex-wrap gap-2">
-              {(["link", "image", "file"] as const).map((type) => (
+              {(["link"] as const).map((type) => (
                 <button
                   key={type}
                   type="button"

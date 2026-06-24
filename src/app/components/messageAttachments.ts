@@ -178,6 +178,27 @@ export function createFileMessageAttachment(file: File, type: "file" | "image"):
   };
 }
 
+// 업로드 완료된 파일/이미지로 첨부를 생성한다(실제 공개 URL을 가지므로 전송 가능).
+export function createUploadedMessageAttachment(
+  file: File,
+  type: "file" | "image",
+  uploadedUrl: string
+): MessageAttachment {
+  const uniqueId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+  return {
+    id: `${type}-${uniqueId}-${file.name}-${file.size}`,
+    type,
+    title: file.name,
+    detail: file.type || (type === "image" ? "이미지 파일" : "첨부 파일"),
+    meta: formatAttachmentSize(file.size),
+    url: uploadedUrl,
+    previewUrl: type === "image" ? uploadedUrl : undefined,
+    mimeType: file.type,
+    size: file.size
+  };
+}
+
 export function getLinkPreviewInfo(rawUrl: string, rawTitle?: string): LinkPreviewInfo | null {
   const trimmedUrl = rawUrl.trim();
   if (!trimmedUrl) return null;
