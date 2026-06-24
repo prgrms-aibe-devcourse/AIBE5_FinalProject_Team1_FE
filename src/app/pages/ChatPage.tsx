@@ -1682,6 +1682,10 @@ export function ChatPage() {
   const [expandedRepoSubmenus, setExpandedRepoSubmenus] = useState<Record<string, boolean>>({});
   const [repoMenuOpenId, setRepoMenuOpenId] = useState<string | null>(null);
   const [apiChannels, setApiChannels] = useState<Channel[]>([]);
+  // WS 연결 setup이 import(...) 비동기 안에서 apiChannels를 클로저로 캡처하는데, 그 시점 값이
+  // 비어 있으면 채널 이벤트 구독이 0개가 된다. 최신 목록을 ref로 들고 있어 그 누락을 막는다.
+  const apiChannelsRef = useRef<Channel[]>([]);
+  apiChannelsRef.current = apiChannels;
   const [repositoryRefreshKey, setRepositoryRefreshKey] = useState(0);
   const [channelFetchStatus, setChannelFetchStatus] = useState<ChannelFetchStatus>("idle");
   const [channelFetchError, setChannelFetchError] = useState("");
@@ -3940,7 +3944,10 @@ export function ChatPage() {
       chatStompRef.current = client;
       setChatStompReadyKey((key) => key + 1);
 
-      eventSubscriptions = apiChannels.map((channel) => {
+      // 비동기 import 클로저의 stale 값(빈 배열) 대신 ref의 최신 채널 목록으로 구독한다.
+      // (이게 없으면 채널 이벤트 구독이 0개가 돼 PR/이슈 실시간 수신이 안 된다)
+      const channelsToSubscribe = apiChannelsRef.current;
+      eventSubscriptions = channelsToSubscribe.map((channel) => {
         const isRepositoryChannel = isRepositoryApiChannel(channel);
         const genericUiChannelId = getApiChannelUiId(channel);
         const getRepositoryEventUiChannelId = (payload?: ChannelMessage) => {
