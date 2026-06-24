@@ -1,7 +1,7 @@
 import React from "react";
 
 export function parseInline(text: string): React.ReactNode[] {
-  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|_[^_]+_|`[^`]+`|~~[^~]+~~)/g);
+  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|_[^_]+_|`[^`]+`|~~[^~]+~~|\[[^\]]+\]\([^)]+\))/g);
   return parts.map((part, i) => {
     if (part.startsWith("**") && part.endsWith("**") && part.length > 4)
       return <strong key={i} style={{ fontWeight: 1000, color: "var(--white)" }}>{part.slice(2, -2)}</strong>;
@@ -25,6 +25,19 @@ export function parseInline(text: string): React.ReactNode[] {
       );
     if (part.startsWith("~~") && part.endsWith("~~") && part.length > 4)
       return <s key={i}>{part.slice(2, -2)}</s>;
+    const linkMatch = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+    if (linkMatch)
+      return (
+        <a
+          key={i}
+          href={linkMatch[2]}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ color: "var(--neon-cyan)", textDecoration: "underline", textUnderlineOffset: "3px" }}
+        >
+          {linkMatch[1]}
+        </a>
+      );
     return part;
   });
 }
@@ -74,7 +87,36 @@ export function renderMarkdown(content: string): React.ReactNode[] {
       continue;
     }
 
-    if (trimmed.startsWith("#### ")) {
+    if (trimmed === "---" || trimmed === "***" || trimmed === "___") {
+      nodes.push(
+        <hr
+          key={i}
+          style={{
+            border: "none",
+            borderTop: "1px solid rgba(234, 247, 255, 0.12)",
+            margin: "4px 0",
+          }}
+        />
+      );
+    } else if (trimmed.startsWith("> ")) {
+      nodes.push(
+        <div
+          key={i}
+          className="px-4 py-3 tracking-tight"
+          style={{
+            borderLeft: "3px solid rgba(var(--codedock-primary-rgb), 0.5)",
+            background: "rgba(var(--codedock-primary-rgb), 0.06)",
+            borderRadius: "0 8px 8px 0",
+            color: "rgba(234, 247, 255, 0.65)",
+            fontSize: "16px",
+            fontWeight: 500,
+            lineHeight: 1.75,
+          }}
+        >
+          {parseInline(trimmed.replace(/^>\s*/, ""))}
+        </div>
+      );
+    } else if (trimmed.startsWith("#### ")) {
       nodes.push(
         <h4
           key={i}
