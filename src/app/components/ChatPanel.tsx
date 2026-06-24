@@ -1,6 +1,6 @@
 import { Send, Sparkles, Code, AtSign, Smile, GitPullRequest, FileText, Plus, Minus, MessageSquare, Bookmark, Share2, Reply, MoreVertical, X, CheckCircle, Clock, AlertCircle, ExternalLink, GitMerge, Hash, Paperclip, FileUp, Image as ImageIcon, Link2, CircleDot, CircleCheck, CircleMinus } from "lucide-react";
 import { motion } from "motion/react";
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type PointerEvent } from "react";
 import { MAX_ATTACHMENT_BYTES, MAX_MESSAGE_ATTACHMENTS, createLinkMessageAttachmentFromText, createUploadedMessageAttachment, createUrlMessageAttachment, getMessageAttachmentTypeLabel, isSendableMessageAttachment, messageAttachmentGroups, type MessageAttachment, type MessageAttachmentType } from "./messageAttachments";
 import { uploadAttachmentFile } from "../api/chat";
 import { EmojiPicker, REACTION_KEY_TO_EMOJI } from "./EmojiPicker";
@@ -141,12 +141,20 @@ function getUserInitial(user?: string) {
   return trimmed ? trimmed.charAt(0).toUpperCase() : "?";
 }
 
+const COMPOSER_MIN_HEIGHT = 28;
+const COMPOSER_MAX_HEIGHT = 360;
+
+function clampComposerHeight(height: number) {
+  return Math.min(COMPOSER_MAX_HEIGHT, Math.max(COMPOSER_MIN_HEIGHT, height));
+}
+
 export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messages, reactions, replyCounts = {}, onSendMessage, onAddMessageAttachments, onDeleteMessageAttachment, onSharePR, showAISummary = true, onMergePR, onReviewPR, onViewIssue, onOpenThread, onOpenProfile, selectedThreadId, onToggleReaction, isRepository = false, myMemberId, myDisplayName, myAvatarUrl, onTypingChange, remoteTypingLabel }: ChatPanelProps) {
   const bookmarkStorageKey = `codedock-chat-bookmarks:${bookmarkScopeId ?? channelId}`;
   const displayCurrentUserName = myDisplayName?.trim() || currentUserDisplayName;
   const displayCurrentUserAvatar = displayCurrentUserName.charAt(0) || currentUserAvatar;
   const displayCurrentUserAvatarUrl = myAvatarUrl?.trim() || "";
   const [message, setMessage] = useState('');
+  const [composerHeight, setComposerHeight] = useState(COMPOSER_MIN_HEIGHT);
   const [codeBlockText, setCodeBlockText] = useState('');
   const [codeBlockLanguage, setCodeBlockLanguage] = useState<CodeBlockLanguage>("javascript");
   type ActivePanel = 'code' | 'attachment' | 'emoji' | 'link' | null;
@@ -177,6 +185,9 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
   const [responderTyping, setResponderTyping] = useState(false);
   const [localMessageReactions, setLocalMessageReactions] = useState<Record<string, MessageReaction[]>>({});
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const composerResizeRef = useRef<{ startY: number; startHeight: number } | null>(null);
+  const activePanelRef = useRef<HTMLDivElement | null>(null);
+  const composerToolbarRef = useRef<HTMLDivElement | null>(null);
   const skipBookmarkSaveRef = useRef(false);
   const responderTypingTimerRef = useRef<number | null>(null);
   const typingDebounceRef = useRef<number | null>(null);
@@ -188,6 +199,55 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
       ? Number(message.senderMemberId) === Number(myMemberId)
       : isSelfUser(message.user)
   );
+
+  const handleComposerResizeStart = (event: PointerEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    composerResizeRef.current = {
+      startY: event.clientY,
+      startHeight: composerHeight
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handleComposerResizeMove = (event: PointerEvent<HTMLButtonElement>) => {
+    const resizeState = composerResizeRef.current;
+    if (!resizeState) return;
+
+    setComposerHeight(clampComposerHeight(resizeState.startHeight + resizeState.startY - event.clientY));
+  };
+
+  const handleComposerResizeEnd = (event: PointerEvent<HTMLButtonElement>) => {
+    composerResizeRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
+  useEffect(() => {
+    if (!activePanel) return;
+
+    const handlePointerDown = (event: globalThis.PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (activePanelRef.current?.contains(target) || composerToolbarRef.current?.contains(target)) return;
+
+      setActivePanel(null);
+    };
+
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setActivePanel(null);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [activePanel]);
 
   useEffect(() => {
     return () => {
@@ -1366,9 +1426,28 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
         </div>
       </div>
 
-      <div className="px-6 pt-1 pb-3" style={{
+      <div className="relative px-6 pt-4 pb-3" style={{
         borderTop: '1px solid rgba(var(--codedock-primary-rgb), 0.14)'
       }}>
+        <button
+          type="button"
+          aria-label="채팅 입력창 높이 조절"
+          title="채팅 입력창 높이 조절"
+          onPointerDown={handleComposerResizeStart}
+          onPointerMove={handleComposerResizeMove}
+          onPointerUp={handleComposerResizeEnd}
+          onPointerCancel={handleComposerResizeEnd}
+          className="absolute left-0 right-0 top-0 z-10 flex h-4 -translate-y-1/2 cursor-ns-resize items-center justify-center border-0 bg-transparent p-0"
+        >
+          <span
+            className="block h-1 w-16 rounded-full transition-all"
+            style={{
+              background: 'rgba(var(--codedock-primary-rgb), 0.34)',
+              boxShadow: '0 0 12px rgba(var(--codedock-primary-rgb), 0.20)'
+            }}
+          />
+        </button>
+
         {(codeBlockText.trim() || selectedAttachments.length > 0) && (
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <span className="tracking-tight" style={{
@@ -1432,17 +1511,36 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
           </div>
         )}
 
-        {activePanel === 'code' && (
-          <CodeBlockComposer
-            value={codeBlockText}
-            language={codeBlockLanguage}
-            onChange={setCodeBlockText}
-            onLanguageChange={setCodeBlockLanguage}
-          />
-        )}
+        {activePanel && (
+          <div ref={activePanelRef} className="relative">
+            <button
+              type="button"
+              aria-label="선택창 닫기"
+              title="선택창 닫기"
+              onClick={() => setActivePanel(null)}
+              className="absolute -right-2 -top-2 z-30 flex h-7 w-7 items-center justify-center rounded-full border-0 transition-all"
+              style={{
+                background: 'rgba(11, 22, 40, 0.96)',
+                border: '1px solid rgba(var(--codedock-primary-rgb), 0.30)',
+                color: 'var(--muted)',
+                cursor: 'pointer',
+                boxShadow: '0 12px 28px rgba(0, 0, 0, 0.30)'
+              }}
+            >
+              <X size={14} />
+            </button>
 
-        {activePanel === 'attachment' && (
-          <div className="mb-3 rounded-xl px-4 py-3" style={{
+            {activePanel === 'code' && (
+              <CodeBlockComposer
+                value={codeBlockText}
+                language={codeBlockLanguage}
+                onChange={setCodeBlockText}
+                onLanguageChange={setCodeBlockLanguage}
+              />
+            )}
+
+            {activePanel === 'attachment' && (
+              <div className="mb-3 rounded-xl px-4 py-3" style={{
             background: 'rgba(5, 11, 20, 0.78)',
             border: '1px solid rgba(var(--codedock-primary-rgb), 0.18)',
             boxShadow: '0 16px 36px rgba(0, 0, 0, 0.24)'
@@ -1518,11 +1616,11 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
                 );
               })}
             </div>
-          </div>
-        )}
+              </div>
+            )}
 
-        {activePanel === 'link' && (
-          <div className="mb-3 rounded-xl px-4 py-3" style={{
+            {activePanel === 'link' && (
+              <div className="mb-3 rounded-xl px-4 py-3" style={{
             background: 'rgba(5, 11, 20, 0.78)',
             border: '1px solid rgba(var(--codedock-primary-rgb), 0.18)',
             boxShadow: '0 16px 36px rgba(0, 0, 0, 0.24)'
@@ -1624,12 +1722,14 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
                 <MessageAttachmentCard attachment={linkPreviewAttachment} />
               </div>
             )}
-          </div>
-        )}
+              </div>
+            )}
 
-        {activePanel === 'emoji' && (
-          <div className="mb-3">
-            <EmojiPicker onSelect={handleEmojiSelect} />
+            {activePanel === 'emoji' && (
+              <div className="mb-3">
+                <EmojiPicker onSelect={handleEmojiSelect} />
+              </div>
+            )}
           </div>
         )}
 
@@ -1727,11 +1827,6 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyPress={handleKeyPress}
-            onInput={(e) => {
-              const el = e.currentTarget;
-              el.style.height = 'auto';
-              el.style.height = `${Math.min(el.scrollHeight, 96)}px`;
-            }}
             placeholder="메시지를 입력하세요..."
             className="min-w-0 flex-1 bg-transparent border-0 outline-none tracking-tight resize-none"
             rows={1}
@@ -1739,17 +1834,18 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
               color: 'var(--white)',
               fontSize: '14px',
               fontWeight: 700,
-              minHeight: '28px',
-              maxHeight: '96px',
+              height: `${composerHeight}px`,
+              minHeight: `${COMPOSER_MIN_HEIGHT}px`,
+              maxHeight: `${COMPOSER_MAX_HEIGHT}px`,
               overflowY: 'auto'
             }}
           />
-          <div className="flex shrink-0 items-center gap-1">
+          <div ref={composerToolbarRef} className="flex shrink-0 items-center gap-1">
             {[
               { label: '코드 블록', icon: <><Code size={18} />{codeBlockText.trim() && <span className="absolute top-1 right-1 h-2 w-2 rounded-full" style={{ background: 'var(--neon-cyan)', boxShadow: '0 0 4px var(--neon-cyan)' }} />}</>, onClick: () => togglePanel('code'), active: activePanel === 'code' },
               { label: '목록 첨부', icon: <Paperclip size={18} />, onClick: () => togglePanel('attachment'), active: activePanel === 'attachment' },
-              { label: '파일 첨부', icon: <FileUp size={18} />, onClick: () => fileInputRef.current?.click(), active: false },
-              { label: '이미지 첨부', icon: <ImageIcon size={18} />, onClick: () => imageInputRef.current?.click(), active: false },
+              { label: '파일 첨부', icon: <FileUp size={18} />, onClick: () => { setActivePanel(null); fileInputRef.current?.click(); }, active: false },
+              { label: '이미지 첨부', icon: <ImageIcon size={18} />, onClick: () => { setActivePanel(null); imageInputRef.current?.click(); }, active: false },
               { label: '링크 첨부', icon: <Link2 size={18} />, onClick: () => togglePanel('link'), active: activePanel === 'link' },
               { label: '이모지', icon: <Smile size={18} />, onClick: () => togglePanel('emoji'), active: activePanel === 'emoji' },
             ].map(({ label, icon, onClick, active }) => (
