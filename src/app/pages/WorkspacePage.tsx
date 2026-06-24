@@ -13,6 +13,8 @@ import { fetchMyEvents, markEventAsRead, type WorkspaceEventDto, type EventType 
 import { fetchDashboardSummary, fetchDashboardWorkspaces, type DashboardSummary, type DashboardWorkspace } from "../api/dashboard";
 import { useWorkspace } from "../contexts/WorkspaceContext";
 import { ApiClientError } from "../api/client";
+import { useLanguage } from "../contexts/LanguageContext";
+import { translateText } from "../i18n/translations";
 
 const DRAG_TYPE = "TEAM_CARD";
 const WORKSPACE_COLORS_KEY = "codedock-workspace-colors-v1";
@@ -51,11 +53,13 @@ function TeamSortDropdown({
   value: SortOrder;
   onChange: (value: SortOrder) => void;
 }) {
+  const { language } = useLanguage();
   const [open, setOpen] = useState(false);
   const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 0 });
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const selected = getTeamSortOption(value);
+  const selectedLabel = translateText(selected.label, language);
 
   const updatePosition = () => {
     const rect = buttonRef.current?.getBoundingClientRect();
@@ -121,7 +125,7 @@ function TeamSortDropdown({
             : "inset 0 1px 0 rgba(255,255,255,0.05)",
           backdropFilter: "blur(14px) saturate(150%)"
         }}
-        aria-label="팀 목록 정렬 방식"
+        aria-label={translateText("팀 목록 정렬 방식", language)}
         aria-expanded={open}
       >
         <span
@@ -132,7 +136,7 @@ function TeamSortDropdown({
             fontWeight: 950
           }}
         >
-          {selected.label}
+          {selectedLabel}
         </span>
         <ChevronDown
           size={16}
@@ -196,7 +200,7 @@ function TeamSortDropdown({
                     fontWeight: isSelected ? 950 : 850
                   }}
                 >
-                  {option.label}
+                  {translateText(option.label, language)}
                 </span>
                 {isSelected && <Check size={15} style={{ color: option.color, flexShrink: 0 }} />}
               </button>
@@ -247,6 +251,11 @@ type Invite = {
   expiresTime: string;
 };
 
+type WorkspaceSuccessModalState = {
+  title: string;
+  message: string;
+};
+
 type TeamInviteDraft = {
   id: number;
   name: string;
@@ -264,6 +273,87 @@ const TEAM_ROLE_OPTIONS = [
   "Designer",
   "Viewer",
 ];
+
+function WorkspaceSuccessModal({
+  title,
+  message,
+  onClose
+}: WorkspaceSuccessModalState & {
+  onClose: () => void;
+}) {
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="workspace-success-title"
+      className="fixed inset-0 z-[70] flex items-center justify-center px-4"
+      style={{ background: "rgba(0,0,0,0.68)", backdropFilter: "blur(12px)" }}
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-[430px] overflow-hidden rounded-[28px] px-6 pb-6 pt-7 text-center"
+        style={{
+          background: "linear-gradient(145deg, rgba(11, 22, 40, 0.98), rgba(5, 11, 20, 0.96))",
+          border: "1px solid rgba(var(--codedock-primary-rgb), 0.24)",
+          boxShadow: "0 32px 90px rgba(0,0,0,0.56), 0 0 44px rgba(var(--codedock-primary-rgb), 0.12)",
+          color: "var(--white)"
+        }}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute right-5 top-5 grid h-9 w-9 place-items-center rounded-full border-0"
+          style={{
+            background: "rgba(234, 247, 255, 0.07)",
+            color: "var(--muted)",
+            cursor: "pointer"
+          }}
+          aria-label="닫기"
+        >
+          <X size={16} />
+        </button>
+        <div
+          className="mx-auto grid h-32 w-32 place-items-center rounded-[28px]"
+          style={{
+            background: "rgba(var(--codedock-primary-rgb), 0.08)",
+            border: "1px solid rgba(var(--codedock-primary-rgb), 0.18)"
+          }}
+        >
+          <CoffeeLogo className="h-28 w-28" alive mood="happy" />
+        </div>
+        <h2
+          id="workspace-success-title"
+          className="m-0 mt-5 tracking-tight"
+          style={{ fontSize: "22px", fontWeight: 950, color: "var(--white)" }}
+        >
+          {title}
+        </h2>
+        <p
+          className="mx-auto mb-0 mt-2 max-w-[320px] leading-[1.65] tracking-tight"
+          style={{ fontSize: "14px", fontWeight: 750, color: "var(--muted)" }}
+        >
+          {message}
+        </p>
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-6 w-full rounded-2xl border-0 px-5 py-3 tracking-tight transition-all hover:brightness-110"
+          style={{
+            background: "linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))",
+            color: "#021014",
+            cursor: "pointer",
+            fontSize: "14px",
+            fontWeight: 950,
+            boxShadow: "0 12px 28px rgba(var(--codedock-primary-rgb), 0.22)"
+          }}
+        >
+          확인
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function AutoScrollContainer({ children, itemCount }: { children: React.ReactNode; itemCount: number }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -1312,6 +1402,7 @@ export function WorkspacePage() {
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showInvitesModal, setShowInvitesModal] = useState(false);
+  const [workspaceSuccessModal, setWorkspaceSuccessModal] = useState<WorkspaceSuccessModalState | null>(null);
   const [sortOrder, setSortOrder] = useState<SortOrder>(() => {
     const saved = localStorage.getItem("codedock-team-sort-order");
     if (saved === "name" || saved === "activity") return saved;
@@ -1411,6 +1502,10 @@ export function WorkspacePage() {
     }
     const list = await fetchMyWorkspaces();
     setOrgs(list.map(workspaceDtoToOrg));
+    setWorkspaceSuccessModal({
+      title: "성공적으로 팀이 생성되었어요!",
+      message: `${name.trim()} 워크스페이스에서 바로 작업을 시작할 수 있어요.`
+    });
   };
 
   const handleAcceptInvite = (invite: Invite) => {
@@ -1419,6 +1514,11 @@ export function WorkspacePage() {
           setInvites((prev) => prev.filter((i) => i.id !== invite.id));
           const list = await fetchMyWorkspaces();
           setOrgs(list.map(workspaceDtoToOrg));
+          setShowInvitesModal(false);
+          setWorkspaceSuccessModal({
+            title: "팀에 성공적으로 참여했어요!",
+            message: `${invite.teamName} 워크스페이스가 내 팀 목록에 추가됐어요.`
+          });
         })
         .catch((e) => alert(e instanceof Error ? e.message : "초대 수락에 실패했습니다."));
   };
@@ -1683,7 +1783,7 @@ export function WorkspacePage() {
                 background: "rgba(5, 11, 20, 0.34)",
                 border: "1px solid rgba(var(--codedock-primary-rgb), 0.14)"
               }}>
-                <CoffeeLogo className="h-32 w-32" alive mood="idle" />
+                <CoffeeLogo className="h-32 w-32" mood="idle" />
               </div>
               <div className="min-w-0">
                 <div className="relative rounded-[24px] px-5 py-5" style={{
@@ -1691,14 +1791,6 @@ export function WorkspacePage() {
                   border: "1px solid rgba(var(--codedock-primary-rgb), 0.22)",
                   color: "var(--white)"
                 }}>
-                  <span
-                    className="absolute left-8 top-0 hidden h-4 w-4 -translate-y-1/2 rotate-45 md:block"
-                    style={{
-                      background: "rgba(11, 22, 40, 0.78)",
-                      borderLeft: "1px solid rgba(var(--codedock-primary-rgb), 0.22)",
-                      borderTop: "1px solid rgba(var(--codedock-primary-rgb), 0.22)"
-                    }}
-                  />
                   <p className="m-0 text-xl font-black tracking-tight" style={{ color: "var(--white)" }}>
                     아직 내 팀이 없어요
                   </p>
@@ -1792,9 +1884,31 @@ export function WorkspacePage() {
           )}
           <div className="grid gap-3">
             {events.length === 0 ? (
-              <p className="m-0 py-6 text-center tracking-tight" style={{ fontSize: "14px", fontWeight: 700, color: "var(--muted)" }}>
-                최근 이벤트가 없습니다.
-              </p>
+              <div
+                className="flex flex-col items-center justify-center gap-4 rounded-[24px] px-5 py-10 text-center"
+                style={{
+                  background: "rgba(5, 11, 20, 0.28)",
+                  border: "1px solid rgba(var(--codedock-primary-rgb), 0.12)"
+                }}
+              >
+                <div
+                  className="grid h-28 w-28 place-items-center rounded-[26px]"
+                  style={{
+                    background: "rgba(var(--codedock-primary-rgb), 0.07)",
+                    border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)"
+                  }}
+                >
+                  <CoffeeLogo className="h-24 w-24" mood="risk" />
+                </div>
+                <div>
+                  <p className="m-0 text-xl font-black tracking-tight" style={{ color: "var(--white)" }}>
+                    너무 조용해요
+                  </p>
+                  <p className="m-0 mt-2 text-sm font-bold leading-[1.65]" style={{ color: "var(--muted)" }}>
+                    아직 표시할 이벤트가 없어요.
+                  </p>
+                </div>
+              </div>
             ) : visibleEvents.length === 0 ? (
               <p className="m-0 py-6 text-center tracking-tight" style={{ fontSize: "14px", fontWeight: 700, color: "var(--muted)" }}>
                 선택한 필터에 해당하는 이벤트가 없습니다.
@@ -1897,6 +2011,13 @@ export function WorkspacePage() {
           onClose={() => setShowInvitesModal(false)}
           onAccept={handleAcceptInvite}
           onReject={handleRejectInvite}
+        />
+      )}
+      {workspaceSuccessModal && (
+        <WorkspaceSuccessModal
+          title={workspaceSuccessModal.title}
+          message={workspaceSuccessModal.message}
+          onClose={() => setWorkspaceSuccessModal(null)}
         />
       )}
       {settingsOrg && (
