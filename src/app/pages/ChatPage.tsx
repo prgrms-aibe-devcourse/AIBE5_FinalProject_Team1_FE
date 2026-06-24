@@ -756,6 +756,29 @@ function formatApiDateTime(value: string) {
   }).format(date);
 }
 
+// 이슈 패널의 이력관리 데이터 정규화.
+// 1) 기존 이력 이벤트의 time(백엔드 raw ISO)을 화면용으로 포맷한다.
+// 2) 이력이 비어 있으면(예: 작업 보드는 GithubIssue DB 객체만 가져와 history가 없음)
+//    생성 시각/작성자로 'created' 이벤트를 합성해 이슈 리스트 경로와 동일하게 보이게 한다.
+function normalizeIssueHistory(issueData: any) {
+  if (!issueData || typeof issueData !== "object") return issueData;
+  const existing = Array.isArray(issueData.issueHistory) ? issueData.issueHistory : [];
+  let history = existing.map((e: any) => ({
+    ...e,
+    time: e?.time ? formatApiDateTime(String(e.time)) : e?.time,
+  }));
+  if (history.length === 0 && issueData.githubCreatedAt) {
+    history = [{
+      id: "h1",
+      actor: issueData.issueAuthor ?? issueData.author ?? issueData.user ?? "unknown",
+      action: "이슈를 생성했습니다",
+      time: formatApiDateTime(String(issueData.githubCreatedAt)),
+      eventType: "created",
+    }];
+  }
+  return { ...issueData, issueHistory: history };
+}
+
 // Must stay in sync with the backend Thread.DELETED_MESSAGE_CONTENT constant (no trailing period). 감지용.
 const DELETED_MESSAGE_CONTENT = "삭제된 메시지입니다";
 // 화면 표시용 통일 라벨(마침표 포함). 채널/스레드 삭제 메시지 모두 이 문구로 표시.
@@ -5278,7 +5301,7 @@ export function ChatPage() {
   const handleViewIssue = (issueData: any) => {
     prevMainExpanded.current = isMainExpanded;
     setIsMainExpanded(true);
-    setSelectedIssue(issueData);
+    setSelectedIssue(normalizeIssueHistory(issueData));
     setSelectedPR(null);
     setSelectedThread(null);
   };

@@ -19,7 +19,7 @@ function boardCardToIssueData(card: BoardCard) {
     issueLabels: issue.labels ?? [],
     issueAssignees: card.assignees,
     issuePriority: issue.priority ?? "medium",
-    issueType: issue.issueType ?? "Task",
+    issueType: issue.issueType ?? "",
     issueBody: issue.description ?? "",
     issueUrl: issue.url,
     githubCreatedAt: issue.githubCreatedAt,

@@ -76,8 +76,9 @@ export function IssuePanel({ issueData, onClose, externalThreadMessages, onAddTh
   const assignees: string[]            = issueData.issueAssignees ?? [];
   const body: string                   = issueData.issueBody      ?? "";
   const history: IssueHistoryEvent[]   = issueData.issueHistory   ?? [];
-  const priority                       = issueData.issuePriority  ?? "medium";
-  const issueType: string              = issueData.issueType      ?? "";
+  // 데이터가 있으면 사용, 없으면 기본값(우선순위 medium / 타입 Feature). 빈 문자열도 미설정으로 간주.
+  const priority                       = (issueData.issuePriority && String(issueData.issuePriority).trim()) || "medium";
+  const issueType: string              = (issueData.issueType && String(issueData.issueType).trim()) || "Feature";
 
   const statusCfg   = statusConfig[status]   ?? statusConfig.todo;
   const priorityCfg = priorityConfig[priority] ?? priorityConfig.medium;
