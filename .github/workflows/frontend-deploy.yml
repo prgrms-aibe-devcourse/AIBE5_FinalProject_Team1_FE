@@ -67,6 +67,7 @@ jobs:
           aws s3 sync dist/ "s3://$AWS_S3_BUCKET/" \
             --delete \
             --exclude "index.html" \
+            --exclude "uploads/*" \
             --cache-control "public,max-age=31536000,immutable"
 
       - name: Upload index.html without browser cache
