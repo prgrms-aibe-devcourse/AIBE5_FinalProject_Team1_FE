@@ -115,20 +115,38 @@ export function renderMarkdown(content: string): React.ReactNode[] {
         </h1>
       );
     } else if (trimmed.startsWith("- [")) {
+      const checked = trimmed.startsWith("- [x]") || trimmed.startsWith("- [X]");
+      const label = trimmed.replace(/^- \[[xX ]\]\s*/, "");
       nodes.push(
         <div
           key={i}
-          className="rounded-xl px-4 py-3 tracking-tight"
+          className="flex items-center gap-3 rounded-xl px-4 py-3 tracking-tight"
           style={{
-            background: "rgba(234, 247, 255, 0.045)",
-            border: "1px solid rgba(234, 247, 255, 0.08)",
-            color: "rgba(234, 247, 255, 0.88)",
+            background: checked ? "rgba(var(--codedock-secondary-rgb), 0.08)" : "rgba(234, 247, 255, 0.045)",
+            border: checked ? "1px solid rgba(var(--codedock-secondary-rgb), 0.22)" : "1px solid rgba(234, 247, 255, 0.08)",
+            color: checked ? "rgba(234, 247, 255, 0.45)" : "rgba(234, 247, 255, 0.88)",
             fontSize: "16px",
             fontWeight: 800,
             lineHeight: 1.65,
           }}
         >
-          {trimmed}
+          <span
+            className="flex-shrink-0 grid place-items-center rounded"
+            style={{
+              width: 18,
+              height: 18,
+              background: checked ? "var(--matrix-green)" : "transparent",
+              border: checked ? "none" : "2px solid rgba(234, 247, 255, 0.3)",
+              color: "#021014",
+              fontSize: 12,
+              fontWeight: 950,
+            }}
+          >
+            {checked ? "✓" : ""}
+          </span>
+          <span style={{ textDecoration: checked ? "line-through" : "none" }}>
+            {parseInline(label)}
+          </span>
         </div>
       );
     } else if (/^\d+\.\s/.test(trimmed)) {
