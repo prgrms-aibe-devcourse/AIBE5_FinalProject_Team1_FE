@@ -2166,17 +2166,26 @@ export function ChatPage() {
     const channelKey = selectedChannelMessageKey;
     const channelId = activeApiChannelId;
 
-    // 1) GitHub API로 새 PR 가져오기, 2) DB 기반 상태 동기화 (이슈와 동일 패턴), 3) 메시지 로드
-    syncRepositoryPullRequests(repoDbId).catch(() => { /* ignore */ })
-      .then(() => syncRepositoryPrStatuses(repoDbId).catch(() => { /* ignore */ }))
-      .then(() => getChannelMessages(channelId, { limit: 50 }))
+    let cancelled = false;
+    // DB 캐시를 즉시 표시한 뒤 GitHub 동기화는 백그라운드로 돌리고, 끝나면 다시 로드한다.
+    // (sync 완료를 기다린 후 렌더하던 기존 방식이 목록 표시를 크게 지연시켰다)
+    const loadMessages = () => getChannelMessages(channelId, { limit: 50 })
       .then((serverMessages) => {
+        if (cancelled) return;
         // attachment 기준으로 PR만 추려(이슈 교차 표시 방지), 번호 중복 제거. 순서는 서버 오름차순(최신이 아래) 유지.
         const visible = filterRepositoryMessagesForView(serverMessages, 'pull-requests');
         const mapped = dedupeRepositoryMessagesByNumber(visible.map(mapChannelMessageToWorkspaceMessage));
         setMessages((prev) => ({ ...prev, [channelKey]: mapped }));
       })
       .catch(() => { /* ignore */ });
+
+    loadMessages();
+    syncRepositoryPullRequests(repoDbId).catch(() => { /* ignore */ })
+      .then(() => syncRepositoryPrStatuses(repoDbId).catch(() => { /* ignore */ }))
+      .then(() => { if (!cancelled) return loadMessages(); })
+      .catch(() => { /* ignore */ });
+
+    return () => { cancelled = true; };
   }, [selectedChannel, currentRepo?.id, activeApiChannelId, selectedChannelMessageKey]);
 
   // issues 탭 진입 시 GitHub API에서 이슈 목록을 DB로 동기화한 뒤 메시지 재로드.
@@ -2189,17 +2198,25 @@ export function ChatPage() {
     const channelKey = selectedChannelMessageKey;
     const channelId = activeApiChannelId;
 
-    // 1) GitHub API로 기존 이슈 가져와 스레드 생성, 2) DB 기반 상태 동기화, 3) 메시지 로드
-    syncRepositoryIssues(repoDbId).catch(() => { /* ignore */ })
-      .then(() => syncRepositoryIssueStatuses(String(repoDbId)).catch(() => { /* ignore */ }))
-      .then(() => getChannelMessages(channelId, { limit: 50 }))
+    let cancelled = false;
+    // DB 캐시를 즉시 표시한 뒤 GitHub 동기화는 백그라운드로 돌리고, 끝나면 다시 로드한다.
+    const loadMessages = () => getChannelMessages(channelId, { limit: 50 })
       .then((serverMessages) => {
+        if (cancelled) return;
         // attachment 기준으로 이슈만 추려(PR 교차 표시 방지), 번호 중복 제거. 순서는 서버 오름차순(최신이 아래) 유지.
         const visible = filterRepositoryMessagesForView(serverMessages, 'issues');
         const mapped = dedupeRepositoryMessagesByNumber(visible.map(mapChannelMessageToWorkspaceMessage));
         setMessages((prev) => ({ ...prev, [channelKey]: mapped }));
       })
       .catch(() => { /* ignore */ });
+
+    loadMessages();
+    syncRepositoryIssues(repoDbId).catch(() => { /* ignore */ })
+      .then(() => syncRepositoryIssueStatuses(String(repoDbId)).catch(() => { /* ignore */ }))
+      .then(() => { if (!cancelled) return loadMessages(); })
+      .catch(() => { /* ignore */ });
+
+    return () => { cancelled = true; };
   }, [selectedChannel, currentRepo?.id, activeApiChannelId, selectedChannelMessageKey]);
 
   // 통합 개요 진입 시: 연결된 각 리포지토리의 채널 메시지를 동기화/로드해 PR·이슈·위험 카운트를 계산
@@ -2215,11 +2232,9 @@ export function ChatPage() {
         ? Number(repo.dbRepoId)
         : Number(String(repo.id).replace('repo-', ''));
       (async () => {
-        try {
-          if (Number.isFinite(repoDbId)) {
-            await syncRepositoryPullRequests(repoDbId).catch(() => { /* ignore */ });
-            await syncRepositoryIssues(repoDbId).catch(() => { /* ignore */ });
-          }
+        // DB 캐시로 먼저 카운트를 계산해 즉시 표시하고, GitHub 동기화는 백그라운드로 돌린 뒤 재계산한다.
+        // (레포마다 sync 완료를 기다리던 기존 방식이 개요 표시를 크게 지연시켰다)
+        const computeAndSet = async () => {
           const serverMessages = await getChannelMessages(channelId, { limit: 50 });
           const mapped = dedupeRepositoryMessagesByNumber(serverMessages.map(mapChannelMessageToWorkspaceMessage)) as any[];
           const isOpenPr = (m: any) => m.type === 'pr' && m.prStatus !== 'merged' && m.prStatus !== 'closed';
@@ -2232,8 +2247,14 @@ export function ChatPage() {
           if (!cancelled) {
             setOverviewCounts((prev) => ({ ...prev, [repo.id]: { openPRs, activeIssues, highRisk } }));
           }
-        } catch {
-          /* ignore */
+        };
+
+        await computeAndSet().catch(() => { /* ignore */ });
+        if (Number.isFinite(repoDbId)) {
+          syncRepositoryPullRequests(repoDbId).catch(() => { /* ignore */ })
+            .then(() => syncRepositoryIssues(repoDbId).catch(() => { /* ignore */ }))
+            .then(() => { if (!cancelled) return computeAndSet().catch(() => { /* ignore */ }); })
+            .catch(() => { /* ignore */ });
         }
       })();
     });
@@ -4445,7 +4466,6 @@ export function ChatPage() {
 
     try {
       const res = await connectWorkspaceRepository(currentWorkspaceApiId, owner, repoName);
-      const webhookRegistered = await registerRepositoryWebhookAfterConnect(res.id);
       const nextRepository: RepositoryItem = {
         id: `repo-${res.id}`,
         name: res.name,
@@ -4470,9 +4490,13 @@ export function ChatPage() {
       setSelectedRepository(nextRepository.id);
       setSelectedChannel('overview');
       handleCloseRepoForm();
-      if (!webhookRegistered) {
-        setChannelActionError('레포지토리는 연결됐지만 GitHub Webhook 등록에 실패했어요. GitHub 권한과 ngrok URL을 확인해주세요.');
-      }
+      // 웹훅 등록(GitHub API 호출)은 화면 표시와 무관하므로 백그라운드로 — 등록 대기 때문에
+      // 레포가 늦게 나타나지 않도록 한다. 실패 시에만 안내.
+      registerRepositoryWebhookAfterConnect(res.id).then((webhookRegistered) => {
+        if (!webhookRegistered) {
+          setChannelActionError('레포지토리는 연결됐지만 GitHub Webhook 등록에 실패했어요. GitHub 권한과 ngrok URL을 확인해주세요.');
+        }
+      });
     } catch {
       // 백엔드 연동 실패 시 로컬 목데이터로 폴백
       const nextRepository: RepositoryItem = {
@@ -4655,7 +4679,6 @@ export function ChatPage() {
 
     try {
       const res = await connectWorkspaceRepository(currentWorkspaceApiId, repoParts.owner, repoParts.repoName);
-      const webhookRegistered = await registerRepositoryWebhookAfterConnect(res.id);
       const nextRepository: RepositoryItem = {
         id: `repo-${res.id}`,
         name: res.name,
@@ -4690,9 +4713,13 @@ export function ChatPage() {
       setAddChannelStep(null);
       setAddChannelPosition(null);
       setNewRepoChannelUrl('');
-      if (!webhookRegistered) {
-        setChannelActionError('레포지토리 채널은 생성됐지만 GitHub Webhook 등록에 실패했어요. GitHub 권한과 ngrok URL을 확인해주세요.');
-      }
+      // 웹훅 등록(GitHub API 호출)은 화면 표시와 무관하므로 백그라운드로 — 등록 대기 때문에
+      // 채널이 늦게 나타나지 않도록 한다. 실패 시에만 안내.
+      registerRepositoryWebhookAfterConnect(res.id).then((webhookRegistered) => {
+        if (!webhookRegistered) {
+          setChannelActionError('레포지토리 채널은 생성됐지만 GitHub Webhook 등록에 실패했어요. GitHub 권한과 ngrok URL을 확인해주세요.');
+        }
+      });
     } catch (error) {
       setChannelCreateError(getChannelActionErrorMessage(error, '레포지토리 채널을 만들지 못했어요. 저장소 권한과 URL을 확인해주세요.'));
     } finally {
