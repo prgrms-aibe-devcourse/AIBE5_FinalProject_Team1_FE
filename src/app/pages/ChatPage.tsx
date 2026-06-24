@@ -67,7 +67,7 @@ import {
 } from "../api";
 import type { ChatStompClient } from "../api/stomp";
 import { getAccessToken } from "../auth";
-import { useProfile } from "../contexts/ProfileContext";
+import { useProfile, STATUS_OPTIONS, type ProfileStatus } from "../contexts/ProfileContext";
 import { fetchMyWorkspaces, getWorkspaceMembers, updatePresence, type WorkspaceDto, type WorkspaceMember } from "../api/workspace";
 import { type WorkspaceEventDto } from "../api/events";
 import { useWorkspace } from "../contexts/WorkspaceContext";
@@ -96,7 +96,6 @@ const CHAT_THREAD_REPLY_COUNTS_KEY = "codedock-chat-thread-reply-counts-v1";
 const CHAT_REACTIONS_KEY = "codedock-chat-reactions-v1";
 const LAST_CHANNEL_KEY = "codedock-last-channel-v1";
 const LAST_WORKSPACE_KEY = "codedock-last-workspace-v1";
-const LAST_PRESENCE_KEY = "codedock-last-presence-v1";
 const API_CHANNEL_ID_PREFIX = "api-channel-";
 const DEFAULT_WORKSPACE_API_ID = 1;
 const WORKSPACE_CHAT_STATE_KEY_PREFIX = "workspace";
@@ -122,7 +121,8 @@ const PRESENCE_META: Record<PresenceKey, { label: string; color: string }> = {
 };
 
 type SidebarGroupId = 'documentation';
-type UserPresence = 'active' | 'away' | 'busy' | 'offline';
+// 프로필 상태와 단일 타입으로 통합 — 두 시스템의 상태 집합이 드리프트하지 않도록 보장한다.
+type UserPresence = ProfileStatus;
 type NotificationMode = 'all' | 'mentions' | 'muted';
 type RemoteTypingMembers = Record<number, string>;
 type ChatProfilePreview = {
@@ -253,12 +253,8 @@ const myProfile = {
   initials: "JJ"
 };
 
-const presenceOptions: Array<{ id: UserPresence; label: string; description: string; color: string }> = [
-  { id: 'active', label: '활동중', description: '바로 응답 가능', color: 'var(--matrix-green)' },
-  { id: 'away', label: '자리비움', description: '잠시 후 확인', color: '#FFD166' },
-  { id: 'busy', label: '방해금지', description: '멘션만 확인', color: '#FF6B6B' },
-  { id: 'offline', label: '오프라인', description: '상태 숨김', color: '#8B94A7' }
-];
+// "내 상태" 셀렉터 옵션은 프로필 상태(STATUS_OPTIONS)와 단일 소스로 통합한다.
+const presenceOptions = STATUS_OPTIONS;
 
 const notificationOptions: Array<{ id: NotificationMode; label: string; description: string; icon: LucideIcon }> = [
   { id: 'all', label: '모든 알림', description: '채널, PR, 이슈 알림 받기', icon: Bell },
@@ -1538,7 +1534,7 @@ const initialThreadReplies: Record<number | string, any[]> = {
 };
 
 export function ChatPage() {
-  const { profile, userId } = useProfile();
+  const { profile, setProfile, userId } = useProfile();
   const { workspaceId: contextWorkspaceId, setWorkspaceId: setContextWorkspaceId } = useWorkspace();
   const currentDisplayName = profile.name || myProfile.name;
   const [apiWorkspaces, setApiWorkspaces] = useState<WorkspaceDto[]>([]);
@@ -1746,15 +1742,15 @@ export function ChatPage() {
     };
   }, [profileMenuOpen]);
 
-  const [userPresence, setUserPresence] = useState<UserPresence>(() => {
-    // 새로고침 후에도 사용자가 고른 상태(자리비움/방해금지 등)를 유지
-    const saved = getSavedJson<string>(LAST_PRESENCE_KEY, 'active');
-    return (PRESENCE_ORDER as readonly string[]).includes(saved) ? (saved as UserPresence) : 'active';
-  });
+  // 상태(presence)는 프로필 status와 단일 소스로 통합 — "내 상태" 셀렉터와 "프로필 정보 → 상태"가 같은 값을 공유한다.
+  // 영속화는 ProfileProvider가 프로필을 localStorage에 저장하면서 함께 처리된다.
+  const userPresence = profile.status;
+  const setUserPresence = useCallback((next: UserPresence) => {
+    setProfile((prev) => (prev.status === next ? prev : { ...prev, status: next }));
+  }, [setProfile]);
   const userPresenceRef = useRef(userPresence);
   useEffect(() => {
     userPresenceRef.current = userPresence;
-    saveJson(LAST_PRESENCE_KEY, userPresence);
   }, [userPresence]);
   const [notificationMode, setNotificationMode] = useState<NotificationMode>('mentions');
 

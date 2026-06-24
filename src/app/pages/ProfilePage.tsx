@@ -166,6 +166,7 @@ export function ProfilePage() {
   };
 
   const handleStatusChange = (status: ProfileStatus) => {
+    // profile.status가 단일 소스 — 값만 바꾸면 WorkspaceProvider가 반응형으로 서버 presence에 반영한다.
     setUser((current) => ({ ...current, status }));
   };
 

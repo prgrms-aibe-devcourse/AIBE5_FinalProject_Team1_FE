@@ -41,9 +41,7 @@ const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
 
 // ChatPage가 마지막 선택 워크스페이스를 저장하는 키와 동일해야 함 (codedock-last-workspace-v1)
 const LAST_WORKSPACE_KEY = "codedock-last-workspace-v1";
-const LAST_PRESENCE_KEY = "codedock-last-presence-v1";
 const PRESENCE_HEARTBEAT_INTERVAL_MS = 30_000;
-const VALID_PRESENCES = new Set(["active", "away", "busy", "offline"]);
 
 function readSavedWorkspaceId(): number | null {
   if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
@@ -59,21 +57,8 @@ function readSavedWorkspaceId(): number | null {
   }
 }
 
-function readSavedPresence() {
-  if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
-    return "active";
-  }
-  try {
-    const raw = window.localStorage.getItem(LAST_PRESENCE_KEY);
-    const parsed = raw ? JSON.parse(raw) : null;
-    return typeof parsed === "string" && VALID_PRESENCES.has(parsed) ? parsed : "active";
-  } catch {
-    return "active";
-  }
-}
-
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
-  const { userId } = useProfile();
+  const { userId, profile } = useProfile();
   const [workspaceId, setWorkspaceId] = useState<number | null>(null);
   const [myMemberId, setMyMemberId] = useState<number | null>(null);
   const [myAuthority, setMyAuthority] = useState<string | null>(null);
@@ -128,10 +113,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       [loadMembers, workspaceId, userId]
   );
 
+  // presence는 단일 소스인 profile.status를 publish한다. status가 바뀌면 아래 heartbeat/focus
+  // 이펙트가 재실행되어 즉시 최신 상태를 서버에 반영하고, 30초 heartbeat도 항상 최신 값을 보낸다.
   const publishPresence = useCallback(() => {
     if (!isAuthenticated() || workspaceId === null || userId === null) return;
-    void updatePresence(workspaceId, readSavedPresence()).catch(() => {});
-  }, [workspaceId, userId]);
+    void updatePresence(workspaceId, profile.status).catch(() => {});
+  }, [workspaceId, userId, profile.status]);
 
   const clientRef = useRef<ReturnType<typeof createChatStompClient> | null>(null);
   const workspaceIdRef = useRef(workspaceId);
