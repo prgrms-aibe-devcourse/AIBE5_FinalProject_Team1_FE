@@ -29,7 +29,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { CoffeeLogo } from "../components/CoffeeLogo";
 import { useTheme } from "../contexts/ThemeContext";
 import { useProfile } from "../contexts/ProfileContext";
-import { setTokens } from "../auth";
+import { buildGithubAuthorizationUrl, setTokens } from "../auth";
 import { apiClient, ApiClientError } from "../api/client";
 
 const strengthLabels = ["매우 약함", "약함", "보통", "좋음", "안전함"];
@@ -477,7 +477,7 @@ export function SignupPage() {
     setGithubLinkToken(null);
 
     const popup = window.open(
-        "/oauth2/authorization/github?mode=link",
+        buildGithubAuthorizationUrl("/oauth2/authorization/github?mode=link"),
         "gh-oauth",
         "width=600,height=720"
     );

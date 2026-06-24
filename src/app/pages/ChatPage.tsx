@@ -366,6 +366,10 @@ function getHiddenRepositoryKey(workspaceApiId: number, repository: RepositoryRe
   return `${workspaceApiId}:${getRepositoryReferenceId(repository)}`;
 }
 
+function getHiddenRepositoryChannelKey(workspaceApiId: number, channelId: number | string) {
+  return `${workspaceApiId}:channel:${channelId}`;
+}
+
 function getHiddenWorkspaceRepositories() {
   return getSavedJson<Record<string, true>>(HIDDEN_WORKSPACE_REPOS_KEY, {});
 }
@@ -382,19 +386,54 @@ function isWorkspaceRepositoryHidden(
   return Boolean(hiddenRepositories[getHiddenRepositoryKey(workspaceApiId, repository)]);
 }
 
+function isRepositoryChannelHidden(
+  workspaceApiId: number,
+  channel: Channel,
+  hiddenRepositories = getHiddenWorkspaceRepositories()
+) {
+  if (hiddenRepositories[getHiddenRepositoryChannelKey(workspaceApiId, channel.id)]) {
+    return true;
+  }
+
+  if (channel.githubRepositoryId != null) {
+    return Boolean(hiddenRepositories[`${workspaceApiId}:db:${channel.githubRepositoryId}`]);
+  }
+
+  return false;
+}
+
 function hideWorkspaceRepository(workspaceApiId: number, repository: RepositoryReference) {
   const hiddenRepositories = getHiddenWorkspaceRepositories();
   hiddenRepositories[getHiddenRepositoryKey(workspaceApiId, repository)] = true;
+
+  if (repository.channelId != null) {
+    hiddenRepositories[getHiddenRepositoryChannelKey(workspaceApiId, repository.channelId)] = true;
+  }
+
   saveHiddenWorkspaceRepositories(hiddenRepositories);
 }
 
 function unhideWorkspaceRepository(workspaceApiId: number, repository: RepositoryReference) {
   const hiddenRepositories = getHiddenWorkspaceRepositories();
   const hiddenKey = getHiddenRepositoryKey(workspaceApiId, repository);
-  if (!hiddenRepositories[hiddenKey]) return;
+  const hiddenChannelKey = repository.channelId != null
+    ? getHiddenRepositoryChannelKey(workspaceApiId, repository.channelId)
+    : null;
+  let changed = false;
 
-  delete hiddenRepositories[hiddenKey];
-  saveHiddenWorkspaceRepositories(hiddenRepositories);
+  if (hiddenRepositories[hiddenKey]) {
+    delete hiddenRepositories[hiddenKey];
+    changed = true;
+  }
+
+  if (hiddenChannelKey && hiddenRepositories[hiddenChannelKey]) {
+    delete hiddenRepositories[hiddenChannelKey];
+    changed = true;
+  }
+
+  if (changed) {
+    saveHiddenWorkspaceRepositories(hiddenRepositories);
+  }
 }
 
 function isSameRepositoryReference(a: Partial<RepositoryReference>, b: Partial<RepositoryReference>) {
@@ -2250,15 +2289,21 @@ export function ChatPage() {
   // 어떤 repository에도 매핑되지 않은 repository 타입 채널. 커스텀 목록에서도 제외되고 repository
   // 트리에도 없어서 그대로 두면 어디에도 렌더링되지 않으므로, 전용 섹션에서 노출해 선택 가능하게 한다.
   const orphanRepositoryChannels = useMemo<CustomChannelItem[]>(() => {
+    const hiddenRepositories = getHiddenWorkspaceRepositories();
+
     return apiChannels
-      .filter((channel) => isRepositoryApiChannel(channel) && !claimedRepositoryChannelIds.has(channel.id))
+      .filter((channel) =>
+        isRepositoryApiChannel(channel)
+        && !claimedRepositoryChannelIds.has(channel.id)
+        && !isRepositoryChannelHidden(currentWorkspaceApiId, channel, hiddenRepositories)
+      )
       .map((channel) => ({
         id: getApiChannelUiIdById(channel.id),
         label: cleanChannelLabel(channel.name),
         apiChannelId: channel.id,
         displayOrder: channel.displayOrder
       }));
-  }, [apiChannels, claimedRepositoryChannelIds]);
+  }, [apiChannels, claimedRepositoryChannelIds, currentWorkspaceApiId]);
 
   // 새로고침 시 복원할 채널이 현재 워크스페이스에서 실제 선택 가능한지 검증하기 위한 id 집합
   const selectableChannelIds = useMemo(() => {

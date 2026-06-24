@@ -1,6 +1,6 @@
 import { Send, Sparkles, Code, AtSign, Smile, GitPullRequest, FileText, Plus, Minus, MessageSquare, Bookmark, Share2, Reply, MoreVertical, X, CheckCircle, Clock, AlertCircle, ExternalLink, GitMerge, Hash, Paperclip, FileUp, Image as ImageIcon, Link2, CircleDot, CircleCheck, CircleMinus } from "lucide-react";
 import { motion } from "motion/react";
-import { useEffect, useRef, useState, type ChangeEvent, type PointerEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ChangeEvent, type PointerEvent } from "react";
 import { MAX_ATTACHMENT_BYTES, MAX_MESSAGE_ATTACHMENTS, createLinkMessageAttachmentFromText, createUploadedMessageAttachment, createUrlMessageAttachment, getMessageAttachmentTypeLabel, isSendableMessageAttachment, messageAttachmentGroups, type MessageAttachment, type MessageAttachmentType } from "./messageAttachments";
 import { uploadAttachmentFile } from "../api/chat";
 import { EmojiPicker, REACTION_KEY_TO_EMOJI } from "./EmojiPicker";
@@ -712,18 +712,11 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
     }
   }[emptyStateType];
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const scrollContainer = scrollContainerRef.current;
     if (!scrollContainer) return;
 
-    const frameId = window.requestAnimationFrame(() => {
-      scrollContainer.scrollTo({
-        top: scrollContainer.scrollHeight,
-        behavior: "smooth"
-      });
-    });
-
-    return () => window.cancelAnimationFrame(frameId);
+    scrollContainer.scrollTop = scrollContainer.scrollHeight;
   }, [filteredMessages.length, typingLabel]);
 
   return (

@@ -1,6 +1,6 @@
 import { Hash, MessageSquare, Send, Bookmark, Reply, AtSign, X, Paperclip, Smile, UserPlus, FileUp, Code, Pencil, Trash2, Image as ImageIcon, Link2 } from "lucide-react";
 import { motion } from "motion/react";
-import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent, type PointerEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ChangeEvent, type KeyboardEvent, type PointerEvent } from "react";
 import { MAX_ATTACHMENT_BYTES, MAX_MESSAGE_ATTACHMENTS, createLinkMessageAttachmentFromText, createUploadedMessageAttachment, createUrlMessageAttachment, getMessageAttachmentTypeLabel, isSendableMessageAttachment, messageAttachmentGroups, type MessageAttachment, type MessageAttachmentType } from "./messageAttachments";
 import { uploadAttachmentFile } from "../api/chat";
 import { EmojiPicker, REACTION_KEY_TO_EMOJI } from "./EmojiPicker";
@@ -347,21 +347,14 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
     saveBookmarkMap(bookmarkStorageKey, localBookmarkedThreadIds);
   }, [bookmarkStorageKey, localBookmarkedThreadIds]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     // Read the focus flag from a ref so that *clearing* the focus target does not
     // re-run this effect and snap the view back down to the latest message.
     if (focusedThreadIdRef.current != null) return;
     const scrollContainer = scrollContainerRef.current;
     if (!scrollContainer) return;
 
-    const frameId = window.requestAnimationFrame(() => {
-      scrollContainer.scrollTo({
-        top: scrollContainer.scrollHeight,
-        behavior: "smooth"
-      });
-    });
-
-    return () => window.cancelAnimationFrame(frameId);
+    scrollContainer.scrollTop = scrollContainer.scrollHeight;
   }, [displayedThreads.length]);
 
   const triggerResponderTyping = () => {

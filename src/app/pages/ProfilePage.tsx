@@ -25,6 +25,7 @@ import { useTheme } from "../contexts/ThemeContext";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useProfile, STATUS_OPTIONS, type ProfileUser, type ProfileStatus } from "../contexts/ProfileContext";
 import { apiClient } from "../api/client";
+import { ensureGithubAccountPickerUrl } from "../auth";
 
 type ProfileSection = "profile" | "account" | "github";
 
@@ -217,7 +218,7 @@ export function ProfilePage() {
     window.addEventListener("message", handler);
     try {
       const { authorizeUrl } = await apiClient.post<{ authorizeUrl: string }>("/api/v1/users/me/github/connect/start");
-      popup.location.href = authorizeUrl;
+      popup.location.href = ensureGithubAccountPickerUrl(authorizeUrl);
     } catch {
       finish();
       popup.close();
