@@ -338,6 +338,50 @@ export function createChannelMessage(
   return apiClient.post<ChannelMessage>(`/api/channels/${channelId}/messages`, request, options);
 }
 
+export interface PresignUploadResponse {
+  uploadUrl: string;
+  fileUrl: string;
+  key: string;
+  contentType: string;
+}
+
+// 파일 업로드용 presigned PUT URL 발급 (fileSize는 서버 측 크기 검증·서명에 사용)
+export function presignAttachmentUpload(
+  fileName: string,
+  contentType: string,
+  fileSize: number,
+  options?: ApiRequestOptions
+) {
+  return apiClient.post<PresignUploadResponse>(
+    `/api/attachments/presign`,
+    { fileName, contentType, fileSize },
+    options
+  );
+}
+
+// 파일을 S3로 직접 업로드하고 공개 URL을 반환한다.
+// 1) BE에서 presigned URL 발급 → 2) 그 URL로 파일 PUT → 3) 표시용 공개 URL 반환
+export async function uploadAttachmentFile(
+  file: File,
+  options?: ApiRequestOptions
+): Promise<string> {
+  const contentType = file.type || "application/octet-stream";
+  const presign = await presignAttachmentUpload(file.name, contentType, file.size, options);
+
+  const putResponse = await fetch(presign.uploadUrl, {
+    method: "PUT",
+    body: file,
+    headers: { "Content-Type": presign.contentType },
+    signal: options?.signal,
+  });
+
+  if (!putResponse.ok) {
+    throw new Error(`파일 업로드에 실패했습니다 (HTTP ${putResponse.status})`);
+  }
+
+  return presign.fileUrl;
+}
+
 export function addMessageAttachments(
   channelId: number,
   messageId: number,

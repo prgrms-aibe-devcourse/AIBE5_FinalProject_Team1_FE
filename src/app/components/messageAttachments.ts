@@ -1,5 +1,7 @@
 export type MessageAttachmentType = "pr" | "erd" | "issue" | "api" | "docs" | "file" | "image" | "link";
 export const MAX_MESSAGE_ATTACHMENTS = 10;
+// 업로드 단일 파일 최대 크기. 백엔드 UPLOAD_MAX_BYTES(기본 10MB)와 동일하게 유지한다.
+export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 
 export interface MessageAttachment {
   id: string;
@@ -173,6 +175,27 @@ export function createFileMessageAttachment(file: File, type: "file" | "image"):
     meta: sizeLabel,
     url: objectUrl,
     previewUrl: type === "image" ? objectUrl : undefined,
+    mimeType: file.type,
+    size: file.size
+  };
+}
+
+// 업로드 완료된 파일/이미지로 첨부를 생성한다(실제 공개 URL을 가지므로 전송 가능).
+export function createUploadedMessageAttachment(
+  file: File,
+  type: "file" | "image",
+  uploadedUrl: string
+): MessageAttachment {
+  const uniqueId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+  return {
+    id: `${type}-${uniqueId}-${file.name}-${file.size}`,
+    type,
+    title: file.name,
+    detail: file.type || (type === "image" ? "이미지 파일" : "첨부 파일"),
+    meta: formatAttachmentSize(file.size),
+    url: uploadedUrl,
+    previewUrl: type === "image" ? uploadedUrl : undefined,
     mimeType: file.type,
     size: file.size
   };

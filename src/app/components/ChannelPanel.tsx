@@ -1,7 +1,8 @@
 import { Hash, MessageSquare, Send, Bookmark, Reply, AtSign, X, Paperclip, Smile, UserPlus, FileUp, Code, Pencil, Trash2, Image as ImageIcon, Link2 } from "lucide-react";
 import { motion } from "motion/react";
 import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
-import { MAX_MESSAGE_ATTACHMENTS, createLinkMessageAttachmentFromText, createUrlMessageAttachment, getMessageAttachmentTypeLabel, isSendableMessageAttachment, messageAttachmentGroups, type MessageAttachment, type MessageAttachmentType } from "./messageAttachments";
+import { MAX_ATTACHMENT_BYTES, MAX_MESSAGE_ATTACHMENTS, createLinkMessageAttachmentFromText, createUploadedMessageAttachment, createUrlMessageAttachment, getMessageAttachmentTypeLabel, isSendableMessageAttachment, messageAttachmentGroups, type MessageAttachment, type MessageAttachmentType } from "./messageAttachments";
+import { uploadAttachmentFile } from "../api/chat";
 import { EmojiPicker, REACTION_KEY_TO_EMOJI } from "./EmojiPicker";
 import { MessageReactions, toggleMessageReaction, type MessageReaction } from "./MessageReactions";
 import { MessageAttachmentCard } from "./MessageAttachmentCard";
@@ -177,6 +178,7 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
   const [linkUrl, setLinkUrl] = useState("");
   const [linkTitle, setLinkTitle] = useState("");
   const [urlAttachmentType, setUrlAttachmentType] = useState<"link" | "image" | "file">("link");
+  const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
   const [responderTyping, setResponderTyping] = useState(false);
   const [localThreadReactions, setLocalThreadReactions] = useState<Record<string, MessageReaction[]>>({});
   const [localBookmarkedThreadIds, setLocalBookmarkedThreadIds] = useState<Record<number, boolean>>(() => readBookmarkMap(bookmarkStorageKey));
@@ -355,13 +357,47 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
     setAttachmentError("");
   };
 
-  const handleLocalFilesSelected = (event: ChangeEvent<HTMLInputElement>, type: "file" | "image") => {
+  const handleLocalFilesSelected = async (event: ChangeEvent<HTMLInputElement>, type: "file" | "image") => {
     const files = Array.from(event.target.files ?? []);
-    if (files.length === 0) return;
-    setAttachmentError(`${getMessageAttachmentTypeLabel(type)} attachments must be added as URLs. Binary upload is not supported yet.`);
-    setUrlAttachmentType(type);
-    setActivePanel("link");
     event.target.value = "";
+    if (files.length === 0) return;
+
+    // 업로드 전에 남은 슬롯을 먼저 계산해, 초과 파일은 S3에 올리지 않는다(orphan 방지).
+    const remainingSlots = MAX_MESSAGE_ATTACHMENTS - (attachmentTargetCount + selectedAttachments.length);
+    if (remainingSlots <= 0) {
+      setAttachmentError(`메시지 하나에는 첨부파일을 최대 ${MAX_MESSAGE_ATTACHMENTS}개까지 추가할 수 있습니다.`);
+      return;
+    }
+    const filesToUpload = files.slice(0, remainingSlots);
+    if (files.length > remainingSlots) {
+      setAttachmentError(`최대 ${MAX_MESSAGE_ATTACHMENTS}개까지만 첨부할 수 있어 ${files.length - remainingSlots}개는 제외했습니다.`);
+    }
+
+    setIsUploadingAttachment(true);
+    try {
+      for (const file of filesToUpload) {
+        if (file.size > MAX_ATTACHMENT_BYTES) {
+          setAttachmentError(`${file.name}: ${Math.floor(MAX_ATTACHMENT_BYTES / (1024 * 1024))}MB 이하 파일만 업로드할 수 있습니다.`);
+          continue;
+        }
+        try {
+          const url = await uploadAttachmentFile(file);
+          const attachment = createUploadedMessageAttachment(file, type, url);
+          setSelectedAttachments((prev) => {
+            if (attachmentTargetCount + prev.length >= MAX_MESSAGE_ATTACHMENTS) {
+              setAttachmentError(`메시지 하나에는 첨부파일을 최대 ${MAX_MESSAGE_ATTACHMENTS}개까지 추가할 수 있습니다.`);
+              return prev;
+            }
+            setAttachmentError("");
+            return [...prev, attachment];
+          });
+        } catch (err) {
+          setAttachmentError(err instanceof Error ? err.message : "파일 업로드에 실패했습니다.");
+        }
+      }
+    } finally {
+      setIsUploadingAttachment(false);
+    }
   };
 
   const handleAddLinkAttachment = () => {
@@ -600,6 +636,10 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
   };
 
   const handleSendMessage = () => {
+    if (isUploadingAttachment) {
+      setAttachmentError("파일 업로드 중입니다. 완료 후 전송해 주세요.");
+      return;
+    }
     const trimmedMessage = messageText.trim();
     const trimmedCode = codeBlockText.trim();
     if (!canSendMessage) return;
@@ -1104,7 +1144,7 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
               </span>
             </div>
             <div className="mb-3 flex flex-wrap gap-2">
-              {(["link", "image", "file"] as const).map((type) => (
+              {(["link"] as const).map((type) => (
                 <button
                   key={type}
                   type="button"
