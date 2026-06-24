@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getWorkspaceIssues, updateIssueLocalStatus, type Issue } from "../api/issue";
-import { getRepositoryPullRequests } from "../api/github";
+import { getRepositoryPullRequests, syncRepositoryIssues, syncRepositoryPullRequests } from "../api/github";
 import { useWorkspace } from "../contexts/WorkspaceContext";
 import {
   groupCardsByStatus,
@@ -36,26 +36,29 @@ export function useIssueBoard(options?: UseIssueBoardOptions): UseIssueBoardResu
     }
     let cancelled = false;
     setLoading(true);
-    // 이슈는 워크스페이스 단위로, PR은 레포 단위 엔드포인트로 가져온다(워크스페이스 전역 PR API 없음).
-    const issuesPromise = getWorkspaceIssues(workspaceId).catch(() => []);
-    const prsPromise = repositoryId != null
-      ? getRepositoryPullRequests(repositoryId).catch(() => [])
-      : Promise.resolve([]);
 
-    Promise.all([issuesPromise, prsPromise])
-      .then(([issues, prs]) => {
-        if (cancelled) return;
-        const scopedIssues = repositoryId != null
-          ? issues.filter((issue) => issue.repositoryId === repositoryId)
-          : issues;
-        setCards([...scopedIssues.map(issueToBoardCard), ...prs.map(prToBoardCard)]);
-      })
-      .catch(() => {
-        if (!cancelled) setCards([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    // DB에서 이슈(워크스페이스 단위)+PR(레포 단위)을 읽어 카드로 합친다.
+    const fetchAll = () => Promise.all([
+      getWorkspaceIssues(workspaceId).catch(() => []),
+      repositoryId != null ? getRepositoryPullRequests(repositoryId).catch(() => []) : Promise.resolve([]),
+    ]).then(([issues, prs]) => {
+      if (cancelled) return;
+      const scopedIssues = repositoryId != null
+        ? issues.filter((issue) => issue.repositoryId === repositoryId)
+        : issues;
+      setCards([...scopedIssues.map(issueToBoardCard), ...prs.map(prToBoardCard)]);
+    });
+
+    // 1) 캐시(DB) 데이터를 즉시 표시
+    fetchAll().catch(() => { if (!cancelled) setCards([]); }).finally(() => { if (!cancelled) setLoading(false); });
+
+    // 2) 레포 단위면 백그라운드로 GitHub 동기화(우선순위/타입/최신 PR 반영) 후 재로드
+    if (repositoryId != null) {
+      Promise.allSettled([
+        syncRepositoryIssues(repositoryId),
+        syncRepositoryPullRequests(repositoryId),
+      ]).then(() => { if (!cancelled) fetchAll().catch(() => {}); });
+    }
     return () => { cancelled = true; };
   }, [workspaceId, repositoryId]);
 
