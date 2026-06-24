@@ -45,7 +45,10 @@ const introMessages = [
   "CodeDock은 결정과 기록이 흩어지지 않도록 GitHub 작업, 팀 채팅, 문서 허브를 하나의 개발 워크스페이스로 묶습니다.",
 ];
 
-const INTRO_DURATION_MS = 5000;
+// 4단계 × 1.5초 = 단계당 1500ms로 순차 노출됩니다.
+const INTRO_DURATION_MS = 6000;
+// introDialogueCopy(KO/EN)의 단계 수와 일치해야 합니다.
+const INTRO_STEP_COUNT = 4;
 
 const featureCards = [
   {
@@ -126,20 +129,25 @@ export function HomePage() {
           id: "brand",
           eyebrow: "CodeDock",
           title: "GitHub, chat, and docs in one workspace.",
-          lines: [
-            "GitHub, chat, and docs are all here. ☕",
-            "I keep decisions and records from scattering across tools.",
-          ],
+          lines: ["GitHub, chat, and docs are all here. ☕"],
         },
         {
-          id: "features",
-          eyebrow: "What I do",
-          title: "PRs, team chat, and docs flow as one.",
-          lines: [
-            "I bring repositories, PRs, issues, and changes together.",
-            "I keep review questions and decisions in team chat.",
-            "I connect API docs, ERDs, and review notes to the work.",
-          ],
+          id: "github",
+          eyebrow: "GitHub",
+          title: "Repositories, PRs, and issues in one place.",
+          lines: ["Changed files and AI review summaries, one screen."],
+        },
+        {
+          id: "chat",
+          eyebrow: "Team Chat",
+          title: "Review questions and decisions stay in chat.",
+          lines: ["So the team never repeats the same debate."],
+        },
+        {
+          id: "docs",
+          eyebrow: "Docs",
+          title: "API specs and ERDs in the same flow.",
+          lines: ["Decisions stay traceable after release."],
         },
       ]
     : [
@@ -147,20 +155,25 @@ export function HomePage() {
           id: "brand",
           eyebrow: "CodeDock",
           title: "GitHub · 채팅 · 문서, 한 워크스페이스에서.",
-          lines: [
-            "GitHub, 채팅, 문서... 다 모셔뒀어요. ☕",
-            "결정과 기록이 흩어지지 않도록 한 워크스페이스로 연결해요.",
-          ],
+          lines: ["GitHub, 채팅, 문서... 다 모셔뒀어요. ☕"],
         },
         {
-          id: "features",
-          eyebrow: "제가 도와드릴 일",
-          title: "PR·이슈, 팀 대화, 문서가 같은 흐름으로 이어져요.",
-          lines: [
-            "저장소와 PR·이슈를 한곳에 모아요.",
-            "리뷰 질문과 결정을 채팅에 남겨요.",
-            "API 명세, ERD, 리뷰 문서까지 한 흐름으로 이어둬요.",
-          ],
+          id: "github",
+          eyebrow: "GitHub",
+          title: "저장소·PR·이슈를 한곳에 모아요.",
+          lines: ["변경 파일과 AI 리뷰 요약까지 한 화면에서."],
+        },
+        {
+          id: "chat",
+          eyebrow: "팀 채팅",
+          title: "리뷰 질문과 결정을 채팅에 남겨요.",
+          lines: ["같은 고민을 다시 반복하지 않도록."],
+        },
+        {
+          id: "docs",
+          eyebrow: "문서",
+          title: "API·ERD 문서까지 한 흐름으로.",
+          lines: ["배포 후에도 결정이 추적돼요."],
         },
       ];
   const activeIntroDialogue = introDialogueCopy[introStep] ?? introDialogueCopy[0];
@@ -377,9 +390,12 @@ export function HomePage() {
     originalBodyOverflow.current = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
-    const introStepTimer = window.setTimeout(() => {
-      setIntroStep(1);
-    }, INTRO_DURATION_MS / 2);
+    const stepDuration = INTRO_DURATION_MS / INTRO_STEP_COUNT;
+    const introStepTimers = Array.from({ length: INTRO_STEP_COUNT - 1 }, (_, index) =>
+      window.setTimeout(() => {
+        setIntroStep(index + 1);
+      }, stepDuration * (index + 1)),
+    );
 
     const introTimer = window.setTimeout(() => {
       setShowIntro(false);
@@ -387,7 +403,7 @@ export function HomePage() {
     }, INTRO_DURATION_MS);
 
     return () => {
-      window.clearTimeout(introStepTimer);
+      introStepTimers.forEach((timer) => window.clearTimeout(timer));
       window.clearTimeout(introTimer);
       document.body.style.overflow = originalBodyOverflow.current;
     };
@@ -695,7 +711,7 @@ export function HomePage() {
               </div>
 
               <AnimatePresence>
-                {introStep === 1 && (
+                {introStep >= 1 && (
                   <motion.div
                     className="mt-6 flex flex-wrap justify-center gap-2"
                     initial={{ opacity: 0, y: 10 }}
