@@ -1,4 +1,5 @@
 import { FileText, Sparkles, BookOpen, HelpCircle, Package, Plus, Pencil, Trash2, Check, X } from "lucide-react";
+import { renderMarkdown } from "../utils/renderMarkdown";
 import { ApiClientError } from "../api/client";
 import { useCallback, useEffect, useState } from "react";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -56,20 +57,6 @@ function mapDocumentResponse(doc: DocumentResponse): DocumentItem {
   };
 }
 
-function parseInline(text: string): React.ReactNode[] {
-  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|_[^_]+_|`[^`]+`|~~[^~]+~~)/g);
-  return parts.map((part, i) => {
-    if (part.startsWith('**') && part.endsWith('**') && part.length > 4)
-      return <strong key={i} style={{ fontWeight: 1000, color: 'var(--white)' }}>{part.slice(2, -2)}</strong>;
-    if ((part.startsWith('*') && part.endsWith('*') || part.startsWith('_') && part.endsWith('_')) && part.length > 2)
-      return <em key={i}>{part.slice(1, -1)}</em>;
-    if (part.startsWith('`') && part.endsWith('`') && part.length > 2)
-      return <code key={i} style={{ background: 'rgba(var(--codedock-primary-rgb), 0.12)', color: 'var(--neon-cyan)', padding: '1px 6px', borderRadius: '4px', fontSize: '0.9em' }}>{part.slice(1, -1)}</code>;
-    if (part.startsWith('~~') && part.endsWith('~~') && part.length > 4)
-      return <s key={i}>{part.slice(2, -2)}</s>;
-    return part;
-  });
-}
 
 
 export function DocsPage({ embedded = false, expanded = false, workspaceId: workspaceIdProp }: DocsPageProps) {
@@ -283,107 +270,7 @@ export function DocsPage({ embedded = false, expanded = false, workspaceId: work
 
   const renderDocumentPreview = (content: string) => (
     <div className="grid w-full gap-4">
-      {content.split("\n").map((line, index) => {
-        const trimmedLine = line.trim();
-
-        if (!trimmedLine) {
-          return <div key={`spacer-${index}`} className="h-2" />;
-        }
-
-        if (trimmedLine.startsWith("# ")) {
-          return (
-            <h1 key={index} className="m-0 leading-[1.1] tracking-[-0.055em]" style={{
-              color: 'var(--white)',
-              fontSize: embedded ? '30px' : '32px',
-              fontWeight: 950
-            }}>
-              {trimmedLine.replace(/^#\s+/, "")}
-            </h1>
-          );
-        }
-
-        if (trimmedLine.startsWith("## ")) {
-          return (
-            <h2 key={index} className="m-0 mt-4 leading-[1.2] tracking-[-0.035em]" style={{
-              color: 'var(--soft-mint)',
-              fontSize: embedded ? '26px' : '28px',
-              fontWeight: 950
-            }}>
-              {parseInline(trimmedLine.replace(/^##\s+/, ""))}
-            </h2>
-          );
-        }
-
-        if (trimmedLine.startsWith("### ")) {
-          return (
-            <h3 key={index} className="m-0 mt-3 leading-[1.3] tracking-[-0.025em]" style={{
-              color: 'var(--neon-cyan)',
-              fontSize: embedded ? '22px' : '24px',
-              fontWeight: 950
-            }}>
-              {parseInline(trimmedLine.replace(/^###\s+/, ""))}
-            </h3>
-          );
-        }
-
-        if (trimmedLine.startsWith("#### ")) {
-          return (
-            <h4 key={index} className="m-0 mt-2 leading-[1.4] tracking-tight" style={{
-              color: 'rgba(234, 247, 255, 0.88)',
-              fontSize: embedded ? '18px' : '20px',
-              fontWeight: 950
-            }}>
-              {parseInline(trimmedLine.replace(/^####\s+/, ""))}
-            </h4>
-          );
-        }
-
-        if (trimmedLine.startsWith("- [")) {
-          return (
-            <div key={index} className="rounded-xl px-4 py-3 tracking-tight" style={{
-              background: 'rgba(234, 247, 255, 0.045)',
-              border: '1px solid rgba(234, 247, 255, 0.08)',
-              color: 'rgba(234, 247, 255, 0.88)',
-              fontSize: '16px',
-              fontWeight: 800,
-              lineHeight: 1.65
-            }}>
-              {trimmedLine}
-            </div>
-          );
-        }
-
-        if (trimmedLine.startsWith("* ") || trimmedLine.startsWith("- ")) {
-          return (
-            <div key={index} className="flex gap-3 rounded-xl px-4 py-3 tracking-tight" style={{
-              background: 'rgba(234, 247, 255, 0.035)',
-              border: '1px solid rgba(234, 247, 255, 0.07)',
-              color: 'rgba(234, 247, 255, 0.82)',
-              fontSize: '16px',
-              fontWeight: 500,
-              lineHeight: 1.65
-            }}>
-              <span style={{ color: 'var(--neon-cyan)', fontWeight: 950 }}>•</span>
-              <span>{parseInline(trimmedLine.replace(/^[-*]\s+/, ""))}</span>
-            </div>
-          );
-        }
-
-        if (trimmedLine.startsWith("```")) {
-          return null;
-        }
-
-        return (
-          <p key={index} className="m-0 tracking-tight" style={{
-            color: 'rgba(234, 247, 255, 0.82)',
-            fontSize: '16px',
-            fontWeight: 500,
-            lineHeight: 1.85
-          }}>
-            {parseInline(trimmedLine)}
-          </p>
-        );
-      })}
+      {renderMarkdown(content)}
     </div>
   );
 
