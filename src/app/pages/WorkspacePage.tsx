@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useNavigate } from "react-router";
 import { ArrowRight, AtSign, Check, ChevronDown, CircleDot, CornerDownRight, GitFork, GitPullRequest, Loader2, MessageSquare, Plus, Settings2, Users, X } from "lucide-react";
 import { WorkspaceSettingsModal } from "../components/WorkspaceSettingsModal";
+import { CoffeeLogo } from "../components/CoffeeLogo";
 import { REACTION_KEY_TO_EMOJI } from "../components/EmojiPicker";
 import { DndProvider, useDrag, useDrop, useDragLayer } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
@@ -1671,10 +1672,69 @@ export function WorkspacePage() {
             </div>
           ) : orgs.length === 0 ? (
             <div
-              className="flex flex-col items-center justify-center py-12 tracking-tight"
-              style={{ color: "var(--muted)", fontSize: "15px", fontWeight: 700 }}
+              className="grid items-center gap-6 rounded-[28px] px-5 py-8 tracking-tight md:grid-cols-[auto_1fr]"
+              style={{
+                background: "linear-gradient(135deg, rgba(var(--codedock-primary-rgb), 0.09), rgba(5, 11, 20, 0.46))",
+                border: "1px solid rgba(var(--codedock-primary-rgb), 0.18)",
+                boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)"
+              }}
             >
-              <p className="m-0">팀을 생성하거나 초대를 수락하여 시작하세요.</p>
+              <div className="mx-auto flex h-36 w-36 items-center justify-center rounded-[30px] md:mx-0" style={{
+                background: "rgba(5, 11, 20, 0.34)",
+                border: "1px solid rgba(var(--codedock-primary-rgb), 0.14)"
+              }}>
+                <CoffeeLogo className="h-32 w-32" alive mood="idle" />
+              </div>
+              <div className="min-w-0">
+                <div className="relative rounded-[24px] px-5 py-5" style={{
+                  background: "rgba(11, 22, 40, 0.78)",
+                  border: "1px solid rgba(var(--codedock-primary-rgb), 0.22)",
+                  color: "var(--white)"
+                }}>
+                  <span
+                    className="absolute left-8 top-0 hidden h-4 w-4 -translate-y-1/2 rotate-45 md:block"
+                    style={{
+                      background: "rgba(11, 22, 40, 0.78)",
+                      borderLeft: "1px solid rgba(var(--codedock-primary-rgb), 0.22)",
+                      borderTop: "1px solid rgba(var(--codedock-primary-rgb), 0.22)"
+                    }}
+                  />
+                  <p className="m-0 text-xl font-black tracking-tight" style={{ color: "var(--white)" }}>
+                    아직 내 팀이 없어요
+                  </p>
+                  <p className="m-0 mt-2 text-sm font-bold leading-[1.65]" style={{ color: "var(--muted)" }}>
+                    초대를 받거나 직접 팀을 생성해주세요!
+                  </p>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowInvitesModal(true)}
+                    className="rounded-xl px-4 py-2.5 text-sm font-black tracking-tight transition-all hover:brightness-110"
+                    style={{
+                      background: "rgba(var(--codedock-primary-rgb), 0.10)",
+                      border: "1px solid rgba(var(--codedock-primary-rgb), 0.24)",
+                      color: "var(--neon-cyan)",
+                      cursor: "pointer"
+                    }}
+                  >
+                    초대 확인하기
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateModal(true)}
+                    className="rounded-xl border-0 px-4 py-2.5 text-sm font-black tracking-tight transition-all hover:brightness-110"
+                    style={{
+                      background: "linear-gradient(135deg, var(--neon-cyan), var(--deep-teal))",
+                      color: "#021014",
+                      cursor: "pointer",
+                      boxShadow: "0 4px 12px rgba(var(--codedock-primary-rgb), 0.22)"
+                    }}
+                  >
+                    팀 생성하기
+                  </button>
+                </div>
+              </div>
             </div>
           ) : (
             <AutoScrollContainer itemCount={orgs.length}>

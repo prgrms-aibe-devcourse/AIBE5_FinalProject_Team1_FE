@@ -86,6 +86,8 @@ const exactTranslations: Record<string, string> = {
   "받은 초대 목록입니다": "These are your pending invitations.",
   "받은 초대가 없습니다": "No pending invitations",
   "팀을 생성하거나 초대를 수락하여 시작하세요.": "Create a team or accept an invitation to get started.",
+  "아직 내 팀이 없어요": "You do not have a team yet",
+  "초대를 받거나 직접 팀을 생성해주세요!": "Accept an invite or create a team to get started!",
   "팀 이름": "Team Name",
   "리포지토리": "Repository",
   "연결할 리포지토리 선택": "Select repositories to connect",
