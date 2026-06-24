@@ -148,8 +148,16 @@ function clampComposerHeight(height: number) {
   return Math.min(COMPOSER_MAX_HEIGHT, Math.max(COMPOSER_MIN_HEIGHT, height));
 }
 
+// Remembers each channel's scroll offset across remounts. Opening a PR/issue detail
+// unmounts this panel; this lets reopening the list restore the previous position
+// instead of snapping down to the latest message.
+const chatScrollPositions = new Map<string, number>();
+// How close to the bottom (px) still counts as "following the latest message".
+const CHAT_SCROLL_BOTTOM_THRESHOLD = 80;
+
 export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messages, reactions, replyCounts = {}, onSendMessage, onAddMessageAttachments, onDeleteMessageAttachment, onSharePR, showAISummary = true, onMergePR, onReviewPR, onViewIssue, onOpenThread, onOpenProfile, selectedThreadId, onToggleReaction, isRepository = false, myMemberId, myDisplayName, myAvatarUrl, onTypingChange, remoteTypingLabel }: ChatPanelProps) {
   const bookmarkStorageKey = `codedock-chat-bookmarks:${bookmarkScopeId ?? channelId}`;
+  const scrollScopeId = bookmarkScopeId ?? channelId;
   const displayCurrentUserName = myDisplayName?.trim() || currentUserDisplayName;
   const displayCurrentUserAvatar = displayCurrentUserName.charAt(0) || currentUserAvatar;
   const displayCurrentUserAvatarUrl = myAvatarUrl?.trim() || "";
@@ -185,6 +193,10 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
   const [responderTyping, setResponderTyping] = useState(false);
   const [localMessageReactions, setLocalMessageReactions] = useState<Record<string, MessageReaction[]>>({});
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  // Whether the user is parked at the bottom (so new messages should follow) and whether
+  // we just restored a saved position (so the bottom-scroll effect should skip once).
+  const atBottomRef = useRef(true);
+  const restoredScrollRef = useRef(false);
   const composerResizeRef = useRef<{ startY: number; startHeight: number } | null>(null);
   const activePanelRef = useRef<HTMLDivElement | null>(null);
   const composerToolbarRef = useRef<HTMLDivElement | null>(null);
@@ -712,9 +724,49 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
     }
   }[emptyStateType];
 
+  // Persist the scroll offset on every scroll and track whether the user is still parked
+  // at the bottom, so we know when it's safe to follow new messages down.
+  const handleListScroll = () => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    atBottomRef.current = distanceFromBottom <= CHAT_SCROLL_BOTTOM_THRESHOLD;
+    chatScrollPositions.set(scrollScopeId, el.scrollTop);
+  };
+
+  // Restore the saved scroll position when the panel (re)mounts or the channel changes —
+  // e.g. after viewing a PR/issue detail, which unmounts this panel. Runs before paint to
+  // avoid a visible jump. Falls back to the bottom (latest message) on first visit.
+  useLayoutEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const saved = chatScrollPositions.get(scrollScopeId);
+    if (saved != null) {
+      el.scrollTop = saved;
+      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      atBottomRef.current = distanceFromBottom <= CHAT_SCROLL_BOTTOM_THRESHOLD;
+      restoredScrollRef.current = true;
+    } else {
+      el.scrollTop = el.scrollHeight;
+      atBottomRef.current = true;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scrollScopeId]);
+
   useLayoutEffect(() => {
     const scrollContainer = scrollContainerRef.current;
     if (!scrollContainer) return;
+
+    // We just restored a saved position (reopened after a PR/issue detail). Keep it and
+    // consume the flag so a genuinely new message can still auto-scroll afterwards.
+    if (restoredScrollRef.current) {
+      restoredScrollRef.current = false;
+      return;
+    }
+
+    // Only follow new messages down when the user is already at the bottom; if they've
+    // scrolled up to read history, leave their position untouched.
+    if (!atBottomRef.current) return;
 
     scrollContainer.scrollTop = scrollContainer.scrollHeight;
   }, [filteredMessages.length, typingLabel]);
@@ -789,7 +841,7 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
         </div>
       )}
 
-      <div ref={scrollContainerRef} className="min-h-0 flex-1 px-6 py-4 overflow-y-auto">
+      <div ref={scrollContainerRef} onScroll={handleListScroll} className="min-h-0 flex-1 px-6 py-4 overflow-y-auto">
         <div className="grid gap-4">
           {filteredMessages.length === 0 ? (
             <div
