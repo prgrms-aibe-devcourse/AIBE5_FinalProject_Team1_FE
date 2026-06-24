@@ -1,6 +1,6 @@
 import { Hash, MessageSquare, Send, Bookmark, Reply, AtSign, X, Paperclip, Smile, UserPlus, FileUp, Code, Pencil, Trash2, Image as ImageIcon, Link2 } from "lucide-react";
 import { motion } from "motion/react";
-import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ChangeEvent, type KeyboardEvent, type PointerEvent } from "react";
 import { MAX_ATTACHMENT_BYTES, MAX_MESSAGE_ATTACHMENTS, createLinkMessageAttachmentFromText, createUploadedMessageAttachment, createUrlMessageAttachment, getMessageAttachmentTypeLabel, isSendableMessageAttachment, messageAttachmentGroups, type MessageAttachment, type MessageAttachmentType } from "./messageAttachments";
 import { uploadAttachmentFile } from "../api/chat";
 import { EmojiPicker, REACTION_KEY_TO_EMOJI } from "./EmojiPicker";
@@ -9,6 +9,7 @@ import { MessageAttachmentCard } from "./MessageAttachmentCard";
 import { TypingIndicatorBar } from "./TypingIndicatorBar";
 import { appendMention, extractMentionNames, readBookmarkMap, saveBookmarkMap, toggleBookmark, type MessageMetadata } from "./chatInteractionUtils";
 import { CodeBlockComposer, MessageTextWithCodeBlocks, createFencedCodeBlock, type CodeBlockLanguage } from "./CodeBlockTools";
+import { CoffeeLogo } from "./CoffeeLogo";
 
 interface Thread {
   id: number;
@@ -63,6 +64,12 @@ interface ChannelPanelProps {
 }
 
 const CHANNEL_THREADS_KEY_PREFIX = "codedock-channel-threads-v1";
+const COMPOSER_MIN_HEIGHT = 28;
+const COMPOSER_MAX_HEIGHT = 360;
+
+function clampComposerHeight(height: number) {
+  return Math.min(COMPOSER_MAX_HEIGHT, Math.max(COMPOSER_MIN_HEIGHT, height));
+}
 
 const GENERAL_THREADS: Thread[] = [
   { id: 1, user: '김재준', avatar: '👨‍💼', message: '이번 주 스프린트 계획 공유드립니다', time: '10:23 AM', replies: 3, lastReply: '안현' },
@@ -162,10 +169,29 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
   const displayCurrentUserName = myDisplayName?.trim() || currentUserDisplayName;
   const displayCurrentUserAvatar = displayCurrentUserName.charAt(0) || currentUserAvatar;
   const displayCurrentUserAvatarUrl = myAvatarUrl?.trim() || "";
+  const emptyState =
+    channelId === "pull-requests"
+      ? {
+          title: "아직 PR 소식이 없어요",
+          description: "새 PR이 열리면 여기에서 바로 확인할게요.",
+          mood: "focus" as const
+        }
+      : channelId === "issues"
+        ? {
+            title: "아직 이슈가 조용해요",
+            description: "새 이슈가 생기면 제가 먼저 알려드릴게요.",
+            mood: "risk" as const
+          }
+        : {
+            title: "아직 대화가 없어요",
+            description: "첫 메시지를 보내면 제가 흐름을 정리해둘게요.",
+            mood: "idle" as const
+          };
 
   const channelLabel = repoName ?? '일반';
   const [hoveredMessageId, setHoveredMessageId] = useState<number | null>(null);
   const [messageText, setMessageText] = useState("");
+  const [composerHeight, setComposerHeight] = useState(COMPOSER_MIN_HEIGHT);
   const [codeBlockText, setCodeBlockText] = useState("");
   const [codeBlockLanguage, setCodeBlockLanguage] = useState<CodeBlockLanguage>("javascript");
   type ActivePanel = 'code' | 'attachment' | 'emoji' | 'link' | null;
@@ -193,6 +219,9 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
   const [editingMessageText, setEditingMessageText] = useState("");
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const threadElementRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const composerResizeRef = useRef<{ startY: number; startHeight: number } | null>(null);
+  const activePanelRef = useRef<HTMLDivElement | null>(null);
+  const composerToolbarRef = useRef<HTMLDivElement | null>(null);
   const skipThreadSaveRef = useRef(false);
   const skipBookmarkSaveRef = useRef(false);
   const responderTypingTimerRef = useRef<number | null>(null);
@@ -205,6 +234,55 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
       ? Number(thread.senderMemberId) === Number(myMemberId)
       : isSelfUser(thread.user)
   );
+
+  const handleComposerResizeStart = (event: PointerEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    composerResizeRef.current = {
+      startY: event.clientY,
+      startHeight: composerHeight
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handleComposerResizeMove = (event: PointerEvent<HTMLButtonElement>) => {
+    const resizeState = composerResizeRef.current;
+    if (!resizeState) return;
+
+    setComposerHeight(clampComposerHeight(resizeState.startHeight + resizeState.startY - event.clientY));
+  };
+
+  const handleComposerResizeEnd = (event: PointerEvent<HTMLButtonElement>) => {
+    composerResizeRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
+  useEffect(() => {
+    if (!activePanel) return;
+
+    const handlePointerDown = (event: globalThis.PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (activePanelRef.current?.contains(target) || composerToolbarRef.current?.contains(target)) return;
+
+      setActivePanel(null);
+    };
+
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setActivePanel(null);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [activePanel]);
 
   const focusedThreadIdRef = useRef(focusedThreadId);
   useEffect(() => {
@@ -269,21 +347,14 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
     saveBookmarkMap(bookmarkStorageKey, localBookmarkedThreadIds);
   }, [bookmarkStorageKey, localBookmarkedThreadIds]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     // Read the focus flag from a ref so that *clearing* the focus target does not
     // re-run this effect and snap the view back down to the latest message.
     if (focusedThreadIdRef.current != null) return;
     const scrollContainer = scrollContainerRef.current;
     if (!scrollContainer) return;
 
-    const frameId = window.requestAnimationFrame(() => {
-      scrollContainer.scrollTo({
-        top: scrollContainer.scrollHeight,
-        behavior: "smooth"
-      });
-    });
-
-    return () => window.cancelAnimationFrame(frameId);
+    scrollContainer.scrollTop = scrollContainer.scrollHeight;
   }, [displayedThreads.length]);
 
   const triggerResponderTyping = () => {
@@ -775,7 +846,46 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
       {/* Thread List */}
       <div ref={scrollContainerRef} className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
         <div className="grid gap-4">
-          {displayedThreads.map((thread) => {
+          {displayedThreads.length === 0 ? (
+            <div
+              className="flex min-h-[320px] flex-col items-center justify-center rounded-2xl px-6 py-10 text-center"
+              style={{
+                background: 'rgba(5, 11, 20, 0.34)',
+                border: '1px solid rgba(var(--codedock-primary-rgb), 0.16)'
+              }}
+            >
+              <div
+                className="mb-5 grid h-28 w-28 place-items-center rounded-3xl"
+                style={{
+                  background: 'rgba(var(--codedock-primary-rgb), 0.08)',
+                  border: '1px solid rgba(var(--codedock-primary-rgb), 0.22)'
+                }}
+              >
+                <CoffeeLogo mood={emptyState.mood} className="h-24 w-24" />
+              </div>
+              <h4
+                className="m-0 tracking-tight"
+                style={{
+                  color: 'var(--white)',
+                  fontSize: '20px',
+                  fontWeight: 950
+                }}
+              >
+                {emptyState.title}
+              </h4>
+              <p
+                className="m-0 mt-2 max-w-[420px] tracking-tight"
+                style={{
+                  color: 'var(--muted)',
+                  fontSize: '14px',
+                  fontWeight: 800,
+                  lineHeight: 1.6
+                }}
+              >
+                {emptyState.description}
+              </p>
+            </div>
+          ) : displayedThreads.map((thread) => {
             const displayedReplyCount =
               replyCounts[thread.id]
               ?? (thread.backendMessageId != null ? replyCounts[thread.backendMessageId] : undefined)
@@ -1019,9 +1129,28 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
       </div>
 
       {/* Composer */}
-      <div className="px-6 pt-1 pb-3" style={{
+      <div className="relative px-6 pt-4 pb-3" style={{
         borderTop: '1px solid rgba(var(--codedock-primary-rgb), 0.14)'
       }}>
+        <button
+          type="button"
+          aria-label="채팅 입력창 높이 조절"
+          title="채팅 입력창 높이 조절"
+          onPointerDown={handleComposerResizeStart}
+          onPointerMove={handleComposerResizeMove}
+          onPointerUp={handleComposerResizeEnd}
+          onPointerCancel={handleComposerResizeEnd}
+          className="absolute left-0 right-0 top-0 z-10 flex h-4 -translate-y-1/2 cursor-ns-resize items-center justify-center border-0 bg-transparent p-0"
+        >
+          <span
+            className="block h-1 w-16 rounded-full transition-all"
+            style={{
+              background: 'rgba(var(--codedock-primary-rgb), 0.34)',
+              boxShadow: '0 0 12px rgba(var(--codedock-primary-rgb), 0.20)'
+            }}
+          />
+        </button>
+
         {selectedAttachments.length > 0 && (
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <span className="tracking-tight" style={{
@@ -1052,17 +1181,36 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
           </div>
         )}
 
-        {activePanel === 'code' && (
-          <CodeBlockComposer
-            value={codeBlockText}
-            language={codeBlockLanguage}
-            onChange={setCodeBlockText}
-            onLanguageChange={setCodeBlockLanguage}
-          />
-        )}
+        {activePanel && (
+          <div ref={activePanelRef} className="relative">
+            <button
+              type="button"
+              aria-label="선택창 닫기"
+              title="선택창 닫기"
+              onClick={() => setActivePanel(null)}
+              className="absolute -right-2 -top-2 z-30 flex h-7 w-7 items-center justify-center rounded-full border-0 transition-all"
+              style={{
+                background: 'rgba(11, 22, 40, 0.96)',
+                border: '1px solid rgba(var(--codedock-primary-rgb), 0.30)',
+                color: 'var(--muted)',
+                cursor: 'pointer',
+                boxShadow: '0 12px 28px rgba(0, 0, 0, 0.30)'
+              }}
+            >
+              <X size={14} />
+            </button>
 
-        {activePanel === 'attachment' && (
-          <div className="mb-3 rounded-xl px-4 py-3" style={{
+            {activePanel === 'code' && (
+              <CodeBlockComposer
+                value={codeBlockText}
+                language={codeBlockLanguage}
+                onChange={setCodeBlockText}
+                onLanguageChange={setCodeBlockLanguage}
+              />
+            )}
+
+            {activePanel === 'attachment' && (
+              <div className="mb-3 rounded-xl px-4 py-3" style={{
             background: 'rgba(5, 11, 20, 0.78)',
             border: '1px solid rgba(var(--codedock-primary-rgb), 0.18)',
             boxShadow: '0 16px 36px rgba(0, 0, 0, 0.24)'
@@ -1126,11 +1274,11 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
                 );
               })}
             </div>
-          </div>
-        )}
+              </div>
+            )}
 
-        {activePanel === 'link' && (
-          <div className="mb-3 rounded-xl px-4 py-3" style={{
+            {activePanel === 'link' && (
+              <div className="mb-3 rounded-xl px-4 py-3" style={{
             background: 'rgba(5, 11, 20, 0.78)',
             border: '1px solid rgba(var(--codedock-primary-rgb), 0.18)',
             boxShadow: '0 16px 36px rgba(0, 0, 0, 0.24)'
@@ -1220,12 +1368,14 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
                 />
               </div>
             )}
-          </div>
-        )}
+              </div>
+            )}
 
-        {activePanel === 'emoji' && (
-          <div className="mb-3">
-            <EmojiPicker onSelect={handleEmojiSelect} />
+            {activePanel === 'emoji' && (
+              <div className="mb-3">
+                <EmojiPicker onSelect={handleEmojiSelect} />
+              </div>
+            )}
           </div>
         )}
 
@@ -1323,22 +1473,25 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
               value={messageText}
               onChange={(event) => setMessageText(event.target.value)}
               onKeyDown={handleMessageKeyDown}
-              onInput={(e) => {
-                const el = e.currentTarget;
-                el.style.height = 'auto';
-                el.style.height = `${Math.min(el.scrollHeight, 96)}px`;
-              }}
               placeholder={`#${channelLabel}에 메시지 보내기`}
               className="min-w-0 flex-1 bg-transparent border-0 outline-none tracking-tight resize-none"
               rows={1}
-              style={{ color: 'var(--white)', fontSize: '14px', fontWeight: 700, minHeight: '28px', maxHeight: '96px', overflowY: 'auto' }}
+              style={{
+                color: 'var(--white)',
+                fontSize: '14px',
+                fontWeight: 700,
+                height: `${composerHeight}px`,
+                minHeight: `${COMPOSER_MIN_HEIGHT}px`,
+                maxHeight: `${COMPOSER_MAX_HEIGHT}px`,
+                overflowY: 'auto'
+              }}
             />
-            <div className="flex shrink-0 items-center gap-1">
+            <div ref={composerToolbarRef} className="flex shrink-0 items-center gap-1">
             {[
               { label: '코드 블록', icon: <Code size={18} />, onClick: () => togglePanel('code'), active: activePanel === 'code' },
               { label: '목록 첨부', icon: <Paperclip size={18} />, onClick: () => togglePanel('attachment'), active: activePanel === 'attachment' },
-              { label: '파일 첨부', icon: <FileUp size={18} />, onClick: () => fileInputRef.current?.click(), active: false },
-              { label: '이미지 첨부', icon: <ImageIcon size={18} />, onClick: () => imageInputRef.current?.click(), active: false },
+              { label: '파일 첨부', icon: <FileUp size={18} />, onClick: () => { setActivePanel(null); fileInputRef.current?.click(); }, active: false },
+              { label: '이미지 첨부', icon: <ImageIcon size={18} />, onClick: () => { setActivePanel(null); imageInputRef.current?.click(); }, active: false },
               { label: '링크 첨부', icon: <Link2 size={18} />, onClick: () => togglePanel('link'), active: activePanel === 'link' },
               { label: '이모지', icon: <Smile size={18} />, onClick: () => togglePanel('emoji'), active: activePanel === 'emoji' },
             ].map(({ label, icon, onClick, active }) => (

@@ -45,7 +45,13 @@ const introMessages = [
   "CodeDock은 결정과 기록이 흩어지지 않도록 GitHub 작업, 팀 채팅, 문서 허브를 하나의 개발 워크스페이스로 묶습니다.",
 ];
 
-const INTRO_DURATION_MS = 5000;
+// 5단계 × 2초 = 단계당 2000ms로 순차 노출됩니다.
+const INTRO_DURATION_MS = 10000;
+// introDialogueCopy(KO/EN)의 단계 수와 일치해야 합니다.
+const INTRO_STEP_COUNT = 5;
+// 말풍선 등장/퇴장 전환 시간(ms). mode="wait"라 다음 단계는 이 시간만큼 늦게 뜨므로,
+// 단계 타이머를 같은 값만큼 당겨 각 단계의 노출 시간을 균등하게 맞춥니다.
+const INTRO_SWAP_MS = 420;
 
 const featureCards = [
   {
@@ -126,20 +132,31 @@ export function HomePage() {
           id: "brand",
           eyebrow: "CodeDock",
           title: "GitHub, chat, and docs in one workspace.",
-          lines: [
-            "GitHub, chat, and docs are all here. ☕",
-            "I keep decisions and records from scattering across tools.",
-          ],
+          lines: ["GitHub, chat, and docs are all here. ☕"],
         },
         {
-          id: "features",
-          eyebrow: "What I do",
-          title: "PRs, team chat, and docs flow as one.",
-          lines: [
-            "I bring repositories, PRs, issues, and changes together.",
-            "I keep review questions and decisions in team chat.",
-            "I connect API docs, ERDs, and review notes to the work.",
-          ],
+          id: "github",
+          eyebrow: "GitHub",
+          title: "Repositories, PRs, and issues in one place.",
+          lines: ["Changed files and AI review summaries, one screen."],
+        },
+        {
+          id: "chat",
+          eyebrow: "Team Chat",
+          title: "Review questions and decisions stay in chat.",
+          lines: ["So the team never repeats the same debate."],
+        },
+        {
+          id: "docs",
+          eyebrow: "Docs",
+          title: "API specs and ERDs in the same flow.",
+          lines: ["Decisions stay traceable after release."],
+        },
+        {
+          id: "invite",
+          eyebrow: "Let's dive in",
+          title: "Shall we dive into the sea of code together?",
+          lines: ["Let's open your workspace with GitHub. 🌊"],
         },
       ]
     : [
@@ -147,20 +164,31 @@ export function HomePage() {
           id: "brand",
           eyebrow: "CodeDock",
           title: "GitHub · 채팅 · 문서, 한 워크스페이스에서.",
-          lines: [
-            "GitHub, 채팅, 문서... 다 모셔뒀어요. ☕",
-            "결정과 기록이 흩어지지 않도록 한 워크스페이스로 연결해요.",
-          ],
+          lines: ["GitHub, 채팅, 문서... 다 모셔뒀어요. ☕"],
         },
         {
-          id: "features",
-          eyebrow: "제가 도와드릴 일",
-          title: "PR·이슈, 팀 대화, 문서가 같은 흐름으로 이어져요.",
-          lines: [
-            "저장소와 PR·이슈를 한곳에 모아요.",
-            "리뷰 질문과 결정을 채팅에 남겨요.",
-            "API 명세, ERD, 리뷰 문서까지 한 흐름으로 이어둬요.",
-          ],
+          id: "github",
+          eyebrow: "GitHub",
+          title: "저장소·PR·이슈를 한곳에 모아요.",
+          lines: ["변경 파일과 AI 리뷰 요약까지 한 화면에서."],
+        },
+        {
+          id: "chat",
+          eyebrow: "팀 채팅",
+          title: "리뷰 질문과 결정을 채팅에 남겨요.",
+          lines: ["같은 고민을 다시 반복하지 않도록."],
+        },
+        {
+          id: "docs",
+          eyebrow: "문서",
+          title: "API·ERD 문서까지 한 흐름으로.",
+          lines: ["배포 후에도 결정이 추적돼요."],
+        },
+        {
+          id: "invite",
+          eyebrow: "함께 출항",
+          title: "우리 같이 코드의 바다에 빠져볼까요?",
+          lines: ["지금 GitHub으로 워크스페이스를 열어드릴게요. 🌊"],
         },
       ];
   const activeIntroDialogue = introDialogueCopy[introStep] ?? introDialogueCopy[0];
@@ -213,7 +241,7 @@ export function HomePage() {
     : [
         "GitHub의 PR, 이슈, 변경 파일을 AI 리뷰 프로세스와 함께 한 워크스페이스로 모아요.",
         "팀 채팅을 작업 옆에 붙여 리뷰 질문과 결정 사항이 흩어지지 않게 해요.",
-        "API 명세, ERD, 회의 노트, 리뷰 문서를 PR·이슈 프로세스에 묶어둬요.",
+        "문서와 PR·이슈 프로세스를 한 번에 이어줘요.",
       ];
   const featureDetailsCopy = isEnglish
     ? [
@@ -244,7 +272,7 @@ export function HomePage() {
           eyebrow: "GitHub",
           title: "GitHub 작업이 워크스페이스의 중심이 돼요.",
           description:
-            "저장소, PR, 이슈, 변경 파일, AI 요약, 리뷰 프로세스를 한 화면에 모아서 소스 확인부터 결정까지 탭 전환 없이 이어갈 수 있어요.",
+            "저장소·PR·이슈·변경 파일을 한 화면에서 바로 확인하고 결정해요.",
           bullets: ["저장소 연결", "PR·이슈 프로세스", "AI 리뷰 요약"],
         },
         {
@@ -258,7 +286,7 @@ export function HomePage() {
           eyebrow: "문서",
           title: "문서가 모든 결정의 기록으로 남아요.",
           description:
-            "API 명세, ERD, 회의 노트, 리뷰 문서를 PR·이슈·채팅 결정과 연결해 배포 후에도 팀 지식이 추적 가능하게 남아요.",
+            "API 명세와 ERD를 PR·이슈·채팅 결정에 연결해요. 배포 후에도 팀 지식이 추적됩니다.",
           bullets: ["API 명세 화면", "ERD 다이어그램", "리뷰 문서"],
         },
       ];
@@ -272,7 +300,7 @@ export function HomePage() {
     headlineBrand: "CodeDock",
     subtitle: isEnglish
       ? "PRs, team chat, and docs flow as one. Decisions stop scattering."
-      : "PR·이슈 작업, 팀 대화, API·ERD 문서가 같은 흐름으로 이어집니다. 결정과 기록이 더는 흩어지지 않습니다.",
+      : "PR·이슈 작업, 팀 대화, API·ERD 문서가 같은 흐름으로 이어집니다. 결정과 기록, 작업을 한 워크스페이스에서 이어가세요.",
     start: isEnglish ? "Start with GitHub" : "GitHub으로 시작하기",
     mascotTitle: isEnglish ? "GitHub, chat, and docs connected" : "GitHub · 채팅 · 문서 연결 완료",
     flowEyebrow: isEnglish ? "Workflow" : "작업 흐름",
@@ -316,9 +344,9 @@ export function HomePage() {
         "Docs stay tied to PRs and issues.",
       ]
     : [
-        "GitHub 작업을 워크스페이스로 모아둘게요.",
-        "팀 채팅이 결정 사항을 작업 옆에 붙잡아둬요.",
-        "문서도 PR·이슈 프로세스에 묶어둘게요.",
+        "워크스페이스에서 GitHub 작업을 직접 할 수 있어요.",
+        "팀 채팅에서 결정 사항을 수정하고 바로 작업할 수 있어요.",
+        "문서도 PR·이슈 프로세스를 보면서 함께 작성해요.",
       ];
   const flowMascotMessages = isEnglish
     ? [
@@ -377,9 +405,12 @@ export function HomePage() {
     originalBodyOverflow.current = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
-    const introStepTimer = window.setTimeout(() => {
-      setIntroStep(1);
-    }, INTRO_DURATION_MS / 2);
+    const stepDuration = INTRO_DURATION_MS / INTRO_STEP_COUNT;
+    const introStepTimers = Array.from({ length: INTRO_STEP_COUNT - 1 }, (_, index) =>
+      window.setTimeout(() => {
+        setIntroStep(index + 1);
+      }, Math.max(0, stepDuration * (index + 1) - INTRO_SWAP_MS)),
+    );
 
     const introTimer = window.setTimeout(() => {
       setShowIntro(false);
@@ -387,7 +418,7 @@ export function HomePage() {
     }, INTRO_DURATION_MS);
 
     return () => {
-      window.clearTimeout(introStepTimer);
+      introStepTimers.forEach((timer) => window.clearTimeout(timer));
       window.clearTimeout(introTimer);
       document.body.style.overflow = originalBodyOverflow.current;
     };
@@ -660,7 +691,7 @@ export function HomePage() {
                       initial={{ opacity: 0, x: -18, scale: 0.94, filter: "blur(8px)" }}
                       animate={{ opacity: 1, x: 0, scale: 1, filter: "blur(0px)" }}
                       exit={{ opacity: 0, x: 18, scale: 0.96, filter: "blur(8px)" }}
-                      transition={{ duration: 0.42, ease: "easeOut" }}
+                      transition={{ duration: INTRO_SWAP_MS / 1000, ease: "easeOut" }}
                     >
                       <span
                         className="mb-2 inline-flex rounded-full px-3 py-1 text-sm font-black uppercase tracking-tight sm:text-sm"
@@ -695,7 +726,7 @@ export function HomePage() {
               </div>
 
               <AnimatePresence>
-                {introStep === 1 && (
+                {introStep >= 1 && (
                   <motion.div
                     className="mt-6 flex flex-wrap justify-center gap-2"
                     initial={{ opacity: 0, y: 10 }}
@@ -1136,10 +1167,10 @@ export function HomePage() {
               <h2 className="m-0 mt-3 text-2xl font-black leading-tight tracking-tight" style={{ color: "var(--white)" }}>
                 {isEnglish ? "From source to decision to record." : "소스에서 결정, 기록까지 한 흐름으로."}
               </h2>
-              <p className="m-0 mt-3 text-sm font-semibold leading-5 tracking-tight sm:text-sm sm:leading-6" style={{ color: "var(--muted)" }}>
+              <p className="m-0 mx-auto mt-3 max-w-[380px] text-balance text-sm font-semibold leading-5 tracking-tight sm:text-sm sm:leading-6" style={{ color: "var(--muted)" }}>
                 {isEnglish
-                  ? "PRs, issues, team decisions, API specs, and ERDs stay in the same flow from review to record."
-                  : "PR·이슈 작업, 팀 대화, API·ERD 문서가 같은 흐름으로 이어져 결정 사항을 바로 추적할 수 있어요."}
+                  ? "PRs, chat, API specs, and ERDs stay connected from review to record."
+                  : "PR·이슈, 팀 대화, API·ERD가 한 흐름으로 이어져요. 결정 사항도 바로 추적됩니다."}
               </p>
 
               <div
@@ -1305,10 +1336,10 @@ export function HomePage() {
                   <p className="m-0 text-sm font-black tracking-tight" style={{ color: activeFeature.tone }}>
                     {activeFeatureDetail.eyebrow}
                   </p>
-                  <h3 className="m-0 mt-2 text-2xl font-black leading-tight tracking-tight" style={{ color: "var(--white)" }}>
+                  <h3 className="m-0 mt-2 text-balance text-2xl font-black leading-tight tracking-tight" style={{ color: "var(--white)" }}>
                     {activeFeatureDetail.title}
                   </h3>
-                  <p className="m-0 mt-3 text-sm font-semibold leading-6 tracking-tight" style={{ color: "#D7EAF4" }}>
+                  <p className="m-0 mx-auto mt-3 max-w-[500px] text-balance text-sm font-semibold leading-6 tracking-tight" style={{ color: "#D7EAF4" }}>
                     {activeFeatureDetail.description}
                   </p>
                 </div>

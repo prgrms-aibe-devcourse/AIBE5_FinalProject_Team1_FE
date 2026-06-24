@@ -14,6 +14,36 @@ function buildApiUrl(path: string) {
     return `${baseUrl}${normalizedPath}`;
 }
 
+function appendGithubAccountPickerParams(url: string): string {
+    const addParams = (target: URL) => {
+        target.searchParams.set("prompt", "select_account");
+        target.searchParams.set("allow_signup", "true");
+    };
+
+    try {
+        const isAbsoluteUrl = /^[a-z][a-z\d+\-.]*:/i.test(url);
+        const parsedUrl = new URL(url, typeof window === "undefined" ? "http://localhost" : window.location.origin);
+        addParams(parsedUrl);
+
+        if (isAbsoluteUrl) {
+            return parsedUrl.toString();
+        }
+
+        return `${parsedUrl.pathname}${parsedUrl.search}${parsedUrl.hash}`;
+    } catch {
+        const separator = url.includes("?") ? "&" : "?";
+        return `${url}${separator}prompt=select_account&allow_signup=true`;
+    }
+}
+
+export function buildGithubAuthorizationUrl(path = "/oauth2/authorization/github") {
+    return buildApiUrl(appendGithubAccountPickerParams(path));
+}
+
+export function ensureGithubAccountPickerUrl(url: string) {
+    return appendGithubAccountPickerParams(url);
+}
+
 export function getAccessToken(): string | null {
     return localStorage.getItem(ACCESS_TOKEN_KEY);
 }
@@ -52,7 +82,7 @@ export function authHeader(): HeadersInit {
 
 // GitHub 로그인 시작 — Vite proxy → BE → GitHub으로 리다이렉트
 export function loginWithGithub() {
-    window.location.href = buildApiUrl("/oauth2/authorization/github");
+    window.location.href = buildGithubAuthorizationUrl();
 }
 
 // 토큰 갱신

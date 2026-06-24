@@ -18,6 +18,7 @@ function getAttachmentIcon(type: MessageAttachment["type"]) {
 export function MessageAttachmentCard({ attachment, onClick, onDelete, deleteDisabled = false }: MessageAttachmentCardProps) {
   const Icon = getAttachmentIcon(attachment.type);
   const canOpen = Boolean(attachment.url);
+  const isImageAttachment = attachment.type === "image";
   const imagePreviewUrl = attachment.previewUrl ?? attachment.url;
   const linkPreview = attachment.type === "link" && attachment.url
     ? getLinkPreviewInfo(attachment.url, attachment.title)
@@ -26,25 +27,28 @@ export function MessageAttachmentCard({ attachment, onClick, onDelete, deleteDis
 
   return (
     <div
-      className="overflow-hidden rounded-lg"
+      className="overflow-hidden rounded-xl"
       onClick={onClick}
       style={{
-        background: "rgba(var(--codedock-primary-rgb), 0.08)",
-        border: "1px solid rgba(var(--codedock-primary-rgb), 0.18)"
+        background: isImageAttachment
+          ? "linear-gradient(135deg, rgba(5, 11, 20, 0.72), rgba(var(--codedock-primary-rgb), 0.08))"
+          : "rgba(var(--codedock-primary-rgb), 0.08)",
+        border: "1px solid rgba(var(--codedock-primary-rgb), 0.18)",
+        boxShadow: isImageAttachment ? "inset 0 1px 0 rgba(255,255,255,0.08)" : undefined
       }}
     >
-      {attachment.type === "image" && imagePreviewUrl && (
+      {isImageAttachment && imagePreviewUrl && (
         <div
-          className="overflow-hidden"
+          className="flex max-h-72 items-center justify-center overflow-hidden p-2"
           style={{
-            background: "rgba(5, 11, 20, 0.62)",
+            background: "rgba(5, 11, 20, 0.66)",
             borderBottom: "1px solid rgba(var(--codedock-primary-rgb), 0.14)"
           }}
         >
           <img
             src={imagePreviewUrl}
             alt={attachment.title}
-            className="block max-h-56 w-full object-cover"
+            className="block max-h-72 max-w-full rounded-lg object-contain"
           />
         </div>
       )}
@@ -156,7 +160,6 @@ export function MessageAttachmentCard({ attachment, onClick, onDelete, deleteDis
             href={attachment.url}
             target="_blank"
             rel="noreferrer"
-            download={attachment.type === "file" || attachment.type === "image" ? attachment.title : undefined}
             className="mt-2 inline-flex items-center gap-1.5 rounded-md px-2 py-1 no-underline tracking-tight"
             style={{
               background: "rgba(5, 11, 20, 0.46)",
@@ -167,7 +170,7 @@ export function MessageAttachmentCard({ attachment, onClick, onDelete, deleteDis
             }}
             onClick={(event) => event.stopPropagation()}
           >
-            열기
+            {isImageAttachment ? "원본 열기" : "열기"}
             <ExternalLink size={12} />
           </a>
         )}

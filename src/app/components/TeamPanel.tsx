@@ -8,6 +8,7 @@ import {
   Mail,
   MessageSquareText,
   ShieldCheck,
+  UserPlus,
   type LucideIcon
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -282,7 +283,7 @@ function presenceToColor(p: string): string {
   return '#8B94A7';
 }
 
-export function TeamPanel({ workspaceId, workspaceApiId, currentMemberId, currentUserOnline, onOpenChannel, presenceOverrides = {} }: TeamPanelProps) {
+export function TeamPanel({ workspaceId, workspaceApiId, currentMemberId, currentUserOnline, onInvite, onOpenChannel, presenceOverrides = {} }: TeamPanelProps) {
   ensureSeeded();   // no-op after first run
 
   const [members, setMembers] = useState<TeamMember[]>([]);
@@ -550,6 +551,51 @@ export function TeamPanel({ workspaceId, workspaceApiId, currentMemberId, curren
           </article>
           );
         })}
+        <button
+          type="button"
+          onClick={onInvite}
+          disabled={!canManageRoles || !onInvite}
+          className="group rounded-2xl px-5 py-4 text-left transition-all"
+          style={{
+            minHeight: 220,
+            background: canManageRoles
+              ? "linear-gradient(135deg, rgba(var(--codedock-primary-rgb), 0.12), rgba(11, 22, 40, 0.72))"
+              : "rgba(11, 22, 40, 0.46)",
+            color: "var(--white)",
+            border: canManageRoles
+              ? "1px dashed rgba(var(--codedock-primary-rgb), 0.42)"
+              : "1px dashed rgba(var(--codedock-primary-rgb), 0.18)",
+            boxShadow: canManageRoles
+              ? "0 18px 44px rgba(0, 0, 0, 0.20), inset 0 1px 0 rgba(255,255,255,0.05)"
+              : "none",
+            cursor: canManageRoles && onInvite ? "pointer" : "not-allowed",
+            opacity: canManageRoles && onInvite ? 1 : 0.58,
+            backdropFilter: "blur(14px) saturate(150%)"
+          }}
+          title={canManageRoles ? "팀원 추가" : "owner/admin 권한만 팀원을 초대할 수 있습니다."}
+        >
+          <div className="flex h-full min-h-[188px] flex-col items-center justify-center gap-4 rounded-xl" style={{
+            background: "rgba(5, 11, 20, 0.34)",
+            border: "1px solid rgba(var(--codedock-primary-rgb), 0.10)"
+          }}>
+            <span className="flex h-14 w-14 items-center justify-center rounded-full transition-all" style={{
+              background: "rgba(var(--codedock-primary-rgb), 0.14)",
+              border: "1px solid rgba(var(--codedock-primary-rgb), 0.34)",
+              color: "var(--neon-cyan)",
+              boxShadow: "0 0 24px rgba(var(--codedock-primary-rgb), 0.16)"
+            }}>
+              <UserPlus size={24} />
+            </span>
+            <div className="text-center">
+              <p className="m-0 tracking-tight" style={{ color: "var(--white)", fontSize: 16, fontWeight: 950 }}>
+                팀원 추가
+              </p>
+              <p className="m-0 mt-1 tracking-tight" style={{ color: "var(--muted)", fontSize: 12, fontWeight: 800, lineHeight: 1.45 }}>
+                초대 메일을 보내 새 팀원을 합류시켜요.
+              </p>
+            </div>
+          </div>
+        </button>
       </div>
 
       <section

@@ -1,5 +1,5 @@
 import { Check, ChevronDown, Copy } from "lucide-react";
-import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 
 export const CODE_BLOCK_LANGUAGES = [
   { value: "plaintext", label: "Plain Text" },
@@ -303,6 +303,34 @@ export function CodeBlockComposer({
   onLanguageChange: (value: CodeBlockLanguage) => void;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const languageDropdownRef = useRef<HTMLSpanElement | null>(null);
+  const [isLanguageMenuOpen, setIsLanguageMenuOpen] = useState(false);
+  const selectedLanguage = CODE_BLOCK_LANGUAGES.find((item) => item.value === language) ?? CODE_BLOCK_LANGUAGES[0];
+
+  useEffect(() => {
+    if (!isLanguageMenuOpen) return;
+
+    const handlePointerDown = (event: globalThis.PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Node && !languageDropdownRef.current?.contains(target)) {
+        setIsLanguageMenuOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsLanguageMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isLanguageMenuOpen]);
 
   const applyTextChange = (nextValue: string, selectionStart: number, selectionEnd = selectionStart) => {
     onChange(nextValue);
@@ -377,36 +405,82 @@ export function CodeBlockComposer({
         }}>
           코드 블록 모드
         </p>
-        <label className="flex items-center gap-2 tracking-tight" style={{
+        <div className="flex items-center gap-2 tracking-tight" style={{
           color: "var(--muted)",
           fontSize: "var(--krds-body-xsmall)",
           fontWeight: 850
         }}>
           언어
-          <span className="relative inline-flex items-center">
-            <select
-              value={language}
-              onChange={(event) => onLanguageChange(normalizeCodeLanguage(event.target.value))}
-              className="appearance-none rounded-full py-1.5 pl-3 pr-8 font-black tracking-tight outline-none"
+          <span ref={languageDropdownRef} className="relative inline-flex">
+            <button
+              type="button"
+              onClick={() => setIsLanguageMenuOpen((open) => !open)}
+              aria-haspopup="listbox"
+              aria-expanded={isLanguageMenuOpen}
+              className="inline-flex min-w-[132px] items-center justify-between gap-2 rounded-full border px-3 py-1.5 font-black tracking-tight transition-all"
               style={{
                 background: "linear-gradient(135deg, rgba(var(--codedock-primary-rgb), 0.14), rgba(5, 11, 20, 0.76))",
-                border: "1px solid rgba(var(--codedock-primary-rgb), 0.30)",
+                borderColor: isLanguageMenuOpen ? "rgba(var(--codedock-primary-rgb), 0.54)" : "rgba(var(--codedock-primary-rgb), 0.30)",
                 color: "var(--white)",
                 cursor: "pointer",
-                boxShadow: "inset 0 1px 0 rgba(255, 255, 255, 0.08)"
+                boxShadow: isLanguageMenuOpen
+                  ? "0 0 0 1px rgba(var(--codedock-primary-rgb), 0.18), 0 12px 28px rgba(var(--codedock-primary-rgb), 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.08)"
+                  : "inset 0 1px 0 rgba(255, 255, 255, 0.08)"
               }}
             >
-              {CODE_BLOCK_LANGUAGES.map((item) => (
-                <option key={item.value} value={item.value}>{item.label}</option>
-              ))}
-            </select>
-            <ChevronDown
-              size={14}
-              className="pointer-events-none absolute right-2.5"
-              style={{ color: "var(--neon-cyan)" }}
-            />
+              <span>{selectedLanguage.label}</span>
+              <ChevronDown
+                size={14}
+                className="transition-transform"
+                style={{
+                  color: "var(--neon-cyan)",
+                  transform: isLanguageMenuOpen ? "rotate(180deg)" : "rotate(0deg)"
+                }}
+              />
+            </button>
+
+            {isLanguageMenuOpen && (
+              <div
+                role="listbox"
+                aria-label="코드 언어 선택"
+                className="absolute right-0 top-full z-50 mt-2 max-h-64 w-44 overflow-y-auto rounded-2xl p-1.5"
+                style={{
+                  background: "rgba(5, 11, 20, 0.96)",
+                  border: "1px solid rgba(var(--codedock-primary-rgb), 0.30)",
+                  boxShadow: "0 22px 48px rgba(0, 0, 0, 0.42), 0 0 0 1px rgba(var(--codedock-primary-rgb), 0.08)",
+                  backdropFilter: "blur(16px)"
+                }}
+              >
+                {CODE_BLOCK_LANGUAGES.map((item) => {
+                  const isSelected = item.value === language;
+
+                  return (
+                    <button
+                      key={item.value}
+                      type="button"
+                      role="option"
+                      aria-selected={isSelected}
+                      onClick={() => {
+                        onLanguageChange(normalizeCodeLanguage(item.value));
+                        setIsLanguageMenuOpen(false);
+                      }}
+                      className="flex w-full items-center justify-between gap-2 rounded-xl border-0 px-3 py-2 text-left font-black tracking-tight transition-all"
+                      style={{
+                        background: isSelected ? "rgba(var(--codedock-primary-rgb), 0.18)" : "transparent",
+                        color: isSelected ? "var(--neon-cyan)" : "var(--white)",
+                        cursor: "pointer",
+                        fontSize: "var(--krds-body-xsmall)"
+                      }}
+                    >
+                      <span>{item.label}</span>
+                      {isSelected && <Check size={14} />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </span>
-        </label>
+        </div>
       </div>
       <textarea
         ref={textareaRef}
