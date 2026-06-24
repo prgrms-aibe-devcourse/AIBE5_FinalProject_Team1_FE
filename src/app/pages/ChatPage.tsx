@@ -4890,8 +4890,6 @@ export function ChatPage() {
                 inset 0 1px 0 rgba(255, 255, 255, 0.12),
                 inset 0 0 18px rgba(255, 255, 255, 0.035)
               `,
-              backdropFilter: 'blur(14px) saturate(180%)',
-              WebkitBackdropFilter: 'blur(14px) saturate(180%)'
             }}
             transition={{
               type: "spring",
@@ -6124,8 +6122,7 @@ export function ChatPage() {
                           style={{
                             background: 'linear-gradient(135deg, rgba(var(--codedock-primary-rgb), 0.18), rgba(234, 247, 255, 0.045)), rgba(11, 22, 40, 0.52)',
                             border: '1px solid rgba(var(--codedock-primary-rgb), 0.30)',
-                            boxShadow: '0 0 24px rgba(var(--codedock-primary-rgb), 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12)',
-                            backdropFilter: 'blur(14px) saturate(180%)'
+                            boxShadow: '0 0 24px rgba(var(--codedock-primary-rgb), 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12)'
                           }}
                           transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                         />
@@ -6247,8 +6244,7 @@ export function ChatPage() {
                           style={{
                             background: 'linear-gradient(135deg, rgba(var(--codedock-primary-rgb), 0.18), rgba(234, 247, 255, 0.045)), rgba(11, 22, 40, 0.52)',
                             border: '1px solid rgba(var(--codedock-primary-rgb), 0.30)',
-                            boxShadow: '0 0 24px rgba(var(--codedock-primary-rgb), 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12)',
-                            backdropFilter: 'blur(14px) saturate(180%)'
+                            boxShadow: '0 0 24px rgba(var(--codedock-primary-rgb), 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12)'
                           }}
                           transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                         />
@@ -6343,8 +6339,7 @@ export function ChatPage() {
                                 style={{
                                   background: 'linear-gradient(135deg, rgba(var(--codedock-primary-rgb), 0.18), rgba(234, 247, 255, 0.045)), rgba(11, 22, 40, 0.52)',
                                   border: '1px solid rgba(var(--codedock-primary-rgb), 0.30)',
-                                  boxShadow: '0 0 24px rgba(var(--codedock-primary-rgb), 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12)',
-                                  backdropFilter: 'blur(14px) saturate(180%)'
+                                  boxShadow: '0 0 24px rgba(var(--codedock-primary-rgb), 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12)'
                                 }}
                                 transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                               />
@@ -6378,8 +6373,7 @@ export function ChatPage() {
                                 style={{
                                   background: 'linear-gradient(135deg, rgba(var(--codedock-primary-rgb), 0.18), rgba(234, 247, 255, 0.045)), rgba(11, 22, 40, 0.52)',
                                   border: '1px solid rgba(var(--codedock-primary-rgb), 0.30)',
-                                  boxShadow: '0 0 24px rgba(var(--codedock-primary-rgb), 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12)',
-                                  backdropFilter: 'blur(14px) saturate(180%)'
+                                  boxShadow: '0 0 24px rgba(var(--codedock-primary-rgb), 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12)'
                                 }}
                                 transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                               />
@@ -6413,8 +6407,7 @@ export function ChatPage() {
                                 style={{
                                   background: 'linear-gradient(135deg, rgba(var(--codedock-primary-rgb), 0.18), rgba(234, 247, 255, 0.045)), rgba(11, 22, 40, 0.52)',
                                   border: '1px solid rgba(var(--codedock-primary-rgb), 0.30)',
-                                  boxShadow: '0 0 24px rgba(var(--codedock-primary-rgb), 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12)',
-                                  backdropFilter: 'blur(14px) saturate(180%)'
+                                  boxShadow: '0 0 24px rgba(var(--codedock-primary-rgb), 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12)'
                                 }}
                                 transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                               />
@@ -6449,8 +6442,7 @@ export function ChatPage() {
                           style={{
                             background: 'linear-gradient(135deg, rgba(var(--codedock-primary-rgb), 0.18), rgba(234, 247, 255, 0.045)), rgba(11, 22, 40, 0.52)',
                             border: '1px solid rgba(var(--codedock-primary-rgb), 0.30)',
-                            boxShadow: '0 0 24px rgba(var(--codedock-primary-rgb), 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12)',
-                            backdropFilter: 'blur(14px) saturate(180%)'
+                            boxShadow: '0 0 24px rgba(var(--codedock-primary-rgb), 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12)'
                           }}
                           transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                         />
