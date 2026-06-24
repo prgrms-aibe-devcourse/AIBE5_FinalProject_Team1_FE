@@ -12,7 +12,7 @@ import {
 import { apiClient } from "../api/client";
 import { isAuthenticated, PROFILE_STORAGE_KEY } from "../auth";
 
-export type ProfileStatus = "available" | "focus" | "away";
+export type ProfileStatus = "active" | "away" | "busy" | "offline";
 
 export interface ProfileUser {
   name: string;
@@ -32,10 +32,11 @@ export interface ProfileUser {
   hasPassword: boolean;
 }
 
-export const STATUS_OPTIONS: { id: ProfileStatus; label: string; color: string }[] = [
-  { id: "available", label: "리뷰 가능", color: "#39FF88" },
-  { id: "focus", label: "집중 중", color: "#FFD166" },
-  { id: "away", label: "자리 비움", color: "#94A3B8" },
+export const STATUS_OPTIONS: { id: ProfileStatus; label: string; description: string; color: string }[] = [
+  { id: "active", label: "활동중", description: "바로 응답 가능", color: "#39FF88" },
+  { id: "away", label: "자리비움", description: "잠시 후 확인", color: "#FFD166" },
+  { id: "busy", label: "방해금지", description: "멘션만 확인", color: "#FF6B6B" },
+  { id: "offline", label: "오프라인", description: "상태 숨김", color: "#8B94A7" },
 ];
 
 export const DEFAULT_PROFILE: ProfileUser = {
@@ -46,7 +47,7 @@ export const DEFAULT_PROFILE: ProfileUser = {
   role: "",
   skills: [],
   bio: "",
-  status: "available",
+  status: "active",
   avatarUrl: "",
   recoveryEmail: "",
   githubConnected: false,
@@ -55,6 +56,18 @@ export const DEFAULT_PROFILE: ProfileUser = {
   connectedAt: "",
   hasPassword: false,
 };
+
+// 과거 버전 상태값(리뷰 가능/집중 중)을 통합된 4-상태로 매핑한다.
+const LEGACY_STATUS_MAP: Record<string, ProfileStatus> = {
+  available: "active",
+  focus: "busy",
+};
+
+function normalizeStatus(value: unknown): ProfileStatus {
+  const v = typeof value === "string" ? value : "";
+  if (v === "active" || v === "away" || v === "busy" || v === "offline") return v;
+  return LEGACY_STATUS_MAP[v] ?? "active";
+}
 
 function getSavedProfile(fallback: ProfileUser): ProfileUser {
   if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
@@ -65,7 +78,9 @@ function getSavedProfile(fallback: ProfileUser): ProfileUser {
     if (!raw) return fallback;
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object") return fallback;
-    return { ...fallback, ...(parsed as Partial<ProfileUser>) };
+    const merged = { ...fallback, ...(parsed as Partial<ProfileUser>) };
+    merged.status = normalizeStatus(merged.status);
+    return merged;
   } catch {
     return fallback;
   }
