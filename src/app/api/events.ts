@@ -1,6 +1,7 @@
 import { fetchWithAuth } from "./fetchWithAuth";
 
 export type EventType = "PR_CREATED" | "PR_REVIEW" | "ISSUE_CREATED" | "MENTION" | "REPLY";
+export type EventNavigationType = "PR" | "ISSUE" | "THREAD" | "MENTION" | "CHANNEL";
 
 export type WorkspaceEventDto = {
   eventId: number;
@@ -31,6 +32,8 @@ export type WorkspaceEventDto = {
     [key: string]: unknown;
   } | null;
   createdAt: string;
+  occurredAt?: string | null;
+  navigationType?: EventNavigationType | null;
 };
 
 export function fetchMyEvents(): Promise<WorkspaceEventDto[]> {
