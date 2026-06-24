@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { motion } from "motion/react";
 import { useTheme } from "../contexts/ThemeContext";
+import { useLanguage } from "../contexts/LanguageContext";
 import { useProfile, STATUS_OPTIONS, type ProfileUser, type ProfileStatus } from "../contexts/ProfileContext";
 import { apiClient } from "../api/client";
 
@@ -569,15 +570,33 @@ function AvatarEditor({
 }
 
 function AccountSecuritySection({ user, colors }: { user: ProfileUser; colors: ThemeColors }) {
+  const { language } = useLanguage();
+  const isEnglish = language === "en";
+  const securityCopy = isEnglish
+    ? {
+        title: "Account Security",
+        description: "Password recovery is handled through a reset link sent to your verified email.",
+        forgotTitle: "Forgot Password",
+        forgotBody: `Receive a reset link at ${user.recoveryEmail} to set a new password.`,
+        forgotButton: "Forgot Password",
+      }
+    : {
+        title: "계정 보안",
+        description: "비밀번호 찾기는 확인된 이메일로 보내는 재설정 링크로 처리합니다.",
+        forgotTitle: "비밀번호 찾기",
+        forgotBody: `${user.recoveryEmail}로 재설정 링크를 받아 새 비밀번호를 설정할 수 있습니다.`,
+        forgotButton: "비밀번호 찾기",
+      };
+
   return (
-    <Panel colors={colors} title="계정 보안" description="비밀번호 찾기는 확인된 이메일로 보내는 재설정 링크로 처리합니다.">
+    <Panel colors={colors} title={securityCopy.title} description={securityCopy.description}>
       <div className="grid gap-4">
         <ActionCard
           icon={KeyRound}
-          title="비밀번호 찾기"
-          body={`${user.recoveryEmail}로 재설정 링크를 받아 새 비밀번호를 설정할 수 있습니다.`}
+          title={securityCopy.forgotTitle}
+          body={securityCopy.forgotBody}
           to="/forgot-password"
-          button="비밀번호 찾기"
+          button={securityCopy.forgotButton}
           colors={colors}
         />
       </div>
