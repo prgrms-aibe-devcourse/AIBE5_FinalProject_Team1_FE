@@ -1,4 +1,4 @@
-import { X, FileText, History, CircleDot, Clock, CircleCheck, UserRound, Tag, MessageSquare, CheckCircle2, XCircle, Send } from "lucide-react";
+import { X, FileText, History, CircleDot, Clock, CircleCheck, UserRound, Tag, MessageSquare, CheckCircle2, XCircle, Send, Info } from "lucide-react";
 import { renderMarkdown } from "../utils/renderMarkdown";
 import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
@@ -56,6 +56,15 @@ export function IssuePanel({ issueData, onClose, externalThreadMessages, onAddTh
   const [threadDraft, setThreadDraft] = useState("");
   // 낙관적 업데이트용: 아직 외부 prop에 반영 안 된 로컬 댓글만 보관
   const [localPending, setLocalPending] = useState<IssueThreadComment[]>([]);
+  // GitHub 토큰에 read:project scope가 없으면 우선순위/타입이 null로 와서 기본값으로만 보인다.
+  // 사용자가 한 번 닫으면 다시 안내하지 않도록 localStorage에 기억한다.
+  const [scopeHintDismissed, setScopeHintDismissed] = useState(
+    () => typeof window !== "undefined" && window.localStorage.getItem("cd:github-scope-hint-dismissed") === "1"
+  );
+  const dismissScopeHint = () => {
+    setScopeHintDismissed(true);
+    try { window.localStorage.setItem("cd:github-scope-hint-dismissed", "1"); } catch { /* 무시 */ }
+  };
 
   // 외부 prop에서 매핑한 댓글
   const externalMapped: IssueThreadComment[] = (externalThreadMessages ?? []).map((m) => ({
@@ -77,8 +86,13 @@ export function IssuePanel({ issueData, onClose, externalThreadMessages, onAddTh
   const body: string                   = issueData.issueBody      ?? "";
   const history: IssueHistoryEvent[]   = issueData.issueHistory   ?? [];
   // 데이터가 있으면 사용, 없으면 기본값(우선순위 medium / 타입 Feature). 빈 문자열도 미설정으로 간주.
-  const priority                       = (issueData.issuePriority && String(issueData.issuePriority).trim()) || "medium";
-  const issueType: string              = (issueData.issueType && String(issueData.issueType).trim()) || "Feature";
+  const rawPriority                    = issueData.issuePriority && String(issueData.issuePriority).trim();
+  const rawType                        = issueData.issueType && String(issueData.issueType).trim();
+  const priority                       = rawPriority || "medium";
+  const issueType: string              = rawType || "Feature";
+  // 우선순위/타입이 둘 다 비어 기본값으로만 표시되는 경우 = GitHub 토큰 scope(read:project) 부족 신호.
+  // 이때만 재연동 안내를 노출해 오탐(실제로 Feature/medium인 이슈)을 줄인다.
+  const showScopeHint = !rawPriority && !rawType && !scopeHintDismissed;
 
   const statusCfg   = statusConfig[status]   ?? statusConfig.todo;
   const priorityCfg = priorityConfig[priority] ?? priorityConfig.medium;
@@ -321,6 +335,37 @@ export function IssuePanel({ issueData, onClose, externalThreadMessages, onAddTh
                 </p>
               </section>
             </div>
+
+            {/* GitHub read:project scope 부족 안내 (우선순위/타입이 둘 다 기본값일 때만) */}
+            {showScopeHint && (
+              <div
+                className="mt-3 flex items-start gap-3 rounded-2xl px-4 py-3"
+                style={{
+                  background: "rgba(245, 158, 11, 0.08)",
+                  border:     "1px solid rgba(245, 158, 11, 0.28)",
+                }}
+              >
+                <Info size={16} style={{ color: "#F59E0B", flexShrink: 0, marginTop: 2 }} />
+                <div className="min-w-0 flex-1">
+                  <p className="m-0 mb-0.5 tracking-tight" style={{ color: "#F59E0B", fontSize: 13, fontWeight: 950 }}>
+                    우선순위 · 타입이 기본값으로 표시됩니다
+                  </p>
+                  <p className="m-0 tracking-tight" style={{ color: "var(--soft-mint)", fontSize: 12.5, fontWeight: 800, lineHeight: 1.5 }}>
+                    GitHub에서 우선순위·타입을 읽으려면 추가 권한(read:project)이 필요합니다.
+                    프로필 &gt; GitHub 연동에서 다시 연동하면 실제 값이 표시됩니다.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={dismissScopeHint}
+                  aria-label="안내 닫기"
+                  className="grid h-6 w-6 flex-shrink-0 place-items-center rounded-full border-0"
+                  style={{ background: "rgba(245, 158, 11, 0.12)", color: "#F59E0B", cursor: "pointer" }}
+                >
+                  <X size={13} />
+                </button>
+              </div>
+            )}
 
           </div>
         )}
