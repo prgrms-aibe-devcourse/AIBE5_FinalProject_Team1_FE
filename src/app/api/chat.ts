@@ -345,15 +345,16 @@ export interface PresignUploadResponse {
   contentType: string;
 }
 
-// 파일 업로드용 presigned PUT URL 발급
+// 파일 업로드용 presigned PUT URL 발급 (fileSize는 서버 측 크기 검증·서명에 사용)
 export function presignAttachmentUpload(
   fileName: string,
   contentType: string,
+  fileSize: number,
   options?: ApiRequestOptions
 ) {
   return apiClient.post<PresignUploadResponse>(
     `/api/attachments/presign`,
-    { fileName, contentType },
+    { fileName, contentType, fileSize },
     options
   );
 }
@@ -365,7 +366,7 @@ export async function uploadAttachmentFile(
   options?: ApiRequestOptions
 ): Promise<string> {
   const contentType = file.type || "application/octet-stream";
-  const presign = await presignAttachmentUpload(file.name, contentType, options);
+  const presign = await presignAttachmentUpload(file.name, contentType, file.size, options);
 
   const putResponse = await fetch(presign.uploadUrl, {
     method: "PUT",

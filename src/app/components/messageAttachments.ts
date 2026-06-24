@@ -1,5 +1,7 @@
 export type MessageAttachmentType = "pr" | "erd" | "issue" | "api" | "docs" | "file" | "image" | "link";
 export const MAX_MESSAGE_ATTACHMENTS = 10;
+// 업로드 단일 파일 최대 크기. 백엔드 UPLOAD_MAX_BYTES(기본 10MB)와 동일하게 유지한다.
+export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 
 export interface MessageAttachment {
   id: string;
