@@ -6825,6 +6825,10 @@ export function ChatPage() {
             ) : selectedChannel === 'work-board' ? (
               <WorkBoardPanel
                 repositoryName={currentRepo?.name}
+                repositoryDbId={(() => {
+                  const raw = currentRepo ? Number(String(currentRepo.id).replace('repo-', '')) : NaN;
+                  return Number.isFinite(raw) ? raw : undefined;
+                })()}
                 onViewIssue={handleViewIssue}
               />
             ) : selectedChannel === 'team' ? (
