@@ -1968,7 +1968,7 @@ export function WorkspacePage() {
                       fontWeight: 900
                     }}
                   >
-                    {filter.label} {dashboardEventCounts[filter.value]}
+                    {`${filter.label} ${dashboardEventCounts[filter.value]}`}
                   </button>
                 );
               })}

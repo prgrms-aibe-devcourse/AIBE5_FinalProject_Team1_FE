@@ -482,6 +482,11 @@ const exactTranslations: Record<string, string> = {
   // WorkspacePage
   "팀 설정": "Team Settings",
   "팀 설정 열기": "Open team settings",
+  "전체 이벤트": "All Events",
+  "모두 읽음": "Mark All Read",
+  "리뷰": "Review",
+  "안 읽은 이벤트가 없어요. 전체 이벤트에서 지난 활동을 확인할 수 있어요.": "No unread events. You can review past activity in All Events.",
+  "선택한 필터에 해당하는 이벤트가 없어요.": "No events match the selected filter.",
   "PR 올라옴": "PR opened",
   "이슈 올라옴": "Issue opened",
   "리뷰 받음": "Review received",
@@ -820,6 +825,10 @@ const exactTranslations: Record<string, string> = {
 };
 
 const patternTranslations: Array<[RegExp, (match: RegExpMatchArray) => string]> = [
+  [/^안 읽은 이벤트 (\d+)$/, (match) => `Unread ${match[1]}`],
+  [/^읽지 않음만 (\d+)$/, (match) => `Unread ${match[1]}`],
+  [/^전체 (\d+)$/, (match) => `All ${match[1]}`],
+  [/^리뷰 (\d+)$/, (match) => `Review ${match[1]}`],
   [/^(\d+)명 접속 중$/, (match) => `${match[1]} online`],
   [/^(\d+)명$/, (match) => `${match[1]} members`],
   [/^(\d+)명 초대$/, (match) => `${match[1]} invites`],
