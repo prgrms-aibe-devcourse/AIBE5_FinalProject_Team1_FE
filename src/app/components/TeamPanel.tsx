@@ -16,6 +16,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { fetchWithAuth } from "../api/fetchWithAuth";
 import { changeMemberRole, listInvitations, revokeInvitation, type InvitationDto, type WorkspaceMember } from "../api/workspace";
+import { useLanguage, type LanguageType } from "../contexts/LanguageContext";
 
 interface UserProfile {
   id: number;
@@ -78,11 +79,11 @@ interface TeamRoom {
   icon: LucideIcon;
 }
 
-const roleOptions: Array<{ value: WorkspaceRole; label: string; description: string }> = [
-  { value: "owner", label: "소유자", description: "워크스페이스 전체 권한" },
-  { value: "admin", label: "관리자", description: "팀원과 채널 관리 가능" },
-  { value: "editor", label: "편집자", description: "채팅과 콘텐츠 편집 가능" },
-  { value: "viewer", label: "뷰어", description: "조회 중심 권한" }
+const roleOptions: Array<{ value: WorkspaceRole; label: string; labelEn: string; description: string; descriptionEn: string }> = [
+  { value: "owner", label: "소유자", labelEn: "Owner", description: "워크스페이스 전체 권한", descriptionEn: "Full workspace access" },
+  { value: "admin", label: "관리자", labelEn: "Admin", description: "팀원과 채널 관리 가능", descriptionEn: "Manage members and channels" },
+  { value: "editor", label: "편집자", labelEn: "Editor", description: "채팅과 콘텐츠 편집 가능", descriptionEn: "Edit chats and content" },
+  { value: "viewer", label: "뷰어", labelEn: "Viewer", description: "조회 중심 권한", descriptionEn: "View-only access" }
 ];
 
 const roleMeta: Record<string, { color: string; bg: string; border: string }> = {
@@ -108,8 +109,14 @@ function normalizeWorkspaceRole(role?: string | null): WorkspaceRole {
   return "viewer";
 }
 
-function getRoleLabel(role: string) {
-  return roleOptions.find((option) => option.value === normalizeWorkspaceRole(role))?.label ?? role;
+function getRoleOption(role: string) {
+  return roleOptions.find((option) => option.value === normalizeWorkspaceRole(role));
+}
+
+function getRoleLabel(role: string, language: LanguageType = "ko") {
+  const option = getRoleOption(role);
+  if (!option) return role;
+  return language === "en" ? option.labelEn : option.label;
 }
 
 function canManageMemberRole(managerRole: WorkspaceRole, targetRole: WorkspaceRole, targetMemberId: string, currentMemberId?: string) {
@@ -285,6 +292,7 @@ function presenceToColor(p: string): string {
 }
 
 export function TeamPanel({ workspaceId, workspaceApiId, currentMemberId, currentUserOnline, onInvite, onOpenChannel, presenceOverrides = {}, inviteRefreshSignal }: TeamPanelProps) {
+  const { language } = useLanguage();
   ensureSeeded();   // no-op after first run
 
   const [members, setMembers] = useState<TeamMember[]>([]);
@@ -446,7 +454,7 @@ export function TeamPanel({ workspaceId, workspaceApiId, currentMemberId, curren
     try {
       await changeMemberRole(workspaceApiId, Number(memberId), nextRole);
       persistMembers(next);
-      setNotice(`${target.name} 역할을 ${getRoleLabel(nextRole)}(으)로 변경했습니다.`);
+      setNotice(`${target.name} 역할을 ${getRoleLabel(nextRole, language)}(으)로 변경했습니다.`);
     } catch (error) {
       setMembers((prev) => prev.map((m) => m.id === memberId ? { ...m, role: previousRole } : m));
       setNotice(error instanceof Error ? error.message : "역할 변경에 실패했습니다.");
@@ -538,7 +546,7 @@ export function TeamPanel({ workspaceId, workspaceApiId, currentMemberId, curren
                     {member.name}
                   </h3>
                   <p className="m-0 mt-0.5 truncate tracking-tight" style={{ color: "var(--muted)", fontSize: 13, fontWeight: 800 }}>
-                    {getRoleLabel(member.role)}
+                    {getRoleLabel(member.role, language)}
                   </p>
                 </div>
               </div>
@@ -549,6 +557,7 @@ export function TeamPanel({ workspaceId, workspaceApiId, currentMemberId, curren
               역할
               <RoleDropdown
                 value={member.role}
+                language={language}
                 onChange={(role) => handleAuthorityRoleChange(member.id, role)}
                 disabled={!canEditThisRole || roleChangePendingMemberId === member.id}
                 disabledReason={roleDisabledReason}
@@ -610,10 +619,10 @@ export function TeamPanel({ workspaceId, workspaceApiId, currentMemberId, curren
             </span>
             <div className="text-center">
               <p className="m-0 tracking-tight" style={{ color: "var(--white)", fontSize: 16, fontWeight: 950 }}>
-                팀원 추가
+                {language === "en" ? "Add Member" : "팀원 추가"}
               </p>
               <p className="m-0 mt-1 tracking-tight" style={{ color: "var(--muted)", fontSize: 12, fontWeight: 800, lineHeight: 1.45 }}>
-                초대 메일을 보내 새 팀원을 합류시켜요.
+                {language === "en" ? "Send an invite email to add a new teammate." : "초대 메일을 보내 새 팀원을 합류시켜요."}
               </p>
             </div>
           </div>
@@ -720,12 +729,14 @@ export function TeamPanel({ workspaceId, workspaceApiId, currentMemberId, curren
 
 function RoleDropdown({
   value,
+  language,
   onChange,
   disabled = false,
   disabledReason,
   "aria-label": ariaLabel
 }: {
   value: string;
+  language: LanguageType;
   onChange: (role: string) => void;
   disabled?: boolean;
   disabledReason?: string;
@@ -810,7 +821,7 @@ function RoleDropdown({
               fontWeight: 950
             }}
           >
-            {getRoleLabel(value)}
+            {getRoleLabel(value, language)}
           </span>
         </span>
         <ChevronDown
@@ -880,7 +891,7 @@ function RoleDropdown({
                     fontWeight: selected ? 950 : 850
                   }}
                 >
-                  {role.label}
+                  {language === "en" ? role.labelEn : role.label}
                 </span>
                 <span
                   className="hidden truncate sm:block"
@@ -890,7 +901,7 @@ function RoleDropdown({
                     fontWeight: 750
                   }}
                 >
-                  {role.description}
+                  {language === "en" ? role.descriptionEn : role.description}
                 </span>
                 {selected && <Check size={15} style={{ color: optionMeta.color, flexShrink: 0 }} />}
               </button>
