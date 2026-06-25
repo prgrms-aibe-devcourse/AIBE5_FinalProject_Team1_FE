@@ -8,6 +8,7 @@ import {
 import type { Org } from "../pages/WorkspacePage";
 import { TeamInviteModal } from "./TeamInviteModal";
 import type { InviteDraft } from "./TeamInviteModal";
+import { useWorkspaceCollaboratorSuggestions } from "../hooks/useWorkspaceCollaboratorSuggestions";
 import { fetchMyGithubRepos, connectWorkspaceRepository, type GithubRepo } from "../api/github";
 import { useWorkspace } from "../contexts/WorkspaceContext";
 import { ApiClientError } from "../api/client";
@@ -663,6 +664,7 @@ function MembersTab({ org, isAdmin, isOwner, onUpdate }: {
     return () => { cancelled = true; };
   }, [memberList]);
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const inviteSuggestions = useWorkspaceCollaboratorSuggestions(org.id, showInviteModal);
   const [confirmKickId, setConfirmKickId] = useState<string | null>(null);
   const [reordering, setReordering] = useState(false);
   const [transferTarget, setTransferTarget] = useState("");
@@ -980,9 +982,10 @@ function MembersTab({ org, isAdmin, isOwner, onUpdate }: {
                     outline: "none", appearance: "none",
                   }}
                 >
-                  <option value="">이전할 멤버를 선택하세요</option>
+                  {/* 네이티브 드롭다운 목록은 OS가 밝은 배경으로 그리므로, 옵션에 어두운 배경+밝은 글자색을 직접 지정해 가독성을 확보한다 */}
+                  <option value="" style={{ background: "#0f1b2e", color: "#9fb0c8" }}>이전할 멤버를 선택하세요</option>
                   {transferableMembers.map(m => (
-                    <option key={m.id} value={m.id}>{m.name}</option>
+                    <option key={m.id} value={m.id} style={{ background: "#0f1b2e", color: "#EAF7FF" }}>{m.name}</option>
                   ))}
                 </select>
                 <ChevronDown size={11} style={{
@@ -1060,6 +1063,12 @@ function MembersTab({ org, isAdmin, isOwner, onUpdate }: {
         isOpen={showInviteModal}
         onClose={() => setShowInviteModal(false)}
         onInvite={handleInviteConfirm}
+        existingEmails={[
+          ...memberList.map((m) => m.email),
+          ...invitations.map((inv) => inv.email)
+        ]}
+        suggestions={inviteSuggestions}
+        suggestionsLabel="GitHub 협업자 (이 사이트에 가입된 사용자)"
       />
     </div>
   );

@@ -19,6 +19,7 @@ import {
 import type { MessageMetadata } from "../components/chatInteractionUtils";
 import { toggleMessageReaction, type MessageReaction } from "../components/MessageReactions";
 import { TeamInviteModal } from "../components/TeamInviteModal";
+import { useWorkspaceCollaboratorSuggestions } from "../hooks/useWorkspaceCollaboratorSuggestions";
 import { TeamPanel } from "../components/TeamPanel";
 import { createPortal } from "react-dom";
 import {
@@ -68,7 +69,7 @@ import {
 import type { ChatStompClient } from "../api/stomp";
 import { getAccessToken } from "../auth";
 import { useProfile, STATUS_OPTIONS, type ProfileStatus } from "../contexts/ProfileContext";
-import { fetchMyWorkspaces, getWorkspaceMembers, updatePresence, type WorkspaceDto, type WorkspaceMember } from "../api/workspace";
+import { fetchMyWorkspaces, getWorkspaceMembers, updatePresence, createInvite, listInvitations, type WorkspaceDto, type WorkspaceMember } from "../api/workspace";
 import { type WorkspaceEventDto } from "../api/events";
 import { useWorkspace } from "../contexts/WorkspaceContext";
 import { ApiClientError } from "../api/client";
@@ -95,6 +96,7 @@ const CHAT_THREAD_REPLIES_KEY = "codedock-chat-thread-replies-v1";
 const CHAT_THREAD_REPLY_COUNTS_KEY = "codedock-chat-thread-reply-counts-v1";
 const CHAT_REACTIONS_KEY = "codedock-chat-reactions-v1";
 const LAST_CHANNEL_KEY = "codedock-last-channel-v1";
+const LAST_REPOSITORY_KEY = "codedock-last-repository-v1";
 const LAST_WORKSPACE_KEY = "codedock-last-workspace-v1";
 const API_CHANNEL_ID_PREFIX = "api-channel-";
 const DEFAULT_WORKSPACE_API_ID = 1;
@@ -1833,9 +1835,15 @@ export function ChatPage() {
   const [repositories, setRepositories] = useState<RepositoryItem[]>(() =>
     getSavedRepositories() ?? []
   );
-  const [selectedRepository, setSelectedRepository] = useState<string>(() =>
-    getSavedRepositories()?.[0]?.id ?? ""
-  );
+  const [selectedRepository, setSelectedRepository] = useState<string>(() => {
+    // 새로고침 시 마지막으로 보던 레포를 복원(레포 채널이 overview로 튕기지 않도록)
+    const savedWorkspaceApiId = parseWorkspaceApiId(getSavedJson<number | null>(LAST_WORKSPACE_KEY, null));
+    if (savedWorkspaceApiId !== null) {
+      const savedRepoId = getSavedJson<Record<number, string>>(LAST_REPOSITORY_KEY, {})[savedWorkspaceApiId];
+      if (savedRepoId) return savedRepoId;
+    }
+    return getSavedRepositories()?.[0]?.id ?? "";
+  });
   const [showRepoDropdown, setShowRepoDropdown] = useState(false);
   const repoDropdownRef = useRef<HTMLDivElement>(null);
   const profileMenuRef = useRef<HTMLDivElement>(null);
@@ -1896,6 +1904,10 @@ export function ChatPage() {
   const prevMainExpanded = useRef(false);
   const pendingEventRef = useRef<WorkspaceEventDto | null>(null);
   const [teamInviteOpen, setTeamInviteOpen] = useState(false);
+  // 팀 화면의 "대기 중인 초대" 목록을 초대 발송 후 갱신하기 위한 신호
+  const [teamInviteRefreshSignal, setTeamInviteRefreshSignal] = useState(0);
+  // 초대 모달에서 이미 멤버/대기 중인 이메일을 제외하기 위한 대기 초대 이메일 목록(모달 열 때 로드)
+  const [teamPendingInviteEmails, setTeamPendingInviteEmails] = useState<string[]>([]);
   const [chatProfilePreview, setChatProfilePreview] = useState<ChatProfilePreview | null>(null);
   const [isGeneralChannelsOpen, setIsGeneralChannelsOpen] = useState(true);
   const [expandedSidebarGroups, setExpandedSidebarGroups] = useState<Record<SidebarGroupId, boolean>>({
@@ -1998,6 +2010,23 @@ export function ChatPage() {
   const currentWorkspace = workspaceList.find(ws => ws.id === selectedWorkspace) ?? workspaceList[0];
   const canManageWorkspaceChannels = canManageWorkspaceChannel(currentWorkspace?.myRole);
   const currentWorkspaceApiId = getWorkspaceApiId(selectedWorkspace, currentWorkspace);
+  // 초대 모달이 열릴 때 대기 중인 초대 이메일을 불러와, 멤버 이메일과 합쳐 중복 초대를 막는다.
+  useEffect(() => {
+    if (!teamInviteOpen || !currentWorkspaceApiId) return;
+    void listInvitations(currentWorkspaceApiId)
+      .then((list) => setTeamPendingInviteEmails(
+        list.filter((inv) => inv.status === "pending").map((inv) => inv.email)
+      ))
+      .catch(() => {});
+  }, [teamInviteOpen, currentWorkspaceApiId, teamInviteRefreshSignal]);
+  const teamInviteExistingEmails = useMemo(
+    () => [
+      ...workspaceMembers.map((m) => m.email).filter(Boolean),
+      ...teamPendingInviteEmails
+    ],
+    [workspaceMembers, teamPendingInviteEmails]
+  );
+  const teamInviteSuggestions = useWorkspaceCollaboratorSuggestions(currentWorkspaceApiId, teamInviteOpen);
   const selfOnlineCount = userPresence !== 'offline' ? 1 : 0;
   const getWorkspaceDisplayedOnlineCount = useCallback(
     (workspace: WorkspaceItem) => Math.max(0, (workspace.membersOnline ?? 0) + selfOnlineCount),
@@ -2571,9 +2600,16 @@ export function ChatPage() {
     ALL_SIDEBAR_CHANNELS.forEach((channel) => ids.add(channel.id));
     allCustomChannels.forEach((channel) => ids.add(channel.id));
     orphanRepositoryChannels.forEach((channel) => ids.add(channel.id));
-    visibleRepositories.forEach((repo) => ids.add(repo.id));
+    visibleRepositories.forEach((repo) => {
+      ids.add(repo.id);
+      ids.add(getRepositoryChannelUiId(repo)); // 레포 본문 채널
+    });
+    // 레포 하위 탭(공유 id) — 어느 레포가 선택돼 있든 유효한 채널이므로 항상 복원 대상에 포함
+    ids.add("pull-requests");
+    ids.add("issues");
+    ids.add("work-board");
     return ids;
-  }, [allCustomChannels, orphanRepositoryChannels, visibleRepositories]);
+  }, [allCustomChannels, orphanRepositoryChannels, visibleRepositories, getRepositoryChannelUiId]);
 
   // 마지막으로 본 채널을 워크스페이스별로 복원 (워크스페이스당 1회, 채널 로드 완료 후)
   useEffect(() => {
@@ -2603,6 +2639,15 @@ export function ChatPage() {
     if (saved[currentWorkspaceApiId] === selectedChannel) return;
     saveJson(LAST_CHANNEL_KEY, { ...saved, [currentWorkspaceApiId]: selectedChannel });
   }, [selectedChannel, currentWorkspaceApiId]);
+
+  // 선택한 레포지토리도 워크스페이스별로 저장 → 새로고침 시 레포 채널(PR/이슈/작업보드) 복원
+  useEffect(() => {
+    if (!currentWorkspaceApiId || !selectedRepository) return;
+    if (restoredChannelWorkspaceRef.current !== currentWorkspaceApiId) return;
+    const saved = getSavedJson<Record<number, string>>(LAST_REPOSITORY_KEY, {});
+    if (saved[currentWorkspaceApiId] === selectedRepository) return;
+    saveJson(LAST_REPOSITORY_KEY, { ...saved, [currentWorkspaceApiId]: selectedRepository });
+  }, [selectedRepository, currentWorkspaceApiId]);
 
   const activeRemoteTypingNames = Object.values(remoteTypingByChannel[selectedChannel] ?? {});
   const activeRemoteTypingLabel = formatRemoteTypingLabel(activeRemoteTypingNames);
@@ -5774,7 +5819,7 @@ export function ChatPage() {
     }
   }, [apiChannelUiById]);
 
-  // pendingEvent: 메시지 로드 후 PR·이슈·스레드 패널 열기
+  // pendingEvent: 메시지 로드 후 해당 메시지로 이동 + 강조(북마크/멘션 알림과 동일한 focusChannelMessage 사용)
   useEffect(() => {
     const pending = pendingEventRef.current;
     if (!pending) return;
@@ -5786,7 +5831,7 @@ export function ChatPage() {
       }
       const msg = currentMessages.find((m: any) => m.type === "pr" && Number(m.prNumber) === Number(pending.prNumber));
       if (!msg) return;
-      handleReviewPR(msg);
+      focusChannelMessage(selectedChannelRef.current, Number(msg.backendMessageId ?? msg.id));
       pendingEventRef.current = null;
     } else if (pendingKind === "issue") {
       if (!pending.issueNumber) {
@@ -5795,7 +5840,7 @@ export function ChatPage() {
       }
       const msg = currentMessages.find((m: any) => m.type === "issue" && Number(m.issueNumber) === Number(pending.issueNumber));
       if (!msg) return;
-      handleViewIssue(msg);
+      focusChannelMessage(selectedChannelRef.current, Number(msg.backendMessageId ?? msg.id));
       pendingEventRef.current = null;
     } else if (pendingKind === "mention" || pendingKind === "thread") {
       if (!pending.threadId) {
@@ -5804,7 +5849,8 @@ export function ChatPage() {
       }
       const msg = currentMessages.find((m: any) => Number(m.backendMessageId ?? m.id) === pending.threadId);
       if (!msg) return;
-      handleOpenThread(msg);
+      const uiChannelId = (pending.channelId != null ? apiChannelUiById[pending.channelId] : undefined) ?? selectedChannelRef.current;
+      focusChannelMessage(uiChannelId, Number(msg.backendMessageId ?? msg.id));
       pendingEventRef.current = null;
     }
   }, [currentMessages]);
@@ -7297,6 +7343,7 @@ export function ChatPage() {
                 currentMemberId={currentWorkspaceMemberId}
                 currentUserOnline={userPresence !== 'offline'}
                 presenceOverrides={presenceOverrides}
+                inviteRefreshSignal={teamInviteRefreshSignal}
                 onInvite={() => setTeamInviteOpen(true)}
                 onOpenChannel={(channelId) => {
                   setSelectedPR(null);
@@ -7508,6 +7555,30 @@ export function ChatPage() {
       <TeamInviteModal
         isOpen={teamInviteOpen}
         onClose={() => setTeamInviteOpen(false)}
+        existingEmails={teamInviteExistingEmails}
+        suggestions={teamInviteSuggestions}
+        suggestionsLabel="GitHub 협업자 (이 사이트에 가입된 사용자)"
+        onInvite={(drafts) => {
+          // 워크스페이스 팀 화면에서의 초대도 실제 초대 메일을 발송하도록 createInvite를 호출한다.
+          if (!currentWorkspaceApiId || drafts.length === 0) return;
+          void Promise.allSettled(
+            drafts.map((d) =>
+              createInvite(currentWorkspaceApiId, {
+                email: d.email,
+                role: "viewer",
+                position: d.role,
+                expiresInHours: 168
+              })
+            )
+          ).then((results) => {
+            const failed = results.filter((r) => r.status === "rejected").length;
+            if (failed > 0) {
+              window.alert(`${failed}건의 초대 발송에 실패했습니다.`);
+            }
+            // 대기 중인 초대 목록 갱신
+            setTeamInviteRefreshSignal((n) => n + 1);
+          });
+        }}
       />
 
       {createPortal(
