@@ -2041,6 +2041,7 @@ export function PRReviewPanel({ prData, repositoryDbId, workspaceId, onClose, on
                 className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl px-4 tracking-tight transition-colors duration-150"
                 style={{
                   minWidth: tab.id === "diff" ? 86 : 112,
+                  whiteSpace: "nowrap",
                   background: isActive ? "rgba(var(--codedock-primary-rgb), 0.12)" : "rgba(5, 11, 20, 0.42)",
                   border: isActive ? "2px solid var(--neon-cyan)" : "2px solid rgba(234, 247, 255, 0.08)",
                   color: isActive ? "var(--neon-cyan)" : "var(--muted)",

@@ -12,10 +12,10 @@ import {
   type LucideIcon
 } from "lucide-react";
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { fetchWithAuth } from "../api/fetchWithAuth";
-import { changeMemberRole, type WorkspaceMember } from "../api/workspace";
+import { changeMemberRole, listInvitations, revokeInvitation, type InvitationDto, type WorkspaceMember } from "../api/workspace";
 
 interface UserProfile {
   id: number;
@@ -33,6 +33,7 @@ interface TeamPanelProps {
   onInvite?: () => void;
   onOpenChannel?: (channelId: string) => void;
   presenceOverrides?: Record<string, string>; // memberId → presence
+  inviteRefreshSignal?: number; // 값이 바뀌면 대기 중인 초대 목록을 다시 불러온다
 }
 
 type WorkspaceRole = "owner" | "admin" | "editor" | "viewer";
@@ -283,7 +284,7 @@ function presenceToColor(p: string): string {
   return '#8B94A7';
 }
 
-export function TeamPanel({ workspaceId, workspaceApiId, currentMemberId, currentUserOnline, onInvite, onOpenChannel, presenceOverrides = {} }: TeamPanelProps) {
+export function TeamPanel({ workspaceId, workspaceApiId, currentMemberId, currentUserOnline, onInvite, onOpenChannel, presenceOverrides = {}, inviteRefreshSignal }: TeamPanelProps) {
   ensureSeeded();   // no-op after first run
 
   const [members, setMembers] = useState<TeamMember[]>([]);
@@ -360,6 +361,27 @@ export function TeamPanel({ workspaceId, workspaceApiId, currentMemberId, curren
   const effectiveCurrentMemberId = currentMember?.id ?? currentMemberKey;
   const managerRole = normalizeWorkspaceRole(currentMember?.role);
   const canManageRoles = managerRole === "owner" || managerRole === "admin";
+
+  // 대기 중인(수락/거절 전) 초대 목록 — owner/admin만 조회·취소 가능
+  const [pendingInvites, setPendingInvites] = useState<InvitationDto[]>([]);
+  const loadPendingInvites = useCallback(() => {
+    if (!canManageRoles || !Number.isFinite(workspaceApiId)) return;
+    void listInvitations(workspaceApiId)
+      .then((list) => setPendingInvites(list.filter((inv) => inv.status === "pending")))
+      .catch(() => {});
+  }, [canManageRoles, workspaceApiId]);
+  useEffect(() => {
+    loadPendingInvites();
+  }, [loadPendingInvites, inviteRefreshSignal]);
+  const handleRevokeInvite = (invitationId: number) => {
+    void revokeInvitation(workspaceApiId, invitationId)
+      .then(() => loadPendingInvites())
+      .catch(() => { window.alert("초대 취소에 실패했습니다."); });
+  };
+  const inviteRoleLabel = (role: string) => {
+    const map: Record<string, string> = { owner: "소유자", admin: "관리자", editor: "편집 가능", viewer: "보기 가능" };
+    return map[role?.toLowerCase?.()] ?? role;
+  };
 
   const onlineCount = effectiveMembers.filter((member) =>
     effectiveCurrentMemberId != null && member.id === effectiveCurrentMemberId ? currentUserOnline : member.online
@@ -597,6 +619,55 @@ export function TeamPanel({ workspaceId, workspaceApiId, currentMemberId, curren
           </div>
         </button>
       </div>
+
+      {canManageRoles && pendingInvites.length > 0 && (
+        <section
+          className="mt-5 rounded-2xl px-6 py-5"
+          style={{
+            background: "rgba(11, 22, 40, 0.72)",
+            border: "1px solid rgba(var(--codedock-primary-rgb), 0.16)",
+            boxShadow: "0 18px 44px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255,255,255,0.05)"
+          }}
+        >
+          <div className="mb-4 flex items-center gap-2">
+            <UserPlus size={16} style={{ color: "var(--neon-cyan)" }} />
+            <h3 className="m-0 tracking-tight" style={{ color: "var(--white)", fontSize: 17, fontWeight: 950 }}>
+              대기 중인 초대
+            </h3>
+          </div>
+          <div className="grid gap-2">
+            {pendingInvites.map((inv) => (
+              <div
+                key={inv.invitationId}
+                className="flex items-center gap-3 rounded-xl px-4 py-3"
+                style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(var(--codedock-primary-rgb), 0.10)" }}
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="m-0 truncate tracking-tight" style={{ color: "var(--white)", fontSize: 13, fontWeight: 900 }}>{inv.email}</p>
+                  <p className="m-0 mt-0.5 tracking-tight" style={{ color: "var(--muted)", fontSize: 11, fontWeight: 800 }}>
+                    {inviteRoleLabel(inv.role)} · 대기 중
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleRevokeInvite(inv.invitationId)}
+                  className="flex-shrink-0 rounded-lg border-0 px-3 py-1.5 tracking-tight"
+                  style={{
+                    background: "rgba(255,107,107,0.08)",
+                    border: "1px solid rgba(255,107,107,0.30)",
+                    color: "#FF6B6B",
+                    fontSize: 12,
+                    fontWeight: 900,
+                    cursor: "pointer"
+                  }}
+                >
+                  취소
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section
         className="mt-5 rounded-2xl px-6 py-5"

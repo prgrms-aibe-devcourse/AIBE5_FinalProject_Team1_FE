@@ -180,8 +180,60 @@ function StatCard({
   );
 }
 
+const REPO_PAGE_SIZE = 6;
+const BOOKMARK_PAGE_SIZE = 4;
+
+function OverviewPagination({ page, totalPages, onChange }: { page: number; totalPages: number; onChange: (next: number) => void }) {
+  if (totalPages <= 1) return null;
+  const navStyle = (disabled: boolean) => ({
+    background: "rgba(234,247,255,0.05)",
+    border: "1px solid rgba(var(--codedock-primary-rgb),0.16)",
+    color: "var(--muted)",
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: disabled ? "not-allowed" : "pointer",
+    opacity: disabled ? 0.4 : 1
+  });
+  return (
+    <div className="mt-4 flex items-center justify-center gap-1.5">
+      <button type="button" onClick={() => onChange(page - 1)} disabled={page <= 1}
+        className="rounded-lg border-0 px-2.5 py-1.5 tracking-tight" style={navStyle(page <= 1)}>
+        이전
+      </button>
+      {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => {
+        const active = p === page;
+        return (
+          <button key={p} type="button" onClick={() => onChange(p)} aria-current={active ? "page" : undefined}
+            className="rounded-lg border-0 tracking-tight"
+            style={{
+              minWidth: 30, padding: "6px 0",
+              background: active ? "rgba(var(--codedock-primary-rgb),0.16)" : "rgba(234,247,255,0.05)",
+              border: active ? "1px solid var(--neon-cyan)" : "1px solid rgba(var(--codedock-primary-rgb),0.16)",
+              color: active ? "var(--neon-cyan)" : "var(--muted)",
+              fontSize: 12, fontWeight: 950, cursor: "pointer"
+            }}>
+            {p}
+          </button>
+        );
+      })}
+      <button type="button" onClick={() => onChange(page + 1)} disabled={page >= totalPages}
+        className="rounded-lg border-0 px-2.5 py-1.5 tracking-tight" style={navStyle(page >= totalPages)}>
+        다음
+      </button>
+    </div>
+  );
+}
+
 export function OverviewPanel({ repositories, onlineMembers, selectedRepositoryId, onSelectRepository, bookmarkGroups = [], onOpenBookmark }: OverviewPanelProps) {
   const [activeRepositoryId, setActiveRepositoryId] = useState<string | null>(null);
+  const [repoPage, setRepoPage] = useState(1);
+  const [bookmarkPage, setBookmarkPage] = useState(1);
+  const repoTotalPages = Math.max(1, Math.ceil(repositories.length / REPO_PAGE_SIZE));
+  const bookmarkTotalPages = Math.max(1, Math.ceil(bookmarkGroups.length / BOOKMARK_PAGE_SIZE));
+  const safeRepoPage = Math.min(Math.max(1, repoPage), repoTotalPages);
+  const safeBookmarkPage = Math.min(Math.max(1, bookmarkPage), bookmarkTotalPages);
+  const pagedRepositories = repositories.slice((safeRepoPage - 1) * REPO_PAGE_SIZE, safeRepoPage * REPO_PAGE_SIZE);
+  const pagedBookmarkGroups = bookmarkGroups.slice((safeBookmarkPage - 1) * BOOKMARK_PAGE_SIZE, safeBookmarkPage * BOOKMARK_PAGE_SIZE);
   const scrollRootRef = useRef<HTMLDivElement | null>(null);
   const activeRepository = repositories.find((repo) => repo.id === activeRepositoryId);
   const activeDetails = activeRepository
@@ -417,7 +469,7 @@ export function OverviewPanel({ repositories, onlineMembers, selectedRepositoryI
         </div>
 
         <div className="grid gap-4 xl:grid-cols-3">
-          {repositories.map((repo) => (
+          {pagedRepositories.map((repo) => (
             <button
               key={repo.id}
               type="button"
@@ -459,6 +511,7 @@ export function OverviewPanel({ repositories, onlineMembers, selectedRepositoryI
             </button>
           ))}
         </div>
+        <OverviewPagination page={safeRepoPage} totalPages={repoTotalPages} onChange={setRepoPage} />
       </section>
 
       <section className="mb-6 rounded-2xl px-5 py-5" style={{
@@ -478,8 +531,9 @@ export function OverviewPanel({ repositories, onlineMembers, selectedRepositoryI
         </div>
 
         {bookmarkGroups.length > 0 ? (
+          <>
           <div className="grid gap-4 xl:grid-cols-2">
-            {bookmarkGroups.map((group) => (
+            {pagedBookmarkGroups.map((group) => (
               <div
                 key={group.channelId}
                 className="rounded-2xl px-4 py-4"
@@ -538,6 +592,8 @@ export function OverviewPanel({ repositories, onlineMembers, selectedRepositoryI
               </div>
             ))}
           </div>
+          <OverviewPagination page={safeBookmarkPage} totalPages={bookmarkTotalPages} onChange={setBookmarkPage} />
+          </>
         ) : (
           <div className="rounded-2xl px-4 py-4 tracking-tight" style={{
             background: "rgba(234, 247, 255, 0.045)",
