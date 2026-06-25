@@ -1541,6 +1541,9 @@ export function WorkspacePage() {
   const [events, setEvents] = useState<WorkspaceEventDto[]>([]);
   const [eventRepositoryNamesByChannelId, setEventRepositoryNamesByChannelId] = useState<Record<number, string>>({});
   const [dashboardEventFilter, setDashboardEventFilter] = useState<DashboardEventFilter>("ALL");
+  // 읽지 않음만 보기(기본 ON) — 목록이 길어지지 않도록 읽은 이벤트는 숨긴다.
+  // 조회 자체는 BE에서 최신 50개로 상한이 걸려 있어 데이터가 무한정 쌓여도 부담이 없다.
+  const [showUnreadOnly, setShowUnreadOnly] = useState(true);
 
   useEffect(() => {
     fetchMyEvents().then((data) => setEvents(data ?? [])).catch(() => setEvents([]));
@@ -1551,14 +1554,30 @@ export function WorkspacePage() {
       .sort((a, b) => getWorkspaceEventTimestamp(b) - getWorkspaceEventTimestamp(a));
   }, [events]);
 
+  const unreadEventCount = useMemo(
+    () => sortedEvents.filter((event) => !event.isRead).length,
+    [sortedEvents]
+  );
+
   const visibleEvents = useMemo(() => {
-    return dashboardEventFilter === "ALL"
+    const byType = dashboardEventFilter === "ALL"
       ? sortedEvents
       : sortedEvents.filter((event) => event.type === dashboardEventFilter);
-  }, [dashboardEventFilter, sortedEvents]);
+    return showUnreadOnly ? byType.filter((event) => !event.isRead) : byType;
+  }, [dashboardEventFilter, sortedEvents, showUnreadOnly]);
+
+  const handleMarkAllEventsRead = () => {
+    const unread = events.filter((event) => !event.isRead);
+    if (unread.length === 0) return;
+    setEvents((prev) => prev.map((event) => (event.isRead ? event : { ...event, isRead: true })));
+    // 일괄 read API가 없어 안 읽은 항목에 개별 PATCH를 병렬 발사(실패는 무시 — 화면은 이미 읽음 처리됨)
+    unread.forEach((event) => markEventAsRead(event.eventId).catch(() => {}));
+  };
 
   const dashboardEventCounts = useMemo(() => {
-    return sortedEvents.reduce<Record<DashboardEventFilter, number>>((acc, event) => {
+    // 칩 숫자는 실제로 보이는 목록과 일치하도록, '읽지 않음만'이 켜져 있으면 안 읽은 것만 센다.
+    const base = showUnreadOnly ? sortedEvents.filter((event) => !event.isRead) : sortedEvents;
+    return base.reduce<Record<DashboardEventFilter, number>>((acc, event) => {
       acc.ALL += 1;
       acc[event.type] += 1;
       return acc;
@@ -1570,7 +1589,7 @@ export function WorkspacePage() {
       MENTION: 0,
       REPLY: 0
     });
-  }, [sortedEvents]);
+  }, [sortedEvents, showUnreadOnly]);
 
   useEffect(() => {
     const workspaceIds = Array.from(new Set(events.map((event) => event.workspaceId)));
@@ -1888,6 +1907,45 @@ export function WorkspacePage() {
             주요 이벤트
           </h2>
           {events.length > 0 && (
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowUnreadOnly((value) => !value)}
+                className="rounded-full border-0 px-3 py-2 tracking-tight transition-all hover:brightness-110"
+                style={{
+                  background: showUnreadOnly
+                    ? "rgba(var(--codedock-primary-rgb), 0.18)"
+                    : "rgba(255,255,255,0.045)",
+                  border: showUnreadOnly
+                    ? "1px solid rgba(var(--codedock-primary-rgb), 0.36)"
+                    : "1px solid rgba(255,255,255,0.08)",
+                  color: showUnreadOnly ? "var(--neon-cyan)" : "var(--muted)",
+                  cursor: "pointer",
+                  fontSize: "12px",
+                  fontWeight: 900
+                }}
+              >
+                {showUnreadOnly ? `읽지 않음만 ${unreadEventCount}` : "전체 보기"}
+              </button>
+              <button
+                type="button"
+                onClick={handleMarkAllEventsRead}
+                disabled={unreadEventCount === 0}
+                className="rounded-full border-0 px-3 py-2 tracking-tight transition-all hover:brightness-110"
+                style={{
+                  background: "rgba(255,255,255,0.045)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  color: unreadEventCount === 0 ? "rgba(255,255,255,0.25)" : "var(--muted)",
+                  cursor: unreadEventCount === 0 ? "default" : "pointer",
+                  fontSize: "12px",
+                  fontWeight: 900
+                }}
+              >
+                모두 읽음 처리
+              </button>
+            </div>
+          )}
+          {events.length > 0 && (
             <div className="mb-4 flex flex-wrap items-center gap-2">
               {DASHBOARD_EVENT_FILTERS.map((filter) => {
                 const selected = dashboardEventFilter === filter.value;
@@ -1945,7 +2003,9 @@ export function WorkspacePage() {
               </div>
             ) : visibleEvents.length === 0 ? (
               <p className="m-0 py-6 text-center tracking-tight" style={{ fontSize: "14px", fontWeight: 700, color: "var(--muted)" }}>
-                선택한 필터에 해당하는 이벤트가 없습니다.
+                {showUnreadOnly && unreadEventCount === 0
+                  ? "읽지 않은 이벤트가 없습니다. '전체 보기'로 지난 이벤트를 확인할 수 있어요."
+                  : "선택한 필터에 해당하는 이벤트가 없습니다."}
               </p>
             ) : (
               <div
