@@ -610,6 +610,39 @@ function parseWorkspaceApiId(value: unknown) {
   return Number.isFinite(numeric) ? numeric : null;
 }
 
+function getPendingEventTargetKind(event: WorkspaceEventDto) {
+  if (event.navigationType === "PR") return "pr";
+  if (event.navigationType === "ISSUE") return "issue";
+  if (event.navigationType === "THREAD") return "thread";
+  if (event.navigationType === "MENTION") return "mention";
+  if (event.navigationType === "CHANNEL") return "channel";
+  if (event.navigationType === "WORKSPACE") return "overview";
+  if (event.type === "PR_CREATED" || event.type === "PR_REVIEW") return "pr";
+  if (event.type === "ISSUE_CREATED") return "issue";
+  if (event.type === "MENTION") return "mention";
+  if (event.type === "REPLY") return "thread";
+  return "overview";
+}
+
+function getRepositoryNumericId(repo: RepositoryItem) {
+  const numericId = Number(repo.dbRepoId ?? repo.id.replace(/^repo-/, ""));
+  return Number.isFinite(numericId) ? numericId : null;
+}
+
+function findRepositoryForPendingEvent(
+  repositories: RepositoryItem[],
+  event: WorkspaceEventDto
+) {
+  const targetRepositoryId = event.repositoryId != null ? Number(event.repositoryId) : null;
+  const targetChannelId = event.channelId != null ? Number(event.channelId) : null;
+
+  return repositories.find((repo) => {
+    if (targetRepositoryId !== null && getRepositoryNumericId(repo) === targetRepositoryId) return true;
+    if (targetChannelId !== null && Number(repo.channelId) === targetChannelId) return true;
+    return Boolean(event.repositoryName && repo.name === event.repositoryName);
+  });
+}
+
 // "Seoilhyeon AIBE5_Algorithm_Study 10" → "AIBE5_Algorithm_Study"
 // trailing 숫자 토큰이 제거됐을 때만 첫 토큰(owner)도 제거
 function cleanChannelLabel(name: string): string {
@@ -712,30 +745,162 @@ function isRepositoryApiChannel(channel: Channel) {
 }
 
 type RepositoryMessageView = "pull-requests" | "issues" | "repository";
+// "이슈" — 소스 인코딩에 영향받지 않도록 코드포인트로 정의(본문 텍스트 분류용)
+const KOREAN_ISSUE_LABEL = String.fromCharCode(0xc774, 0xc288);
+const REPOSITORY_MESSAGE_CHANNEL_PREFIX = "repository-channel:";
+
+function getRepositoryMessageChannelId(view: "pull-requests" | "issues", repositoryApiChannelId?: number | null) {
+  return repositoryApiChannelId
+    ? `${REPOSITORY_MESSAGE_CHANNEL_PREFIX}${repositoryApiChannelId}:${view}`
+    : view;
+}
+
+function parseRepositoryMessageChannelId(channelId: string) {
+  if (!channelId.startsWith(REPOSITORY_MESSAGE_CHANNEL_PREFIX)) return null;
+
+  const rest = channelId.slice(REPOSITORY_MESSAGE_CHANNEL_PREFIX.length);
+  const separatorIndex = rest.indexOf(":");
+  if (separatorIndex < 0) return null;
+
+  const apiChannelId = Number(rest.slice(0, separatorIndex));
+  const view = rest.slice(separatorIndex + 1);
+  if (!Number.isFinite(apiChannelId)) return null;
+  if (view !== "pull-requests" && view !== "issues") return null;
+
+  return { apiChannelId, view };
+}
 
 function normalizeRepositoryAttachmentType(value: unknown) {
   return String(value ?? "").trim().toLowerCase().replace(/[_\s]+/g, "-");
 }
 
-function getRepositoryMessageViewFromAttachments(message: {
-  attachments?: Array<{ type?: unknown; attachmentType?: unknown }>;
-}): RepositoryMessageView {
-  const attachmentTypes = (message.attachments ?? []).map((attachment) =>
-    normalizeRepositoryAttachmentType(attachment.attachmentType ?? attachment.type)
-  );
+function isPullRequestRepositorySignal(value: unknown) {
+  const normalized = normalizeRepositoryAttachmentType(value);
+  if (!normalized) return false;
 
-  if (attachmentTypes.some((type) => type === "pr" || type === "pull-request" || type === "pullrequest")) {
+  return [
+    "pr",
+    "pull-request",
+    "pullrequest",
+    "pull-request-event",
+    "pullrequestevent",
+    "github-pr",
+    "github-pull-request",
+    "githubpullrequest",
+    "pr-event"
+  ].includes(normalized)
+    || normalized.startsWith("pull-request-")
+    || normalized.startsWith("github-pull-request-")
+    || normalized.startsWith("pr-");
+}
+
+function isIssueRepositorySignal(value: unknown) {
+  const normalized = normalizeRepositoryAttachmentType(value);
+  if (!normalized) return false;
+
+  return [
+    "issue",
+    "github-issue",
+    "githubissue",
+    "issue-event"
+  ].includes(normalized)
+    || normalized.startsWith("issue-")
+    || normalized.startsWith("github-issue-");
+}
+
+function getRepositoryMessageViewFromText(value: unknown): RepositoryMessageView | null {
+  const text = String(value ?? "").trim().toLowerCase();
+  if (!text) return null;
+
+  if (/\b(pull request|pull-request|pr)\s*#?\d+\b/.test(text) || /#\d+\s*(pr|pull request)\b/.test(text)) {
     return "pull-requests";
   }
 
-  if (attachmentTypes.some((type) => type === "issue")) {
+  if (/\b(prnumber|pr-number|pullrequestnumber|pull-request-number)\b/.test(text)) {
+    return "pull-requests";
+  }
+
+  if (
+    /\b(issue)\s*#?\d+\b/.test(text)
+    || new RegExp(`${KOREAN_ISSUE_LABEL}\\s*#?\\d+`).test(text)
+    || /#\d+\s*(issue)\b/.test(text)
+    || new RegExp(`#\\d+\\s*${KOREAN_ISSUE_LABEL}`).test(text)
+  ) {
     return "issues";
   }
+
+  if (/\b(issuenumber|issue-number)\b/.test(text)) {
+    return "issues";
+  }
+
+  return null;
+}
+
+function getRepositoryMessageViewFromAttachments(message: {
+  attachments?: Array<{ type?: unknown; attachmentType?: unknown; title?: unknown; detail?: unknown; meta?: unknown }>;
+  content?: unknown;
+  text?: unknown;
+  type?: unknown;
+  messageType?: unknown;
+  eventType?: unknown;
+}): RepositoryMessageView {
+  const attachmentSignals = (message.attachments ?? []).flatMap((attachment) => [
+    attachment.attachmentType,
+    attachment.type,
+    attachment.title,
+    attachment.detail,
+    attachment.meta
+  ]);
+
+  if (attachmentSignals.some(isPullRequestRepositorySignal)) {
+    return "pull-requests";
+  }
+
+  if (attachmentSignals.some(isIssueRepositorySignal)) {
+    return "issues";
+  }
+
+  const attachmentTextFallback = attachmentSignals
+    .map(getRepositoryMessageViewFromText)
+    .find((view): view is RepositoryMessageView => view === "pull-requests" || view === "issues");
+  if (attachmentTextFallback) return attachmentTextFallback;
+
+  const directSignals = [message.type, message.messageType, message.eventType];
+  if (directSignals.some(isPullRequestRepositorySignal)) return "pull-requests";
+  if (directSignals.some(isIssueRepositorySignal)) return "issues";
+
+  const textFallback =
+    getRepositoryMessageViewFromText(message.content)
+    ?? getRepositoryMessageViewFromText(message.text);
+  if (textFallback) return textFallback;
 
   return "repository";
 }
 
-function filterRepositoryMessagesForView<T extends { attachments?: Array<{ type?: unknown; attachmentType?: unknown }> }>(
+function getRepositoryMessageViewFromAttachment(attachment: {
+  type?: unknown;
+  attachmentType?: unknown;
+  title?: unknown;
+  detail?: unknown;
+  meta?: unknown;
+}): RepositoryMessageView | null {
+  const typeSignal = attachment.attachmentType ?? attachment.type;
+  if (isPullRequestRepositorySignal(typeSignal)) return "pull-requests";
+  if (isIssueRepositorySignal(typeSignal)) return "issues";
+
+  return getRepositoryMessageViewFromText(attachment.meta)
+    ?? getRepositoryMessageViewFromText(attachment.title)
+    ?? getRepositoryMessageViewFromText(attachment.detail);
+}
+
+function filterRepositoryMessagesForView<T extends {
+  attachments?: Array<{ type?: unknown; attachmentType?: unknown; title?: unknown; detail?: unknown; meta?: unknown }>;
+  content?: unknown;
+  text?: unknown;
+  type?: unknown;
+  messageType?: unknown;
+  eventType?: unknown;
+}>(
   messages: T[],
   view: RepositoryMessageView | null
 ) {
@@ -748,8 +913,13 @@ function filterRepositoryMessagesForView<T extends { attachments?: Array<{ type?
   return messages.filter((message) => getRepositoryMessageViewFromAttachments(message) === view);
 }
 
+function isRepositoryStructuralAttachment(attachment: { type?: unknown; attachmentType?: unknown }) {
+  const typeSignal = attachment.attachmentType ?? attachment.type;
+  return isPullRequestRepositorySignal(typeSignal) || isIssueRepositorySignal(typeSignal);
+}
+
 // 같은 이슈/PR 번호의 중복 스레드를 1개만 남기고, GitHub 생성 시각 오름차순으로 정렬한다(최신이 맨 아래 = 채팅 순서).
-function dedupeRepositoryMessagesByNumber<T extends { type?: unknown; prNumber?: unknown; issueNumber?: unknown; id?: unknown; githubCreatedAt?: unknown; backendMessageId?: unknown }>(list: T[]): T[] {
+function dedupeRepositoryMessagesByNumber<T extends { type?: unknown; prNumber?: unknown; issueNumber?: unknown; id?: unknown; githubCreatedAt?: unknown; backendMessageId?: unknown; clientMessageId?: unknown }>(list: T[]): T[] {
   const seen = new Set<string>();
   const out: T[] = [];
   for (const m of list) {
@@ -767,6 +937,55 @@ function dedupeRepositoryMessagesByNumber<T extends { type?: unknown; prNumber?:
     if (ts(a) !== ts(b)) return ts(a) - ts(b);
     return Number(a.backendMessageId ?? a.id ?? 0) - Number(b.backendMessageId ?? b.id ?? 0);
   });
+}
+
+function getRepositoryMessageIdentityKeys(message: { id?: unknown; backendMessageId?: unknown; clientMessageId?: unknown }) {
+  return [
+    message.backendMessageId != null ? `backend:${String(message.backendMessageId)}` : null,
+    message.id != null ? `id:${String(message.id)}` : null,
+    message.clientMessageId != null ? `client:${String(message.clientMessageId)}` : null
+  ].filter((key): key is string => Boolean(key));
+}
+
+function isPreservableRepositoryMessage(message: {
+  backendMessageId?: unknown;
+  backendChannelId?: unknown;
+  serverSyncState?: unknown;
+  pending?: unknown;
+  clientMessageId?: unknown;
+}) {
+  return message.serverSyncState === "realtime"
+    || message.serverSyncState === "pending"
+    || message.pending === true
+    || message.clientMessageId != null;
+}
+
+function mergeRepositoryMessages<T extends {
+  type?: unknown;
+  prNumber?: unknown;
+  issueNumber?: unknown;
+  id?: unknown;
+  githubCreatedAt?: unknown;
+  backendMessageId?: unknown;
+  backendChannelId?: unknown;
+  serverSyncState?: unknown;
+  pending?: unknown;
+  clientMessageId?: unknown;
+}>(
+  previous: T[] | undefined,
+  incoming: T[]
+) {
+  const incomingKeys = new Set(
+    incoming
+      .flatMap(getRepositoryMessageIdentityKeys)
+  );
+  const preserved = (previous ?? []).filter((message) => {
+    if (!isPreservableRepositoryMessage(message)) return false;
+    const keys = getRepositoryMessageIdentityKeys(message);
+    return keys.length > 0 && keys.every((key) => !incomingKeys.has(key));
+  });
+
+  return dedupeRepositoryMessagesByNumber([...incoming, ...preserved]);
 }
 
 function sortChannelsByDisplayOrder(channels: Channel[]) {
@@ -824,12 +1043,11 @@ const DELETED_MESSAGE_LABEL = "삭제된 메시지입니다.";
 // 표시하므로 일반 첨부 목록에서 제외한다.
 // 주의: api/erd/docs는 사용자가 직접 삽입하는 일반 첨부(meta는 짧은 라벨)이고 전용 렌더링이
 // 없으므로 여기서 제외하면 새로고침/서버 조회 후 카드가 사라진다 → pr/issue로만 한정한다.
-const STRUCTURAL_ATTACHMENT_TYPES = new Set(["pr", "issue"]);
-
 function mapChannelMessageToWorkspaceMessage(message: ChannelMessage) {
   const attachments = (message.attachments ?? [])
+    .filter((attachment) => !isRepositoryStructuralAttachment(attachment))
     .map(mapMessageAttachmentResponse)
-    .filter((attachment) => !STRUCTURAL_ATTACHMENT_TYPES.has(attachment.type));
+    .filter((attachment) => !isRepositoryStructuralAttachment(attachment));
   // The backend marks soft-deleted messages by replacing the content with a sentinel string.
   // Detect it here so a page refresh keeps the message in the "deleted" state (no edit/delete buttons).
   const isDeleted = message.isDeleted === true || message.content === DELETED_MESSAGE_CONTENT;
@@ -839,12 +1057,13 @@ function mapChannelMessageToWorkspaceMessage(message: ChannelMessage) {
 
   // GitHub bot issue notification — parse meta JSON from the issue attachment
   const issueAttachment = (message.attachments ?? []).find(
-    (a) => a.attachmentType === "issue" || a.type === "issue"
+    (a) => getRepositoryMessageViewFromAttachment(a) === "issues"
   );
   let issueFields: Record<string, unknown> = {};
   if (issueAttachment?.meta) {
     try {
       const parsed = JSON.parse(issueAttachment.meta);
+      if (parsed.issueNumber == null && parsed.number != null) parsed.issueNumber = parsed.number;
       // 우선순위 미설정 시 기본값 'medium'
       if (!parsed.issuePriority) parsed.issuePriority = 'medium';
       // 담당자 미설정 시 작성자로 fallback
@@ -866,12 +1085,14 @@ function mapChannelMessageToWorkspaceMessage(message: ChannelMessage) {
 
   // GitHub bot PR notification — parse meta JSON from the PR attachment
   const prAttachment = (message.attachments ?? []).find(
-    (a) => a.attachmentType === "pr" || a.type === "pr"
+    (a) => getRepositoryMessageViewFromAttachment(a) === "pull-requests"
   );
 let prFields: Record<string, unknown> = {};
   if (prAttachment?.meta) {
     try {
       const parsed = JSON.parse(prAttachment.meta);
+      if (parsed.prNumber == null && parsed.pullRequestNumber != null) parsed.prNumber = parsed.pullRequestNumber;
+      if (parsed.prNumber == null && parsed.number != null) parsed.prNumber = parsed.number;
       if (!parsed.aiRisk) parsed.aiRisk = 'Medium';
       if (parsed.approved === undefined) parsed.approved = 0;
       if (parsed.pending === undefined) parsed.pending = 0;
@@ -1547,7 +1768,7 @@ export function ChatPage() {
   }, [workspaceMembers]);
 
   useEffect(() => {
-    const state = location.state as { workspaceId?: string | number; pendingEvent?: WorkspaceEventDto } | null;
+    const state = location.state as { workspaceId?: string | number; pendingEvent?: WorkspaceEventDto; targetChannel?: string } | null;
     const pendingEvent = state?.pendingEvent ?? null;
     if (pendingEvent) pendingEventRef.current = pendingEvent;
 
@@ -1567,6 +1788,11 @@ export function ChatPage() {
           const nextWorkspace = target ?? workspaces[0];
           setSelectedWorkspace(toWorkspaceUiId(nextWorkspace.id));
           setContextWorkspaceId(nextWorkspace.id);
+          if (state?.targetChannel) {
+            setSelectedChannel(state.targetChannel);
+            const savedChannels = getSavedJson<Record<number, string>>(LAST_CHANNEL_KEY, {});
+            saveJson(LAST_CHANNEL_KEY, { ...savedChannels, [nextWorkspace.id]: state.targetChannel });
+          }
           // 확정된(복원/진입) 워크스페이스를 저장 — 로드 중 transient 값으로 덮어쓰지 않도록 명시 시점에만 저장
           saveJson(LAST_WORKSPACE_KEY, nextWorkspace.id);
         }
@@ -1776,14 +2002,6 @@ export function ChatPage() {
   const getWorkspaceDisplayedOnlineCount = useCallback(
     (workspace: WorkspaceItem) => Math.max(0, (workspace.membersOnline ?? 0) + selfOnlineCount),
     [selfOnlineCount]
-  );
-  const selectedChannelMessageKey = useMemo(
-    () => getWorkspaceScopedChatKey(currentWorkspaceApiId, selectedChannel),
-    [currentWorkspaceApiId, selectedChannel]
-  );
-  const getMessageChannelKey = useCallback(
-    (channelId: string) => getWorkspaceScopedChatKey(currentWorkspaceApiId, channelId),
-    [currentWorkspaceApiId]
   );
   const getThreadReplyStateKey = useCallback(
     (thread: any) => getWorkspaceScopedChatKey(currentWorkspaceApiId, getThreadKey(thread)),
@@ -2156,6 +2374,21 @@ export function ChatPage() {
       ? currentRepositoryApiChannelId
       : apiChannelIdByUiChannel[selectedChannel];
   const hasActiveApiChatChannel = activeApiChannelId !== undefined;
+  const resolveMessageChannelId = useCallback((channelId: string) => {
+    if ((channelId === "pull-requests" || channelId === "issues") && currentRepositoryApiChannelId) {
+      return getRepositoryMessageChannelId(channelId, currentRepositoryApiChannelId);
+    }
+
+    return channelId;
+  }, [currentRepositoryApiChannelId]);
+  const getMessageChannelKey = useCallback(
+    (channelId: string) => getWorkspaceScopedChatKey(currentWorkspaceApiId, resolveMessageChannelId(channelId)),
+    [currentWorkspaceApiId, resolveMessageChannelId]
+  );
+  const selectedChannelMessageKey = useMemo(
+    () => getMessageChannelKey(selectedChannel),
+    [getMessageChannelKey, selectedChannel]
+  );
 
   // pull-requests 탭 진입 시 GitHub API에서 PR 목록을 DB로 동기화한 뒤 메시지 재로드
   useEffect(() => {
@@ -2175,7 +2408,10 @@ export function ChatPage() {
         // attachment 기준으로 PR만 추려(이슈 교차 표시 방지), 번호 중복 제거. 순서는 서버 오름차순(최신이 아래) 유지.
         const visible = filterRepositoryMessagesForView(serverMessages, 'pull-requests');
         const mapped = dedupeRepositoryMessagesByNumber(visible.map(mapChannelMessageToWorkspaceMessage));
-        setMessages((prev) => ({ ...prev, [channelKey]: mapped }));
+        setMessages((prev) => ({
+          ...prev,
+          [channelKey]: mergeRepositoryMessages(prev[channelKey], mapped)
+        }));
       })
       .catch(() => { /* ignore */ });
 
@@ -2206,7 +2442,10 @@ export function ChatPage() {
         // attachment 기준으로 이슈만 추려(PR 교차 표시 방지), 번호 중복 제거. 순서는 서버 오름차순(최신이 아래) 유지.
         const visible = filterRepositoryMessagesForView(serverMessages, 'issues');
         const mapped = dedupeRepositoryMessagesByNumber(visible.map(mapChannelMessageToWorkspaceMessage));
-        setMessages((prev) => ({ ...prev, [channelKey]: mapped }));
+        setMessages((prev) => ({
+          ...prev,
+          [channelKey]: mergeRepositoryMessages(prev[channelKey], mapped)
+        }));
       })
       .catch(() => { /* ignore */ });
 
@@ -2533,6 +2772,19 @@ export function ChatPage() {
     setFocusedMessageTarget(null);
   }, [selectedChannel]);
 
+  const getBookmarkStateKeysForChannel = useCallback((channelId: number, preferredUiChannelId?: string) => {
+    const uiChannelId = preferredUiChannelId ?? apiChannelUiById[channelId] ?? String(channelId);
+    const keys = new Set([getMessageChannelKey(uiChannelId)]);
+    const apiChannel = apiChannels.find((channel) => Number(channel.id) === Number(channelId));
+
+    if (apiChannel && isRepositoryApiChannel(apiChannel)) {
+      keys.add(getMessageChannelKey(getRepositoryMessageChannelId("pull-requests", apiChannel.id)));
+      keys.add(getMessageChannelKey(getRepositoryMessageChannelId("issues", apiChannel.id)));
+    }
+
+    return Array.from(keys);
+  }, [apiChannelUiById, apiChannels, getMessageChannelKey]);
+
   const currentMessages = messages[selectedChannelMessageKey] || [];
   const currentChannelThreads = useMemo(
     () => currentMessages.map(mapMessageToChannelThread),
@@ -2559,18 +2811,28 @@ export function ChatPage() {
     const groups = new Map<string, {
       channelId: string;
       channelLabel: string;
-      items: Array<{ messageId: number; content: string }>;
+      items: Array<{ channelId?: string; messageId: number; content: string }>;
     }>();
 
     workspaceBookmarks.forEach((bookmark) => {
       const uiChannelId = apiChannelUiById[bookmark.channelId] ?? String(bookmark.channelId);
-      const channelStateKey = getMessageChannelKey(uiChannelId);
       const channelMeta = ALL_SIDEBAR_CHANNELS.find((channel) => channel.id === uiChannelId);
       const customChannel = allCustomChannels.find((channel) => channel.id === uiChannelId);
       const channelLabel = customChannel?.label ?? channelMeta?.label ?? `채널 #${bookmark.channelId}`;
-      const loadedMessage = (messages[channelStateKey] ?? []).find((item) =>
-        Number(item.backendMessageId ?? item.id) === Number(bookmark.messageId)
-      );
+      const candidateChannelStateKeys = getBookmarkStateKeysForChannel(bookmark.channelId, uiChannelId);
+      let loadedMessage: any | undefined;
+      let bookmarkTargetChannelId = uiChannelId;
+
+      for (const channelStateKey of candidateChannelStateKeys) {
+        const foundMessage = (messages[channelStateKey] ?? []).find((item) =>
+          Number(item.backendMessageId ?? item.id) === Number(bookmark.messageId)
+        );
+        if (foundMessage) {
+          loadedMessage = foundMessage;
+          bookmarkTargetChannelId = getChannelIdFromWorkspaceScopedChatKey(channelStateKey);
+          break;
+        }
+      }
       const existingGroup = groups.get(uiChannelId) ?? {
         channelId: uiChannelId,
         channelLabel,
@@ -2578,6 +2840,7 @@ export function ChatPage() {
       };
 
       existingGroup.items.push({
+        channelId: bookmarkTargetChannelId,
         messageId: bookmark.messageId,
         content: String(loadedMessage?.message ?? loadedMessage?.text ?? bookmark.content ?? `메시지 #${bookmark.messageId}`)
       });
@@ -2585,7 +2848,7 @@ export function ChatPage() {
     });
 
     return Array.from(groups.values());
-  }, [allCustomChannels, apiChannelUiById, getMessageChannelKey, messages, workspaceBookmarks]);
+  }, [allCustomChannels, apiChannelUiById, getBookmarkStateKeysForChannel, messages, workspaceBookmarks]);
   const apiThreadTargets = useMemo(() => {
     const threadTargets = new Map<number, { channelId: string; thread: any }>();
 
@@ -2594,8 +2857,10 @@ export function ChatPage() {
       if (workspaceId !== null && workspaceId !== currentWorkspaceApiId) return;
 
       const channelId = getChannelIdFromWorkspaceScopedChatKey(channelStateKey);
-      const isRepositorySubChannel = channelId === "pull-requests" || channelId === "issues";
-      if (!apiChannelIdByUiChannel[channelId] && !(isRepositorySubChannel && currentRepositoryApiChannelId)) return;
+      const repositorySubChannel = parseRepositoryMessageChannelId(channelId);
+      const isRepositorySubChannel = channelId === "pull-requests" || channelId === "issues" || repositorySubChannel !== null;
+      const repositoryApiChannelId = repositorySubChannel?.apiChannelId ?? currentRepositoryApiChannelId;
+      if (!apiChannelIdByUiChannel[channelId] && !(isRepositorySubChannel && repositoryApiChannelId)) return;
 
       channelMessages.forEach((message) => {
         const threadId = Number(message.backendMessageId ?? message.id);
@@ -2882,6 +3147,12 @@ export function ChatPage() {
     setSelectedThread(null);
     setSelectedPR(null);
     setSelectedIssue(null);
+  }, [selectedRepository]);
+
+  useEffect(() => {
+    setSelectedThread(null);
+    setSelectedPR(null);
+    setSelectedIssue(null);
     setRemoteTypingByChannel({});
     setRemoteTypingByThread({});
     // 이전 워크스페이스의 실시간 presence가 다른 워크스페이스 멤버 상태로 잘못 비치지 않도록 초기화.
@@ -2920,11 +3191,12 @@ export function ChatPage() {
 
     const nextBookmarks = bookmarks.reduce<Record<string, Record<number, boolean>>>((acc, bookmark) => {
       const uiChannelId = apiChannelUiById[bookmark.channelId] ?? String(bookmark.channelId);
-      const channelStateKey = getMessageChannelKey(uiChannelId);
-      acc[channelStateKey] = {
-        ...(acc[channelStateKey] ?? {}),
-        [bookmark.messageId]: true
-      };
+      getBookmarkStateKeysForChannel(bookmark.channelId, uiChannelId).forEach((channelStateKey) => {
+        acc[channelStateKey] = {
+          ...(acc[channelStateKey] ?? {}),
+          [bookmark.messageId]: true
+        };
+      });
       return acc;
     }, {});
 
@@ -2934,7 +3206,7 @@ export function ChatPage() {
       ),
       ...nextBookmarks
     }));
-  }, [apiChannelUiById, currentWorkspaceApiId, getMessageChannelKey]);
+  }, [apiChannelUiById, currentWorkspaceApiId, getBookmarkStateKeysForChannel]);
 
   useEffect(() => {
     if (!currentWorkspaceApiId) return;
@@ -2967,9 +3239,13 @@ export function ChatPage() {
     return () => controller.abort();
   }, [currentWorkspaceApiId]);
 
+  const isViewingMessageChannel = useCallback((channelId: string) => {
+    return getMessageChannelKey(channelId) === getMessageChannelKey(selectedChannelRef.current);
+  }, [getMessageChannelKey]);
+
   const incrementUnreadCount = useCallback((channelId: string) => {
-    if (channelId === selectedChannelRef.current) return;
     const channelStateKey = getMessageChannelKey(channelId);
+    if (channelStateKey === getMessageChannelKey(selectedChannelRef.current)) return;
 
     setChannelUnreadCounts((prev) => ({
       ...prev,
@@ -3059,23 +3335,33 @@ export function ChatPage() {
     setOptimisticMentionBumps((count) => Math.max(0, count - 1));
   }, [currentWorkspaceApiId]);
 
-  const setServerBookmarkState = useCallback((uiChannelId: string, messageId: number, bookmarked: boolean) => {
+  const setServerBookmarkState = useCallback((
+    uiChannelId: string,
+    messageId: number,
+    bookmarked: boolean,
+    apiChannelId?: number
+  ) => {
     setServerBookmarkedThreadsByChannel((prev) => {
-      const channelStateKey = getMessageChannelKey(uiChannelId);
-      const nextChannelBookmarks = { ...(prev[channelStateKey] ?? {}) };
+      const channelStateKeys = Number.isFinite(apiChannelId)
+        ? getBookmarkStateKeysForChannel(Number(apiChannelId), uiChannelId)
+        : [getMessageChannelKey(uiChannelId)];
+      const next = { ...prev };
 
-      if (bookmarked) {
-        nextChannelBookmarks[messageId] = true;
-      } else {
-        delete nextChannelBookmarks[messageId];
-      }
+      channelStateKeys.forEach((channelStateKey) => {
+        const nextChannelBookmarks = { ...(next[channelStateKey] ?? {}) };
 
-      return {
-        ...prev,
-        [channelStateKey]: nextChannelBookmarks
-      };
+        if (bookmarked) {
+          nextChannelBookmarks[messageId] = true;
+        } else {
+          delete nextChannelBookmarks[messageId];
+        }
+
+        next[channelStateKey] = nextChannelBookmarks;
+      });
+
+      return next;
     });
-  }, [getMessageChannelKey]);
+  }, [getBookmarkStateKeysForChannel, getMessageChannelKey]);
 
   const handleToggleThreadBookmark = useCallback((thread: any, nextBookmarked: boolean) => {
     const channelId = Number(thread.backendChannelId ?? activeApiChannelId);
@@ -3086,11 +3372,11 @@ export function ChatPage() {
 
     if (!Number.isFinite(channelId) || !Number.isFinite(messageId)) return;
 
-    setServerBookmarkState(uiChannelId, messageId, nextBookmarked);
+    setServerBookmarkState(uiChannelId, messageId, nextBookmarked, channelId);
 
     toggleMessageBookmark(channelId, messageId)
       .then((response) => {
-        setServerBookmarkState(uiChannelId, response.messageId, response.bookmarked);
+        setServerBookmarkState(uiChannelId, response.messageId, response.bookmarked, response.channelId);
         void getWorkspaceBookmarks(currentWorkspaceApiId)
           .then(applyWorkspaceBookmarks)
           .catch(() => {
@@ -3098,7 +3384,7 @@ export function ChatPage() {
           });
       })
       .catch(() => {
-        setServerBookmarkState(uiChannelId, messageId, !nextBookmarked);
+        setServerBookmarkState(uiChannelId, messageId, !nextBookmarked, channelId);
       });
   }, [activeApiChannelId, apiChannelUiById, applyWorkspaceBookmarks, currentWorkspaceApiId, selectedChannel, setServerBookmarkState]);
 
@@ -3138,13 +3424,29 @@ export function ChatPage() {
   }, [currentWorkspaceApiId]);
 
   const focusChannelMessage = useCallback((channelId: string, messageId: number) => {
-    keepFocusedMessageOnChannelChangeRef.current = channelId !== selectedChannelRef.current;
-    setSelectedChannel(channelId);
+    const repositorySubChannel = parseRepositoryMessageChannelId(channelId);
+    const targetChannelId = repositorySubChannel?.view ?? channelId;
+
+    if (repositorySubChannel) {
+      const repository = visibleRepositories.find((repo) => {
+        const apiChannel = repositoryApiChannelByRepoId[repo.id];
+        const repositoryChannelId = Number(repo.channelId ?? apiChannel?.id);
+        return Number.isFinite(repositoryChannelId)
+          && repositoryChannelId === repositorySubChannel.apiChannelId;
+      });
+
+      if (repository) {
+        setSelectedRepository(repository.id);
+      }
+    }
+
+    keepFocusedMessageOnChannelChangeRef.current = targetChannelId !== selectedChannelRef.current;
+    setSelectedChannel(targetChannelId);
     setSelectedThread(null);
     setSelectedPR(null);
     setSelectedIssue(null);
-    setFocusedMessageTarget({ channelId, messageId });
-  }, []);
+    setFocusedMessageTarget({ channelId: targetChannelId, messageId });
+  }, [repositoryApiChannelByRepoId, visibleRepositories]);
 
   // pending 실패 타임아웃 핸들을 clientMessageId로 추적 → 서버 확인이 도착하면 취소(오발동 방지).
   const pendingFailureTimeoutsRef = useRef<Record<string, number>>({});
@@ -3173,7 +3475,10 @@ export function ChatPage() {
   }, []);
 
   const appendServerMessage = useCallback((channelId: string, message: ChannelMessage) => {
-    const mappedMessage = mapChannelMessageToWorkspaceMessage(message);
+    const mappedMessage = {
+      ...mapChannelMessageToWorkspaceMessage(message),
+      serverSyncState: "realtime"
+    };
     const channelStateKey = getMessageChannelKey(channelId);
     const serverClientMessageId = message.clientMessageId ?? null;
 
@@ -3181,7 +3486,18 @@ export function ChatPage() {
     clearPendingFailureTimeout(serverClientMessageId);
 
     setMessages((prev) => {
-      const currentChannelMessages = prev[channelStateKey] || [];
+      const candidateChannelStateKeys = Number.isFinite(Number(message.channelId))
+        ? getBookmarkStateKeysForChannel(Number(message.channelId), channelId)
+        : [channelStateKey];
+      const pendingChannelStateKey = serverClientMessageId
+        ? candidateChannelStateKeys.find((candidateKey) =>
+          (prev[candidateKey] ?? []).some((item) =>
+            item.pending === true && item.clientMessageId === serverClientMessageId
+          )
+        )
+        : undefined;
+      const targetChannelStateKey = pendingChannelStateKey ?? channelStateKey;
+      const currentChannelMessages = prev[targetChannelStateKey] || [];
       const alreadyExists = currentChannelMessages.some((item) =>
         item.backendMessageId === message.id || (
           item.backendChannelId === message.channelId
@@ -3211,10 +3527,10 @@ export function ChatPage() {
 
       return {
         ...prev,
-        [channelStateKey]: [...withoutMatchingPending, mappedMessage]
+        [targetChannelStateKey]: [...withoutMatchingPending, mappedMessage]
       };
     });
-  }, [getMessageChannelKey, clearPendingFailureTimeout]);
+  }, [getBookmarkStateKeysForChannel, getMessageChannelKey, clearPendingFailureTimeout]);
 
   const replaceServerMessage = useCallback((channelId: string, message: ChannelMessage) => {
     const mappedMessage = mapChannelMessageToWorkspaceMessage(message);
@@ -3714,13 +4030,16 @@ export function ChatPage() {
     getChannelReactions(activeApiChannelId, {
       signal: controller.signal
     })
-      .then((summaries) => applyReactionSummaries(summaries, selectedChannel))
+      .then((summaries) => applyReactionSummaries(
+        summaries,
+        getChannelIdFromWorkspaceScopedChatKey(selectedChannelMessageKey)
+      ))
       .catch(() => {
         // Keep local reactions when the backend is unavailable.
       });
 
     return () => controller.abort();
-  }, [activeApiChannelId, applyReactionSummaries, selectedChannel]);
+  }, [activeApiChannelId, applyReactionSummaries, selectedChannelMessageKey]);
 
   useEffect(() => {
     if (!selectedThread || !activeApiChannelId) return;
@@ -3823,6 +4142,7 @@ export function ChatPage() {
   // every state update — e.g. appendServerMessage changing when a new message arrived).
   const wsChannelHandlersRef = useRef({
     appendServerMessage,
+    isViewingMessageChannel,
     isCurrentWorkspaceMember,
     incrementUnreadCount,
     markActiveChannelRead,
@@ -3840,6 +4160,7 @@ export function ChatPage() {
   useEffect(() => {
     wsChannelHandlersRef.current = {
       appendServerMessage,
+      isViewingMessageChannel,
       isCurrentWorkspaceMember,
       incrementUnreadCount,
       markActiveChannelRead,
@@ -3856,6 +4177,7 @@ export function ChatPage() {
     };
   }, [
     appendServerMessage,
+    isViewingMessageChannel,
     isCurrentWorkspaceMember,
     incrementUnreadCount,
     markActiveChannelRead,
@@ -3953,19 +4275,35 @@ export function ChatPage() {
             // repository 채널은 PR/이슈 탭이 같은 channelId를 구독하므로,
             // 실시간 메시지도 REST 조회와 같은 attachment type 기준으로 라우팅해야 새로고침 전후 화면이 섞이지 않는다.
             const repositoryMessageView = getRepositoryMessageViewFromAttachments(payload);
-            if (repositoryMessageView === "pull-requests") return "pull-requests";
-            if (repositoryMessageView === "issues") return "issues";
+            if (repositoryMessageView === "pull-requests") {
+              return getRepositoryMessageChannelId("pull-requests", channel.id);
+            }
+            if (repositoryMessageView === "issues") {
+              return getRepositoryMessageChannelId("issues", channel.id);
+            }
             return genericUiChannelId;
           }
 
           const selected = selectedChannelRef.current;
           if (selected === "pull-requests" || selected === "issues") {
-            return selected;
+            return getRepositoryMessageChannelId(selected, channel.id);
           }
 
           return wsChannelHandlersRef.current.claimedRepositoryChannelIds.has(channel.id)
-            ? "issues"
+            ? getRepositoryMessageChannelId("issues", channel.id)
             : genericUiChannelId;
+        };
+        const getRepositoryMutationUiChannelIds = (payload?: ChannelMessage) => {
+          const primaryUiChannelId = getRepositoryEventUiChannelId(payload);
+          if (!isRepositoryChannel || primaryUiChannelId !== genericUiChannelId) {
+            return [primaryUiChannelId];
+          }
+
+          return Array.from(new Set([
+            genericUiChannelId,
+            getRepositoryMessageChannelId("pull-requests", channel.id),
+            getRepositoryMessageChannelId("issues", channel.id)
+          ]));
         };
 
         return client!.subscribe<ChatEvent<ChannelEventPayload>>(
@@ -3981,7 +4319,7 @@ export function ChatPage() {
               const uiChannelId = getRepositoryEventUiChannelId(createdMessagePayload);
               ch.appendServerMessage(uiChannelId, createdMessagePayload);
               if (!ch.isCurrentWorkspaceMember(createdMessagePayload.senderMemberId)) {
-                if (uiChannelId === selectedChannelRef.current) {
+                if (ch.isViewingMessageChannel(uiChannelId)) {
                   // Viewing this channel: keep the server's read pointer in sync so a refresh shows 0.
                   ch.markActiveChannelRead(createdMessagePayload.channelId);
                 } else {
@@ -3993,22 +4331,32 @@ export function ChatPage() {
 
             const updatedMessagePayload = getChatEventPayload<ChannelMessage>(event, CHAT_EVENT_TYPE.MESSAGE_UPDATED);
             if (updatedMessagePayload) {
-              const uiChannelId = getRepositoryEventUiChannelId(updatedMessagePayload);
-              ch.replaceServerMessage(uiChannelId, updatedMessagePayload);
+              getRepositoryMutationUiChannelIds(updatedMessagePayload).forEach((uiChannelId) => {
+                ch.replaceServerMessage(uiChannelId, updatedMessagePayload);
+              });
               return;
             }
 
             const deletedMessagePayload = getChatEventPayload<ChannelMessage>(event, CHAT_EVENT_TYPE.MESSAGE_DELETED);
             if (deletedMessagePayload) {
-              const uiChannelId = getRepositoryEventUiChannelId(deletedMessagePayload);
-              ch.replaceServerMessage(uiChannelId, { ...deletedMessagePayload, isDeleted: true });
+              getRepositoryMutationUiChannelIds(deletedMessagePayload).forEach((uiChannelId) => {
+                ch.replaceServerMessage(uiChannelId, { ...deletedMessagePayload, isDeleted: true });
+              });
               return;
             }
 
             const reactionPayload = getChatEventPayload<ReactionToggleResponse>(event, CHAT_EVENT_TYPE.REACTION_UPDATED);
             if (reactionPayload) {
-              const uiChannelId = getRepositoryEventUiChannelId();
-              ch.applyReactionResponse(reactionPayload, uiChannelId);
+              const uiChannelIds = isRepositoryChannel
+                ? Array.from(new Set([
+                  genericUiChannelId,
+                  getRepositoryMessageChannelId("pull-requests", channel.id),
+                  getRepositoryMessageChannelId("issues", channel.id)
+                ]))
+                : [getRepositoryEventUiChannelId()];
+              uiChannelIds.forEach((uiChannelId) => {
+                ch.applyReactionResponse(reactionPayload, uiChannelId);
+              });
             }
           }
         );
@@ -5400,14 +5748,14 @@ export function ChatPage() {
   useEffect(() => {
     const pending = pendingEventRef.current;
     if (!pending) return;
-    if (pending.type === "MENTION" || pending.type === "REPLY") return; // 채널 처리는 아래에서
-    if (!pending.repositoryName) return;
-    const repo = repositories.find((r) => r.name === pending.repositoryName);
+    const pendingKind = getPendingEventTargetKind(pending);
+    if (pendingKind !== "pr" && pendingKind !== "issue") return; // 채널 처리는 아래에서
+    const repo = findRepositoryForPendingEvent(repositories, pending);
     if (!repo) return;
     setSelectedRepository(repo.id);
-    if (pending.type === "PR_CREATED" || pending.type === "PR_REVIEW") {
+    if (pendingKind === "pr") {
       setSelectedChannel("pull-requests");
-    } else if (pending.type === "ISSUE_CREATED") {
+    } else if (pendingKind === "issue") {
       setSelectedChannel("issues");
     }
   }, [repositories]);
@@ -5415,30 +5763,45 @@ export function ChatPage() {
   // pendingEvent: apiChannels 변경 시 MENTION·REPLY 채널 선택
   useEffect(() => {
     const pending = pendingEventRef.current;
-    if (!pending || (pending.type !== "MENTION" && pending.type !== "REPLY")) return;
+    if (!pending) return;
+    const pendingKind = getPendingEventTargetKind(pending);
+    if (pendingKind !== "mention" && pendingKind !== "thread" && pendingKind !== "channel") return;
     if (!pending.channelId) return;
     const uiChannelId = apiChannelUiById[pending.channelId];
-    if (uiChannelId) setSelectedChannel(uiChannelId);
+    if (uiChannelId) {
+      setSelectedChannel(uiChannelId);
+      if (pendingKind === "channel") pendingEventRef.current = null;
+    }
   }, [apiChannelUiById]);
 
   // pendingEvent: 메시지 로드 후 PR·이슈·스레드 패널 열기
   useEffect(() => {
     const pending = pendingEventRef.current;
     if (!pending) return;
-    if (pending.type === "PR_CREATED" || pending.type === "PR_REVIEW") {
-      if (!pending.prNumber) return;
-      const msg = currentMessages.find((m: any) => m.type === "pr" && m.prNumber === pending.prNumber);
+    const pendingKind = getPendingEventTargetKind(pending);
+    if (pendingKind === "pr") {
+      if (!pending.prNumber) {
+        pendingEventRef.current = null;
+        return;
+      }
+      const msg = currentMessages.find((m: any) => m.type === "pr" && Number(m.prNumber) === Number(pending.prNumber));
       if (!msg) return;
       handleReviewPR(msg);
       pendingEventRef.current = null;
-    } else if (pending.type === "ISSUE_CREATED") {
-      if (!pending.issueNumber) return;
-      const msg = currentMessages.find((m: any) => m.type === "issue" && m.issueNumber === pending.issueNumber);
+    } else if (pendingKind === "issue") {
+      if (!pending.issueNumber) {
+        pendingEventRef.current = null;
+        return;
+      }
+      const msg = currentMessages.find((m: any) => m.type === "issue" && Number(m.issueNumber) === Number(pending.issueNumber));
       if (!msg) return;
       handleViewIssue(msg);
       pendingEventRef.current = null;
-    } else if (pending.type === "MENTION" || pending.type === "REPLY") {
-      if (!pending.threadId) return;
+    } else if (pendingKind === "mention" || pendingKind === "thread") {
+      if (!pending.threadId) {
+        pendingEventRef.current = null;
+        return;
+      }
       const msg = currentMessages.find((m: any) => Number(m.backendMessageId ?? m.id) === pending.threadId);
       if (!msg) return;
       handleOpenThread(msg);
@@ -5483,6 +5846,12 @@ export function ChatPage() {
 
   const handleToggleReaction = (reactionKey: string, emoji: string) => {
     const unscopedReactionKey = getChannelIdFromWorkspaceScopedChatKey(reactionKey);
+    const reactionChannelMatch =
+      unscopedReactionKey.match(/^channel:(.+):(?:thread|message):\d+$/)
+      ?? unscopedReactionKey.match(/^thread:(.+):[^:]+:original$/)
+      ?? unscopedReactionKey.match(/^thread:(.+):[^:]+:reply:\d+$/);
+    const reactionChannelId =
+      reactionChannelMatch?.[1] ?? getChannelIdFromWorkspaceScopedChatKey(selectedChannelMessageKey);
     const reactionStateKey = getInteractionStateKey(unscopedReactionKey);
     const applyLocalReaction = () => {
       setMessageReactions((prev) => ({
@@ -5502,7 +5871,7 @@ export function ChatPage() {
       targetId: target.targetId,
       emoji
     })
-      .then((response) => applyReactionResponse(response))
+      .then((response) => applyReactionResponse(response, reactionChannelId))
       .catch(applyLocalReaction);
   };
 
@@ -7020,7 +7389,7 @@ export function ChatPage() {
                   selectedThread.replies ?? 0
                 )
               }
-              reactionScope={`thread:${selectedChannel}:${selectedThread.id}`}
+              reactionScope={`thread:${getChannelIdFromWorkspaceScopedChatKey(selectedChannelMessageKey)}:${selectedThread.id}`}
               reactions={currentMessageReactions}
               onClose={handleCloseThread}
               onSendReply={handleSendThreadReply}

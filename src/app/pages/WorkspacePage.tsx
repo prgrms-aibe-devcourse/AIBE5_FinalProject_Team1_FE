@@ -36,6 +36,12 @@ const DASHBOARD_EVENT_FILTERS: Array<{ value: DashboardEventFilter; label: strin
   { value: "REPLY", label: "답장" }
 ];
 
+function getWorkspaceEventTimestamp(event: WorkspaceEventDto) {
+  const occurredTime = new Date(event.occurredAt ?? "").getTime();
+  if (!Number.isNaN(occurredTime)) return occurredTime;
+  return new Date(event.createdAt).getTime();
+}
+
 const TEAM_SORT_OPTIONS: Array<{ value: SortOrder; label: string; color: string }> = [
   { value: "latest", label: "최신 순", color: "var(--neon-cyan)" },
   { value: "activity", label: "최근 활동 순", color: "var(--matrix-green)" },
@@ -1542,7 +1548,7 @@ export function WorkspacePage() {
 
   const sortedEvents = useMemo(() => {
     return [...events]
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      .sort((a, b) => getWorkspaceEventTimestamp(b) - getWorkspaceEventTimestamp(a));
   }, [events]);
 
   const visibleEvents = useMemo(() => {
@@ -1613,6 +1619,34 @@ export function WorkspacePage() {
     const hours = Math.floor(minutes / 60);
     if (hours < 24) return `${hours}시간 전`;
     return `${Math.floor(hours / 24)}일 전`;
+  };
+
+  const getEventDisplayTime = (event: WorkspaceEventDto) => {
+    const displayTime = event.occurredAt ?? event.createdAt;
+    return Number.isNaN(new Date(displayTime).getTime()) ? event.createdAt : displayTime;
+  };
+
+  const hasEventNavigationTarget = (event: WorkspaceEventDto) => {
+    switch (event.navigationType) {
+      case "PR":
+      case "ISSUE":
+        return Boolean(event.workspaceId && (event.repositoryId || event.repositoryName || event.channelId));
+      case "THREAD":
+      case "MENTION":
+      case "CHANNEL":
+        return Boolean(event.workspaceId && event.channelId);
+      default:
+        return Boolean(event.workspaceId && (event.channelId || event.repositoryId || event.repositoryName));
+    }
+  };
+
+  const navigateToEventTarget = (event: WorkspaceEventDto) => {
+    if (hasEventNavigationTarget(event)) {
+      navigate("/chat", { state: { workspaceId: event.workspaceId, pendingEvent: event } });
+      return;
+    }
+
+    navigate("/chat", { state: { workspaceId: event.workspaceId, targetChannel: "overview" } });
   };
 
   const normalizeEventEmoji = (value?: string | null) => {
@@ -1939,7 +1973,7 @@ export function WorkspacePage() {
                       setEvents((prev) => prev.map((e) => e.eventId === event.eventId ? { ...e, isRead: true } : e));
                       markEventAsRead(event.eventId).catch(() => {});
                     }
-                    navigate("/chat", { state: { pendingEvent: event } });
+                    navigateToEventTarget(event);
                   };
 
                   return (
@@ -1990,7 +2024,7 @@ export function WorkspacePage() {
                           </p>
                         </div>
                         <span className="flex-shrink-0 tracking-tight" style={{ fontSize: "12px", fontWeight: 700, color: "var(--muted)", whiteSpace: "nowrap" }}>
-                          {formatRelativeTime(event.createdAt)}
+                          {formatRelativeTime(getEventDisplayTime(event))}
                         </span>
                       </div>
                     </div>

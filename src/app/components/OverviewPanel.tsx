@@ -36,6 +36,7 @@ interface OverviewPanelProps {
     channelId: string;
     channelLabel: string;
     items: Array<{
+      channelId?: string;
       messageId: number;
       content: string;
     }>;
@@ -512,7 +513,7 @@ export function OverviewPanel({ repositories, onlineMembers, selectedRepositoryI
                     <button
                       key={`${group.channelId}-${item.messageId}`}
                       type="button"
-                      onClick={() => onOpenBookmark?.(group.channelId, item.messageId)}
+                      onClick={() => onOpenBookmark?.(item.channelId ?? group.channelId, item.messageId)}
                       disabled={!onOpenBookmark}
                       className="flex w-full items-start gap-3 rounded-xl border-0 px-3 py-2.5 text-left tracking-tight transition-all hover:translate-y-[-1px]"
                       style={{

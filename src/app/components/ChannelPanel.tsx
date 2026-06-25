@@ -159,7 +159,7 @@ function getThreadBody(thread: Thread) {
 
 export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, threads, reactions, replyCounts = {}, onOpenThread, selectedThreadId, focusedThreadId, onOpenInvite, onSendThread, onTypingChange, remoteTypingLabel, onToggleReaction, bookmarkedThreadIds, onToggleBookmark, onEditThread, onDeleteThread, onOpenProfile, onAddMessageAttachments, onDeleteMessageAttachment, myMemberId, myDisplayName, myAvatarUrl }: ChannelPanelProps) {
   const channelStorageId = storageScopeId ?? channelId ?? repoId ?? "general";
-  const reactionChannelId = channelId ?? repoId ?? "general";
+  const reactionChannelId = (storageScopeId ?? channelId ?? repoId ?? "general").replace(/^workspace:\d+:/, "");
   const channelStorageKey = `${CHANNEL_THREADS_KEY_PREFIX}:${channelStorageId}`;
   const bookmarkStorageKey = `codedock-channel-bookmarks:${channelStorageId}`;
   const [localThreads, setLocalThreads] = useState<Thread[]>(() =>
