@@ -97,6 +97,7 @@ interface ChatPanelProps {
   myAvatarUrl?: string;
   onTypingChange?: (typing: boolean) => void;
   remoteTypingLabel?: string;
+  isExpanded?: boolean;
 }
 
 const riskLabel: Record<NonNullable<Message["aiRisk"]>, string> = {
@@ -144,9 +145,10 @@ function getUserInitial(user?: string) {
 
 const COMPOSER_MIN_HEIGHT = 28;
 const COMPOSER_MAX_HEIGHT = 360;
+const COMPOSER_EXPANDED_MAX_HEIGHT = 560;
 
-function clampComposerHeight(height: number) {
-  return Math.min(COMPOSER_MAX_HEIGHT, Math.max(COMPOSER_MIN_HEIGHT, height));
+function clampComposerHeight(height: number, maxHeight = COMPOSER_MAX_HEIGHT) {
+  return Math.min(maxHeight, Math.max(COMPOSER_MIN_HEIGHT, height));
 }
 
 // Remembers each channel's scroll offset across remounts. Opening a PR/issue detail
@@ -156,7 +158,7 @@ const chatScrollPositions = new Map<string, number>();
 // How close to the bottom (px) still counts as "following the latest message".
 const CHAT_SCROLL_BOTTOM_THRESHOLD = 80;
 
-export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messages, reactions, replyCounts = {}, onSendMessage, onAddMessageAttachments, onDeleteMessageAttachment, onSharePR, showAISummary = true, onMergePR, onReviewPR, onViewIssue, onOpenThread, onOpenProfile, selectedThreadId, focusedThreadId, onToggleReaction, isRepository = false, myMemberId, myDisplayName, myAvatarUrl, onTypingChange, remoteTypingLabel }: ChatPanelProps) {
+export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messages, reactions, replyCounts = {}, onSendMessage, onAddMessageAttachments, onDeleteMessageAttachment, onSharePR, showAISummary = true, onMergePR, onReviewPR, onViewIssue, onOpenThread, onOpenProfile, selectedThreadId, focusedThreadId, onToggleReaction, isRepository = false, myMemberId, myDisplayName, myAvatarUrl, onTypingChange, remoteTypingLabel, isExpanded = false }: ChatPanelProps) {
   const bookmarkStorageKey = `codedock-chat-bookmarks:${bookmarkScopeId ?? channelId}`;
   const scrollScopeId = bookmarkScopeId ?? channelId;
   const displayCurrentUserName = myDisplayName?.trim() || currentUserDisplayName;
@@ -164,6 +166,7 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
   const displayCurrentUserAvatarUrl = myAvatarUrl?.trim() || "";
   const [message, setMessage] = useState('');
   const [composerHeight, setComposerHeight] = useState(COMPOSER_MIN_HEIGHT);
+  const composerMaxHeight = isExpanded ? COMPOSER_EXPANDED_MAX_HEIGHT : COMPOSER_MAX_HEIGHT;
   const [codeBlockText, setCodeBlockText] = useState('');
   const [codeBlockLanguage, setCodeBlockLanguage] = useState<CodeBlockLanguage>("javascript");
   type ActivePanel = 'code' | 'attachment' | 'emoji' | 'link' | null;
@@ -240,7 +243,7 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
     const resizeState = composerResizeRef.current;
     if (!resizeState) return;
 
-    setComposerHeight(clampComposerHeight(resizeState.startHeight + resizeState.startY - event.clientY));
+    setComposerHeight(clampComposerHeight(resizeState.startHeight + resizeState.startY - event.clientY, composerMaxHeight));
   };
 
   const handleComposerResizeEnd = (event: PointerEvent<HTMLButtonElement>) => {
@@ -249,6 +252,10 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
   };
+
+  useEffect(() => {
+    setComposerHeight((height) => clampComposerHeight(height, composerMaxHeight));
+  }, [composerMaxHeight]);
 
   useEffect(() => {
     if (!activePanel) return;
@@ -1909,7 +1916,7 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
               fontWeight: 700,
               height: `${composerHeight}px`,
               minHeight: `${COMPOSER_MIN_HEIGHT}px`,
-              maxHeight: `${COMPOSER_MAX_HEIGHT}px`,
+              maxHeight: `${composerMaxHeight}px`,
               overflowY: 'auto'
             }}
           />

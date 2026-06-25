@@ -7357,6 +7357,7 @@ export function ChatPage() {
                 onEditThread={handleEditThreadMessage}
                 onDeleteThread={handleDeleteThreadMessage}
                 onOpenProfile={handleOpenChatProfile}
+                isExpanded={isMainExpanded}
               />
             ) : REPO_CHANNEL_IDS_REVERSE[selectedChannel] !== undefined ? (
               <ChannelPanel
@@ -7399,6 +7400,7 @@ export function ChatPage() {
                 onEditThread={handleEditThreadMessage}
                 onDeleteThread={handleDeleteThreadMessage}
                 onOpenProfile={handleOpenChatProfile}
+                isExpanded={isMainExpanded}
               />
             ) : repositories.find(r => r.id === selectedChannel) ? (
               <ChannelPanel
@@ -7441,6 +7443,7 @@ export function ChatPage() {
                 onEditThread={handleEditThreadMessage}
                 onDeleteThread={handleDeleteThreadMessage}
                 onOpenProfile={handleOpenChatProfile}
+                isExpanded={isMainExpanded}
               />
             ) : selectedChannel === 'work-board' ? (
               <WorkBoardPanel
@@ -7507,6 +7510,7 @@ export function ChatPage() {
                 isRepository={isRepository}
                 onTypingChange={activeApiChannelId ? handleChannelTypingChange : undefined}
                 remoteTypingLabel={activeRemoteTypingLabel}
+                isExpanded={isMainExpanded}
               />
             )}
           </section>
