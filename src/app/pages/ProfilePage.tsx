@@ -25,7 +25,7 @@ import { useTheme } from "../contexts/ThemeContext";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useProfile, STATUS_OPTIONS, type ProfileUser, type ProfileStatus } from "../contexts/ProfileContext";
 import { apiClient } from "../api/client";
-import { ensureGithubAccountPickerUrl } from "../auth";
+import { clearTokens, ensureGithubAccountPickerUrl } from "../auth";
 
 type ProfileSection = "profile" | "account" | "github";
 
@@ -71,6 +71,7 @@ export function ProfilePage() {
   const { profile: user, setProfile: setUser, reloadProfile } = useProfile();
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
   const [formData, setFormData] = useState({
     name: user.name,
     nickname: user.nickname,
@@ -237,6 +238,23 @@ export function ProfilePage() {
     }
   };
 
+  const handleWithdraw = async () => {
+    if (isWithdrawing) return;
+    if (!window.confirm("회원탈퇴를 진행할까요? 계정과 인증 정보가 정리됩니다.")) return;
+    if (!window.confirm("정말 탈퇴하시겠어요? 이 작업은 되돌릴 수 없습니다.")) return;
+
+    setIsWithdrawing(true);
+    try {
+      await apiClient.delete<void>("/api/v1/users/me");
+      clearTokens();
+      navigate("/login", { replace: true });
+    } catch {
+      alert("회원탈퇴 처리에 실패했습니다. 잠시 후 다시 시도해주세요.");
+    } finally {
+      setIsWithdrawing(false);
+    }
+  };
+
   return (
     <div className="mx-auto w-[min(1120px,calc(100vw-36px))] py-12 pb-20">
       <button
@@ -331,7 +349,14 @@ export function ProfilePage() {
             />
           )}
 
-          {activeSection === "account" && <AccountSecuritySection user={user} colors={colors} />}
+          {activeSection === "account" && (
+            <AccountSecuritySection
+              user={user}
+              colors={colors}
+              isWithdrawing={isWithdrawing}
+              onWithdraw={handleWithdraw}
+            />
+          )}
 
           {activeSection === "github" && (
             <GithubSection
@@ -571,7 +596,17 @@ function AvatarEditor({
   );
 }
 
-function AccountSecuritySection({ user, colors }: { user: ProfileUser; colors: ThemeColors }) {
+function AccountSecuritySection({
+  user,
+  colors,
+  isWithdrawing,
+  onWithdraw
+}: {
+  user: ProfileUser;
+  colors: ThemeColors;
+  isWithdrawing: boolean;
+  onWithdraw: () => void;
+}) {
   const { language } = useLanguage();
   const isEnglish = language === "en";
   const securityCopy = isEnglish
@@ -604,6 +639,39 @@ function AccountSecuritySection({ user, colors }: { user: ProfileUser; colors: T
       </div>
 
       <PasswordChangeForm colors={colors} />
+
+      <div className="mt-5 rounded-[24px] px-5 py-5" style={{ background: "rgba(255,107,107,0.08)", border: "1px solid rgba(255,107,107,0.24)" }}>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-start gap-3">
+            <span className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-2xl" style={{ background: "rgba(255,107,107,0.12)", border: "1px solid rgba(255,107,107,0.24)", color: "#FF8A8A" }}>
+              <Trash2 size={20} />
+            </span>
+            <div>
+              <p className="m-0 text-base font-black" style={{ color: "var(--white)" }}>
+                회원탈퇴
+              </p>
+              <p className="m-0 mt-1 text-sm font-bold leading-[1.6]" style={{ color: "var(--muted)" }}>
+                현재 계정을 비활성화하고 저장된 인증 정보를 정리합니다. 탈퇴 후에는 다시 로그인해야 합니다.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onWithdraw}
+            disabled={isWithdrawing}
+            className="inline-flex flex-shrink-0 items-center justify-center gap-2 rounded-2xl border-0 px-5 py-3 text-sm font-black"
+            style={{
+              background: isWithdrawing ? "rgba(234,247,255,0.08)" : "rgba(255,107,107,0.14)",
+              border: isWithdrawing ? "1px solid rgba(234,247,255,0.12)" : "1px solid rgba(255,107,107,0.32)",
+              color: isWithdrawing ? "var(--muted)" : "#FF8A8A",
+              cursor: isWithdrawing ? "wait" : "pointer"
+            }}
+          >
+            <Trash2 size={16} />
+            {isWithdrawing ? "처리 중" : "회원탈퇴"}
+          </button>
+        </div>
+      </div>
 
       <div className="mt-5 rounded-[20px] px-5 py-4" style={{ background: "rgba(57,255,136,0.08)", border: "1px solid rgba(57,255,136,0.18)" }}>
         <div className="flex items-start gap-3">
