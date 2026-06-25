@@ -5842,7 +5842,8 @@ export function ChatPage() {
       if (!msg) return;
       focusChannelMessage(selectedChannelRef.current, Number(msg.backendMessageId ?? msg.id));
       pendingEventRef.current = null;
-    } else if (pendingKind === "mention" || pendingKind === "thread") {
+    } else if (pendingKind === "mention") {
+      // 멘션: @멘션이 포함된 메시지로 이동 + 강조
       if (!pending.threadId) {
         pendingEventRef.current = null;
         return;
@@ -5851,6 +5852,16 @@ export function ChatPage() {
       if (!msg) return;
       const uiChannelId = (pending.channelId != null ? apiChannelUiById[pending.channelId] : undefined) ?? selectedChannelRef.current;
       focusChannelMessage(uiChannelId, Number(msg.backendMessageId ?? msg.id));
+      pendingEventRef.current = null;
+    } else if (pendingKind === "thread") {
+      // 답장: 이벤트의 threadId는 "답장이 달린 원글" id이므로, 원글의 스레드를 열어 답장을 보여준다.
+      if (!pending.threadId) {
+        pendingEventRef.current = null;
+        return;
+      }
+      const msg = currentMessages.find((m: any) => Number(m.backendMessageId ?? m.id) === pending.threadId);
+      if (!msg) return;
+      handleOpenThread(msg);
       pendingEventRef.current = null;
     }
   }, [currentMessages]);
@@ -7387,6 +7398,7 @@ export function ChatPage() {
                 onOpenThread={handleOpenThread}
                 onOpenProfile={handleOpenChatProfile}
                 selectedThreadId={selectedThread?.id}
+                focusedThreadId={focusedMessageTarget?.channelId === selectedChannel ? focusedMessageTarget.messageId : undefined}
                 onToggleReaction={handleToggleReaction}
                 isRepository={isRepository}
                 onTypingChange={activeApiChannelId ? handleChannelTypingChange : undefined}

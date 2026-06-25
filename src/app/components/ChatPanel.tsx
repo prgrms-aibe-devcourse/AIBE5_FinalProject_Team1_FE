@@ -89,6 +89,7 @@ interface ChatPanelProps {
   onOpenThread?: (message: any) => void;
   onOpenProfile?: (message: Message) => void;
   selectedThreadId?: number | string;
+  focusedThreadId?: number | string; // 강조(스크롤+하이라이트)할 메시지 id
   onToggleReaction?: (reactionKey: string, emoji: string) => void;
   isRepository?: boolean;
   myMemberId?: number | null;
@@ -155,7 +156,7 @@ const chatScrollPositions = new Map<string, number>();
 // How close to the bottom (px) still counts as "following the latest message".
 const CHAT_SCROLL_BOTTOM_THRESHOLD = 80;
 
-export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messages, reactions, replyCounts = {}, onSendMessage, onAddMessageAttachments, onDeleteMessageAttachment, onSharePR, showAISummary = true, onMergePR, onReviewPR, onViewIssue, onOpenThread, onOpenProfile, selectedThreadId, onToggleReaction, isRepository = false, myMemberId, myDisplayName, myAvatarUrl, onTypingChange, remoteTypingLabel }: ChatPanelProps) {
+export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messages, reactions, replyCounts = {}, onSendMessage, onAddMessageAttachments, onDeleteMessageAttachment, onSharePR, showAISummary = true, onMergePR, onReviewPR, onViewIssue, onOpenThread, onOpenProfile, selectedThreadId, focusedThreadId, onToggleReaction, isRepository = false, myMemberId, myDisplayName, myAvatarUrl, onTypingChange, remoteTypingLabel }: ChatPanelProps) {
   const bookmarkStorageKey = `codedock-chat-bookmarks:${bookmarkScopeId ?? channelId}`;
   const scrollScopeId = bookmarkScopeId ?? channelId;
   const displayCurrentUserName = myDisplayName?.trim() || currentUserDisplayName;
@@ -193,6 +194,20 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
   const [responderTyping, setResponderTyping] = useState(false);
   const [localMessageReactions, setLocalMessageReactions] = useState<Record<string, MessageReaction[]>>({});
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  // 강조 대상 메시지로 1회 스크롤 (메시지가 비동기로 로드될 수 있어 등장 시점에 스크롤)
+  const messageElementRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const scrolledFocusRef = useRef<number | string | undefined>(undefined);
+  useEffect(() => {
+    if (focusedThreadId == null) {
+      scrolledFocusRef.current = undefined;
+      return;
+    }
+    if (scrolledFocusRef.current === focusedThreadId) return;
+    const target = messageElementRefs.current[String(focusedThreadId)];
+    if (!target) return;
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    scrolledFocusRef.current = focusedThreadId;
+  }, [focusedThreadId, messages]);
   // Whether the user is parked at the bottom (so new messages should follow) and whether
   // we just restored a saved position (so the bottom-scroll effect should skip once).
   const atBottomRef = useRef(true);
@@ -890,17 +905,31 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
               ? displayCurrentUserAvatarUrl
               : msg.avatarUrl?.trim() || "";
             const canOpenProfile = Boolean(onOpenProfile && !msg.deleted && msg.type !== "system");
+            const isFocusedMessage =
+              focusedThreadId != null
+              && (
+                String(msg.id) === String(focusedThreadId)
+                || String(msg.backendMessageId ?? "") === String(focusedThreadId)
+              );
 
             return (
             <div
               key={msg.id}
+              ref={(el) => {
+                messageElementRefs.current[String(msg.id)] = el;
+                if (msg.backendMessageId != null) messageElementRefs.current[String(msg.backendMessageId)] = el;
+              }}
               className="flex w-full flex-col gap-2 relative group"
               style={{
                 alignSelf: 'stretch',
                 width: '100%',
                 borderRadius: '12px',
-                outline: selectedThreadId === msg.id ? '2px solid rgba(32, 227, 255, 0.5)' : 'none',
+                outline: isFocusedMessage
+                  ? '2px solid var(--neon-cyan)'
+                  : selectedThreadId === msg.id ? '2px solid rgba(32, 227, 255, 0.5)' : 'none',
                 outlineOffset: '4px',
+                boxShadow: isFocusedMessage ? '0 0 0 4px rgba(32, 227, 255, 0.14)' : 'none',
+                transition: 'outline 0.2s, box-shadow 0.2s',
               }}
               onMouseEnter={() => setHoveredMessageId(msg.id)}
               onMouseLeave={() => setHoveredMessageId(null)}
