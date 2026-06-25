@@ -678,10 +678,10 @@ export function OverviewPanel({ repositories, onlineMembers, selectedRepositoryI
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <p className="m-0 truncate tracking-tight" style={{ color: "var(--white)", fontSize: 14, fontWeight: 950 }}>
-                      # {group.channelLabel}
+                      {`# ${group.channelLabel}`}
                     </p>
                     <p className="m-0 tracking-tight" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>
-                      {group.items.length}개 북마크
+                      {`${group.items.length}개 북마크`}
                     </p>
                   </div>
                   <span className="rounded-full px-2 py-0.5 tracking-tight" style={{
@@ -713,7 +713,7 @@ export function OverviewPanel({ repositories, onlineMembers, selectedRepositoryI
                       <Bookmark size={14} style={{ color: "var(--neon-cyan)", flexShrink: 0, marginTop: 2 }} />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate" style={{ color: "var(--white)", fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}>
-                          메시지 #{item.messageId}
+                          {`메시지 #${item.messageId}`}
                         </span>
                         <span className="block truncate" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>
                           {item.content}

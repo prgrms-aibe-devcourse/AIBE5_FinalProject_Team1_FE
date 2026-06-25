@@ -859,6 +859,7 @@ const patternTranslations: Array<[RegExp, (match: RegExpMatchArray) => string]> 
   [/^(.+) 반응$/, (match) => `${match[1]} reaction`],
   [/^(.+) 반응 (\d+)개$/, (match) => `${match[1]} reaction ${match[2]}`],
   [/^#(.+)에 메시지 보내기$/, (match) => `Message #${match[1]}`],
+  [/^# 채널 #(.+)$/, (match) => `# Channel #${match[1]}`],
   [/^메시지 #(.+)$/, (match) => `Message #${match[1]}`],
   [/^응답 (.+)$/, (match) => `Response ${match[1]}`],
   [/^(.+) (\d+)번 줄을 PR 스레드에 참조$/, (match) => `Reference ${match[1]} line ${match[2]} in the PR thread`],
