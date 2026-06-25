@@ -623,6 +623,11 @@ function getPendingEventTargetKind(event: WorkspaceEventDto) {
   if (event.type === "ISSUE_CREATED") return "issue";
   if (event.type === "MENTION") return "mention";
   if (event.type === "REPLY") return "thread";
+  // navigationType·type이 모두 불명확할 때, 페이로드로 추론(통합개요로 잘못 빠지는 것 방지)
+  if (event.prNumber != null) return "pr";
+  if (event.issueNumber != null) return "issue";
+  if (event.channelId != null && event.threadId != null) return "mention";
+  if (event.channelId != null) return "channel";
   return "overview";
 }
 
@@ -5831,7 +5836,7 @@ export function ChatPage() {
       }
       const msg = currentMessages.find((m: any) => m.type === "pr" && Number(m.prNumber) === Number(pending.prNumber));
       if (!msg) return;
-      focusChannelMessage(selectedChannelRef.current, Number(msg.backendMessageId ?? msg.id));
+      focusChannelMessage("pull-requests", Number(msg.backendMessageId ?? msg.id));
       pendingEventRef.current = null;
     } else if (pendingKind === "issue") {
       if (!pending.issueNumber) {
@@ -5840,9 +5845,11 @@ export function ChatPage() {
       }
       const msg = currentMessages.find((m: any) => m.type === "issue" && Number(m.issueNumber) === Number(pending.issueNumber));
       if (!msg) return;
-      focusChannelMessage(selectedChannelRef.current, Number(msg.backendMessageId ?? msg.id));
+      focusChannelMessage("issues", Number(msg.backendMessageId ?? msg.id));
       pendingEventRef.current = null;
     } else if (pendingKind === "mention" || pendingKind === "thread") {
+      // 멘션: @멘션이 포함된 메시지로 이동 + 강조
+      // 답장: threadId가 "답장 메시지" 자체를 가리키므로(BE에서 savedThread.id 기록) 동일하게 해당 메시지를 강조
       if (!pending.threadId) {
         pendingEventRef.current = null;
         return;
@@ -7387,6 +7394,7 @@ export function ChatPage() {
                 onOpenThread={handleOpenThread}
                 onOpenProfile={handleOpenChatProfile}
                 selectedThreadId={selectedThread?.id}
+                focusedThreadId={focusedMessageTarget?.channelId === selectedChannel ? focusedMessageTarget.messageId : undefined}
                 onToggleReaction={handleToggleReaction}
                 isRepository={isRepository}
                 onTypingChange={activeApiChannelId ? handleChannelTypingChange : undefined}
