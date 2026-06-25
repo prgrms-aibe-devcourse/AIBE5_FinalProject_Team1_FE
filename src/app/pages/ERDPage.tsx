@@ -881,7 +881,7 @@ export function ERDPage({ embedded = false, workspaceId }: ERDPageProps) {
                             {table.tableName}
                           </p>
                           {table.description && (
-                            <p className="m-0 mt-1 truncate" style={{
+                            <p className="m-0 mt-1 break-words" style={{
                               color: "var(--muted)",
                               fontSize: "var(--krds-body-xsmall)",
                               fontWeight: 800
