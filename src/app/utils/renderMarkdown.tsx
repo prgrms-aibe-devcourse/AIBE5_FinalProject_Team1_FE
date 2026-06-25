@@ -87,6 +87,78 @@ export function renderMarkdown(content: string): React.ReactNode[] {
       continue;
     }
 
+    if (trimmed.startsWith("|")) {
+      const tableLines: string[] = [];
+      while (i < lines.length && lines[i].trim().startsWith("|")) {
+        tableLines.push(lines[i].trim());
+        i++;
+      }
+      const sepIdx = tableLines.findIndex((l) => /^\|[\s\-:|]+\|/.test(l));
+      if (sepIdx < 0) {
+        tableLines.forEach((line, j) => {
+          nodes.push(
+            <p key={`pipe-${i}-${j}`} className="m-0 tracking-tight" style={{ color: "rgba(234, 247, 255, 0.82)", fontSize: "16px", fontWeight: 500, lineHeight: 1.85 }}>
+              {parseInline(line)}
+            </p>
+          );
+        });
+        continue;
+      }
+      const headerLine = sepIdx > 0 ? tableLines[0] : null;
+      const bodyLines = tableLines.slice(sepIdx + 1);
+      const parseRow = (line: string) => line.split("|").slice(1, -1).map((c) => c.trim());
+      nodes.push(
+        <div key={`table-${i}`} style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px" }}>
+            {headerLine && (
+              <thead>
+                <tr>
+                  {parseRow(headerLine).map((h, j) => (
+                    <th
+                      key={j}
+                      style={{
+                        padding: "10px 14px",
+                        textAlign: "left",
+                        fontWeight: 950,
+                        color: "var(--neon-cyan)",
+                        borderBottom: "2px solid rgba(var(--codedock-primary-rgb), 0.3)",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {parseInline(h)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+            )}
+            <tbody>
+              {bodyLines.map((row, j) => (
+                <tr
+                  key={j}
+                  style={{ borderBottom: "1px solid rgba(234, 247, 255, 0.06)" }}
+                >
+                  {parseRow(row).map((cell, k) => (
+                    <td
+                      key={k}
+                      style={{
+                        padding: "9px 14px",
+                        color: "rgba(234, 247, 255, 0.82)",
+                        fontWeight: 500,
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      {parseInline(cell)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+      continue;
+    }
+
     if (trimmed === "---" || trimmed === "***" || trimmed === "___") {
       nodes.push(
         <hr
