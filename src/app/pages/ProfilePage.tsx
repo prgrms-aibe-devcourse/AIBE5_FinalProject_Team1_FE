@@ -62,6 +62,29 @@ const SKILL_PRESETS = [
   "Tailwind CSS",
 ];
 
+function getGithubConnectFailureMessage(status?: string | null, reason?: string | null) {
+  const key = reason || status || "unknown";
+  switch (key) {
+    case "conflict":
+    case "github_already_connected":
+      return "이미 다른 계정에 연결된 GitHub입니다.";
+    case "invalid_state":
+      return "GitHub 연결 요청 상태가 유효하지 않습니다. 다시 시도해주세요.";
+    case "missing_code":
+      return "GitHub 인증 코드가 전달되지 않았습니다. 다시 연결해주세요.";
+    case "invalid_user":
+      return "현재 로그인 사용자 정보를 확인하지 못했습니다. 다시 로그인 후 시도해주세요.";
+    case "email_account_required":
+      return "이메일 계정으로 로그인한 사용자만 GitHub 계정을 변경할 수 있습니다.";
+    case "token_exchange_failed":
+      return "GitHub 토큰 교환에 실패했습니다. 잠시 후 다시 시도해주세요.";
+    case "identity_fetch_failed":
+      return "GitHub 사용자 정보를 가져오지 못했습니다. GitHub 권한을 확인해주세요.";
+    default:
+      return "GitHub 연결에 실패했습니다. 잠시 후 다시 시도해주세요.";
+  }
+}
+
 export function ProfilePage() {
   const navigate = useNavigate();
   const { colors } = useTheme();
@@ -202,12 +225,13 @@ export function ProfilePage() {
       const data = event.data;
       if (!data || data.type !== "github-connect") return;
       finish();
+      const reason = typeof data.reason === "string" ? data.reason : null;
       if (data.status === "success") {
         void reloadProfile();
       } else if (data.status === "conflict") {
         alert("이미 다른 계정에 연결된 GitHub입니다.");
       } else {
-        alert("GitHub 연결에 실패했습니다.");
+        alert(getGithubConnectFailureMessage(data.status, reason));
       }
     };
     const timer = window.setInterval(() => {
