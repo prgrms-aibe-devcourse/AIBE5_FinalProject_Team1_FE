@@ -39,8 +39,61 @@ export type GithubWebhookRegisterResponse = {
   active: boolean;
 };
 
+export type RepositoryActivityResponse = {
+  type: string | null;
+  id: number | null;
+  number: number | null;
+  title: string | null;
+  actor: string | null;
+  state: string | null;
+  occurredAt: string | null;
+};
+
+export type RepositoryPullRequestSummaryResponse = {
+  prId: number;
+  prNumber: number | null;
+  title: string | null;
+  author: string | null;
+  state: string | null;
+  changedFilesCount: number | null;
+  additions: number | null;
+  deletions: number | null;
+  updatedAt: string | null;
+};
+
+export type GithubRepositoryOverviewResponse = {
+  repositoryId: number;
+  workspaceId: number;
+  channelId: number | null;
+  owner: string;
+  name: string;
+  fullName: string;
+  url: string;
+  defaultBranch: string | null;
+  lastSyncedAt: string | null;
+  todayCommitCount: number;
+  openPrCount: number;
+  openIssueCount: number;
+  highRiskCount: number;
+  activeMemberCount: number;
+  codeQualityScore: number | null;
+  securityScore: number | null;
+  performanceScore: number | null;
+  recentActivities: RepositoryActivityResponse[];
+  openPullRequests: RepositoryPullRequestSummaryResponse[];
+};
+
 export function fetchWorkspaceRepositories(workspaceId: number): Promise<GithubConnectResponse[]> {
   return fetchWithAuth<GithubConnectResponse[]>(`/api/v1/workspaces/${workspaceId}/github`);
+}
+
+export function getWorkspaceRepositoryOverview(
+  workspaceId: number,
+  repositoryId: number
+): Promise<GithubRepositoryOverviewResponse> {
+  return fetchWithAuth<GithubRepositoryOverviewResponse>(
+    `/api/v1/workspaces/${workspaceId}/github/repositories/${repositoryId}/overview`
+  );
 }
 
 export function connectWorkspaceRepository(

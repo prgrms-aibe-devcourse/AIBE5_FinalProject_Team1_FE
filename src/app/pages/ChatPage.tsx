@@ -76,11 +76,13 @@ import { ApiClientError } from "../api/client";
 import {
   connectWorkspaceRepository,
   fetchWorkspaceRepositories,
+  getWorkspaceRepositoryOverview,
   registerWorkspaceRepositoryWebhook,
   syncRepositoryIssues,
   syncRepositoryIssueStatuses,
   syncRepositoryPullRequests,
-  syncRepositoryPrStatuses
+  syncRepositoryPrStatuses,
+  type GithubRepositoryOverviewResponse
 } from "../api/github";
 
 const APISpecPage = lazy(() => import("./APISpecPage").then((module) => ({ default: module.APISpecPage })));
@@ -181,6 +183,7 @@ interface RepositoryItem {
   workspaceId?: string;
   channelId?: number;   // 백엔드 repository channel DB id
   dbRepoId?: string;    // github_repositories DB id
+  overview?: GithubRepositoryOverviewResponse;
 }
 
 type RepositoryReference = Pick<RepositoryItem, "id" | "name" | "dbRepoId" | "channelId">;
@@ -2494,19 +2497,39 @@ export function ChatPage() {
 
   // 통합 개요 진입 시: 연결된 각 리포지토리의 채널 메시지를 동기화/로드해 PR·이슈·위험 카운트를 계산
   const [overviewCounts, setOverviewCounts] = useState<Record<string, { openPRs: number; activeIssues: number; highRisk: number }>>({});
+  const [repositoryOverviewById, setRepositoryOverviewById] = useState<Record<string, GithubRepositoryOverviewResponse>>({});
   useEffect(() => {
     if (selectedChannel !== 'overview') return;
     let cancelled = false;
     visibleRepositories.forEach((repo) => {
       const apiChannel = repositoryApiChannelByRepoId[repo.id];
-      if (!apiChannel) return;
-      const channelId = apiChannel.id;
+      const channelId = apiChannel?.id;
       const repoDbId = repo.dbRepoId != null
         ? Number(repo.dbRepoId)
         : Number(String(repo.id).replace('repo-', ''));
       (async () => {
+        if (Number.isFinite(repoDbId) && currentWorkspaceApiId > 0) {
+          try {
+            const overview = await getWorkspaceRepositoryOverview(currentWorkspaceApiId, repoDbId);
+            if (!cancelled) {
+              setRepositoryOverviewById((prev) => ({ ...prev, [repo.id]: overview }));
+              setOverviewCounts((prev) => ({
+                ...prev,
+                [repo.id]: {
+                  openPRs: overview.openPrCount,
+                  activeIssues: overview.openIssueCount,
+                  highRisk: overview.highRiskCount
+                }
+              }));
+            }
+            return;
+          } catch {
+            // 개요 API가 실패해도 기존 채널 메시지 기반 계산으로 통합 개요 화면을 유지한다.
+          }
+        }
         // DB 캐시로 먼저 카운트를 계산해 즉시 표시하고, GitHub 동기화는 백그라운드로 돌린 뒤 재계산한다.
         // (레포마다 sync 완료를 기다리던 기존 방식이 개요 표시를 크게 지연시켰다)
+        if (!channelId) return;
         const computeAndSet = async () => {
           const serverMessages = await getChannelMessages(channelId, { limit: 50 });
           const mapped = dedupeRepositoryMessagesByNumber(serverMessages.map(mapChannelMessageToWorkspaceMessage)) as any[];
@@ -2532,7 +2555,7 @@ export function ChatPage() {
       })();
     });
     return () => { cancelled = true; };
-  }, [selectedChannel, visibleRepositories, repositoryApiChannelByRepoId]);
+  }, [currentWorkspaceApiId, selectedChannel, visibleRepositories, repositoryApiChannelByRepoId]);
 
   const workspaceOnlineCount = getWorkspaceDisplayedOnlineCount(currentWorkspace);
   const overviewRepositories = useMemo(() => {
@@ -2543,10 +2566,11 @@ export function ChatPage() {
         openPRs: counts?.openPRs ?? repo.openPRs ?? 0,
         activeIssues: counts?.activeIssues ?? repo.activeIssues ?? 0,
         highRisk: counts?.highRisk ?? repo.highRisk ?? 0,
-        membersOnline: workspaceOnlineCount,
+        membersOnline: repositoryOverviewById[repo.id]?.activeMemberCount ?? workspaceOnlineCount,
+        overview: repositoryOverviewById[repo.id],
       };
     });
-  }, [visibleRepositories, overviewCounts, workspaceOnlineCount]);
+  }, [visibleRepositories, overviewCounts, workspaceOnlineCount, repositoryOverviewById]);
 
   const hasChatAccessToken = Boolean(getAccessToken());
   const realtimeConnectionBlockReason = useMemo<RealtimeConnectionReason | null>(() => {
