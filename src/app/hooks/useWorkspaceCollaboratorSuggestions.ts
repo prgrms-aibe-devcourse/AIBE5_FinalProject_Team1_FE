@@ -17,6 +17,9 @@ export function useWorkspaceCollaboratorSuggestions(
   const [suggestions, setSuggestions] = useState<InviteDraft[]>([]);
 
   useEffect(() => {
+    // 추천은 워크스페이스 단위 데이터이므로, 비활성/워크스페이스 변경 시 이전 추천을 먼저 비운다.
+    // (그렇지 않으면 다른 워크스페이스에서 조회가 끝나기 전까지 직전 워크스페이스의 추천이 노출/선택될 수 있음)
+    setSuggestions([]);
     if (!enabled || !workspaceApiId) return;
     let cancelled = false;
 
