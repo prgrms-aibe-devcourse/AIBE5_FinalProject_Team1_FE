@@ -4,10 +4,11 @@ export function OAuthConnectCallbackPage() {
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         const status = params.get("status");
+        const reason = params.get("reason");
 
         if (window.opener) {
             window.opener.postMessage(
-                { type: "github-connect", status },
+                { type: "github-connect", status, reason },
                 window.location.origin
             );
         }

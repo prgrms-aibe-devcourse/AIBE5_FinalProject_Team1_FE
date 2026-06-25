@@ -61,14 +61,16 @@ interface ChannelPanelProps {
   myMemberId?: number | null;
   myDisplayName?: string;
   myAvatarUrl?: string;
+  isExpanded?: boolean;
 }
 
 const CHANNEL_THREADS_KEY_PREFIX = "codedock-channel-threads-v1";
 const COMPOSER_MIN_HEIGHT = 28;
 const COMPOSER_MAX_HEIGHT = 360;
+const COMPOSER_EXPANDED_MAX_HEIGHT = 560;
 
-function clampComposerHeight(height: number) {
-  return Math.min(COMPOSER_MAX_HEIGHT, Math.max(COMPOSER_MIN_HEIGHT, height));
+function clampComposerHeight(height: number, maxHeight = COMPOSER_MAX_HEIGHT) {
+  return Math.min(maxHeight, Math.max(COMPOSER_MIN_HEIGHT, height));
 }
 
 const GENERAL_THREADS: Thread[] = [
@@ -157,7 +159,7 @@ function getThreadBody(thread: Thread) {
   return thread.message ?? (thread as any).text ?? "";
 }
 
-export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, threads, reactions, replyCounts = {}, onOpenThread, selectedThreadId, focusedThreadId, onOpenInvite, onSendThread, onTypingChange, remoteTypingLabel, onToggleReaction, bookmarkedThreadIds, onToggleBookmark, onEditThread, onDeleteThread, onOpenProfile, onAddMessageAttachments, onDeleteMessageAttachment, myMemberId, myDisplayName, myAvatarUrl }: ChannelPanelProps) {
+export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, threads, reactions, replyCounts = {}, onOpenThread, selectedThreadId, focusedThreadId, onOpenInvite, onSendThread, onTypingChange, remoteTypingLabel, onToggleReaction, bookmarkedThreadIds, onToggleBookmark, onEditThread, onDeleteThread, onOpenProfile, onAddMessageAttachments, onDeleteMessageAttachment, myMemberId, myDisplayName, myAvatarUrl, isExpanded = false }: ChannelPanelProps) {
   const channelStorageId = storageScopeId ?? channelId ?? repoId ?? "general";
   const reactionChannelId = (storageScopeId ?? channelId ?? repoId ?? "general").replace(/^workspace:\d+:/, "");
   const channelStorageKey = `${CHANNEL_THREADS_KEY_PREFIX}:${channelStorageId}`;
@@ -192,6 +194,7 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
   const [hoveredMessageId, setHoveredMessageId] = useState<number | null>(null);
   const [messageText, setMessageText] = useState("");
   const [composerHeight, setComposerHeight] = useState(COMPOSER_MIN_HEIGHT);
+  const composerMaxHeight = isExpanded ? COMPOSER_EXPANDED_MAX_HEIGHT : COMPOSER_MAX_HEIGHT;
   const [codeBlockText, setCodeBlockText] = useState("");
   const [codeBlockLanguage, setCodeBlockLanguage] = useState<CodeBlockLanguage>("javascript");
   type ActivePanel = 'code' | 'attachment' | 'emoji' | 'link' | null;
@@ -248,7 +251,7 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
     const resizeState = composerResizeRef.current;
     if (!resizeState) return;
 
-    setComposerHeight(clampComposerHeight(resizeState.startHeight + resizeState.startY - event.clientY));
+    setComposerHeight(clampComposerHeight(resizeState.startHeight + resizeState.startY - event.clientY, composerMaxHeight));
   };
 
   const handleComposerResizeEnd = (event: PointerEvent<HTMLButtonElement>) => {
@@ -257,6 +260,10 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
   };
+
+  useEffect(() => {
+    setComposerHeight((height) => clampComposerHeight(height, composerMaxHeight));
+  }, [composerMaxHeight]);
 
   useEffect(() => {
     if (!activePanel) return;
@@ -378,8 +385,7 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
     ? selectedAttachments.length > 0
     : messageText.trim().length > 0 || codeBlockText.trim().length > 0 || selectedAttachments.length > 0;
   const composerTyping = messageText.trim().length > 0;
-  const localTypingLabel = composerTyping ? "내가 입력 중입니다" : "";
-  const typingLabel = remoteTypingLabel || localTypingLabel;
+  const typingLabel = remoteTypingLabel || "";
 
   useEffect(() => {
     if (typingDebounceRef.current) {
@@ -1482,7 +1488,7 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
                 fontWeight: 700,
                 height: `${composerHeight}px`,
                 minHeight: `${COMPOSER_MIN_HEIGHT}px`,
-                maxHeight: `${COMPOSER_MAX_HEIGHT}px`,
+                maxHeight: `${composerMaxHeight}px`,
                 overflowY: 'auto'
               }}
             />

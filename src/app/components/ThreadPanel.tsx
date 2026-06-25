@@ -116,8 +116,7 @@ export function ThreadPanel({ originalMessage, replies, displayReplyCount, react
   };
 
   const composerTyping = replyText.trim().length > 0;
-  const localTypingLabel = composerTyping ? "내가 답글 입력 중입니다" : "";
-  const typingLabel = remoteTypingLabel || localTypingLabel;
+  const typingLabel = remoteTypingLabel || "";
 
   useEffect(() => {
     if (!onTypingChange) return;

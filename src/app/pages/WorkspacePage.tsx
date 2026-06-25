@@ -1925,7 +1925,7 @@ export function WorkspacePage() {
                   fontWeight: 900
                 }}
               >
-                {showUnreadOnly ? `읽지 않음만 ${unreadEventCount}` : "전체 보기"}
+                {showUnreadOnly ? `안 읽은 이벤트 ${unreadEventCount}` : "전체 이벤트"}
               </button>
               <button
                 type="button"
@@ -1941,7 +1941,7 @@ export function WorkspacePage() {
                   fontWeight: 900
                 }}
               >
-                모두 읽음 처리
+                모두 읽음
               </button>
             </div>
           )}
@@ -1968,7 +1968,7 @@ export function WorkspacePage() {
                       fontWeight: 900
                     }}
                   >
-                    {filter.label} {dashboardEventCounts[filter.value]}
+                    {`${filter.label} ${dashboardEventCounts[filter.value]}`}
                   </button>
                 );
               })}
@@ -2004,8 +2004,8 @@ export function WorkspacePage() {
             ) : visibleEvents.length === 0 ? (
               <p className="m-0 py-6 text-center tracking-tight" style={{ fontSize: "14px", fontWeight: 700, color: "var(--muted)" }}>
                 {showUnreadOnly && unreadEventCount === 0
-                  ? "읽지 않은 이벤트가 없습니다. '전체 보기'로 지난 이벤트를 확인할 수 있어요."
-                  : "선택한 필터에 해당하는 이벤트가 없습니다."}
+                  ? "안 읽은 이벤트가 없어요. 전체 이벤트에서 지난 활동을 확인할 수 있어요."
+                  : "선택한 필터에 해당하는 이벤트가 없어요."}
               </p>
             ) : (
               <div

@@ -16,6 +16,7 @@ import {
   Zap
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { GithubRepositoryOverviewResponse } from "../api/github";
 
 interface OverviewRepository {
   id: string;
@@ -25,6 +26,7 @@ interface OverviewRepository {
   activeIssues: number;
   connected: boolean;
   membersOnline: number;
+  overview?: GithubRepositoryOverviewResponse;
 }
 
 interface OverviewPanelProps {
@@ -44,7 +46,37 @@ interface OverviewPanelProps {
   onOpenBookmark?: (channelId: string, messageId: number) => void;
 }
 
-const repositoryDetails = {
+type OverviewActivityItem = {
+  user: string;
+  action: string;
+  time: string;
+  icon: string;
+};
+
+type OverviewPullRequestItem = {
+  number: number;
+  title: string;
+  author: string;
+  status: string;
+  reviewers?: number;
+  comments?: number;
+  changedFilesCount?: number | null;
+  additions?: number | null;
+  deletions?: number | null;
+  updatedAt?: string | null;
+};
+
+type RepositoryDetails = {
+  commitsToday: number;
+  codeQuality: number | null;
+  securityScore: number | null;
+  performance: number | null;
+  summary: string;
+  recentActivity: OverviewActivityItem[];
+  activePRs: OverviewPullRequestItem[];
+};
+
+const repositoryDetails: Record<string, RepositoryDetails> = {
   secureflow: {
     commitsToday: 24,
     codeQuality: 87,
@@ -96,7 +128,85 @@ const repositoryDetails = {
   }
 };
 
-const fallbackDetails = repositoryDetails.secureflow;
+const fallbackDetails: RepositoryDetails = repositoryDetails.secureflow;
+
+function normalizeOverviewScore(value: number | null | undefined, fallback: number | null = null) {
+  if (value === null || value === undefined) return fallback;
+  return Math.max(0, Math.min(100, value ?? fallback));
+}
+
+function formatOverviewRelativeTime(value?: string | null) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value.split(".")[0].replace("T", " ");
+  const diffMs = Date.now() - date.getTime();
+  const diffMinutes = Math.max(0, Math.floor(diffMs / 60000));
+  if (diffMinutes < 1) return "방금 전";
+  if (diffMinutes < 60) return `${diffMinutes}분 전`;
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours}시간 전`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) return `${diffDays}일 전`;
+  return new Intl.DateTimeFormat("ko-KR", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(date);
+}
+
+function getOverviewActivityIcon(type?: string | null) {
+  const normalizedType = String(type ?? "").toLowerCase();
+  if (normalizedType.includes("commit")) return "commit";
+  if (normalizedType.includes("pull") || normalizedType === "pr") return "pr";
+  if (normalizedType.includes("merge")) return "merge";
+  if (normalizedType.includes("risk") || normalizedType.includes("alert") || normalizedType.includes("issue")) return "alert";
+  return "clock";
+}
+
+function getOverviewActivityAction(activity: GithubRepositoryOverviewResponse["recentActivities"][number]) {
+  const title = activity.title?.trim() || "활동";
+  const number = activity.number != null ? `#${activity.number} ` : "";
+  const state = activity.state ? ` (${activity.state})` : "";
+  return `${number}${title}${state}`;
+}
+
+function normalizeOverviewPrStatus(state?: string | null) {
+  const normalizedState = String(state ?? "").toLowerCase();
+  if (normalizedState.includes("approved")) return "Approved";
+  if (normalizedState.includes("change")) return "Changes Requested";
+  if (normalizedState.includes("closed") || normalizedState.includes("merged")) return "Merged";
+  return "In Review";
+}
+
+function mapRepositoryOverviewToDetails(
+  repository: OverviewRepository,
+  overview: GithubRepositoryOverviewResponse
+): RepositoryDetails {
+  return {
+    commitsToday: overview.todayCommitCount ?? 0,
+    codeQuality: normalizeOverviewScore(overview.codeQualityScore),
+    securityScore: normalizeOverviewScore(overview.securityScore),
+    performance: normalizeOverviewScore(overview.performanceScore),
+    summary: `${overview.fullName || repository.name}의 최신 활동, 진행 중인 PR, 품질 지표를 백엔드 실데이터로 보여줍니다.`,
+    recentActivity: (overview.recentActivities ?? []).map((activity) => ({
+      user: activity.actor?.trim() || "GitHub Bot",
+      action: getOverviewActivityAction(activity),
+      time: formatOverviewRelativeTime(activity.occurredAt),
+      icon: getOverviewActivityIcon(activity.type)
+    })),
+    activePRs: (overview.openPullRequests ?? []).map((pr) => ({
+      number: pr.prNumber ?? pr.prId,
+      title: pr.title?.trim() || "제목 없음",
+      author: pr.author?.trim() || "unknown",
+      changedFilesCount: pr.changedFilesCount,
+      additions: pr.additions,
+      deletions: pr.deletions,
+      updatedAt: pr.updatedAt,
+      status: normalizeOverviewPrStatus(pr.state)
+    }))
+  };
+}
 
 function getStatusColor(status: string) {
   switch (status) {
@@ -124,7 +234,8 @@ function getStatusLabel(status: string) {
   }
 }
 
-function getHealthColor(score: number) {
+function getHealthColor(score: number | null) {
+  if (score === null) return "var(--muted)";
   if (score >= 90) return "var(--matrix-green)";
   if (score >= 70) return "#FFD93D";
   return "#FF6B6B";
@@ -237,7 +348,9 @@ export function OverviewPanel({ repositories, onlineMembers, selectedRepositoryI
   const scrollRootRef = useRef<HTMLDivElement | null>(null);
   const activeRepository = repositories.find((repo) => repo.id === activeRepositoryId);
   const activeDetails = activeRepository
-    ? repositoryDetails[activeRepository.id as keyof typeof repositoryDetails] ?? fallbackDetails
+    ? activeRepository.overview
+      ? mapRepositoryOverviewToDetails(activeRepository, activeRepository.overview)
+      : repositoryDetails[activeRepository.id as keyof typeof repositoryDetails] ?? fallbackDetails
     : null;
 
   const integratedStats = useMemo(() => {
@@ -315,10 +428,10 @@ export function OverviewPanel({ repositories, onlineMembers, selectedRepositoryI
         </div>
 
         <div className="mb-5 grid grid-cols-2 gap-4 xl:grid-cols-4">
-          <StatCard icon={GitCommit} label="오늘 커밋" value={activeDetails.commitsToday} helper="+12%" />
-          <StatCard icon={GitPullRequest} label="진행 중인 PR" value={activeRepository.openPRs} helper="리뷰 대기 포함" />
-          <StatCard icon={AlertCircle} label="높은 위험" value={activeRepository.highRisk} color={activeRepository.highRisk > 0 ? "#FF6B6B" : "var(--matrix-green)"} />
-          <StatCard icon={Users} label="접속 중인 팀원" value={activeRepository.membersOnline} helper="활성 팀원" />
+          <StatCard icon={GitCommit} label="오늘 커밋" value={activeDetails.commitsToday} />
+          <StatCard icon={GitPullRequest} label="진행 중인 PR" value={activeRepository.overview?.openPrCount ?? activeRepository.openPRs} helper="리뷰 대기 포함" />
+          <StatCard icon={AlertCircle} label="높은 위험" value={activeRepository.overview?.highRiskCount ?? activeRepository.highRisk} color={(activeRepository.overview?.highRiskCount ?? activeRepository.highRisk) > 0 ? "#FF6B6B" : "var(--matrix-green)"} />
+          <StatCard icon={Users} label="접속 중인 팀원" value={activeRepository.overview?.activeMemberCount ?? activeRepository.membersOnline} helper="활성 팀원" />
         </div>
 
         <div className="mb-5 grid gap-5 xl:grid-cols-2">
@@ -330,7 +443,7 @@ export function OverviewPanel({ repositories, onlineMembers, selectedRepositoryI
               최근 활동
             </h3>
             <div className="grid gap-3">
-              {activeDetails.recentActivity.map((activity, idx) => (
+              {activeDetails.recentActivity.length > 0 ? activeDetails.recentActivity.map((activity, idx) => (
                 <div key={`${activity.time}-${idx}`} className="flex items-start gap-3">
                   <div className="mt-0.5 shrink-0">{getActivityIcon(activity.icon)}</div>
                   <div className="min-w-0 flex-1">
@@ -342,7 +455,11 @@ export function OverviewPanel({ repositories, onlineMembers, selectedRepositoryI
                     </p>
                   </div>
                 </div>
-              ))}
+              )) : (
+                <p className="m-0 rounded-xl px-4 py-3 tracking-tight" style={{ background: "rgba(234, 247, 255, 0.045)", color: "var(--muted)", fontSize: 13, fontWeight: 850 }}>
+                  최근 활동이 없습니다.
+                </p>
+              )}
             </div>
           </section>
 
@@ -354,8 +471,9 @@ export function OverviewPanel({ repositories, onlineMembers, selectedRepositoryI
               진행 중인 PR
             </h3>
             <div className="grid gap-3">
-              {activeDetails.activePRs.map((pr) => {
+              {activeDetails.activePRs.length > 0 ? activeDetails.activePRs.map((pr) => {
                 const status = getStatusColor(pr.status);
+                const hasChangeStats = pr.changedFilesCount !== undefined || pr.additions !== undefined || pr.deletions !== undefined;
                 return (
                   <div key={pr.number} className="rounded-xl px-4 py-3" style={{
                     background: "rgba(234, 247, 255, 0.045)",
@@ -377,12 +495,25 @@ export function OverviewPanel({ repositories, onlineMembers, selectedRepositoryI
                     </div>
                     <div className="flex flex-wrap gap-3">
                       <span style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>{pr.author}</span>
-                      <span style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>리뷰어 {pr.reviewers}명</span>
-                      <span style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>댓글 {pr.comments}개</span>
+                      {hasChangeStats ? (
+                        <>
+                          <span style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>변경 파일 {pr.changedFilesCount ?? 0}개</span>
+                          <span style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>+{pr.additions ?? 0} / -{pr.deletions ?? 0}</span>
+                        </>
+                      ) : (
+                        <>
+                          <span style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>리뷰어 {pr.reviewers ?? 0}명</span>
+                          <span style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>댓글 {pr.comments ?? 0}개</span>
+                        </>
+                      )}
                     </div>
                   </div>
                 );
-              })}
+              }) : (
+                <p className="m-0 rounded-xl px-4 py-3 tracking-tight" style={{ background: "rgba(234, 247, 255, 0.045)", color: "var(--muted)", fontSize: 13, fontWeight: 850 }}>
+                  진행 중인 PR이 없습니다.
+                </p>
+              )}
             </div>
           </section>
         </div>
@@ -402,6 +533,8 @@ export function OverviewPanel({ repositories, onlineMembers, selectedRepositoryI
             ].map((item) => {
               const Icon = item.icon;
               const color = getHealthColor(item.value);
+              const scoreText = item.value === null ? "—" : `${item.value}/100`;
+              const scoreWidth = item.value === null ? 0 : item.value;
               return (
                 <div key={item.label}>
                   <div className="mb-2 flex items-center justify-between gap-3">
@@ -409,10 +542,10 @@ export function OverviewPanel({ repositories, onlineMembers, selectedRepositoryI
                       <Icon size={16} style={{ color: "var(--neon-cyan)" }} />
                       <span style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 900 }}>{item.label}</span>
                     </div>
-                    <span style={{ color, fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}>{item.value}/100</span>
+                    <span style={{ color, fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}>{scoreText}</span>
                   </div>
                   <div className="h-2 overflow-hidden rounded-full" style={{ background: "rgba(var(--codedock-primary-rgb), 0.10)" }}>
-                    <div className="h-full rounded-full" style={{ width: `${item.value}%`, background: color }} />
+                    <div className="h-full rounded-full" style={{ width: `${scoreWidth}%`, background: color }} />
                   </div>
                 </div>
               );
@@ -545,10 +678,10 @@ export function OverviewPanel({ repositories, onlineMembers, selectedRepositoryI
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <p className="m-0 truncate tracking-tight" style={{ color: "var(--white)", fontSize: 14, fontWeight: 950 }}>
-                      # {group.channelLabel}
+                      {`# ${group.channelLabel}`}
                     </p>
                     <p className="m-0 tracking-tight" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>
-                      {group.items.length}개 북마크
+                      {`${group.items.length}개 북마크`}
                     </p>
                   </div>
                   <span className="rounded-full px-2 py-0.5 tracking-tight" style={{
@@ -580,7 +713,7 @@ export function OverviewPanel({ repositories, onlineMembers, selectedRepositoryI
                       <Bookmark size={14} style={{ color: "var(--neon-cyan)", flexShrink: 0, marginTop: 2 }} />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate" style={{ color: "var(--white)", fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}>
-                          메시지 #{item.messageId}
+                          {`메시지 #${item.messageId}`}
                         </span>
                         <span className="block truncate" style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>
                           {item.content}

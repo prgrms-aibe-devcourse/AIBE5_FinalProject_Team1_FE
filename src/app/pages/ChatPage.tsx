@@ -72,15 +72,17 @@ import { useProfile, STATUS_OPTIONS, type ProfileStatus } from "../contexts/Prof
 import { fetchMyWorkspaces, getWorkspaceMembers, updatePresence, createInvite, listInvitations, type WorkspaceDto, type WorkspaceMember } from "../api/workspace";
 import { type WorkspaceEventDto } from "../api/events";
 import { useWorkspace } from "../contexts/WorkspaceContext";
-import { ApiClientError } from "../api/client";
+import { ApiClientError, apiClient } from "../api/client";
 import {
   connectWorkspaceRepository,
   fetchWorkspaceRepositories,
+  getWorkspaceRepositoryOverview,
   registerWorkspaceRepositoryWebhook,
   syncRepositoryIssues,
   syncRepositoryIssueStatuses,
   syncRepositoryPullRequests,
-  syncRepositoryPrStatuses
+  syncRepositoryPrStatuses,
+  type GithubRepositoryOverviewResponse
 } from "../api/github";
 
 const APISpecPage = lazy(() => import("./APISpecPage").then((module) => ({ default: module.APISpecPage })));
@@ -137,6 +139,15 @@ type ChatProfilePreview = {
   presence?: PresenceKey;
 };
 
+type WorkspaceMemberProfile = {
+  avatarUrl?: string | null;
+  githubUsername?: string | null;
+  githubEmail?: string | null;
+  email?: string | null;
+  displayName?: string | null;
+  nickname?: string | null;
+};
+
 function isGithubNoreplyEmail(email?: string | null) {
   return Boolean(email?.trim().toLowerCase().endsWith("@users.noreply.github.com"));
 }
@@ -181,6 +192,7 @@ interface RepositoryItem {
   workspaceId?: string;
   channelId?: number;   // 백엔드 repository channel DB id
   dbRepoId?: string;    // github_repositories DB id
+  overview?: GithubRepositoryOverviewResponse;
 }
 
 type RepositoryReference = Pick<RepositoryItem, "id" | "name" | "dbRepoId" | "channelId">;
@@ -1768,6 +1780,7 @@ export function ChatPage() {
   const [apiWorkspaces, setApiWorkspaces] = useState<WorkspaceDto[]>([]);
   const [workspacesLoaded, setWorkspacesLoaded] = useState(false);
   const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMember[]>([]);
+  const [workspaceMemberProfiles, setWorkspaceMemberProfiles] = useState<Record<number, WorkspaceMemberProfile>>({});
   const workspaceMembersRef = useRef<WorkspaceMember[]>([]);
 
   useEffect(() => {
@@ -2494,19 +2507,46 @@ export function ChatPage() {
 
   // 통합 개요 진입 시: 연결된 각 리포지토리의 채널 메시지를 동기화/로드해 PR·이슈·위험 카운트를 계산
   const [overviewCounts, setOverviewCounts] = useState<Record<string, { openPRs: number; activeIssues: number; highRisk: number }>>({});
+  const [repositoryOverviewById, setRepositoryOverviewById] = useState<Record<string, GithubRepositoryOverviewResponse>>({});
+  const overviewRequestKeysRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (selectedChannel !== 'overview') return;
     let cancelled = false;
     visibleRepositories.forEach((repo) => {
       const apiChannel = repositoryApiChannelByRepoId[repo.id];
-      if (!apiChannel) return;
-      const channelId = apiChannel.id;
+      const channelId = apiChannel?.id;
       const repoDbId = repo.dbRepoId != null
         ? Number(repo.dbRepoId)
         : Number(String(repo.id).replace('repo-', ''));
       (async () => {
+        if (Number.isFinite(repoDbId) && currentWorkspaceApiId > 0) {
+          const overviewRequestKey = `${currentWorkspaceApiId}:${repoDbId}`;
+          if (overviewRequestKeysRef.current.has(overviewRequestKey)) {
+            return;
+          }
+          overviewRequestKeysRef.current.add(overviewRequestKey);
+          try {
+            const overview = await getWorkspaceRepositoryOverview(currentWorkspaceApiId, repoDbId);
+            if (!cancelled) {
+              setRepositoryOverviewById((prev) => ({ ...prev, [repo.id]: overview }));
+              setOverviewCounts((prev) => ({
+                ...prev,
+                [repo.id]: {
+                  openPRs: overview.openPrCount,
+                  activeIssues: overview.openIssueCount,
+                  highRisk: overview.highRiskCount
+                }
+              }));
+            }
+            return;
+          } catch {
+            overviewRequestKeysRef.current.delete(overviewRequestKey);
+            // 개요 API가 실패해도 기존 채널 메시지 기반 계산으로 통합 개요 화면을 유지한다.
+          }
+        }
         // DB 캐시로 먼저 카운트를 계산해 즉시 표시하고, GitHub 동기화는 백그라운드로 돌린 뒤 재계산한다.
         // (레포마다 sync 완료를 기다리던 기존 방식이 개요 표시를 크게 지연시켰다)
+        if (!channelId) return;
         const computeAndSet = async () => {
           const serverMessages = await getChannelMessages(channelId, { limit: 50 });
           const mapped = dedupeRepositoryMessagesByNumber(serverMessages.map(mapChannelMessageToWorkspaceMessage)) as any[];
@@ -2532,7 +2572,7 @@ export function ChatPage() {
       })();
     });
     return () => { cancelled = true; };
-  }, [selectedChannel, visibleRepositories, repositoryApiChannelByRepoId]);
+  }, [currentWorkspaceApiId, selectedChannel, visibleRepositories, repositoryApiChannelByRepoId]);
 
   const workspaceOnlineCount = getWorkspaceDisplayedOnlineCount(currentWorkspace);
   const overviewRepositories = useMemo(() => {
@@ -2543,10 +2583,11 @@ export function ChatPage() {
         openPRs: counts?.openPRs ?? repo.openPRs ?? 0,
         activeIssues: counts?.activeIssues ?? repo.activeIssues ?? 0,
         highRisk: counts?.highRisk ?? repo.highRisk ?? 0,
-        membersOnline: workspaceOnlineCount,
+        membersOnline: repositoryOverviewById[repo.id]?.activeMemberCount ?? workspaceOnlineCount,
+        overview: repositoryOverviewById[repo.id],
       };
     });
-  }, [visibleRepositories, overviewCounts, workspaceOnlineCount]);
+  }, [visibleRepositories, overviewCounts, workspaceOnlineCount, repositoryOverviewById]);
 
   const hasChatAccessToken = Boolean(getAccessToken());
   const realtimeConnectionBlockReason = useMemo<RealtimeConnectionReason | null>(() => {
@@ -2772,6 +2813,44 @@ export function ChatPage() {
 
     return () => controller.abort();
   }, [currentWorkspaceApiId, userId]);
+
+  useEffect(() => {
+    const userIds = Array.from(
+      new Set(
+        workspaceMembers
+          .map((member) => Number(member.userId))
+          .filter((memberUserId) => Number.isFinite(memberUserId))
+      )
+    );
+    const missingUserIds = userIds.filter((memberUserId) => (
+      memberUserId !== Number(userId)
+      && workspaceMemberProfiles[memberUserId] === undefined
+    ));
+
+    if (missingUserIds.length === 0) return;
+
+    let cancelled = false;
+    Promise.all(
+      missingUserIds.map((memberUserId) =>
+        apiClient.get<WorkspaceMemberProfile>(`/api/v1/users/${memberUserId}`)
+          .then((memberProfile) => [memberUserId, memberProfile] as const)
+          .catch(() => [memberUserId, {}] as const)
+      )
+    ).then((entries) => {
+      if (cancelled) return;
+      setWorkspaceMemberProfiles((prev) => {
+        const next = { ...prev };
+        entries.forEach(([memberUserId, memberProfile]) => {
+          next[memberUserId] = memberProfile;
+        });
+        return next;
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, workspaceMemberProfiles, workspaceMembers]);
 
   const workspaceMembersRefreshTimeoutRef = useRef<number | null>(null);
   const refreshCurrentWorkspaceMembers = useCallback(() => {
@@ -3067,13 +3146,29 @@ export function ChatPage() {
       .map((m) => {
         const presence = resolvePresence(m);
         const authority = (m.role ?? '').toLowerCase();
+        const memberUserId = Number(m.userId);
+        const fetchedProfile = Number.isFinite(memberUserId) ? workspaceMemberProfiles[memberUserId] : undefined;
+        const memberProfile = memberUserId === Number(userId)
+          ? {
+              avatarUrl: profile.avatarUrl,
+              githubUsername: profile.githubUsername,
+              email: profile.email,
+              githubEmail: profile.githubEmail,
+              displayName: profile.name,
+              nickname: profile.nickname
+            }
+          : fetchedProfile;
+        const displayName = memberProfile?.displayName || memberProfile?.nickname || m.username;
+        const avatarUrl = memberProfile?.avatarUrl
+          || (memberProfile?.githubUsername ? `https://github.com/${memberProfile.githubUsername}.png` : undefined);
         return {
           id: String(m.memberId),
-          name: m.username,
+          name: displayName,
           // 표시: 직무(position)가 있으면 우선, 없으면 권한 한글 라벨
           role: m.position?.trim() || formatMemberAuthority(m.role),
           authority,
-          initials: (m.username?.charAt(0) ?? '?').toUpperCase(),
+          initials: (displayName?.charAt(0) ?? '?').toUpperCase(),
+          avatarUrl,
           online: presence !== 'offline',
           presence,
         };
@@ -3090,7 +3185,20 @@ export function ChatPage() {
         if (priA !== priB) return priA - priB;
         return a.name.localeCompare(b.name, 'ko');
       });
-  }, [workspaceMembers, presenceOverrides, currentWorkspaceMemberId, userPresence]);
+  }, [
+    currentWorkspaceMemberId,
+    presenceOverrides,
+    profile.avatarUrl,
+    profile.email,
+    profile.githubEmail,
+    profile.githubUsername,
+    profile.name,
+    profile.nickname,
+    userId,
+    userPresence,
+    workspaceMemberProfiles,
+    workspaceMembers
+  ]);
 
   const currentWorkspaceDisplayedOnlineCount = useMemo(() => {
     const serverCount = getWorkspaceDisplayedOnlineCount(currentWorkspace);
@@ -7249,6 +7357,7 @@ export function ChatPage() {
                 onEditThread={handleEditThreadMessage}
                 onDeleteThread={handleDeleteThreadMessage}
                 onOpenProfile={handleOpenChatProfile}
+                isExpanded={isMainExpanded}
               />
             ) : REPO_CHANNEL_IDS_REVERSE[selectedChannel] !== undefined ? (
               <ChannelPanel
@@ -7291,6 +7400,7 @@ export function ChatPage() {
                 onEditThread={handleEditThreadMessage}
                 onDeleteThread={handleDeleteThreadMessage}
                 onOpenProfile={handleOpenChatProfile}
+                isExpanded={isMainExpanded}
               />
             ) : repositories.find(r => r.id === selectedChannel) ? (
               <ChannelPanel
@@ -7333,6 +7443,7 @@ export function ChatPage() {
                 onEditThread={handleEditThreadMessage}
                 onDeleteThread={handleDeleteThreadMessage}
                 onOpenProfile={handleOpenChatProfile}
+                isExpanded={isMainExpanded}
               />
             ) : selectedChannel === 'work-board' ? (
               <WorkBoardPanel
@@ -7399,6 +7510,7 @@ export function ChatPage() {
                 isRepository={isRepository}
                 onTypingChange={activeApiChannelId ? handleChannelTypingChange : undefined}
                 remoteTypingLabel={activeRemoteTypingLabel}
+                isExpanded={isMainExpanded}
               />
             )}
           </section>
@@ -8095,9 +8207,18 @@ export function ChatPage() {
                           width: '30px', height: '30px', borderRadius: '50%',
                           background: 'linear-gradient(135deg, var(--neon-cyan), #8b7cf6)',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          overflow: 'hidden',
                           fontSize: "var(--krds-body-xsmall)", fontWeight: 950, color: '#021014',
                         }}>
-                          {member.initials}
+                          {member.avatarUrl ? (
+                            <img
+                              src={member.avatarUrl}
+                              alt=""
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            />
+                          ) : (
+                            member.initials
+                          )}
                         </div>
                         <span style={{
                           position: 'absolute', bottom: '-1px', right: '-1px',
