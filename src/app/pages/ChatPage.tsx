@@ -2498,6 +2498,7 @@ export function ChatPage() {
   // 통합 개요 진입 시: 연결된 각 리포지토리의 채널 메시지를 동기화/로드해 PR·이슈·위험 카운트를 계산
   const [overviewCounts, setOverviewCounts] = useState<Record<string, { openPRs: number; activeIssues: number; highRisk: number }>>({});
   const [repositoryOverviewById, setRepositoryOverviewById] = useState<Record<string, GithubRepositoryOverviewResponse>>({});
+  const overviewRequestKeysRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (selectedChannel !== 'overview') return;
     let cancelled = false;
@@ -2509,14 +2510,11 @@ export function ChatPage() {
         : Number(String(repo.id).replace('repo-', ''));
       (async () => {
         if (Number.isFinite(repoDbId) && currentWorkspaceApiId > 0) {
-          const cachedOverview = repositoryOverviewById[repo.id];
-          if (
-            cachedOverview
-            && Number(cachedOverview.workspaceId) === Number(currentWorkspaceApiId)
-            && Number(cachedOverview.repositoryId) === Number(repoDbId)
-          ) {
+          const overviewRequestKey = `${currentWorkspaceApiId}:${repoDbId}`;
+          if (overviewRequestKeysRef.current.has(overviewRequestKey)) {
             return;
           }
+          overviewRequestKeysRef.current.add(overviewRequestKey);
           try {
             const overview = await getWorkspaceRepositoryOverview(currentWorkspaceApiId, repoDbId);
             if (!cancelled) {
@@ -2532,6 +2530,7 @@ export function ChatPage() {
             }
             return;
           } catch {
+            overviewRequestKeysRef.current.delete(overviewRequestKey);
             // 개요 API가 실패해도 기존 채널 메시지 기반 계산으로 통합 개요 화면을 유지한다.
           }
         }
@@ -2563,7 +2562,7 @@ export function ChatPage() {
       })();
     });
     return () => { cancelled = true; };
-  }, [currentWorkspaceApiId, selectedChannel, visibleRepositories, repositoryApiChannelByRepoId, repositoryOverviewById]);
+  }, [currentWorkspaceApiId, selectedChannel, visibleRepositories, repositoryApiChannelByRepoId]);
 
   const workspaceOnlineCount = getWorkspaceDisplayedOnlineCount(currentWorkspace);
   const overviewRepositories = useMemo(() => {
