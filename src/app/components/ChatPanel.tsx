@@ -463,8 +463,7 @@ export function ChatPanel({ channelId = "general", bookmarkScopeId, title, messa
     };
   }, [message, onTypingChange]);
 
-  const localTypingLabel = composerTyping ? "내가 입력 중입니다" : "";
-  const typingLabel = remoteTypingLabel || localTypingLabel;
+  const typingLabel = remoteTypingLabel || "";
 
   const handleAttachmentToggle = (attachment: MessageAttachment) => {
     setSelectedAttachments((prev) => {

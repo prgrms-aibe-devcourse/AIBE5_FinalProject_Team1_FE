@@ -378,8 +378,7 @@ export function ChannelPanel({ channelId, storageScopeId, repoId, repoName, thre
     ? selectedAttachments.length > 0
     : messageText.trim().length > 0 || codeBlockText.trim().length > 0 || selectedAttachments.length > 0;
   const composerTyping = messageText.trim().length > 0;
-  const localTypingLabel = composerTyping ? "내가 입력 중입니다" : "";
-  const typingLabel = remoteTypingLabel || localTypingLabel;
+  const typingLabel = remoteTypingLabel || "";
 
   useEffect(() => {
     if (typingDebounceRef.current) {
