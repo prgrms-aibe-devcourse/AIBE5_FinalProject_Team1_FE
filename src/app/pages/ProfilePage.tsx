@@ -228,8 +228,6 @@ export function ProfilePage() {
       const reason = typeof data.reason === "string" ? data.reason : null;
       if (data.status === "success") {
         void reloadProfile();
-      } else if (data.status === "conflict") {
-        alert("이미 다른 계정에 연결된 GitHub입니다.");
       } else {
         alert(getGithubConnectFailureMessage(data.status, reason));
       }
@@ -267,15 +265,19 @@ export function ProfilePage() {
     if (!window.confirm("회원탈퇴를 진행할까요? 계정과 인증 정보가 정리됩니다.")) return;
     if (!window.confirm("정말 탈퇴하시겠어요? 이 작업은 되돌릴 수 없습니다.")) return;
 
+    let shouldResetWithdrawing = true;
     setIsWithdrawing(true);
     try {
       await apiClient.delete<void>("/api/v1/users/me");
       clearTokens();
+      shouldResetWithdrawing = false;
       navigate("/login", { replace: true });
     } catch {
       alert("회원탈퇴 처리에 실패했습니다. 잠시 후 다시 시도해주세요.");
     } finally {
-      setIsWithdrawing(false);
+      if (shouldResetWithdrawing) {
+        setIsWithdrawing(false);
+      }
     }
   };
 

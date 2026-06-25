@@ -46,7 +46,37 @@ interface OverviewPanelProps {
   onOpenBookmark?: (channelId: string, messageId: number) => void;
 }
 
-const repositoryDetails = {
+type OverviewActivityItem = {
+  user: string;
+  action: string;
+  time: string;
+  icon: string;
+};
+
+type OverviewPullRequestItem = {
+  number: number;
+  title: string;
+  author: string;
+  status: string;
+  reviewers?: number;
+  comments?: number;
+  changedFilesCount?: number | null;
+  additions?: number | null;
+  deletions?: number | null;
+  updatedAt?: string | null;
+};
+
+type RepositoryDetails = {
+  commitsToday: number;
+  codeQuality: number | null;
+  securityScore: number | null;
+  performance: number | null;
+  summary: string;
+  recentActivity: OverviewActivityItem[];
+  activePRs: OverviewPullRequestItem[];
+};
+
+const repositoryDetails: Record<string, RepositoryDetails> = {
   secureflow: {
     commitsToday: 24,
     codeQuality: 87,
@@ -98,9 +128,10 @@ const repositoryDetails = {
   }
 };
 
-const fallbackDetails = repositoryDetails.secureflow;
+const fallbackDetails: RepositoryDetails = repositoryDetails.secureflow;
 
-function normalizeOverviewScore(value: number | null | undefined, fallback = 0) {
+function normalizeOverviewScore(value: number | null | undefined, fallback: number | null = null) {
+  if (value === null || value === undefined) return fallback;
   return Math.max(0, Math.min(100, value ?? fallback));
 }
 
@@ -151,12 +182,12 @@ function normalizeOverviewPrStatus(state?: string | null) {
 function mapRepositoryOverviewToDetails(
   repository: OverviewRepository,
   overview: GithubRepositoryOverviewResponse
-): typeof fallbackDetails {
+): RepositoryDetails {
   return {
     commitsToday: overview.todayCommitCount ?? 0,
-    codeQuality: normalizeOverviewScore(overview.codeQualityScore, 0),
-    securityScore: normalizeOverviewScore(overview.securityScore, 0),
-    performance: normalizeOverviewScore(overview.performanceScore, 0),
+    codeQuality: normalizeOverviewScore(overview.codeQualityScore),
+    securityScore: normalizeOverviewScore(overview.securityScore),
+    performance: normalizeOverviewScore(overview.performanceScore),
     summary: `${overview.fullName || repository.name}의 최신 활동, 진행 중인 PR, 품질 지표를 백엔드 실데이터로 보여줍니다.`,
     recentActivity: (overview.recentActivities ?? []).map((activity) => ({
       user: activity.actor?.trim() || "GitHub Bot",
@@ -168,8 +199,10 @@ function mapRepositoryOverviewToDetails(
       number: pr.prNumber ?? pr.prId,
       title: pr.title?.trim() || "제목 없음",
       author: pr.author?.trim() || "unknown",
-      reviewers: pr.changedFilesCount ?? 0,
-      comments: (pr.additions ?? 0) + (pr.deletions ?? 0),
+      changedFilesCount: pr.changedFilesCount,
+      additions: pr.additions,
+      deletions: pr.deletions,
+      updatedAt: pr.updatedAt,
       status: normalizeOverviewPrStatus(pr.state)
     }))
   };
@@ -201,7 +234,8 @@ function getStatusLabel(status: string) {
   }
 }
 
-function getHealthColor(score: number) {
+function getHealthColor(score: number | null) {
+  if (score === null) return "var(--muted)";
   if (score >= 90) return "var(--matrix-green)";
   if (score >= 70) return "#FFD93D";
   return "#FF6B6B";
@@ -394,7 +428,7 @@ export function OverviewPanel({ repositories, onlineMembers, selectedRepositoryI
         </div>
 
         <div className="mb-5 grid grid-cols-2 gap-4 xl:grid-cols-4">
-          <StatCard icon={GitCommit} label="오늘 커밋" value={activeDetails.commitsToday} helper="+12%" />
+          <StatCard icon={GitCommit} label="오늘 커밋" value={activeDetails.commitsToday} />
           <StatCard icon={GitPullRequest} label="진행 중인 PR" value={activeRepository.overview?.openPrCount ?? activeRepository.openPRs} helper="리뷰 대기 포함" />
           <StatCard icon={AlertCircle} label="높은 위험" value={activeRepository.overview?.highRiskCount ?? activeRepository.highRisk} color={(activeRepository.overview?.highRiskCount ?? activeRepository.highRisk) > 0 ? "#FF6B6B" : "var(--matrix-green)"} />
           <StatCard icon={Users} label="접속 중인 팀원" value={activeRepository.overview?.activeMemberCount ?? activeRepository.membersOnline} helper="활성 팀원" />
@@ -439,6 +473,7 @@ export function OverviewPanel({ repositories, onlineMembers, selectedRepositoryI
             <div className="grid gap-3">
               {activeDetails.activePRs.length > 0 ? activeDetails.activePRs.map((pr) => {
                 const status = getStatusColor(pr.status);
+                const hasChangeStats = pr.changedFilesCount !== undefined || pr.additions !== undefined || pr.deletions !== undefined;
                 return (
                   <div key={pr.number} className="rounded-xl px-4 py-3" style={{
                     background: "rgba(234, 247, 255, 0.045)",
@@ -460,8 +495,17 @@ export function OverviewPanel({ repositories, onlineMembers, selectedRepositoryI
                     </div>
                     <div className="flex flex-wrap gap-3">
                       <span style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>{pr.author}</span>
-                      <span style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>리뷰어 {pr.reviewers}명</span>
-                      <span style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>댓글 {pr.comments}개</span>
+                      {hasChangeStats ? (
+                        <>
+                          <span style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>변경 파일 {pr.changedFilesCount ?? 0}개</span>
+                          <span style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>+{pr.additions ?? 0} / -{pr.deletions ?? 0}</span>
+                        </>
+                      ) : (
+                        <>
+                          <span style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>리뷰어 {pr.reviewers ?? 0}명</span>
+                          <span style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 800 }}>댓글 {pr.comments ?? 0}개</span>
+                        </>
+                      )}
                     </div>
                   </div>
                 );
@@ -489,6 +533,8 @@ export function OverviewPanel({ repositories, onlineMembers, selectedRepositoryI
             ].map((item) => {
               const Icon = item.icon;
               const color = getHealthColor(item.value);
+              const scoreText = item.value === null ? "—" : `${item.value}/100`;
+              const scoreWidth = item.value === null ? 0 : item.value;
               return (
                 <div key={item.label}>
                   <div className="mb-2 flex items-center justify-between gap-3">
@@ -496,10 +542,10 @@ export function OverviewPanel({ repositories, onlineMembers, selectedRepositoryI
                       <Icon size={16} style={{ color: "var(--neon-cyan)" }} />
                       <span style={{ color: "var(--muted)", fontSize: "var(--krds-body-xsmall)", fontWeight: 900 }}>{item.label}</span>
                     </div>
-                    <span style={{ color, fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}>{item.value}/100</span>
+                    <span style={{ color, fontSize: "var(--krds-body-xsmall)", fontWeight: 950 }}>{scoreText}</span>
                   </div>
                   <div className="h-2 overflow-hidden rounded-full" style={{ background: "rgba(var(--codedock-primary-rgb), 0.10)" }}>
-                    <div className="h-full rounded-full" style={{ width: `${item.value}%`, background: color }} />
+                    <div className="h-full rounded-full" style={{ width: `${scoreWidth}%`, background: color }} />
                   </div>
                 </div>
               );

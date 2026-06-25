@@ -2509,6 +2509,14 @@ export function ChatPage() {
         : Number(String(repo.id).replace('repo-', ''));
       (async () => {
         if (Number.isFinite(repoDbId) && currentWorkspaceApiId > 0) {
+          const cachedOverview = repositoryOverviewById[repo.id];
+          if (
+            cachedOverview
+            && Number(cachedOverview.workspaceId) === Number(currentWorkspaceApiId)
+            && Number(cachedOverview.repositoryId) === Number(repoDbId)
+          ) {
+            return;
+          }
           try {
             const overview = await getWorkspaceRepositoryOverview(currentWorkspaceApiId, repoDbId);
             if (!cancelled) {
@@ -2555,7 +2563,7 @@ export function ChatPage() {
       })();
     });
     return () => { cancelled = true; };
-  }, [currentWorkspaceApiId, selectedChannel, visibleRepositories, repositoryApiChannelByRepoId]);
+  }, [currentWorkspaceApiId, selectedChannel, visibleRepositories, repositoryApiChannelByRepoId, repositoryOverviewById]);
 
   const workspaceOnlineCount = getWorkspaceDisplayedOnlineCount(currentWorkspace);
   const overviewRepositories = useMemo(() => {
