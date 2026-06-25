@@ -1,7 +1,8 @@
 import { fetchWithAuth } from "./fetchWithAuth";
 
 export type EventType = "PR_CREATED" | "PR_REVIEW" | "ISSUE_CREATED" | "MENTION" | "REPLY";
-export type EventNavigationType = "PR" | "ISSUE" | "THREAD" | "MENTION" | "CHANNEL";
+// 백엔드는 이동 타깃이 전혀 없을 때 "WORKSPACE"를 폴백으로 반환한다(개요로 이동).
+export type EventNavigationType = "PR" | "ISSUE" | "THREAD" | "MENTION" | "CHANNEL" | "WORKSPACE";
 
 export type WorkspaceEventDto = {
   eventId: number;

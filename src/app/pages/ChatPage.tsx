@@ -616,6 +616,7 @@ function getPendingEventTargetKind(event: WorkspaceEventDto) {
   if (event.navigationType === "THREAD") return "thread";
   if (event.navigationType === "MENTION") return "mention";
   if (event.navigationType === "CHANNEL") return "channel";
+  if (event.navigationType === "WORKSPACE") return "overview";
   if (event.type === "PR_CREATED" || event.type === "PR_REVIEW") return "pr";
   if (event.type === "ISSUE_CREATED") return "issue";
   if (event.type === "MENTION") return "mention";
@@ -744,6 +745,7 @@ function isRepositoryApiChannel(channel: Channel) {
 }
 
 type RepositoryMessageView = "pull-requests" | "issues" | "repository";
+// "이슈" — 소스 인코딩에 영향받지 않도록 코드포인트로 정의(본문 텍스트 분류용)
 const KOREAN_ISSUE_LABEL = String.fromCharCode(0xc774, 0xc288);
 const REPOSITORY_MESSAGE_CHANNEL_PREFIX = "repository-channel:";
 
