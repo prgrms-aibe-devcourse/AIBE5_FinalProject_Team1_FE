@@ -5743,7 +5743,7 @@ export function ChatPage() {
                   </p>
                 </div>
 
-                <div className="grid gap-1.5">
+                <div className="grid grid-cols-1 gap-1.5">
                   {visibleWorkspaceMentions.slice(0, 6).map((mention) => (
                     <motion.div
                       key={mention.id}
@@ -6838,6 +6838,13 @@ export function ChatPage() {
                 const isPRActive = selectedRepository === repo.id && selectedChannel === 'pull-requests';
                 const isIssueActive = selectedRepository === repo.id && selectedChannel === 'issues';
                 const isRepoBodyActive = selectedRepository === repo.id && selectedChannel === repoChannelId;
+                // PR/이슈 배지는 해당 서브채널의 실시간 안 읽음(unread) 카운트를 표시한다.
+                // (봇 메시지 도착 시 WS 핸들러가 증가, 해당 탭을 열어 보면 0으로 리셋)
+                const repoApiChannelId = repositoryApiChannelByRepoId[repo.id]?.id;
+                const prUnreadChannelId = repoApiChannelId != null
+                  ? getRepositoryMessageChannelId("pull-requests", repoApiChannelId) : null;
+                const issueUnreadChannelId = repoApiChannelId != null
+                  ? getRepositoryMessageChannelId("issues", repoApiChannelId) : null;
 
                 return (
                   <div key={repo.id} className="grid gap-1 min-w-0">
@@ -6960,7 +6967,7 @@ export function ChatPage() {
                               fontSize: "var(--krds-body-xsmall)",
                               fontWeight: 950
                             }}>
-                              {repo.openPRs}
+                              {(prUnreadChannelId && getChannelBadge(prUnreadChannelId)) || '0'}
                             </span>
                           </motion.button>
 
@@ -6994,7 +7001,7 @@ export function ChatPage() {
                               fontSize: "var(--krds-body-xsmall)",
                               fontWeight: 950
                             }}>
-                              {repo.activeIssues}
+                              {(issueUnreadChannelId && getChannelBadge(issueUnreadChannelId)) || '0'}
                             </span>
                           </motion.button>
 
