@@ -72,7 +72,7 @@ import { useProfile, STATUS_OPTIONS, type ProfileStatus } from "../contexts/Prof
 import { fetchMyWorkspaces, getWorkspaceMembers, updatePresence, createInvite, listInvitations, type WorkspaceDto, type WorkspaceMember } from "../api/workspace";
 import { type WorkspaceEventDto } from "../api/events";
 import { useWorkspace } from "../contexts/WorkspaceContext";
-import { ApiClientError } from "../api/client";
+import { ApiClientError, apiClient } from "../api/client";
 import {
   connectWorkspaceRepository,
   fetchWorkspaceRepositories,
@@ -137,6 +137,15 @@ type ChatProfilePreview = {
   email?: string;
   role?: string;
   presence?: PresenceKey;
+};
+
+type WorkspaceMemberProfile = {
+  avatarUrl?: string | null;
+  githubUsername?: string | null;
+  githubEmail?: string | null;
+  email?: string | null;
+  displayName?: string | null;
+  nickname?: string | null;
 };
 
 function isGithubNoreplyEmail(email?: string | null) {
@@ -1771,6 +1780,7 @@ export function ChatPage() {
   const [apiWorkspaces, setApiWorkspaces] = useState<WorkspaceDto[]>([]);
   const [workspacesLoaded, setWorkspacesLoaded] = useState(false);
   const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMember[]>([]);
+  const [workspaceMemberProfiles, setWorkspaceMemberProfiles] = useState<Record<number, WorkspaceMemberProfile>>({});
   const workspaceMembersRef = useRef<WorkspaceMember[]>([]);
 
   useEffect(() => {
@@ -2804,6 +2814,44 @@ export function ChatPage() {
     return () => controller.abort();
   }, [currentWorkspaceApiId, userId]);
 
+  useEffect(() => {
+    const userIds = Array.from(
+      new Set(
+        workspaceMembers
+          .map((member) => Number(member.userId))
+          .filter((memberUserId) => Number.isFinite(memberUserId))
+      )
+    );
+    const missingUserIds = userIds.filter((memberUserId) => (
+      memberUserId !== Number(userId)
+      && workspaceMemberProfiles[memberUserId] === undefined
+    ));
+
+    if (missingUserIds.length === 0) return;
+
+    let cancelled = false;
+    Promise.all(
+      missingUserIds.map((memberUserId) =>
+        apiClient.get<WorkspaceMemberProfile>(`/api/v1/users/${memberUserId}`)
+          .then((memberProfile) => [memberUserId, memberProfile] as const)
+          .catch(() => [memberUserId, {}] as const)
+      )
+    ).then((entries) => {
+      if (cancelled) return;
+      setWorkspaceMemberProfiles((prev) => {
+        const next = { ...prev };
+        entries.forEach(([memberUserId, memberProfile]) => {
+          next[memberUserId] = memberProfile;
+        });
+        return next;
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, workspaceMemberProfiles, workspaceMembers]);
+
   const workspaceMembersRefreshTimeoutRef = useRef<number | null>(null);
   const refreshCurrentWorkspaceMembers = useCallback(() => {
     if (!currentWorkspaceApiId || userId == null) return;
@@ -3098,13 +3146,29 @@ export function ChatPage() {
       .map((m) => {
         const presence = resolvePresence(m);
         const authority = (m.role ?? '').toLowerCase();
+        const memberUserId = Number(m.userId);
+        const fetchedProfile = Number.isFinite(memberUserId) ? workspaceMemberProfiles[memberUserId] : undefined;
+        const memberProfile = memberUserId === Number(userId)
+          ? {
+              avatarUrl: profile.avatarUrl,
+              githubUsername: profile.githubUsername,
+              email: profile.email,
+              githubEmail: profile.githubEmail,
+              displayName: profile.name,
+              nickname: profile.nickname
+            }
+          : fetchedProfile;
+        const displayName = memberProfile?.displayName || memberProfile?.nickname || m.username;
+        const avatarUrl = memberProfile?.avatarUrl
+          || (memberProfile?.githubUsername ? `https://github.com/${memberProfile.githubUsername}.png` : undefined);
         return {
           id: String(m.memberId),
-          name: m.username,
+          name: displayName,
           // 표시: 직무(position)가 있으면 우선, 없으면 권한 한글 라벨
           role: m.position?.trim() || formatMemberAuthority(m.role),
           authority,
-          initials: (m.username?.charAt(0) ?? '?').toUpperCase(),
+          initials: (displayName?.charAt(0) ?? '?').toUpperCase(),
+          avatarUrl,
           online: presence !== 'offline',
           presence,
         };
@@ -3121,7 +3185,20 @@ export function ChatPage() {
         if (priA !== priB) return priA - priB;
         return a.name.localeCompare(b.name, 'ko');
       });
-  }, [workspaceMembers, presenceOverrides, currentWorkspaceMemberId, userPresence]);
+  }, [
+    currentWorkspaceMemberId,
+    presenceOverrides,
+    profile.avatarUrl,
+    profile.email,
+    profile.githubEmail,
+    profile.githubUsername,
+    profile.name,
+    profile.nickname,
+    userId,
+    userPresence,
+    workspaceMemberProfiles,
+    workspaceMembers
+  ]);
 
   const currentWorkspaceDisplayedOnlineCount = useMemo(() => {
     const serverCount = getWorkspaceDisplayedOnlineCount(currentWorkspace);
@@ -8126,9 +8203,18 @@ export function ChatPage() {
                           width: '30px', height: '30px', borderRadius: '50%',
                           background: 'linear-gradient(135deg, var(--neon-cyan), #8b7cf6)',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          overflow: 'hidden',
                           fontSize: "var(--krds-body-xsmall)", fontWeight: 950, color: '#021014',
                         }}>
-                          {member.initials}
+                          {member.avatarUrl ? (
+                            <img
+                              src={member.avatarUrl}
+                              alt=""
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            />
+                          ) : (
+                            member.initials
+                          )}
                         </div>
                         <span style={{
                           position: 'absolute', bottom: '-1px', right: '-1px',
